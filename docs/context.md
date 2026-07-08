@@ -17,19 +17,22 @@
 ## Estado atual (atualizar a cada sessão)
 
 ### Pronto ✅
-- `places_service.py` — coleta via Google Places API
+- `places_service.py` — coleta via Google Places API (async)
 - `technical_enrichment_service.py` — análise passiva de sites (async)
-- `scoring_service.py` — qualificação via Groq (llama-3.1-8b-instant)
 - `models.py` — todos os modelos, migration rodada com `raw_technical_data`
-- `main.py` — `run_lead_enrichment_and_scoring` integrado com scoring
 
 ### Em andamento 🟡
-- (nenhum)
+- `scoring_service.py` — qualificação via Groq (a criar)
+- `main.py` — `run_enrichment_and_scoring` aguarda scoring
 
 ### Pendências conhecidas
-- `main.py`: ainda usa `print` em vez de `logging`
+- `places_service.py`: `search_places` ainda é síncrono, main chama com `await`
+- `main.py`: filtro de duplicata usa `and` Python em vez de `&` SQLAlchemy
+- `main.py`: scoring não integrado ainda (TODO no código)
 - `technical_enrichment_service.py`: AsyncClient instanciado no `__init__`
 
 ### Próximo passo imediato
-1. Trocar `print` por `logging` em `main.py` e `places_service.py`
-2. Mover `httpx.AsyncClient` do `__init__` para `async with` em `technical_enrichment_service.py`
+1. Criar `src/services/scoring_service.py` com `AIScoringService`
+2. Corrigir `places_service.py` para async
+3. Corrigir bug do filtro de duplicata no `main.py`
+4. Integrar scoring em `run_enrichment_and_scoring`
