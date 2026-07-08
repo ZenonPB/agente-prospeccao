@@ -125,6 +125,7 @@ class Enrichment(Base):
     seo_errors = Column(JSONB) 
     load_time_ms = Column(Integer) 
     security_issues = Column(ARRAY(String)) 
+    raw_technical_data = Column(JSONB)
 
     lead = relationship("Lead", back_populates="enrichments")
 

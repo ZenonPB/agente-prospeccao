@@ -7,7 +7,7 @@ load_dotenv()
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file='.env',
+        env_file='../../.env',
         extra='ignore'
     )
 
@@ -21,5 +21,6 @@ class Settings(BaseSettings):
     PGADMIN_PASSWORD: str = Field(..., description='Senha de login do pgAdmin')
 
     GROQ_API_KEY: str = Field(..., description='Chave de API da Groq')
+    GOOGLE_API_KEY: str = Field(..., description='Chave de API do Google')
 
 settings = Settings()
