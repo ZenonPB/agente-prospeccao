@@ -1,6 +1,7 @@
 import os
 import sys
 import asyncio
+import logging
 from typing import Optional, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
@@ -13,6 +14,12 @@ from src.services.places_service import GooglePlacesService
 from src.services.technical_enrichment_service import TechnicalEnrichmentService 
 from src.services.scoring_service import AIScoringService 
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+logger = logging.getLogger(__name__)
+
 async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
     """
     Executa a coleta de leads via Google Places API.
@@ -20,7 +27,7 @@ async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
     places_service = GooglePlacesService()
     db = SessionLocal()
 
-    print(f"\n[Pipeline] Iniciando coleta de leads para: '{query}'")
+    logger.info("Iniciando coleta de leads para: '%s'", query)
 
     try:
         results = await places_service.search_places(query, max_results=max_leads_to_collect)
@@ -39,7 +46,7 @@ async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
             ).first()
 
             if existing_lead:
-                print(f"  [Pipeline] Lead '{company_name}' já existe (ID: {existing_lead.id}). Pulando.")
+                logger.info("Lead '%s' já existe (ID: %s). Pulando.", company_name, existing_lead.id)
                 continue
 
             new_lead = Lead(
@@ -56,14 +63,14 @@ async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
             )
             db.add(new_lead)
             collected_count += 1
-            print(f"  ✅ [Pipeline] Novo lead coletado: {company_name} (Site: {new_lead.website or 'N/A'})")
+            logger.info("Novo lead coletado: %s (Site: %s)", company_name, new_lead.website or 'N/A')
 
         db.commit()
-        print(f"\n[Pipeline] Coleta de leads finalizada. Total de {collected_count} novos leads adicionados ao DB.")
+        logger.info("Coleta de leads finalizada. Total de %d novos leads adicionados ao DB.", collected_count)
 
     except Exception as e:
         db.rollback()
-        print(f"\nErro durante a coleta de leads: {e}")
+        logger.error("Erro durante a coleta de leads: %s", e)
         raise
     finally:
         db.close()
@@ -76,7 +83,7 @@ async def run_lead_enrichment_and_scoring(limit: int = 5):
     scoring_service = AIScoringService()
     db = SessionLocal()
 
-    print(f"\n[Pipeline] Iniciando enriquecimento técnico para {limit} leads NOVO.")
+    logger.info("Iniciando enriquecimento técnico para %d leads NOVO.", limit)
 
     try:
         # Busca leads com status NOVO que possuam um website
@@ -86,11 +93,11 @@ async def run_lead_enrichment_and_scoring(limit: int = 5):
         ).limit(limit).all()
 
         if not leads_to_enrich:
-            print("[Pipeline] Nenhum lead NOVO com website encontrado para enriquecer.")
+            logger.info("Nenhum lead NOVO com website encontrado para enriquecer.")
             return
 
         for lead in leads_to_enrich:
-            print(f"  [Enriquecimento] Processando website para '{lead.company_name}': {lead.website}")
+            logger.info("Processando website para '%s': %s", lead.company_name, lead.website)
             
             # Executa o enriquecimento técnico
             technical_report_json = await enrichment_service.enrich_website(lead.website)
@@ -133,17 +140,17 @@ async def run_lead_enrichment_and_scoring(limit: int = 5):
                     lead.status = LeadStatus.QUALIFICADO
                 else:
                     lead.status = LeadStatus.DESQUALIFICADO
-                print(f"  📊 [Scoring] Lead '{lead.company_name}' score: {lead.qualification_score} → {lead.status.value}")
+                logger.info("Lead '%s' score: %s → %s", lead.company_name, lead.qualification_score, lead.status.value)
             else:
                 lead.status = LeadStatus.ANALISADO
-                print(f"  ⚠️  [Scoring] Falha ao scoring '{lead.company_name}'. Status mantido ANALISADO.")
+                logger.warning("Falha ao pontuar '%s'. Status mantido ANALISADO.", lead.company_name)
 
         db.commit()
-        print(f"\n[Pipeline] Enriquecimento técnico finalizado para {len(leads_to_enrich)} leads.")
+        logger.info("Enriquecimento técnico finalizado para %d leads.", len(leads_to_enrich))
 
     except Exception as e:
         db.rollback()
-        print(f"\nErro durante o enriquecimento de leads: {e}")
+        logger.error("Erro durante o enriquecimento de leads: %s", e)
         raise
     finally:
         db.close()
