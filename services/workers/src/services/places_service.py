@@ -1,8 +1,11 @@
 # services/workers/src/services/places_service.py
+import logging
 import httpx
 import re
 from typing import List, Dict, Optional
 from config.settings import settings
+
+logger = logging.getLogger(__name__)
 
 
 PLACES_API_URL = "https://places.googleapis.com/v1/places:searchText"
@@ -103,7 +106,7 @@ class GooglePlacesService:
         leads = []
         page_token = None
 
-        print(f"Buscando na Places API: '{query}'")
+        logger.info("Buscando na Places API: '%s'", query)
 
         async with httpx.AsyncClient(timeout=30) as client:
             while len(leads) < max_results:
@@ -127,11 +130,11 @@ class GooglePlacesService:
                     lead = self._parse_lead(place)
                     if lead:
                         leads.append(lead)
-                        print(f"  ✅ {lead['name']} | site: {lead['website'] or 'N/A'} | tel: {lead['phone'] or 'N/A'}")
+                        logger.info("%s | site: %s | tel: %s", lead['name'], lead['website'] or 'N/A', lead['phone'] or 'N/A')
 
                 page_token = data.get("nextPageToken")
                 if not page_token:
                     break
 
-        print(f"Total encontrado: {len(leads)} lugares.")
+        logger.info("Total encontrado: %d lugares.", len(leads))
         return leads
