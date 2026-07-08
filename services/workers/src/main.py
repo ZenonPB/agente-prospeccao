@@ -35,7 +35,7 @@ async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
 
             existing_lead = db.query(Lead).filter(
                 (Lead.place_id == google_place_id) |
-                (Lead.company_name == company_name and Lead.website == website_url)
+                ((Lead.company_name == company_name) & (Lead.website == website_url))
             ).first()
 
             if existing_lead:
