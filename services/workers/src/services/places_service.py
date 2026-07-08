@@ -84,7 +84,7 @@ class GooglePlacesService:
 
         return result
 
-    def search_places(self, query: str, max_results: int = 10) -> List[Dict]:
+    async def search_places(self, query: str, max_results: int = 10) -> List[Dict]:
         """
         Busca estabelecimentos na Places API (nova) usando texto livre.
 
@@ -105,7 +105,7 @@ class GooglePlacesService:
 
         print(f"Buscando na Places API: '{query}'")
 
-        with httpx.Client(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             while len(leads) < max_results:
                 payload: Dict = {
                     "textQuery": query,
@@ -115,7 +115,7 @@ class GooglePlacesService:
                 if page_token:
                     payload["pageToken"] = page_token
 
-                response = client.post(PLACES_API_URL, headers=self.headers, json=payload)
+                response = await client.post(PLACES_API_URL, headers=self.headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
 

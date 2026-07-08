@@ -27,12 +27,11 @@
 - (nenhum)
 
 ### Pendências conhecidas
-- `places_service.py`: `search_places` ainda é síncrono, main chama com `await` (bug ativo)
 - `main.py`: filtro de duplicata usa `and` Python em vez de `&` SQLAlchemy
 - `main.py`: ainda usa `print` em vez de `logging`
 - `technical_enrichment_service.py`: AsyncClient instanciado no `__init__`
 
 ### Próximo passo imediato
-1. Corrigir `places_service.py` para async (bug que impede `run_lead_collection`)
-2. Corrigir bug do filtro de duplicata no `main.py`
-3. Trocar `print` por `logging` em `main.py` e `places_service.py`
+1. Corrigir bug do filtro de duplicata no `main.py`
+2. Trocar `print` por `logging` em `main.py` e `places_service.py`
+3. Mover `httpx.AsyncClient` do `__init__` para `async with` em `technical_enrichment_service.py`
