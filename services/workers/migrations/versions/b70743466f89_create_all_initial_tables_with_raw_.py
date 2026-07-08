@@ -1,8 +1,8 @@
-"""Create all initial tables
+"""Create all initial tables with raw_technical_data
 
-Revision ID: e5c9760611db
+Revision ID: b70743466f89
 Revises: 
-Create Date: 2026-07-03 18:30:53.406332
+Create Date: 2026-07-07 22:34:20.669210
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'e5c9760611db'
+revision: str = 'b70743466f89'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -107,6 +107,7 @@ def upgrade() -> None:
     sa.Column('seo_errors', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('load_time_ms', sa.Integer(), nullable=True),
     sa.Column('security_issues', sa.ARRAY(sa.String()), nullable=True),
+    sa.Column('raw_technical_data', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
     sa.ForeignKeyConstraint(['lead_id'], ['leads.id'], ),
