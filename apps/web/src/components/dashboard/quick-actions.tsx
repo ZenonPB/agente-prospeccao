@@ -4,48 +4,52 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Users, Target, Phone } from 'lucide-react';
 import Link from 'next/link';
-
-interface QuickAction {
-  id: string;
-  title: string;
-  description: string;
-  icon: React.ReactNode;
-  href: string;
-  count?: number;
-  color: string;
-}
-
-const quickActions: QuickAction[] = [
-  {
-    id: '1',
-    title: 'Prosseguir com contatos',
-    description: '12 leads aguardando sua mensagem',
-    icon: <Target className="h-4 w-4" />,
-    href: '/oportunidades',
-    count: 12,
-    color: 'bg-emerald-500',
-  },
-  {
-    id: '2',
-    title: 'Fazer follow-up',
-    description: '3 leads sem resposta há 7+ dias',
-    icon: <Phone className="h-4 w-4" />,
-    href: '/vendas',
-    count: 3,
-    color: 'bg-amber-500',
-  },
-  {
-    id: '3',
-    title: 'Expandir busca',
-    description: '1 campanha sem novos resultados',
-    icon: <Users className="h-4 w-4" />,
-    href: '/campanhas',
-    count: 1,
-    color: 'bg-blue-500',
-  },
-];
+import { useLeadStats, useCampaigns } from '@/hooks/use-api';
 
 export function QuickActions() {
+  const { data: stats } = useLeadStats();
+  const { data: campaignsData } = useCampaigns();
+
+  const qualifiedCount = stats?.qualified_count || 0;
+  const pendingFollowUp = (stats?.by_status?.CONTATADO || 0) + (stats?.by_status?.RESPONDIDO || 0);
+  const activeCampaigns = campaignsData?.campaigns?.filter(c => c.status === 'ACTIVE').length || 0;
+
+  const actions = [
+    {
+      id: 'qualified',
+      title: 'Prosseguir com contatos',
+      description: qualifiedCount > 0
+        ? `${qualifiedCount} lead${qualifiedCount !== 1 ? 's' : ''} aguardando mensagem`
+        : 'Nenhum lead apto no momento',
+      icon: <Target className="h-4 w-4" />,
+      href: '/oportunidades',
+      count: qualifiedCount,
+      color: 'bg-emerald-500',
+    },
+    {
+      id: 'followup',
+      title: 'Fazer follow-up',
+      description: pendingFollowUp > 0
+        ? `${pendingFollowUp} lead${pendingFollowUp !== 1 ? 's' : ''} em acompanhamento`
+        : 'Nenhum contato em andamento',
+      icon: <Phone className="h-4 w-4" />,
+      href: '/vendas',
+      count: pendingFollowUp,
+      color: 'bg-amber-500',
+    },
+    {
+      id: 'campaigns',
+      title: 'Expandir busca',
+      description: activeCampaigns > 0
+        ? `${activeCampaigns} campanha${activeCampaigns !== 1 ? 's' : ''} ativa${activeCampaigns !== 1 ? 's' : ''}`
+        : 'Nenhuma campanha ativa',
+      icon: <Users className="h-4 w-4" />,
+      href: '/campanhas',
+      count: activeCampaigns,
+      color: 'bg-blue-500',
+    },
+  ];
+
   return (
     <Card>
       <CardHeader>
@@ -53,7 +57,7 @@ export function QuickActions() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {quickActions.map((action) => (
+          {actions.map((action) => (
             <Link key={action.id} href={action.href}>
               <div className="group flex items-center justify-between rounded-lg border p-4 transition-all hover:border-primary hover:bg-muted/50">
                 <div className="flex items-center gap-4">

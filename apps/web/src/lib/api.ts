@@ -1,3 +1,4 @@
+import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -9,7 +10,6 @@ interface RequestOptions extends RequestInit {
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, ...fetchOptions } = options;
 
-  // Build URL with query params
   const url = new URL(`${API_BASE_URL}${endpoint}`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
@@ -23,6 +23,13 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     "Content-Type": "application/json",
     ...((fetchOptions.headers as Record<string, string>) || {}),
   };
+
+  // Add auth token from NextAuth session
+  const session = await getSession();
+  const token = (session as unknown as Record<string, unknown>)?.accessToken;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   const response = await fetch(url.toString(), {
     ...fetchOptions,

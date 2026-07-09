@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useCreateCampaign } from '@/hooks/use-api';
 
@@ -43,6 +43,7 @@ export default function NovaCampanhaPage() {
   const router = useRouter();
   const createCampaign = useCreateCampaign();
   const [currentStep, setCurrentStep] = useState(1);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     service: '',
     serviceDescription: '',
@@ -53,19 +54,36 @@ export default function NovaCampanhaPage() {
   });
 
   const handleNext = () => {
+    setError('');
+
+    if (currentStep === 1 && !formData.service.trim()) {
+      setError('Informe o serviço que você quer vender');
+      return;
+    }
+    if (currentStep === 2 && !formData.segment.trim()) {
+      setError('Selecione ou informe o segmento-alvo');
+      return;
+    }
+    if (currentStep === 3 && !formData.city.trim()) {
+      setError('Informe a cidade para a busca');
+      return;
+    }
+
     if (currentStep < steps.length) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handlePrevious = () => {
+    setError('');
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
   };
 
   const handleSubmit = async () => {
-    const name = `${formData.segment || 'Busca'} em ${formData.city || 'cidade'}`;
+    setError('');
+    const name = `${formData.segment} em ${formData.city}`;
     const query = `${formData.segment} em ${formData.city}, ${formData.state}`;
 
     try {
@@ -77,8 +95,8 @@ export default function NovaCampanhaPage() {
         target_state: formData.state || undefined,
       });
       router.push('/campanhas');
-    } catch (error) {
-      console.error('Error creating campaign:', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
     }
   };
 
@@ -134,10 +152,17 @@ export default function NovaCampanhaPage() {
           <CardTitle>{steps[currentStep - 1].title}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {currentStep === 1 && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="service">Serviço-alvo</Label>
+                <Label htmlFor="service">Serviço-alvo *</Label>
                 <Input
                   id="service"
                   placeholder="Ex: Landing page, ERP, App mobile..."
@@ -181,7 +206,7 @@ export default function NovaCampanhaPage() {
           {currentStep === 2 && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="segment">Segmento-alvo</Label>
+                <Label htmlFor="segment">Segmento-alvo *</Label>
                 <Input
                   id="segment"
                   placeholder="Ex: Restaurantes, Clínicas, Academias..."
@@ -205,7 +230,7 @@ export default function NovaCampanhaPage() {
                   ))}
                 </div>
               </div>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 🤖 Me sugira segmentos
               </Button>
             </>
@@ -214,7 +239,7 @@ export default function NovaCampanhaPage() {
           {currentStep === 3 && (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="city">Cidade</Label>
+                <Label htmlFor="city">Cidade *</Label>
                 <Input
                   id="city"
                   placeholder="Ex: Araraquara"
@@ -282,7 +307,7 @@ export default function NovaCampanhaPage() {
                     <dd className="font-medium">
                       {formData.city && formData.state
                         ? `${formData.city}, ${formData.state}`
-                        : 'Não informado'}
+                        : formData.city || 'Não informado'}
                     </dd>
                   </div>
                   <div className="flex justify-between">

@@ -69,7 +69,15 @@
 1. **Testar build do frontend** — `npm run build` sem erros
 2. **Testar fluxo completo** — cadastro → login → criar campanha → pipeline
 3. **Gerar secrets reais** — NEXTAUTH_SECRET, JWT_SECRET
-4. **Recurso: esqueci minha senha** — para recuperação de acesso
+
+## TODOs futuros
+
+- **Notificações**: implementar sistema de notificações no header (alerta de leads novos, respostas, follow-ups)
+- **IA: descrição do serviço**: botão na criação de campanha para IA gerar descrição aleatória
+- **IA: "Me sugira segmentos"**: botão no passo 2 da campanha para IA sugerir segmentos com base no serviço
+- **Recurso: esqueci minha senha** — recuperação de acesso por email
+- **Página de configurações**: trocar senha, editar perfil
+- **Atividade recente real**: criar endpoint de atividade/log no backend
 
 ## Decisões Pendentes
 

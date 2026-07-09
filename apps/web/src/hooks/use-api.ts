@@ -9,6 +9,8 @@ export function useLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  limit?: number;
+  offset?: number;
 }) {
   return useQuery({
     queryKey: ["leads", params],
