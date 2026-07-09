@@ -23,8 +23,19 @@
 - `scoring_service.py` — qualificação via Groq (llama-3.1-8b-instant)
 - `models.py` — todos os modelos, migration rodada com `raw_technical_data`
 - `main.py` — `run_enrichment_and_scoring` integrado com scoring
-- Filtro de duplicata corrigido (usa `&` SQLAlchemy)
-- AsyncClient refactorado para pattern per-use (não mais no `__init__`)
+- AsyncClient refactorado para pattern per-use
+
+### Fase 1.5 — API REST ✅ Pronta
+
+- `services/api/` — FastAPI com endpoints REST
+- `GET /api/leads` — lista com filtros (status, campaign, search, min_score)
+- `GET /api/leads/stats` — estatísticas agregadas
+- `GET /api/leads/{id}` — detalhe do lead
+- `GET /api/campaigns` — lista com lead_count e avg_score
+- `GET /api/campaigns/{id}` — detalhe da campanha
+- `GET /api/metrics` — métricas do dashboard + funnel
+- Reutiliza models e session dos workers
+- CORS configurado para frontend
 
 ### Fase 2 — Frontend Web 🟡 Em andamento
 
@@ -32,22 +43,20 @@
 - Setup Next.js 16 + React 19 + TypeScript
 - shadcn/ui configurado (20+ componentes)
 - NextAuth.js (Google/GitHub OAuth)
-- Recharts (gráficos), TanStack Query, Zustand
+- Recharts, TanStack Query, Zustand
 - Estrutura de rotas completa:
   - `/login` — OAuth login
-  - `/dashboard` — visão geral com métricas interativas
+  - `/dashboard` — métricas interativas + gráficos
   - `/campanhas` — lista + wizard 4 etapas
   - `/oportunidades` — lista de leads + detalhe com abas
-  - `/pipeline` — monitor em tempo real
+  - `/pipeline` — monitor tempo real
   - `/vendas` — kanban com drag-and-drop
-- UX melhorada: termos amigáveis, botões responsivos, filtros interativos (estilo Power BI)
-- Drag-and-drop no Kanban (@hello-pangea/dnd)
+- UX: termos amigáveis, botões responsivos, filtros interativos
 
 **Pendente:**
-- Conectar frontend à API dos workers (backend)
+- Conectar frontend à API REST (substituir mock data)
 - Autenticação funcional (credenciais OAuth no `.env`)
-- Dados reais em vez de mock data
-- Responsividade mobile completa
+- WebSocket para pipeline em tempo real
 
 ### Fase 3 — Services Avançados (Futura)
 
@@ -55,24 +64,10 @@
 - `outreach_service.py` — mensagens IA + envio via Resend
 - Integração Cal.com para agendamento
 
-### Pendências conhecidas
-- Nenhuma pendência crítica na Fase 1
-
 ### Próximo passo imediato
-1. Conectar frontend ao backend (API routes ou WebSocket)
-2. Implementar autenticação funcional
-3. Substituir mock data por dados reais da API
-
-## Commits Recentes
-
-| Hash | Descrição |
-|------|-----------|
-| `460b88b` | fix: revert to "leads" terminology |
-| `77ebeec` | feat: UX improvements, drag-and-drop, friendly language |
-| `d85bef2` | feat: complete route structure and page components |
-| `d73d290` | docs: add interface web vision document |
-| `c5e0932` | feat: setup Next.js with shadcn/ui, recharts, next-auth |
-| `bffc0b0` | fix: refactor AsyncClient to per-use pattern |
+1. WebSocket `/ws/pipeline` para tempo real
+2. Conectar frontend à API REST
+3. Adaptar workers para publicar eventos via WebSocket
 
 ## Como rodar
 
@@ -83,9 +78,27 @@ source venv/bin/activate
 python -m src.main
 ```
 
+**API REST:**
+```bash
+cd services/api
+source venv/bin/activate
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+# Docs: http://localhost:8000/docs
+```
+
 **Frontend:**
 ```bash
 cd apps/web
 npm run dev
-# Acessa http://localhost:3000
+# http://localhost:3000
 ```
+
+## Commits Recentes
+
+| Hash | Descrição |
+|------|-----------|
+| `8030d07` | feat(api): create FastAPI with REST endpoints |
+| `460b88b` | fix(web): revert to "leads" terminology |
+| `77ebeec` | feat(web): UX improvements, drag-and-drop |
+| `d85bef2` | feat(web): complete route structure |
+| `c5e0932` | feat(web): setup Next.js with shadcn/ui |

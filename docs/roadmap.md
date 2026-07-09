@@ -13,20 +13,31 @@
 | Pipeline principal | ✅ | `main.py` |
 | Migrações Alembic | ✅ | `alembic/` |
 
+### Fase 1.5 — API REST ✅ Concluída
+
+| Componente | Status | Arquivo |
+|---|---|---|
+| FastAPI setup | ✅ | `services/api/main.py` |
+| GET /api/leads | ✅ | `routes/leads.py` |
+| GET /api/leads/stats | ✅ | `routes/leads.py` |
+| GET /api/campaigns | ✅ | `routes/campaigns.py` |
+| GET /api/metrics | ✅ | `routes/metrics.py` |
+| CORS configurado | ✅ | `main.py` |
+
 ### Fase 2 — Frontend Web 🟡 Em andamento
 
 | Componente | Status | Detalhes |
 |---|---|---|
 | Setup Next.js + TypeScript | ✅ | Next.js 16, React 19 |
 | shadcn/ui | ✅ | 20+ componentes |
-| Autenticação (NextAuth) | ✅ | Google/GitHub OAuth configurado |
-| Dashboard | ✅ | Métricas, gráficos interativos, ações rápidas |
+| Autenticação (NextAuth) | ✅ | Google/GitHub OAuth |
+| Dashboard | ✅ | Métricas, gráficos interativos |
 | Buscas (Campanhas) | ✅ | Lista + wizard 4 etapas |
-| Oportunidades | ✅ | Lista de leads + detalhe com abas |
+| Oportunidades | ✅ | Lista + detalhe com abas |
 | Acompanhamento (Pipeline) | ✅ | Monitor tempo real |
 | Negociações (Vendas) | ✅ | Kanban com drag-and-drop |
-| Conexão com backend | ⏳ | Próximo passo |
-| Dados reais | ⏳ | Substituir mock data |
+| **Conectar frontend à API** | ⏳ | **Próximo passo** |
+| WebSocket pipeline tempo real | ⏳ | Fase 1.5 + frontend |
 
 ### Fase 3 — Services Avançados 🔮 Futuro
 
@@ -39,21 +50,20 @@
 
 ### Fase 4 — Multi-tenant 🔮 Distante
 
-| Componente | Status | Detalhes |
-|---|---|---|
-| Por área/setor | ⏳ | Dashboard agregado |
-| Por membro | ⏳ | Perfil individual, ranking |
-| Gestão administrativa | ⏳ | Convites, permissões, relatórios |
+| Componente | Status |
+|---|---|
+| Por área/setor | ⏳ |
+| Por membro | ⏳ |
+| Gestão administrativa | ⏳ |
 
 ## Prioridades Próximas
 
-1. **Conectar frontend ao backend** — API routes ou WebSocket para dados reais
-2. **Autenticação funcional** — Configurar credenciais OAuth no `.env`
-3. **Substituir mock data** — Buscar dados dos workers via API
-4. **Testes end-to-end** — Fluxo completo: login → busca → enriquecimento → oportunidade
+1. **WebSocket `/ws/pipeline`** — eventos em tempo real do worker para o frontend
+2. **Conectar frontend à API** — substituir mock data por chamadas reais
+3. **Autenticação funcional** — configurar OAuth no `.env`
+4. **Testes end-to-end** — fluxo completo
 
 ## Decisões Pendentes
 
-- Comunicar frontend ↔ backend: REST API simples ou WebSocket para tempo real?
-- Onde rodar os workers: mesmo servidor, Docker Compose, ou cloud?
-- Estratégia de deploy: Vercel (frontend) + Railway/Fly.io (workers)?
+- Frontend ↔ Backend: REST para CRUD + WebSocket para tempo real (decidido ✅)
+- Deploy: Vercel (frontend) + Railway/Fly.io (API + workers)?
