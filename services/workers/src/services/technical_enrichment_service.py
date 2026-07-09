@@ -10,11 +10,6 @@ import time
 
 class TechnicalEnrichmentService:
     def __init__(self):
-        self.client = httpx.AsyncClient(
-            verify=certifi.where(), 
-            follow_redirects=True,
-            timeout=10
-        )
         self.common_sensitive_paths = [
             "/robots.txt",
             "/sitemap.xml",
@@ -24,6 +19,14 @@ class TechnicalEnrichmentService:
             "/admin/",
             "/login/",
         ]
+    
+    def _create_client(self) -> httpx.AsyncClient:
+        """Cria um novo AsyncClient para cada operação."""
+        return httpx.AsyncClient(
+            verify=certifi.where(), 
+            follow_redirects=True,
+            timeout=10
+        )
 
     async def _check_ssl(self, url: str) -> Dict[str, Any]:
         """Verifica o status SSL/HTTPS de uma URL."""
@@ -39,21 +42,23 @@ class TechnicalEnrichmentService:
             ssl_info["error"] = "URL não é HTTPS."
             
             try:
-                resp = await self.client.get(f"http://{parsed_url.netloc}", follow_redirects=False, timeout=5)
-                if 300 <= resp.status_code < 400 and resp.headers.get('location', '').startswith('https://'):
-                    ssl_info["https_redirect_ok"] = True
-                    ssl_info["error"] = "Redirecionamento para HTTPS configurado."
-                    return await self._check_ssl(resp.headers['location'])
+                async with self._create_client() as client:
+                    resp = await client.get(f"http://{parsed_url.netloc}", follow_redirects=False, timeout=5)
+                    if 300 <= resp.status_code < 400 and resp.headers.get('location', '').startswith('https://'):
+                        ssl_info["https_redirect_ok"] = True
+                        ssl_info["error"] = "Redirecionamento para HTTPS configurado."
+                        return await self._check_ssl(resp.headers['location'])
             except httpx.RequestError as e:
                 ssl_info["error"] = f"Erro ao verificar redirecionamento HTTP: {e}"
             return ssl_info
 
         try:
-            resp = await self.client.get(url, timeout=5)
-            resp.raise_for_status()
-            ssl_info["ssl_ok"] = True
-            if resp.request.url.scheme == 'https':
-                ssl_info["https_redirect_ok"] = True
+            async with self._create_client() as client:
+                resp = await client.get(url, timeout=5)
+                resp.raise_for_status()
+                ssl_info["ssl_ok"] = True
+                if resp.request.url.scheme == 'https':
+                    ssl_info["https_redirect_ok"] = True
 
         except httpx.ConnectError:
             ssl_info["error"] = "Não foi possível conectar ao host (DNS, Firewall)."
@@ -77,28 +82,29 @@ class TechnicalEnrichmentService:
         }
         start_time = time.time()
         try:
-            resp = await self.client.get(url, timeout=10)
-            end_time = time.time()
-            
-            headers_info["status_code"] = resp.status_code
-            headers_info["load_time_ms"] = int((end_time - start_time) * 1000)
-            headers_info["headers"] = {k.lower(): v for k, v in resp.headers.items()}
+            async with self._create_client() as client:
+                resp = await client.get(url, timeout=10)
+                end_time = time.time()
+                
+                headers_info["status_code"] = resp.status_code
+                headers_info["load_time_ms"] = int((end_time - start_time) * 1000)
+                headers_info["headers"] = {k.lower(): v for k, v in resp.headers.items()}
 
-            # Verificar headers de segurança
-            required_security_headers = {
-                "x-frame-options": ["deny", "sameorigin"],
-                "x-content-type-options": ["nosniff"],
-                "strict-transport-security": [r".*"], 
-                "content-security-policy": [r".*"], 
-            }
-            
-            for header, expected_values in required_security_headers.items():
-                if header not in headers_info["headers"]:
-                    headers_info["security_headers_missing"].append(header)
-                else:
-                    header_value = headers_info["headers"][header]
-                    if not any(re.search(pattern, header_value, re.IGNORECASE) for pattern in expected_values):
-                        headers_info["security_headers_missing"].append(f"{header} (valor inesperado)")
+                # Verificar headers de segurança
+                required_security_headers = {
+                    "x-frame-options": ["deny", "sameorigin"],
+                    "x-content-type-options": ["nosniff"],
+                    "strict-transport-security": [r".*"], 
+                    "content-security-policy": [r".*"], 
+                }
+                
+                for header, expected_values in required_security_headers.items():
+                    if header not in headers_info["headers"]:
+                        headers_info["security_headers_missing"].append(header)
+                    else:
+                        header_value = headers_info["headers"][header]
+                        if not any(re.search(pattern, header_value, re.IGNORECASE) for pattern in expected_values):
+                            headers_info["security_headers_missing"].append(f"{header} (valor inesperado)")
 
         except httpx.RequestError as e:
             headers_info["error"] = f"Erro na requisição: {e}"
@@ -107,29 +113,30 @@ class TechnicalEnrichmentService:
     async def _detect_cms(self, url: str) -> Optional[str]:
         """Tenta detectar o CMS via headers e meta tags."""
         try:
-            resp = await self.client.get(url, timeout=5)
-            resp.raise_for_status()
-            
-            if "x-powered-by" in resp.headers and "wordpress" in resp.headers["x-powered-by"].lower():
-                return "WordPress"
-            if "x-generator" in resp.headers and "joomla" in resp.headers["x-generator"].lower():
-                return "Joomla"
+            async with self._create_client() as client:
+                resp = await client.get(url, timeout=5)
+                resp.raise_for_status()
+                
+                if "x-powered-by" in resp.headers and "wordpress" in resp.headers["x-powered-by"].lower():
+                    return "WordPress"
+                if "x-generator" in resp.headers and "joomla" in resp.headers["x-generator"].lower():
+                    return "Joomla"
 
-            html_content = resp.text
-            if re.search(r'wp-content|wp-includes', html_content, re.IGNORECASE):
-                return "WordPress"
-            if re.search(r'joomla\.css|com_content', html_content, re.IGNORECASE):
-                return "Joomla"
-            if re.search(r'_next/', html_content, re.IGNORECASE):
-                return "Next.js"
-            if re.search(r'nuxt\.js', html_content, re.IGNORECASE):
-                return "Nuxt.js"
-            if re.search(r'drupal\.js', html_content, re.IGNORECASE):
-                return "Drupal"
-            if re.search(r'<meta name="generator" content="Joomla!', html_content, re.IGNORECASE):
-                return "Joomla"
-            if re.search(r'<meta name="generator" content="WordPress', html_content, re.IGNORECASE):
-                return "WordPress"
+                html_content = resp.text
+                if re.search(r'wp-content|wp-includes', html_content, re.IGNORECASE):
+                    return "WordPress"
+                if re.search(r'joomla\.css|com_content', html_content, re.IGNORECASE):
+                    return "Joomla"
+                if re.search(r'_next/', html_content, re.IGNORECASE):
+                    return "Next.js"
+                if re.search(r'nuxt\.js', html_content, re.IGNORECASE):
+                    return "Nuxt.js"
+                if re.search(r'drupal\.js', html_content, re.IGNORECASE):
+                    return "Drupal"
+                if re.search(r'<meta name="generator" content="Joomla!', html_content, re.IGNORECASE):
+                    return "Joomla"
+                if re.search(r'<meta name="generator" content="WordPress', html_content, re.IGNORECASE):
+                    return "WordPress"
 
         except httpx.RequestError:
             pass
@@ -138,14 +145,15 @@ class TechnicalEnrichmentService:
     async def _check_sensitive_paths(self, base_url: str) -> List[str]:
         """Verifica a exposição de arquivos ou diretórios sensíveis."""
         exposed_paths = []
-        for path in self.common_sensitive_paths:
-            full_url = f"{base_url.rstrip('/')}{path}"
-            try:
-                resp = await self.client.head(full_url, timeout=5, follow_redirects=True)
-                if resp.status_code == 200:
-                    exposed_paths.append(path)
-            except httpx.RequestError:
-                pass 
+        async with self._create_client() as client:
+            for path in self.common_sensitive_paths:
+                full_url = f"{base_url.rstrip('/')}{path}"
+                try:
+                    resp = await client.head(full_url, timeout=5, follow_redirects=True)
+                    if resp.status_code == 200:
+                        exposed_paths.append(path)
+                except httpx.RequestError:
+                    pass 
         return exposed_paths
 
     async def enrich_website(self, website_url: str) -> Dict[str, Any]:

@@ -19,20 +19,18 @@
 ### Pronto ✅
 - `places_service.py` — coleta via Google Places API (async)
 - `technical_enrichment_service.py` — análise passiva de sites (async)
+- `scoring_service.py` — qualificação via Groq (llama-3.1-8b-instant)
 - `models.py` — todos os modelos, migration rodada com `raw_technical_data`
+- `main.py` — `run_enrichment_and_scoring` integrado com scoring
+- Filtro de duplicata corrigido (usa `&` SQLAlchemy)
 
 ### Em andamento 🟡
-- `scoring_service.py` — qualificação via Groq (a criar)
-- `main.py` — `run_enrichment_and_scoring` aguarda scoring
+- Nenhum no momento
 
 ### Pendências conhecidas
-- `places_service.py`: `search_places` ainda é síncrono, main chama com `await`
-- `main.py`: filtro de duplicata usa `and` Python em vez de `&` SQLAlchemy
-- `main.py`: scoring não integrado ainda (TODO no código)
-- `technical_enrichment_service.py`: AsyncClient instanciado no `__init__`
+- `technical_enrichment_service.py`: AsyncClient instanciado no `__init__` (deveria ser por uso)
 
 ### Próximo passo imediato
-1. Criar `src/services/scoring_service.py` com `AIScoringService`
-2. Corrigir `places_service.py` para async
-3. Corrigir bug do filtro de duplicata no `main.py`
-4. Integrar scoring em `run_enrichment_and_scoring`
+1. Criar `src/services/contact_enrichment_service.py` (fase 2)
+2. Criar `src/services/outreach_service.py` (fase 3)
+3. Criar frontend Next.js (fase 2)

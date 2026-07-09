@@ -53,7 +53,10 @@ class AIScoringService:
 
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
-        self.client = httpx.AsyncClient(
+    
+    def _create_client(self) -> httpx.AsyncClient:
+        """Cria um novo AsyncClient para cada operação."""
+        return httpx.AsyncClient(
             timeout=30.0,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
@@ -129,7 +132,8 @@ class AIScoringService:
         payload = self._build_payload(technical_report)
 
         try:
-            response = await self.client.post(GROQ_URL, json=payload)
+            async with self._create_client() as client:
+                response = await client.post(GROQ_URL, json=payload)
         except httpx.RequestError as e:
             logger.error("Erro de rede ao chamar Groq: %s", e)
             return None
@@ -188,10 +192,7 @@ async def main_test_scoring():
         "exposed_paths": [],
     }
     service = AIScoringService()
-    try:
-        result = await service.score_lead(sample_report)
-    finally:
-        await service.client.aclose()
+    result = await service.score_lead(sample_report)
     print(json.dumps(result, ensure_ascii=False, indent=2) if result else "None")
 
 
