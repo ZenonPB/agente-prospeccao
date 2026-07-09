@@ -1,4 +1,3 @@
-// Lead Status
 export type LeadStatus = 
   | 'NOVO'
   | 'ANALISADO'
@@ -9,10 +8,8 @@ export type LeadStatus =
   | 'REUNIAO_MARCADA'
   | 'PERDIDO';
 
-// Campaign Status
 export type CampaignStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
 
-// Lead
 export interface Lead {
   id: string;
   place_id?: string;
@@ -34,7 +31,6 @@ export interface Lead {
   updated_at: string;
 }
 
-// Campaign
 export interface Campaign {
   id: string;
   user_id: string;
@@ -51,7 +47,6 @@ export interface Campaign {
   updated_at: string;
 }
 
-// Enrichment
 export interface Enrichment {
   id: string;
   lead_id: string;
@@ -69,7 +64,6 @@ export interface Enrichment {
   updated_at: string;
 }
 
-// Message
 export interface Message {
   id: string;
   lead_id: string;
@@ -81,7 +75,6 @@ export interface Message {
   is_response: boolean;
 }
 
-// Dashboard Metrics
 export interface DashboardMetrics {
   total_leads: number;
   qualified_leads: number;
@@ -90,7 +83,6 @@ export interface DashboardMetrics {
   response_rate: number;
 }
 
-// Pipeline Stage
 export type PipelineStage = 
   | 'CONTATADO'
   | 'RESPONDIDO'
@@ -98,7 +90,6 @@ export type PipelineStage =
   | 'REUNIAO_FEITA'
   | 'PROPOSTA_ENVIADA';
 
-// Scoring Result
 export interface ScoringResult {
   qualification_score: number;
   primary_need: 'SECURITY_FIX' | 'PERFORMANCE' | 'MODERN_WEBSITE' | 'SEO' | 'NONE';
@@ -106,7 +97,6 @@ export interface ScoringResult {
   issues_found: Issue[];
 }
 
-// Issue
 export interface Issue {
   severity: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAIXO';
   title: string;

@@ -1,8 +1,6 @@
 """
-Pipeline worker — adapts the existing worker logic to publish events
-via asyncio.Queue for real-time WebSocket streaming.
-
-This module imports the existing services and runs them with event publishing.
+Pipeline worker — adapta a lógica dos workers para publicar eventos
+via asyncio para streaming WebSocket em tempo real.
 """
 import asyncio
 import logging
@@ -14,7 +12,7 @@ from sqlalchemy.orm import Session
 from src.db.session import SessionLocal
 from src.db.models import Lead, LeadStatus, Enrichment, Job, JobStatus
 
-# Import workers services
+# Importa serviços dos workers
 import sys
 import os
 workers_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'workers', 'src')
@@ -23,6 +21,7 @@ sys.path.insert(0, workers_path)
 from services.places_service import GooglePlacesService
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
+from services.enrichment_orchestrator import process_single_lead
 
 logger = logging.getLogger(__name__)
 
@@ -37,20 +36,20 @@ async def run_pipeline(
     max_leads: int = 10,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
-    Runs the full pipeline (collection + enrichment + scoring) and yields
-    events that can be forwarded to WebSocket clients.
+    Executa o pipeline completo (coleta + enriquecimento + scoring) e gera
+    eventos que podem ser enviados para clientes WebSocket.
     """
     db = SessionLocal()
 
     try:
-        # Update job status
+        # Atualiza status do job
         job = db.query(Job).filter(Job.id == job_id).first()
         if job:
             job.status = JobStatus.IN_PROGRESS
             job.started_at = datetime.now(timezone.utc)
             db.commit()
 
-        # --- Phase 1: Collection ---
+        # --- Fase 1: Coleta ---
         yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
         yield {"type": "progress", "step": "coleta", "percent": 0}
 
@@ -109,7 +108,7 @@ async def run_pipeline(
         yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
         yield {"type": "progress", "step": "coleta", "percent": 50}
 
-        # --- Phase 2: Enrichment + Scoring ---
+        # --- Fase 2: Enriquecimento + Scoring ---
         yield {"type": "log", "message": "Iniciando análise técnica...", "timestamp": _ts()}
         yield {"type": "progress", "step": "enriquecimento", "percent": 50}
 
@@ -132,53 +131,13 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
 
-                # Enrichment
-                technical_report = await enrichment_service.enrich_website(lead.website)
+                _, scoring_result = await process_single_lead(lead, enrichment_service, scoring_service, db)
 
-                enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
-                if enrichment:
-                    enrichment.raw_technical_data = technical_report
-                    enrichment.website_exists = technical_report.get('overall_status') != 'SITE_OFFLINE'
-                    enrichment.ssl_ok = technical_report.get('ssl', {}).get('ssl_ok', False)
-                    enrichment.https_redirect_ok = technical_report.get('ssl', {}).get('https_redirect_ok', False)
-                    enrichment.cms = technical_report.get('cms_detection')
-                    enrichment.load_time_ms = technical_report.get('http_headers', {}).get('load_time_ms')
-                    enrichment.security_issues = technical_report.get('errors', []) + technical_report.get('warnings', [])
-                else:
-                    enrichment = Enrichment(
-                        lead_id=lead.id,
-                        raw_technical_data=technical_report,
-                        website_exists=technical_report.get('overall_status') != 'SITE_OFFLINE',
-                        ssl_ok=technical_report.get('ssl', {}).get('ssl_ok', False),
-                        https_redirect_ok=technical_report.get('ssl', {}).get('https_redirect_ok', False),
-                        cms=technical_report.get('cms_detection'),
-                        load_time_ms=technical_report.get('http_headers', {}).get('load_time_ms'),
-                        security_issues=technical_report.get('errors', []) + technical_report.get('warnings', [])
-                    )
-                    db.add(enrichment)
-
-                # Scoring
-                scoring_result = await scoring_service.score_lead(technical_report)
-                status_label = "analisado"
-                score = 0
-
-                if scoring_result:
-                    lead.qualification_score = scoring_result.get("qualification_score", 0)
-                    lead.qualification_reason = scoring_result.get("qualification_reason", "")
-                    lead.primary_need = scoring_result.get("primary_need", "NONE")
-                    score = lead.qualification_score
-                    issues = scoring_result.get("issues_found", [])
-                    enrichment.security_issues = [
-                        f"[{i.get('severity','')}] {i.get('title','')}: {i.get('description','')}" for i in issues
-                    ]
-                    if lead.qualification_score >= 60:
-                        lead.status = LeadStatus.QUALIFICADO
-                        status_label = "qualificado"
-                    else:
-                        lead.status = LeadStatus.DESQUALIFICADO
-                        status_label = "desqualificado"
-                else:
-                    lead.status = LeadStatus.ANALISADO
+                score = scoring_result.get("qualification_score", 0) if scoring_result else 0
+                status_label = {
+                    LeadStatus.QUALIFICADO: "qualificado",
+                    LeadStatus.DESQUALIFICADO: "desqualificado",
+                }.get(lead.status, "analisado")
 
                 yield {
                     "type": "lead",
@@ -193,7 +152,7 @@ async def run_pipeline(
 
             db.commit()
 
-        # --- Done ---
+        # --- Finalizado ---
         qualified = db.query(Lead).filter(
             Lead.campaign_id == None,
             Lead.status == LeadStatus.QUALIFICADO
@@ -209,7 +168,7 @@ async def run_pipeline(
             "timestamp": _ts(),
         }
 
-        # Update job
+        # Atualiza job
         if job:
             job.status = JobStatus.COMPLETED
             job.completed_at = datetime.now(timezone.utc)

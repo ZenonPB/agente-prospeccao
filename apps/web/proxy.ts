@@ -34,14 +34,15 @@ export async function proxy(request: NextRequest) {
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
   // Content Security Policy
+  // Nota: 'unsafe-eval' e 'unsafe-inline' são necessários para Next.js HMR em dev.
+  // Em produção, revisar para usar nonces/hashes.
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://accounts.google.com https://github.com",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https: blob:",
     "font-src 'self' data:",
-    "connect-src 'self' http://localhost:8000 ws://localhost:8000 https://accounts.google.com https://github.com",
-    "frame-src 'self' https://accounts.google.com https://github.com",
+    "connect-src 'self' http://localhost:8000 ws://localhost:8000",
   ].join("; ");
   response.headers.set("Content-Security-Policy", csp);
 

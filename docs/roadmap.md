@@ -79,7 +79,33 @@
 - **Página de configurações**: trocar senha, editar perfil
 - **Atividade recente real**: criar endpoint de atividade/log no backend
 
+## Segurança & Qualidade de Código — Status ✅ Resolvido (2026-07-09)
+
+Todas as 11 issues identificadas na revisão foram corrigidas:
+
+| # | Problema | Status | Correção |
+|---|---|---|---|
+| 1 | `JWT_SECRET` com fallback inseguro | ✅ | Movido para pydantic-settings; `security.py` usa `settings.JWT_SECRET` |
+| 2 | `JWT_SECRET` via `os.getenv` | ✅ | Agora lido via `settings.JWT_SECRET` (pydantic-settings) |
+| 3 | WebSocket sem autenticação | ✅ | Token JWT exigido como query param `?token=`; validado via `decode_access_token` |
+| 4 | Sem rate limiting em auth | ✅ | `slowapi` instalado; register 5/min, login 10/min |
+| 5 | `getSession()` em toda request | ✅ | Token cacheado em memória; `setAccessToken()` chamado pós-login/register |
+| 6 | Duplicação enrich+scoring | ✅ | Extraído para `enrichment_orchestrator.process_single_lead()` |
+| 7 | `import os` não utilizado | ❌ Falso positivo | `os` é usado em `sys.path.insert` (linha 8); import mantido |
+| 8 | `active_campaigns` sem type | 🔵 | Campo extra existe na resposta mas type não captura; não quebra nada |
+| 9 | CSP com URLs OAuth obsoletas | ✅ | Removidos `accounts.google.com` e `github.com` do CSP |
+| 10 | Type casting frágil | ✅ | Interface `SessionWithToken` + cast `as { accessToken?: string }` |
+| 11 | JWT em sessão client-side | ⚠️ | Risco aceito para MVP; mitigado por CSP e HTTPS |
+
+### 🔵 Observações adicionais
+
+- Workers **não** tinham os problemas originalmente suspeitados: `TechnicalEnrichmentService` já usava `httpx.AsyncClient` e `scoring_service.py` usava `settings.GROQ_API_KEY` via pydantic-settings (não `os.environ`).
+- Sessões de banco nos workers são fechadas em `finally` ✅.
+- `active_campaigns` no metrics (issue #8): campo existe na resposta da API mas o tipo `DashboardMetrics` no frontend não o inclui. O campo é simplesmente ignorado — não causa erro. Pode ser adicionado ao type futuramente se necessário.
+
 ## Decisões Pendentes
 
 - Frontend ↔ Backend: REST para CRUD + WebSocket para tempo real (decidido ✅)
 - Deploy: Vercel (frontend) + Railway/Fly.io (API + workers)?
+- Modelo de rate limiting: middleware FastAPI vs nginx/gateway externo?
+- JWT_SECRET deve ser adicionado ao `settings.py` da API como campo pydantic?

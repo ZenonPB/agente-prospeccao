@@ -1,4 +1,4 @@
-"""FastAPI dependency for JWT authentication."""
+"""Dependência FastAPI para autenticação JWT."""
 import logging
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -17,7 +17,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """Validate JWT bearer token and return the current user."""
+    """Valida o token JWT e retorna o usuário atual."""
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -54,7 +54,7 @@ def get_optional_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
     db: Session = Depends(get_db),
 ) -> User:
-    """Like get_current_user but returns None instead of 401 for no token."""
+    """Como get_current_user, mas retorna None em vez de 401 se não houver token."""
     if credentials is None or credentials.scheme.lower() != "bearer":
         return None
 

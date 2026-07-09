@@ -3,7 +3,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { leadsApi, campaignsApi, metricsApi, pipelineApi } from "@/lib/api";
 
-// Leads hooks
 export function useLeads(params?: {
   status?: string;
   campaign_id?: string;
@@ -33,7 +32,6 @@ export function useLeadStats() {
   });
 }
 
-// Campaigns hooks
 export function useCampaigns(params?: { status?: string }) {
   return useQuery({
     queryKey: ["campaigns", params],
@@ -59,7 +57,6 @@ export function useCreateCampaign() {
   });
 }
 
-// Metrics hooks
 export function useMetrics() {
   return useQuery({
     queryKey: ["metrics"],
@@ -67,7 +64,6 @@ export function useMetrics() {
   });
 }
 
-// Pipeline hooks
 export function useStartPipeline() {
   const queryClient = useQueryClient();
   return useMutation({

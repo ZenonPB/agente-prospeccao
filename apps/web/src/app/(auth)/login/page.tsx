@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { setAccessToken } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,11 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+
+      // Cache do token para evitar getSession() em toda requisição
+      const session = await getSession();
+      const token = (session as { accessToken?: string } | null)?.accessToken;
+      if (token) setAccessToken(token);
 
       router.push('/dashboard');
     } catch {

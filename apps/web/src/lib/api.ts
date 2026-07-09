@@ -3,6 +3,29 @@ import type { Lead, Campaign, Enrichment } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// Cache de token em memória — evita chamada HTTP getSession() em toda requisição
+let _cachedToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  _cachedToken = token;
+}
+
+export function getCachedToken(): string | null {
+  return _cachedToken;
+}
+
+interface SessionWithToken {
+  accessToken?: string;
+}
+
+async function resolveToken(): Promise<string | null> {
+  if (_cachedToken) return _cachedToken;
+  const session = await getSession();
+  const token = (session as SessionWithToken | null)?.accessToken;
+  if (token) _cachedToken = token;
+  return token ?? null;
+}
+
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
@@ -24,9 +47,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     ...((fetchOptions.headers as Record<string, string>) || {}),
   };
 
-  // Add auth token from NextAuth session
-  const session = await getSession();
-  const token = (session as unknown as Record<string, unknown>)?.accessToken;
+  // Adiciona token de autenticação do cache ou da sessão NextAuth
+  const token = await resolveToken();
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
@@ -44,7 +66,6 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   return response.json();
 }
 
-// Leads API
 export const leadsApi = {
   list: (params?: {
     status?: string;
@@ -68,7 +89,6 @@ export const leadsApi = {
   }>("/api/leads/stats"),
 };
 
-// Campaigns API
 export const campaignsApi = {
   list: (params?: { status?: string; limit?: number; offset?: number }) =>
     request<{ campaigns: Campaign[]; total: number }>("/api/campaigns", { params: params as Record<string, string | number | boolean | undefined> }),
@@ -89,7 +109,6 @@ export const campaignsApi = {
     }),
 };
 
-// Metrics API
 export const metricsApi = {
   get: () =>
     request<{
@@ -102,7 +121,6 @@ export const metricsApi = {
     }>("/api/metrics"),
 };
 
-// Pipeline API
 export const pipelineApi = {
   start: (data: { query: string; max_leads?: number; campaign_id?: string }) =>
     request<{ job_id: string; status: string }>("/api/pipeline/start", {
@@ -111,8 +129,10 @@ export const pipelineApi = {
     }),
 };
 
-// WebSocket connection helper
+// Helper de conexão WebSocket — passa token JWT como query param para autenticação
 export function createPipelineWs(jobId: string): WebSocket {
-  const wsUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;
+  const token = getCachedToken();
+  const baseUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;
+  const wsUrl = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
   return new WebSocket(wsUrl);
 }

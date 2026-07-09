@@ -1,4 +1,3 @@
-# services/workers/src/services/places_service.py
 import logging
 import httpx
 import re

@@ -1,12 +1,13 @@
-"""Authentication routes: register and login."""
+"""Rotas de autenticação: registro e login."""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from src.db.dependencies import get_db
 from src.db.models import User
 from src.auth.security import hash_password, verify_password, create_access_token
+from src.middleware.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,10 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    """Register a new user with email and password."""
-    existing = db.query(User).filter(User.email == request.email).first()
+@limiter.limit("5/minute")
+def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
+    """Registra um novo usuário com email e senha."""
+    existing = db.query(User).filter(User.email == body.email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -40,9 +42,9 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
         )
 
     user = User(
-        name=request.name,
-        email=request.email,
-        password_hash=hash_password(request.password),
+        name=body.name,
+        email=body.email,
+        password_hash=hash_password(body.password),
         role="SALES",
     )
     db.add(user)
@@ -63,10 +65,11 @@ def register(request: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=AuthResponse)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Login with email and password, returns a JWT token."""
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user or not verify_password(request.password, user.password_hash):
+@limiter.limit("10/minute")
+def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
+    """Login com email e senha, retorna um token JWT."""
+    user = db.query(User).filter(User.email == body.email).first()
+    if not user or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha incorretos",
