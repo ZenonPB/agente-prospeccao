@@ -20,8 +20,16 @@
 
 - `places_service.py` — coleta via Google Places API (async)
 - `technical_enrichment_service.py` — análise passiva de sites (async)
+  - `_detect_cms` agora usa HTML já baixado (sem nova requisição) + detecção ampliada de stack
+  - `_check_seo` verifica title/meta description/h1 + menção a LGPD
+  - `performance` interpreta `load_time_ms` (rápido/aceitável/lento/muito lento)
 - `scoring_service.py` — qualificação via Groq (llama-3.1-8b-instant)
-- `models.py` — todos os modelos, migration rodada com `raw_technical_data`
+  - Prompt conhece contexto da campanha (`target_service` + `target_segment`)
+  - LLM gera `pitch_angle` (gancho de abordagem) e `suggested_subject` (assunto de e-mail)
+  - `primary_need` inclui LGPD
+  - `qualification_reason` vira argumento de venda
+- `enrichment_orchestrator.py` — repassa contexto da campanha ao scoring e persiste `pitch_angle`/`suggested_subject`
+- `models.py` — `Lead.pitch_angle` (Text) e `Lead.suggested_subject` (String 255) adicionados (migration `1fb286c0715b`)
 - `main.py` — `run_enrichment_and_scoring` integrado com scoring
 - AsyncClient refactorado para pattern per-use
 
@@ -30,16 +38,17 @@
 - `services/api/` — FastAPI com endpoints REST + WebSocket
 - `GET /api/leads` — lista com filtros (status, campaign, search, min_score)
 - `GET /api/leads/stats` — estatísticas agregadas
-- `GET /api/leads/{id}` — detalhe do lead
+- `GET /api/leads/{id}` — detalhe do lead (inclui `pitch_angle` e `suggested_subject`)
 - `GET /api/campaigns` — lista com lead_count e avg_score
 - `GET /api/campaigns/{id}` — detalhe da campanha
 - `GET /api/metrics` — métricas do dashboard + funnel
 - `POST /api/pipeline/start` — inicia pipeline em background, retorna job_id
+- `pipeline_worker.py` — repassa `campaign.target_service/segment` ao scoring ao chamar `process_single_lead`
 - `WS /ws/pipeline/{job_id}` — streaming de eventos em tempo real
-- `pipeline_worker.py` — adapta lógica dos workers para yield eventos
 - Reutiliza models e session dos workers
 - CORS configurado para frontend
 - Migration `6db61055` — city nullable na tabela leads
+- Migration `1fb286c0715b` — `pitch_angle` + `suggested_subject` em leads
 
 ### Fase 2 — Frontend Web 🟡 Em andamento (parcial) / ✅ Unificação concluída
 
@@ -111,10 +120,11 @@
 
 ### Próximo passo imediato
 1. ~~Unificar páginas /campanhas e /pipeline~~ ✅
-2. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
-3. Adicionar "esqueci minha senha"
-4. Adicionar página de configurações (trocar senha, editar perfil)
-5. Revisar CSP para produção
+2. Exibir `pitch_angle` e `suggested_subject` na tela de detalhe do lead (API já expõe; UI ainda não mostra)
+3. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades (verificar scoring contextual + pitch/subject)
+4. Adicionar "esqueci minha senha"
+5. Adicionar página de configurações (trocar senha, editar perfil)
+6. Revisar CSP para produção
 
 ## Como rodar
 

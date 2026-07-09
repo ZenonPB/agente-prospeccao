@@ -150,6 +150,8 @@ def get_lead(
         "qualification_score": lead.qualification_score,
         "qualification_reason": lead.qualification_reason,
         "primary_need": lead.primary_need,
+        "pitch_angle": lead.pitch_angle,
+        "suggested_subject": lead.suggested_subject,
         "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
         "created_at": lead.created_at.isoformat() if lead.created_at else None,
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,

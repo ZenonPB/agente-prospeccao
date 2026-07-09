@@ -73,7 +73,7 @@ class Campaign(Base):
     target_service = Column(String(255))
     target_segment = Column(String(100))
     target_city = Column(String(100))
-    analysis_profile = Column(Enum(AnalysisProfile, name='analysis_profile', create_type=True), nullable=False, default=AnalysisProfile.WEB_PRESENCE)
+    analysis_profile = Column(Enum(AnalysisProfile, name='analysis_profile', create_type=False, values_callable=lambda e: [m.value for m in e]), nullable=False, default=AnalysisProfile.WEB_PRESENCE)
     target_state = Column(String(2))
     target_country = Column(String(100))
     status = Column(Enum(CampaignStatus, name='campaign_status', create_type=True), default=CampaignStatus.ACTIVE)
@@ -104,6 +104,8 @@ class Lead(Base):
     qualification_score = Column(Integer, default=0) 
     qualification_reason = Column(Text) 
     primary_need = Column(String(50)) 
+    pitch_angle = Column(Text)
+    suggested_subject = Column(String(255))
     segment_opportunity = Column(String(100)) 
 
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)

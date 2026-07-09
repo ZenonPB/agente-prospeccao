@@ -23,17 +23,20 @@ SYSTEM_PROMPT = (
 
 USER_PROMPT_TEMPLATE = (
     "Analise o relatório técnico abaixo e gere a qualificação do lead.\n\n"
+    "{context_block}"
     "Regras de scoring (0-100):\n"
     "- 80-100: crítico (.env exposto, .git exposto, sem HTTPS)\n"
     "- 60-79: múltiplos problemas de segurança ou performance\n"
-    "- 40-59: headers ausentes, WordPress detectado\n"
+    "- 40-59: headers ausentes, WordPress detectado, ausência de LGPD\n"
     "- 20-39: site funcional com melhorias possíveis\n"
     "- 0-19: site bem configurado, baixa oportunidade\n\n"
     "Retorne um JSON com exatamente esta estrutura:\n"
     "{{\n"
     '  "qualification_score": <inteiro 0-100>,\n'
-    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "NONE",\n'
-    '  "qualification_reason": "<2-4 frases em pt-BR, para o dono da empresa>",\n'
+    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "LGPD" | "NONE",\n'
+    '  "qualification_reason": "<2-4 frases em pt-BR como argumento de venda, citando problemas reais e conectando ao serviço que queremos vender>",\n'
+    '  "pitch_angle": "<1-2 frases: qual é o gancho principal para abordar este lead, baseado nos problemas encontrados e no serviço que queremos vender>",\n'
+    '  "suggested_subject": "<sugestão de assunto para o e-mail de prospecção, personalizado para esta empresa e segmento>",\n'
     '  "issues_found": [\n'
     "    {{\n"
     '  "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO",\n'
@@ -51,6 +54,7 @@ BUSINESS_PROMPT_TEMPLATE = (
     "Você é um analista de prospecção B2B. Avalie uma empresa brasileira "
     "com base nos dados disponíveis e determine se ela é um bom alvo comercial "
     "para uma empresa que vende serviços de tecnologia e consultoria.\n\n"
+    "{context_block}"
     "Dados disponíveis:\n"
     "{lead_data}\n\n"
     "Regras de scoring (0-100):\n"
@@ -62,8 +66,10 @@ BUSINESS_PROMPT_TEMPLATE = (
     "Retorne um JSON com exatamente esta estrutura:\n"
     "{{\n"
     '  "qualification_score": <inteiro 0-100>,\n'
-    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "NONE",\n'
-    '  "qualification_reason": "<2-4 frases em pt-BR analisando o potencial>",\n'
+    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "LGPD" | "NONE",\n'
+    '  "qualification_reason": "<2-4 frases em pt-BR como argumento de venda, não análise genérica — mencione o potencial e como nosso serviço resolve>",\n'
+    '  "pitch_angle": "<1-2 frases com o gancho principal de abordagem>",\n'
+    '  "suggested_subject": "<sugestão de assunto para e-mail de prospecção>",\n'
     '  "issues_found": [\n'
     "    {{\n"
     '  "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO",\n'
@@ -75,6 +81,25 @@ BUSINESS_PROMPT_TEMPLATE = (
     "}}\n\n"
     "Avaliação baseada apenas nos dados fornecidos — sem visitar o site da empresa."
 )
+
+
+def _build_context_block(target_service: str, target_segment: str) -> str:
+    """Monta o bloco de contexto da campanha para o prompt da LLM, ou vazio se faltarem ambos."""
+    if not target_service and not target_segment:
+        return ""
+    lines = ["Contexto da prospecção:"]
+    if target_service:
+        lines.append(f"- Serviço que queremos vender: {target_service}")
+    if target_segment:
+        lines.append(f"- Segmento-alvo: {target_segment}")
+    lines.append("")
+    lines.append("Use este contexto para:")
+    lines.append("1. Avaliar se os problemas encontrados são relevantes para este segmento")
+    lines.append("2. Gerar o qualification_reason como um argumento de venda direto,")
+    lines.append("   mencionando o problema específico E como nosso serviço resolve")
+    lines.append("3. Sugerir o ângulo de abordagem mais efetivo")
+    lines.append("")
+    return "\n".join(lines)
 
 
 class AIScoringService:
@@ -93,10 +118,18 @@ class AIScoringService:
             },
         )
 
-    def _build_payload(self, technical_report: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_payload(
+        self,
+        technical_report: Dict[str, Any],
+        target_service: str = "",
+        target_segment: str = "",
+    ) -> Dict[str, Any]:
         """Monta o payload para a API de chat completions do Groq."""
         report_str = json.dumps(technical_report, ensure_ascii=False, indent=2)
-        user_prompt = USER_PROMPT_TEMPLATE.format(report=report_str)
+        context_block = _build_context_block(target_service, target_segment)
+        user_prompt = USER_PROMPT_TEMPLATE.format(
+            report=report_str, context_block=context_block
+        )
         return {
             "model": GROQ_MODEL,
             "messages": [
@@ -137,7 +170,16 @@ class AIScoringService:
             logger.error("Falha ao decodificar JSON do Groq: %s", e)
             return None
 
-    def _build_business_payload(self, company_name: str, category: str, city: str, state: str, website: str | None) -> Dict[str, Any]:
+    def _build_business_payload(
+        self,
+        company_name: str,
+        category: str,
+        city: str,
+        state: str,
+        website: str | None,
+        target_service: str = "",
+        target_segment: str = "",
+    ) -> Dict[str, Any]:
         """Monta payload para scoring de oportunidade de negócio."""
         lead_data = (
             f"Empresa: {company_name}\n"
@@ -145,7 +187,10 @@ class AIScoringService:
             f"Localização: {city}, {state}\n"
             f"Website: {website or 'Não informado'}"
         )
-        user_prompt = BUSINESS_PROMPT_TEMPLATE.format(lead_data=lead_data)
+        context_block = _build_context_block(target_service, target_segment)
+        user_prompt = BUSINESS_PROMPT_TEMPLATE.format(
+            lead_data=lead_data, context_block=context_block
+        )
         return {
             "model": GROQ_MODEL,
             "messages": [
@@ -167,6 +212,8 @@ class AIScoringService:
         city: str = "",
         state: str = "",
         website: str | None = None,
+        target_service: str = "",
+        target_segment: str = "",
     ) -> Optional[Dict[str, Any]]:
         """Avalia o potencial de negócio de um lead sem análise técnica de site.
 
@@ -180,13 +227,18 @@ class AIScoringService:
             city: Cidade
             state: Estado
             website: URL do site (pode ser None)
+            target_service: Serviço que a campanha quer vender (opcional).
+            target_segment: Segmento-alvo da campanha (opcional).
 
         Returns:
             Dicionário com qualification_score (int 0-100), primary_need (str),
-            qualification_reason (str) e issues_found (lista); ou None em caso
-            de falha.
+            qualification_reason (str), pitch_angle (str), suggested_subject (str)
+            e issues_found (lista); ou None em caso de falha.
         """
-        payload = self._build_business_payload(company_name, category, city, state, website)
+        payload = self._build_business_payload(
+            company_name, category, city, state, website,
+            target_service, target_segment,
+        )
 
         try:
             async with self._create_client() as client:
@@ -227,7 +279,12 @@ class AIScoringService:
 
         return parsed
 
-    async def score_lead(self, technical_report: dict) -> Optional[Dict[str, Any]]:
+    async def score_lead(
+        self,
+        technical_report: dict,
+        target_service: str = "",
+        target_segment: str = "",
+    ) -> Optional[Dict[str, Any]]:
         """Gera o scoring de um lead a partir do relatório técnico do site.
 
         Envia o relatório técnico passivo para o Groq (llama-3.1-8b-instant) e
@@ -238,17 +295,22 @@ class AIScoringService:
             technical_report: Dicionário do relatório retornado por
                 TechnicalEnrichmentService.enrich_website, contendo ssl,
                 http_headers, cms_detection, exposed_paths, errors e warnings.
+            target_service: Serviço que a campanha quer vender (opcional).
+                Quando fornecido, a LLM gera o qualification_reason como
+                argumento de venda conectando os problemas ao serviço.
+            target_segment: Segmento-alvo da campanha (opcional).
 
         Returns:
             Dicionário com qualification_score (int 0-100), primary_need (str),
-            qualification_reason (str) e issues_found (lista); ou None em caso
-            de falha (API indisponível, JSON inválido, etc.).
+            qualification_reason (str), pitch_angle (str), suggested_subject (str)
+            e issues_found (lista); ou None em caso de falha (API indisponível,
+            JSON inválido, etc.).
         """
         if not technical_report:
             logger.warning("Relatório técnico vazio; scoring abortado.")
             return None
 
-        payload = self._build_payload(technical_report)
+        payload = self._build_payload(technical_report, target_service, target_segment)
 
         try:
             async with self._create_client() as client:
