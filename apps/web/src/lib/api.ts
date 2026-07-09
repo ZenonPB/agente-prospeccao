@@ -87,6 +87,12 @@ export const leadsApi = {
     contacted_count: number;
     meetings_count: number;
   }>("/api/leads/stats"),
+
+  updateStatus: (id: string, status: string) =>
+    request<{ id: string; company_name: string; status: string }>(`/api/leads/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
 };
 
 export const campaignsApi = {

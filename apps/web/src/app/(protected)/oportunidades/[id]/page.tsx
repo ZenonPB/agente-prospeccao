@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useLead } from '@/hooks/use-api';
+import { useRouter } from 'next/navigation';
+import { useLead, useUpdateLeadStatus } from '@/hooks/use-api';
 
 const severityConfig: Record<string, { label: string; color: string }> = {
   CRITICO: { label: 'Crítico', color: 'bg-red-100 text-red-700' },
@@ -37,7 +38,9 @@ const statusLabels: Record<string, string> = {
 
 export default function LeadDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);
+  const router = useRouter();
   const { data: lead, isLoading } = useLead(params.id);
+  const updateStatus = useUpdateLeadStatus();
 
   if (isLoading) {
     return (
@@ -225,8 +228,22 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 <Mail className="mr-2 h-4 w-4" />
                 Gerar mensagem personalizada
               </Button>
-              <Button variant="outline" className="w-full h-11">
-                <Phone className="mr-2 h-4 w-4" />
+              <Button
+                variant="outline"
+                className="w-full h-11"
+                onClick={() =>
+                  updateStatus.mutate(
+                    { id: params.id, status: 'CONTATADO' },
+                    { onSuccess: () => router.push('/vendas') }
+                  )
+                }
+                disabled={updateStatus.isPending}
+              >
+                {updateStatus.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Phone className="mr-2 h-4 w-4" />
+                )}
                 Registrar contato realizado
               </Button>
             </CardContent>

@@ -65,6 +65,11 @@
 
 | Item | Ref | Status |
 |------|-----|--------|
+| PATCH /api/leads/{id}/status endpoint | api/routes/leads.py | ✅ |
+| Kanban filtra só leads do funil de vendas | kanban-board.tsx | ✅ |
+| Kanban drag-and-drop chama PATCH status | kanban-board.tsx | ✅ |
+| Botão "Registrar contato" chama API + redirect | oportunidades/[id]/page.tsx | ✅ |
+| Enum LeadStatus: REUNIAO_FEITA + PROPOSTA_ENVIADA | models.py + migration | ✅ |
 | Status PERDIDO volta à fila em 90 dias | workers/ | 🔴 |
 | Score recalculado com novos dados de enriquecimento | workers/ | 🔴 |
 | Lead sem website pula enriquecimento | technical_enrichment_service.py | ✅ |
