@@ -4,9 +4,9 @@ export default function PipelinePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Pipeline</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Acompanhamento</h2>
         <p className="text-muted-foreground">
-          Acompanhe o processamento dos leads em tempo real
+          Veja o progresso da busca por empresas em tempo real
         </p>
       </div>
 

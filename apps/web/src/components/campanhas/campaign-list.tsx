@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Plus, MoreHorizontal, Pause, Play, Archive } from 'lucide-react';
+import { Plus, MoreHorizontal, Pause, Play, Archive, Copy } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -29,8 +29,8 @@ interface Campaign {
 const campaigns: Campaign[] = [
   {
     id: '1',
-    name: 'Restaurantes Araraquara',
-    segment: 'Restaurantes',
+    name: 'Restaurantes em Araraquara',
+    segment: 'Gastronomia',
     city: 'Araraquara',
     state: 'SP',
     lead_count: 45,
@@ -41,8 +41,8 @@ const campaigns: Campaign[] = [
   },
   {
     id: '2',
-    name: 'Clínicas São Paulo',
-    segment: 'Clínicas',
+    name: 'Clínicas em São Paulo',
+    segment: 'Saúde',
     city: 'São Paulo',
     state: 'SP',
     lead_count: 23,
@@ -53,8 +53,8 @@ const campaigns: Campaign[] = [
   },
   {
     id: '3',
-    name: 'Academias Campinas',
-    segment: 'Academias',
+    name: 'Academias em Campinas',
+    segment: 'Fitness',
     city: 'Campinas',
     state: 'SP',
     lead_count: 30,
@@ -65,8 +65,8 @@ const campaigns: Campaign[] = [
   },
   {
     id: '4',
-    name: 'Indústrias Guarulhos',
-    segment: 'Indústrias',
+    name: 'Indústrias em Guarulhos',
+    segment: 'Indústria',
     city: 'Guarulhos',
     state: 'SP',
     lead_count: 12,
@@ -78,28 +78,28 @@ const campaigns: Campaign[] = [
 ];
 
 const statusConfig = {
-  ACTIVE: { label: 'Ativa', color: 'bg-green-100 text-green-800' },
-  PAUSED: { label: 'Pausada', color: 'bg-yellow-100 text-yellow-800' },
-  COMPLETED: { label: 'Concluída', color: 'bg-blue-100 text-blue-800' },
-  ARCHIVED: { label: 'Arquivada', color: 'bg-gray-100 text-gray-800' },
+  ACTIVE: { label: 'Em andamento', color: 'bg-emerald-100 text-emerald-700' },
+  PAUSED: { label: 'Pausada', color: 'bg-amber-100 text-amber-700' },
+  COMPLETED: { label: 'Concluída', color: 'bg-blue-100 text-blue-700' },
+  ARCHIVED: { label: 'Arquivada', color: 'bg-gray-100 text-gray-700' },
 };
 
 export function CampaignList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Todas as Campanhas</h3>
+        <h3 className="text-lg font-medium">Todas as Buscas</h3>
         <Link href="/campanhas/nova">
-          <Button>
+          <Button className="h-10">
             <Plus className="mr-2 h-4 w-4" />
-            Nova Campanha
+            Nova Busca
           </Button>
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {campaigns.map((campaign) => (
-          <Card key={campaign.id} className="relative overflow-hidden">
+          <Card key={campaign.id} className="relative overflow-hidden transition-all hover:shadow-md">
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -109,7 +109,7 @@ export function CampaignList() {
                   </p>
                 </div>
                 <DropdownMenu>
-                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8" />}>
+                  <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" />}>
                     <MoreHorizontal className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -117,17 +117,20 @@ export function CampaignList() {
                       {campaign.status === 'ACTIVE' ? (
                         <>
                           <Pause className="mr-2 h-4 w-4" />
-                          Pausar
+                          Pausar busca
                         </>
                       ) : (
                         <>
                           <Play className="mr-2 h-4 w-4" />
-                          Reativar
+                          Retomar busca
                         </>
                       )}
                     </DropdownMenuItem>
-                    <DropdownMenuItem>Duplicar</DropdownMenuItem>
-                    <DropdownMenuItem>Iniciar nova coleta</DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Copy className="mr-2 h-4 w-4" />
+                      Duplicar para outra cidade
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>Iniciar nova rodada</DropdownMenuItem>
                     <DropdownMenuItem>
                       <Archive className="mr-2 h-4 w-4" />
                       Arquivar
@@ -141,7 +144,7 @@ export function CampaignList() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Progresso</span>
                   <span className="font-medium">
-                    {campaign.lead_count}/{campaign.target_leads} leads
+                    {campaign.lead_count} de {campaign.target_leads} empresas
                   </span>
                 </div>
                 <Progress 
@@ -154,7 +157,7 @@ export function CampaignList() {
                   </Badge>
                   {campaign.avg_score > 0 && (
                     <span className="text-sm font-medium">
-                      Score: {campaign.avg_score}
+                      Aptidão: {campaign.avg_score}
                     </span>
                   )}
                 </div>

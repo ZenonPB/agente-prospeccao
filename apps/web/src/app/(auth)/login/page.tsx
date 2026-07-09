@@ -6,21 +6,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 text-center">
+        <CardHeader className="space-y-2 text-center">
           <CardTitle className="text-2xl font-bold">Agente Prospecção</CardTitle>
           <CardDescription>
-            Plataforma de Inteligência Comercial
+            Encontre e qualifique empresas automaticamente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Button
             variant="outline"
-            className="w-full"
+            className="h-12 w-full text-base"
             onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
           >
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+            <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 fill="#4285F4"
@@ -42,10 +42,10 @@ export default function LoginPage() {
           </Button>
           <Button
             variant="outline"
-            className="w-full"
+            className="h-12 w-full text-base"
             onClick={() => signIn('github', { callbackUrl: '/dashboard' })}
           >
-            <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="mr-3 h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
               <path
                 fillRule="evenodd"
                 clipRule="evenodd"

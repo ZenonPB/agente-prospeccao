@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { Bell, User } from 'lucide-react';
+import { Bell, Menu, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,30 +12,40 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAppStore } from '@/stores/useAppStore';
 
 export function Header() {
   const { data: session } = useSession();
+  const { toggleSidebar } = useAppStore();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
-      {/* Left side - can add breadcrumbs or search here */}
+    <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
+      {/* Left side - Mobile menu button */}
       <div className="flex items-center gap-4">
-        <h1 className="text-lg font-semibold">Agente Prospecção</h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          className="h-10 w-10 lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <h1 className="text-lg font-semibold hidden sm:block">Agente Prospecção</h1>
       </div>
 
       {/* Right side - notifications and user menu */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative h-10 w-10">
           <Bell className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground">
+          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[11px] font-medium text-destruct-foreground">
             3
           </span>
         </Button>
 
         {/* User Menu */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" className="relative h-8 w-8 rounded-full" />}>
+          <DropdownMenuTrigger render={<Button variant="ghost" className="relative h-10 w-10 rounded-full" />}>
             <Avatar className="h-8 w-8">
               <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
               <AvatarFallback>
@@ -53,11 +63,11 @@ export function Header() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Perfil</DropdownMenuItem>
+            <DropdownMenuItem>Meu perfil</DropdownMenuItem>
             <DropdownMenuItem>Configurações</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => signOut()}>
-              Sair
+              Sair da conta
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
