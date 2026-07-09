@@ -66,10 +66,10 @@
 - SQLAlchemy 2 (DeclarativeBase) em vez do legado
 
 **Pendente:**
-- Gerar secrets reais (NEXTAUTH_SECRET, JWT_SECRET) para produção
 - Testar fluxo completo de cadastro → login → dashboard → pipeline
 - Adicionar funcionalidade de "esqueci minha senha"
 - Adicionar página de configurações (trocar senha, editar perfil)
+- Revisar CSP para produção (nonces/hashes em vez de unsafe-eval/inline)
 
 ### Fase 3 — Services Avançados (Futura)
 
@@ -78,9 +78,10 @@
 - Integração Cal.com para agendamento
 
 ### Próximo passo imediato
-1. Testar o build do frontend (`npm run build`)
-2. Testar fluxo completo: cadastro → login → criar campanha → pipeline
-3. Gerar secrets reais para produção
+1. Testar fluxo completo: cadastro → login → criar campanha → pipeline
+2. Adicionar "esqueci minha senha"
+3. Adicionar página de configurações (trocar senha, editar perfil)
+4. Revisar CSP para produção
 
 ## Como rodar
 
@@ -116,3 +117,4 @@ npm run dev
 | `77ebeec` | feat(web): UX improvements, drag-and-drop |
 | `d85bef2` | feat(web): complete route structure |
 | `c5e0932` | feat(web): setup Next.js with shadcn/ui |
+| *(current)* | Revisão de segurança: 11 issues corrigidas (JWT_SECRET, WS auth, rate limit, token cache, refactor, CSP, tipos) |

@@ -47,7 +47,7 @@ export function KanbanBoard() {
   const columns = useMemo(() => groupLeadsByColumn(leads), [leads]);
 
   const onDragEnd = useCallback((_result: DropResult) => {
-    // For real-time updates, we'd need to call the API to update lead status
+    // Para atualização em tempo real, seria necessário chamar a API
   }, []);
 
   const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);

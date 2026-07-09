@@ -2,22 +2,23 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict
+from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from src.db.dependencies import get_db
 from src.db.models import Job, JobStatus, JobType, Campaign, User
 from src.auth.dependencies import get_current_user
+from src.auth.security import decode_access_token
 from src.pipeline_worker import run_pipeline
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
-# Active WebSocket connections: job_id -> list of websockets
+# Conexões WebSocket ativas: job_id -> lista de websockets
 active_connections: Dict[str, list[WebSocket]] = {}
 
 
@@ -33,8 +34,7 @@ async def start_pipeline(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Create a job and start the pipeline in background."""
-    # Create job
+    """Cria um job e inicia o pipeline em background."""
     job = Job(
         job_type=JobType.LEAD_ENRICHMENT,
         status=JobStatus.PENDING,
@@ -50,17 +50,17 @@ async def start_pipeline(
 
     job_id = str(job.id)
 
-    # Start pipeline task in background
+    # Inicia pipeline em background
     asyncio.create_task(_run_pipeline_task(job_id, request.query, request.max_leads))
 
     return {"job_id": job_id, "status": "started"}
 
 
 async def _run_pipeline_task(job_id: str, query: str, max_leads: int):
-    """Background task that runs the pipeline and broadcasts events."""
+    """Executa o pipeline em background e transmite eventos via WebSocket."""
     try:
         async for event in run_pipeline(job_id=job_id, query=query, max_leads=max_leads):
-            # Read connections dynamically (WS may connect after task starts)
+            # Lê conexões dinamicamente (WS pode conectar após a task iniciar)
             connections = active_connections.get(job_id, [])
             dead = []
             for ws in connections:
@@ -82,28 +82,43 @@ async def _run_pipeline_task(job_id: str, query: str, max_leads: int):
 
 
 @router.websocket("/ws/{job_id}")
-async def websocket_pipeline(websocket: WebSocket, job_id: str):
-    """WebSocket endpoint for real-time pipeline updates."""
+async def websocket_pipeline(
+    websocket: WebSocket,
+    job_id: str,
+    token: Optional[str] = Query(None),
+):
+    """Endpoint WebSocket para atualizações do pipeline em tempo real.
+
+    Requer token JWT válido como query parameter `token`.
+    Fecha conexão com código 4001 se token ausente ou inválido.
+    """
+    if not token:
+        await websocket.close(code=4001, reason="Token de autenticação não fornecido")
+        return
+
+    payload = decode_access_token(token)
+    if payload is None:
+        await websocket.close(code=4001, reason="Token inválido ou expirado")
+        return
+
     await websocket.accept()
 
-    # Register connection
+    # Registra conexão
     if job_id not in active_connections:
         active_connections[job_id] = []
     active_connections[job_id].append(websocket)
 
-    logger.info("WebSocket connected for job %s", job_id)
+    logger.info("WebSocket connected for job %s (user: %s)", job_id, payload.get("sub"))
 
     try:
-        # Keep connection alive and listen for client messages
         while True:
             data = await websocket.receive_text()
-            # Client can send ping/pong or commands
             if data == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for job %s", job_id)
     finally:
-        # Remove connection
+        # Remove conexão
         if job_id in active_connections:
             active_connections[job_id] = [
                 ws for ws in active_connections[job_id] if ws != websocket

@@ -55,7 +55,7 @@ export function LeadList() {
 
   const leads = data?.leads || [];
 
-  // Sort leads
+  // Ordena leads
   const sortedLeads = [...leads].sort((a, b) => {
     switch (sortBy) {
       case 'score_desc':
