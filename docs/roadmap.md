@@ -76,7 +76,7 @@
 - **IA: descrição do serviço**: botão na criação de campanha para IA gerar descrição aleatória
 - **IA: "Me sugira segmentos"**: botão no passo 2 da campanha para IA sugerir segmentos com base no serviço
 - **Recurso: esqueci minha senha** — recuperação de acesso por email
-- **Página de configurações**: trocar senha, editar perfil
+- **Página de configurações**: trocar senha, editar perfil FUNCIONAL
 - **Atividade recente real**: criar endpoint de atividade/log no backend
 
 ## Segurança & Qualidade de Código — Status ✅ Resolvido (2026-07-09)

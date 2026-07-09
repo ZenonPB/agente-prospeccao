@@ -6,27 +6,32 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog } from 'lucide-react';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { useCreateCampaign } from '@/hooks/use-api';
 
 const steps = [
-  { id: 1, title: 'O que você quer vender?' },
+  { id: 1, title: 'Perfil da prospecção' },
   { id: 2, title: 'Para quem?' },
   { id: 3, title: 'Onde?' },
   { id: 4, title: 'Revisão' },
 ];
 
-const serviceSuggestions = [
-  'Landing page',
-  'ERP',
-  'App mobile',
-  'Sistema de gestão',
-  'Projeto de usinagem',
-  'Consultoria em TI',
-  'Desenvolvimento web',
+const profiles = [
+  {
+    id: 'web_presence',
+    title: 'Serviços digitais',
+    description: 'sites, apps, ERPs, landing pages, sistemas',
+    icon: Monitor,
+  },
+  {
+    id: 'business_opportunity',
+    title: 'Serviços industriais/presenciais',
+    description: 'usinagem, manutenção, consultoria, projetos mecânicos',
+    icon: Cog,
+  },
 ];
 
 const segmentSuggestions = [
@@ -45,8 +50,7 @@ export default function NovaCampanhaPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
-    service: '',
-    serviceDescription: '',
+    analysisProfile: 'web_presence',
     segment: '',
     city: '',
     state: '',
@@ -56,10 +60,6 @@ export default function NovaCampanhaPage() {
   const handleNext = () => {
     setError('');
 
-    if (currentStep === 1 && !formData.service.trim()) {
-      setError('Informe o serviço que você quer vender');
-      return;
-    }
     if (currentStep === 2 && !formData.segment.trim()) {
       setError('Selecione ou informe o segmento-alvo');
       return;
@@ -84,12 +84,11 @@ export default function NovaCampanhaPage() {
   const handleSubmit = async () => {
     setError('');
     const name = `${formData.segment} em ${formData.city}`;
-    const query = `${formData.segment} em ${formData.city}, ${formData.state}`;
 
     try {
       await createCampaign.mutateAsync({
         name,
-        target_service: formData.service || undefined,
+        analysis_profile: formData.analysisProfile as 'web_presence' | 'business_opportunity',
         target_segment: formData.segment || undefined,
         target_city: formData.city || undefined,
         target_state: formData.state || undefined,
@@ -99,6 +98,11 @@ export default function NovaCampanhaPage() {
       setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
     }
   };
+
+  const profileLabel =
+    formData.analysisProfile === 'web_presence'
+      ? 'Serviços digitais'
+      : 'Serviços industriais/presenciais';
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -160,47 +164,39 @@ export default function NovaCampanhaPage() {
           )}
 
           {currentStep === 1 && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="service">Serviço-alvo *</Label>
-                <Input
-                  id="service"
-                  placeholder="Ex: Landing page, ERP, App mobile..."
-                  value={formData.service}
-                  onChange={(e) =>
-                    setFormData({ ...formData, service: e.target.value })
-                  }
-                />
-                <div className="flex flex-wrap gap-2">
-                  {serviceSuggestions.map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setFormData({ ...formData, service: suggestion })
-                      }
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Descrição do serviço</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Descreva o serviço para a IA entender o contexto..."
-                  value={formData.serviceDescription}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      serviceDescription: e.target.value,
-                    })
-                  }
-                />
-              </div>
-            </>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Escolha o tipo de prospecção que melhor se encaixa no seu serviço:
+              </p>
+              {profiles.map((profile) => {
+                const selected = formData.analysisProfile === profile.id;
+                const Icon = profile.icon;
+                return (
+                  <button
+                    key={profile.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, analysisProfile: profile.id })}
+                    className={cn(
+                      'flex w-full items-center gap-4 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md',
+                      selected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-muted bg-card'
+                    )}
+                  >
+                    <div className={cn(
+                      'rounded-lg p-2.5',
+                      selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                    )}>
+                      <Icon className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{profile.title}</p>
+                      <p className="text-sm text-muted-foreground">{profile.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
 
           {currentStep === 2 && (
@@ -295,8 +291,8 @@ export default function NovaCampanhaPage() {
                 <h4 className="font-medium">Resumo da Campanha</h4>
                 <dl className="mt-2 space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Serviço:</dt>
-                    <dd className="font-medium">{formData.service || 'Não informado'}</dd>
+                    <dt className="text-muted-foreground">Perfil:</dt>
+                    <dd className="font-medium">{profileLabel}</dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Segmento:</dt>

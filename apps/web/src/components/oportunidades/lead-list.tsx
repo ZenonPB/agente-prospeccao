@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search } from 'lucide-react';
+import { Search, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useLeads, useCampaigns } from '@/hooks/use-api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const scoreColors = {
   high: 'bg-emerald-100 text-emerald-700',
@@ -40,22 +42,53 @@ const statusLabels: Record<string, string> = {
   PERDIDO: 'Perdido',
 };
 
+function LeadCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-5 w-10 rounded-full" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-5 w-28 rounded-full" />
+          </div>
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function LeadList() {
   const [search, setSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('score_desc');
 
-  const { data: campaignsData } = useCampaigns();
+  const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns();
   const campaigns = campaignsData?.campaigns || [];
 
-  const { data, isLoading } = useLeads({
+  const { data, isLoading, isError, error, refetch } = useLeads({
     search: search || undefined,
     campaign_id: campaignFilter !== 'all' ? campaignFilter : undefined,
   });
 
   const leads = data?.leads || [];
 
-  // Ordena leads
   const sortedLeads = [...leads].sort((a, b) => {
     switch (sortBy) {
       case 'score_desc':
@@ -73,7 +106,6 @@ export function LeadList() {
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 sm:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -86,7 +118,7 @@ export function LeadList() {
         </div>
         <Select value={campaignFilter} onValueChange={(v) => setCampaignFilter(v || 'all')}>
           <SelectTrigger className="w-full sm:w-[180px] h-10">
-            <SelectValue placeholder="Busca" />
+            <SelectValue placeholder={campaignsLoading ? 'Carregando...' : 'Busca'} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as buscas</SelectItem>
@@ -108,9 +140,28 @@ export function LeadList() {
         </Select>
       </div>
 
-      {/* Lead Cards */}
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">Carregando leads...</div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <LeadCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : isError ? (
+        <Card className="border-red-200 bg-red-50/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium">Erro ao carregar leads</p>
+            </div>
+            <p className="mt-1 text-xs text-red-500">
+              {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
+            </p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+              <RefreshCw className="mr-2 h-3 w-3" />
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
       ) : sortedLeads.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">Nenhum lead encontrado</div>
       ) : (

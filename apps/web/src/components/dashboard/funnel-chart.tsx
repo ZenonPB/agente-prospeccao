@@ -2,17 +2,19 @@
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import { AlertCircle } from 'lucide-react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   Cell
 } from 'recharts';
 import { useMetrics } from '@/hooks/use-api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface FunnelItem {
   name: string;
@@ -47,9 +49,50 @@ interface FunnelChartProps {
   activeFilter?: string | null;
 }
 
+function FunnelSkeleton() {
+  const bars = [
+    { label: 'Encontrados', width: 'w-full' },
+    { label: 'Analisados', width: 'w-3/4' },
+    { label: 'Aptos', width: 'w-2/3' },
+    { label: 'Mensagem enviada', width: 'w-1/2' },
+    { label: 'Respondeu', width: 'w-2/5' },
+    { label: 'Reunião marcada', width: 'w-1/3' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {bars.map((bar) => (
+        <div key={bar.label} className="flex items-center gap-3">
+          <Skeleton className="h-4 w-24 shrink-0" />
+          <Skeleton className={`h-6 ${bar.width}`} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const { data: metrics, isLoading } = useMetrics();
+  const { data: metrics, isLoading, isError, error } = useMetrics();
+
+  if (isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Funil de Resultados</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <p className="text-sm font-medium">Erro ao carregar funil</p>
+          </div>
+          <p className="mt-1 text-xs text-red-500">
+            {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const funnelData: FunnelItem[] = metrics?.funnel
     ? metrics.funnel.map((item) => ({
@@ -57,14 +100,7 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
         value: item.count,
         color: STAGE_COLORS[item.stage] || '#6b7280',
       }))
-    : [
-        { name: 'Encontrados', value: 0, color: '#3b82f6' },
-        { name: 'Analisados', value: 0, color: '#8b5cf6' },
-        { name: 'Aptos', value: 0, color: '#22c55e' },
-        { name: 'Mensagem enviada', value: 0, color: '#f59e0b' },
-        { name: 'Respondeu', value: 0, color: '#06b6d4' },
-        { name: 'Reunião marcada', value: 0, color: '#ec4899' },
-      ];
+    : [];
 
   const handleClick = (data: any) => {
     if (data && data.activePayload && data.activePayload.length > 0) {
@@ -75,7 +111,7 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
     }
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || !payload.length) return null;
     const data = payload[0].payload;
     const idx = funnelData.findIndex(d => d.name === data.name);
@@ -114,8 +150,8 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
       <CardContent>
         <div className="h-[300px]">
           {isLoading ? (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              Carregando...
+            <div className="flex h-full items-center justify-center">
+              <FunnelSkeleton />
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -127,28 +163,28 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
                 style={{ cursor: 'pointer' }}
               >
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
-                <XAxis 
-                  type="number" 
+                <XAxis
+                  type="number"
                   tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                   stroke="hsl(var(--muted-foreground))"
                 />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
+                <YAxis
+                  dataKey="name"
+                  type="category"
                   width={95}
                   tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                   stroke="hsl(var(--muted-foreground))"
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="value" 
+                <Bar
+                  dataKey="value"
                   radius={[0, 4, 4, 0]}
                   onMouseEnter={(_, index) => setHoveredIndex(index)}
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
                   {funnelData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
+                    <Cell
+                      key={`cell-${index}`}
                       fill={entry.color}
                       opacity={activeFilter && activeFilter !== entry.name ? 0.3 : 1}
                     />
@@ -158,23 +194,24 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
             </ResponsiveContainer>
           )}
         </div>
-        {/* Legend */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {funnelData.map((entry) => (
-            <button
-              key={entry.name}
-              onClick={() => onFilter?.(activeFilter === entry.name ? null : entry.name)}
-              className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
-                activeFilter === entry.name
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
-              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              {entry.name}
-            </button>
-          ))}
-        </div>
+        {funnelData.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {funnelData.map((entry) => (
+              <button
+                key={entry.name}
+                onClick={() => onFilter?.(activeFilter === entry.name ? null : entry.name)}
+                className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors ${
+                  activeFilter === entry.name
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                {entry.name}
+              </button>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

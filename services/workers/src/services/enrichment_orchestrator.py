@@ -3,7 +3,7 @@ from typing import Dict, Any, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from database.models import Lead, LeadStatus, Enrichment
+from database.models import Lead, LeadStatus, Enrichment, AnalysisProfile
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
 
@@ -15,42 +15,69 @@ async def process_single_lead(
     enrichment_service: TechnicalEnrichmentService,
     scoring_service: AIScoringService,
     db: Session,
-) -> Tuple[Enrichment, Optional[Dict[str, Any]]]:
-    technical_report = await enrichment_service.enrich_website(lead.website)
+    analysis_profile: AnalysisProfile = AnalysisProfile.WEB_PRESENCE,
+) -> Tuple[Optional[Enrichment], Optional[Dict[str, Any]]]:
+    """
+    Processa um lead de acordo com o perfil de análise da campanha.
 
-    enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+    - web_presence: enriquecimento técnico do site + scoring técnico (comportamento atual)
+    - business_opportunity: pula enriquecimento técnico, scoring focado em negócio
+    """
+    enrichment = None
+    scoring_data = None
 
-    if enrichment:
-        enrichment.raw_technical_data = technical_report
-        enrichment.website_exists = technical_report.get('overall_status') != 'SITE_OFFLINE'
-        enrichment.ssl_ok = technical_report.get('ssl', {}).get('ssl_ok', False)
-        enrichment.https_redirect_ok = technical_report.get('ssl', {}).get('https_redirect_ok', False)
-        enrichment.cms = technical_report.get('cms_detection')
-        enrichment.load_time_ms = technical_report.get('http_headers', {}).get('load_time_ms')
-        enrichment.security_issues = technical_report.get('errors', []) + technical_report.get('warnings', [])
+    if analysis_profile == AnalysisProfile.WEB_PRESENCE:
+        if not lead.website:
+            lead.status = LeadStatus.DESQUALIFICADO
+            logger.info("Lead '%s' sem website. Status: DESQUALIFICADO", lead.company_name)
+            return None, None
+
+        technical_report = await enrichment_service.enrich_website(lead.website)
+
+        enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+        if enrichment:
+            enrichment.raw_technical_data = technical_report
+            enrichment.website_exists = technical_report.get('overall_status') != 'SITE_OFFLINE'
+            enrichment.ssl_ok = technical_report.get('ssl', {}).get('ssl_ok', False)
+            enrichment.https_redirect_ok = technical_report.get('ssl', {}).get('https_redirect_ok', False)
+            enrichment.cms = technical_report.get('cms_detection')
+            enrichment.load_time_ms = technical_report.get('http_headers', {}).get('load_time_ms')
+            enrichment.security_issues = technical_report.get('errors', []) + technical_report.get('warnings', [])
+        else:
+            enrichment = Enrichment(
+                lead_id=lead.id,
+                raw_technical_data=technical_report,
+                website_exists=technical_report.get('overall_status') != 'SITE_OFFLINE',
+                ssl_ok=technical_report.get('ssl', {}).get('ssl_ok', False),
+                https_redirect_ok=technical_report.get('ssl', {}).get('https_redirect_ok', False),
+                cms=technical_report.get('cms_detection'),
+                load_time_ms=technical_report.get('http_headers', {}).get('load_time_ms'),
+                security_issues=technical_report.get('errors', []) + technical_report.get('warnings', []),
+            )
+            db.add(enrichment)
+
+        scoring_data = await scoring_service.score_lead(technical_report)
+
     else:
-        enrichment = Enrichment(
-            lead_id=lead.id,
-            raw_technical_data=technical_report,
-            website_exists=technical_report.get('overall_status') != 'SITE_OFFLINE',
-            ssl_ok=technical_report.get('ssl', {}).get('ssl_ok', False),
-            https_redirect_ok=technical_report.get('ssl', {}).get('https_redirect_ok', False),
-            cms=technical_report.get('cms_detection'),
-            load_time_ms=technical_report.get('http_headers', {}).get('load_time_ms'),
-            security_issues=technical_report.get('errors', []) + technical_report.get('warnings', []),
+        scoring_data = await scoring_service.score_business_lead(
+            company_name=lead.company_name,
+            category=lead.category or "",
+            city=lead.city or "",
+            state=lead.state or "",
+            website=lead.website,
         )
-        db.add(enrichment)
 
-    scoring_result = await scoring_service.score_lead(technical_report)
+    if scoring_data:
+        lead.qualification_score = scoring_data.get("qualification_score", 0)
+        lead.qualification_reason = scoring_data.get("qualification_reason", "")
+        lead.primary_need = scoring_data.get("primary_need", "NONE")
 
-    if scoring_result:
-        lead.qualification_score = scoring_result.get("qualification_score", 0)
-        lead.qualification_reason = scoring_result.get("qualification_reason", "")
-        lead.primary_need = scoring_result.get("primary_need", "NONE")
-        issues = scoring_result.get("issues_found", [])
-        enrichment.security_issues = [
-            f"[{i.get('severity','')}] {i.get('title','')}: {i.get('description','')}" for i in issues
-        ]
+        if enrichment and scoring_data.get("issues_found"):
+            issues = scoring_data["issues_found"]
+            enrichment.security_issues = [
+                f"[{i.get('severity','')}] {i.get('title','')}: {i.get('description','')}" for i in issues
+            ]
+
         if lead.qualification_score >= 60:
             lead.status = LeadStatus.QUALIFICADO
         else:
@@ -60,4 +87,4 @@ async def process_single_lead(
         lead.status = LeadStatus.ANALISADO
         logger.warning("Falha ao pontuar '%s'. Status mantido ANALISADO.", lead.company_name)
 
-    return enrichment, scoring_result
+    return enrichment, scoring_data

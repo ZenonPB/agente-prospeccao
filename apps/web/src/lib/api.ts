@@ -97,6 +97,7 @@ export const campaignsApi = {
 
   create: (data: {
     name: string;
+    analysis_profile?: 'web_presence' | 'business_opportunity';
     target_service?: string;
     target_segment?: string;
     target_city?: string;
@@ -122,7 +123,7 @@ export const metricsApi = {
 };
 
 export const pipelineApi = {
-  start: (data: { query: string; max_leads?: number; campaign_id?: string }) =>
+  start: (data: { query?: string; max_leads?: number; campaign_id?: string }) =>
     request<{ job_id: string; status: string }>("/api/pipeline/start", {
       method: "POST",
       body: JSON.stringify(data),

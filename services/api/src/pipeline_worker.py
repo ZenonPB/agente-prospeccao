@@ -10,7 +10,7 @@ from typing import AsyncGenerator, Dict, Any
 from sqlalchemy.orm import Session
 
 from src.db.session import SessionLocal
-from src.db.models import Lead, LeadStatus, Enrichment, Job, JobStatus
+from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile
 
 # Importa serviços dos workers
 import sys
@@ -32,12 +32,17 @@ def _ts() -> str:
 
 async def run_pipeline(
     job_id: str,
-    query: str,
+    query: str | None = None,
+    campaign_id: str | None = None,
     max_leads: int = 10,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Executa o pipeline completo (coleta + enriquecimento + scoring) e gera
     eventos que podem ser enviados para clientes WebSocket.
+
+    Se `campaign_id` for fornecido, a query é construída automaticamente
+    a partir dos campos da campanha e o analysis_profile define o
+    comportamento do pipeline.
     """
     db = SessionLocal()
 
@@ -48,6 +53,27 @@ async def run_pipeline(
             job.status = JobStatus.IN_PROGRESS
             job.started_at = datetime.now(timezone.utc)
             db.commit()
+
+        # --- Resolve campanha e query ---
+        campaign = None
+        analysis_profile = AnalysisProfile.WEB_PRESENCE
+
+        if campaign_id:
+            campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+            if campaign:
+                analysis_profile = campaign.analysis_profile or AnalysisProfile.WEB_PRESENCE
+                if not query:
+                    parts = []
+                    if campaign.target_segment:
+                        parts.append(campaign.target_segment)
+                    if campaign.target_city:
+                        parts.append(campaign.target_city)
+                    if campaign.target_state:
+                        parts.append(campaign.target_state)
+                    query = ', '.join(parts) if parts else campaign.name
+
+        if not query:
+            query = "empresas"
 
         # --- Fase 1: Coleta ---
         yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
@@ -90,6 +116,7 @@ async def run_pipeline(
                 city=item.get("city"),
                 state=item.get("state"),
                 country=item.get("country", "Brasil"),
+                campaign_id=campaign.id if campaign else None,
                 status=LeadStatus.NOVO,
             )
             db.add(new_lead)
@@ -108,30 +135,45 @@ async def run_pipeline(
         yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
         yield {"type": "progress", "step": "coleta", "percent": 50}
 
-        # --- Fase 2: Enriquecimento + Scoring ---
-        yield {"type": "log", "message": "Iniciando análise técnica...", "timestamp": _ts()}
-        yield {"type": "progress", "step": "enriquecimento", "percent": 50}
+        # --- Fase 2: Análise por perfil ---
+        is_web_presence = analysis_profile == AnalysisProfile.WEB_PRESENCE
+        profile_label = "técnica" if is_web_presence else "de negócio"
+
+        yield {"type": "log", "message": f"Iniciando análise {profile_label}...", "timestamp": _ts()}
+        yield {"type": "progress", "step": "analise", "percent": 50}
 
         enrichment_service = TechnicalEnrichmentService()
         scoring_service = AIScoringService()
 
-        leads_to_enrich = db.query(Lead).filter(
+        leads_to_process = db.query(Lead).filter(
             Lead.status == LeadStatus.NOVO,
-            Lead.website.isnot(None)
-        ).limit(max_leads).all()
+        )
 
-        if not leads_to_enrich:
+        if is_web_presence:
+            leads_to_process = leads_to_process.filter(Lead.website.isnot(None))
+
+        if campaign:
+            leads_to_process = leads_to_process.filter(Lead.campaign_id == campaign.id)
+        else:
+            leads_to_process = leads_to_process.filter(Lead.campaign_id == None)
+
+        leads_to_process = leads_to_process.limit(max_leads).all()
+
+        if not leads_to_process:
             yield {"type": "log", "message": "Nenhum lead novo para analisar", "timestamp": _ts()}
         else:
-            total_to_enrich = len(leads_to_enrich)
-            for i, lead in enumerate(leads_to_enrich):
+            total_to_process = len(leads_to_process)
+            for i, lead in enumerate(leads_to_process):
                 yield {
                     "type": "log",
                     "message": f"Analisando: {lead.company_name}",
                     "timestamp": _ts(),
                 }
 
-                _, scoring_result = await process_single_lead(lead, enrichment_service, scoring_service, db)
+                _, scoring_result = await process_single_lead(
+                    lead, enrichment_service, scoring_service, db,
+                    analysis_profile=analysis_profile,
+                )
 
                 score = scoring_result.get("qualification_score", 0) if scoring_result else 0
                 status_label = {
@@ -147,16 +189,16 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
 
-                percent = 50 + int((i + 1) / total_to_enrich * 50)
-                yield {"type": "progress", "step": "enriquecimento", "percent": min(percent, 100)}
+                percent = 50 + int((i + 1) / total_to_process * 50)
+                yield {"type": "progress", "step": "analise", "percent": min(percent, 100)}
 
             db.commit()
 
         # --- Finalizado ---
-        qualified = db.query(Lead).filter(
-            Lead.campaign_id == None,
-            Lead.status == LeadStatus.QUALIFICADO
-        ).count()
+        lead_filter = Lead.status == LeadStatus.QUALIFICADO
+        if campaign:
+            lead_filter = lead_filter & (Lead.campaign_id == campaign.id)
+        qualified = db.query(Lead).filter(lead_filter).count()
 
         yield {
             "type": "done",

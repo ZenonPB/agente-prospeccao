@@ -41,11 +41,27 @@
 - CORS configurado para frontend
 - Migration `6db61055` — city nullable na tabela leads
 
-### Fase 2 — Frontend Web 🟡 Em andamento
+### Fase 2 — Frontend Web 🟡 Em andamento (parcial) / ✅ Unificação concluída
 
-**Concluído:**
+**Anteriormente:** páginas `/campanhas` (lista + wizard) e `/pipeline` (monitor WebSocket) eram desconectadas — não havia botão "Iniciar coleta" na campanha nem contexto de campanha no pipeline.
+
+**Unificação realizada (2026-07-09):**
+- `/campanhas/[id]` — nova página de detalhe da campanha que integra:
+  - Informações da campanha (serviço, segmento, local, status)
+  - `CampaignPipeline` inline — WebSocket ao vivo com barra de progresso e log
+  - Botão "Iniciar Coleta" com auto-start via `?start=true`
+  - Tabela de leads da campanha ao finalizar
+  - Link "Ver Oportunidades" após coleta concluída
+- `CampaignList` — cada card agora tem:
+  - Nome clicável (link para `/campanhas/[id]`)
+  - Botão "Iniciar Coleta" que navega para `/campanhas/[id]?start=true`
+- Sidebar: "Buscas" → "Campanhas"; "Acompanhamento" removido
+- Página `/pipeline` removida (rota não existe mais)
+- Componente `CampaignPipeline` criado em `components/campanhas/`
+
+**Outros concluídos:**
 - Setup Next.js 16 + React 19 + TypeScript
-- shadcn/ui configurado (20+ componentes)
+- shadcn/ui configurado (21+ componentes, incluindo Skeleton)
 - NextAuth.js com Credentials provider (email/senha + JWT)
 - Backend FastAPI com auth (registro + login + bcrypt + JWT)
 - Todas as rotas da API protegidas por autenticação JWT
@@ -54,19 +70,26 @@
   - `/login` — login com email/senha
   - `/register` — cadastro de novo usuário
   - `/dashboard` — métricas interativas + gráficos
-  - `/campanhas` — lista + wizard 4 etapas
+  - `/campanhas` — lista + wizard 4 etapas + detalhe com pipeline inline
   - `/oportunidades` — lista de leads + detalhe com abas
-  - `/pipeline` — monitor tempo real com WebSocket
   - `/vendas` — kanban com drag-and-drop
 - UX: termos amigáveis, botões responsivos, filtros interativos
 - Frontend conectado à API REST (mock data removido)
-- Pipeline monitor com WebSocket streaming
+- Pipeline monitor com WebSocket streaming (integrado nas campanhas)
 - Kanban board com dados reais
 - Bugfixes: POST /api/campaigns implementado, enrichment no GET /api/leads/{id}, 404 corrigidos, type mismatches corrigidos
 - SQLAlchemy 2 (DeclarativeBase) em vez do legado
 
+**Substituição de loading/erro por skeleton (2026-07-09):**
+- `Skeleton` component criado em `components/ui/skeleton.tsx`
+- `MetricsGrid` — 4 cards skeleton + cards de erro vermelhos
+- `FunnelChart` — barras horizontais skeleton + estado de erro
+- `CampaignList` — 3 cards skeleton + estado de erro
+- `LeadList` — 6 cards skeleton + botão "Tentar novamente" no erro
+- `KanbanBoard` — 5 colunas skeleton + botão "Tentar novamente" no erro
+
 **Pendente:**
-- Testar fluxo completo de cadastro → login → dashboard → pipeline
+- Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
 - Adicionar funcionalidade de "esqueci minha senha"
 - Adicionar página de configurações (trocar senha, editar perfil)
 - Revisar CSP para produção (nonces/hashes em vez de unsafe-eval/inline)
@@ -78,10 +101,11 @@
 - Integração Cal.com para agendamento
 
 ### Próximo passo imediato
-1. Testar fluxo completo: cadastro → login → criar campanha → pipeline
-2. Adicionar "esqueci minha senha"
-3. Adicionar página de configurações (trocar senha, editar perfil)
-4. Revisar CSP para produção
+1. ~~Unificar páginas /campanhas e /pipeline~~ ✅
+2. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
+3. Adicionar "esqueci minha senha"
+4. Adicionar página de configurações (trocar senha, editar perfil)
+5. Revisar CSP para produção
 
 ## Como rodar
 
@@ -117,4 +141,6 @@ npm run dev
 | `77ebeec` | feat(web): UX improvements, drag-and-drop |
 | `d85bef2` | feat(web): complete route structure |
 | `c5e0932` | feat(web): setup Next.js with shadcn/ui |
-| *(current)* | Revisão de segurança: 11 issues corrigidas (JWT_SECRET, WS auth, rate limit, token cache, refactor, CSP, tipos) |
+| `12a1946` | feat(web): connect frontend to real API with auth |
+| `8030d07` | feat(api): create FastAPI with REST endpoints |
+| *(current)* | feat(web): unify campanhas and pipeline pages |

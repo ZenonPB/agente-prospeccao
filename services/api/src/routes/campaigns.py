@@ -17,6 +17,7 @@ class CreateCampaignRequest(BaseModel):
     target_city: Optional[str] = None
     target_state: Optional[str] = None
     target_country: Optional[str] = None
+    analysis_profile: str = "web_presence"
 
 
 @router.get("")
@@ -50,6 +51,7 @@ def list_campaigns(
             "target_city": campaign.target_city,
             "target_state": campaign.target_state,
             "target_country": campaign.target_country,
+            "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
             "status": campaign.status.value if campaign.status else None,
             "lead_count": lead_count,
             "avg_score": round(float(avg_score), 1),
@@ -77,6 +79,7 @@ def create_campaign(
         target_city=request.target_city,
         target_state=request.target_state,
         target_country=request.target_country or "Brasil",
+        analysis_profile=request.analysis_profile,
         status=CampaignStatus.ACTIVE,
     )
     db.add(campaign)
@@ -92,6 +95,7 @@ def create_campaign(
         "target_city": campaign.target_city,
         "target_state": campaign.target_state,
         "target_country": campaign.target_country,
+        "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
         "lead_count": 0,
         "avg_score": 0,
@@ -121,6 +125,7 @@ def get_campaign(
         "target_city": campaign.target_city,
         "target_state": campaign.target_state,
         "target_country": campaign.target_country,
+        "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
         "lead_count": lead_count,
         "avg_score": round(float(avg_score), 1),
