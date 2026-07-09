@@ -72,11 +72,12 @@ class TechnicalEnrichmentService:
         return ssl_info
 
     async def _get_headers_and_status(self, url: str) -> Dict[str, Any]:
-        """Obtém status HTTP e headers de segurança."""
+        """Obtém status HTTP, headers de segurança e o HTML da página em uma única requisição."""
         headers_info = {
             "status_code": None,
             "load_time_ms": None,
             "headers": {},
+            "html_content": None,
             "security_headers_missing": [],
             "error": None
         }
@@ -89,6 +90,7 @@ class TechnicalEnrichmentService:
                 headers_info["status_code"] = resp.status_code
                 headers_info["load_time_ms"] = int((end_time - start_time) * 1000)
                 headers_info["headers"] = {k.lower(): v for k, v in resp.headers.items()}
+                headers_info["html_content"] = resp.text
 
                 # Verificar headers de segurança
                 required_security_headers = {
@@ -110,37 +112,155 @@ class TechnicalEnrichmentService:
             headers_info["error"] = f"Erro na requisição: {e}"
         return headers_info
 
-    async def _detect_cms(self, url: str) -> Optional[str]:
-        """Tenta detectar o CMS via headers e meta tags."""
-        try:
-            async with self._create_client() as client:
-                resp = await client.get(url, timeout=5)
-                resp.raise_for_status()
-                
-                if "x-powered-by" in resp.headers and "wordpress" in resp.headers["x-powered-by"].lower():
-                    return "WordPress"
-                if "x-generator" in resp.headers and "joomla" in resp.headers["x-generator"].lower():
-                    return "Joomla"
+    def _detect_cms(self, html_content: Optional[str], headers: Dict[str, str]) -> Optional[str]:
+        """Detecta o CMS/tecnologia do site a partir do HTML e headers já baixados (sem nova requisição)."""
+        if not html_content and not headers:
+            return None
 
-                html_content = resp.text
-                if re.search(r'wp-content|wp-includes', html_content, re.IGNORECASE):
-                    return "WordPress"
-                if re.search(r'joomla\.css|com_content', html_content, re.IGNORECASE):
-                    return "Joomla"
-                if re.search(r'_next/', html_content, re.IGNORECASE):
-                    return "Next.js"
-                if re.search(r'nuxt\.js', html_content, re.IGNORECASE):
-                    return "Nuxt.js"
-                if re.search(r'drupal\.js', html_content, re.IGNORECASE):
-                    return "Drupal"
-                if re.search(r'<meta name="generator" content="Joomla!', html_content, re.IGNORECASE):
-                    return "Joomla"
-                if re.search(r'<meta name="generator" content="WordPress', html_content, re.IGNORECASE):
-                    return "WordPress"
+        html_lower = (html_content or "").lower()
 
-        except httpx.RequestError:
-            pass
+        # WordPress + variantes (Elementor, Divi)
+        if re.search(r'wp-content|wp-includes', html_lower):
+            if re.search(r'elementor', html_lower):
+                return "WordPress + Elementor"
+            if re.search(r'\bdivi\b', html_lower):
+                return "WordPress + Divi"
+            return "WordPress"
+        if re.search(r'<meta name="generator" content="wordpress', html_lower):
+            if re.search(r'elementor', html_lower):
+                return "WordPress + Elementor"
+            return "WordPress"
+
+        # Joomla
+        if re.search(r'joomla\.css|com_content', html_lower):
+            return "Joomla"
+        if re.search(r'<meta name="generator" content="joomla', html_lower):
+            return "Joomla"
+
+        # Next.js / Nuxt.js
+        if re.search(r'_next/', html_lower):
+            return "Next.js"
+        if re.search(r'nuxt', html_lower):
+            return "Nuxt.js"
+
+        # Drupal
+        if re.search(r'drupal\.js|drupal\.settings', html_lower):
+            return "Drupal"
+
+        # Webflow
+        if re.search(r'data-wf-|assets\.website-files\.com', html_lower):
+            return "Webflow"
+
+        # Wix
+        if re.search(r'static\.wixstatic\.com|wix\.com', html_lower):
+            return "Wix"
+
+        # Shopify
+        if re.search(r'cdn\.shopify\.com', html_lower):
+            return "Shopify"
+
+        # Squarespace
+        if re.search(r'squarespace\.com', html_lower):
+            return "Squarespace"
+
+        # Google Sites
+        if re.search(r'sites\.google\.com', html_lower):
+            return "Google Sites"
+
+        # Via headers HTTP
+        x_powered = headers.get("x-powered-by", "").lower()
+        if "php" in x_powered:
+            return "PHP"
+        if "asp.net" in x_powered:
+            return "ASP.NET"
+        if "express" in x_powered:
+            return "Node.js/Express"
+        if "wordpress" in x_powered:
+            return "WordPress"
+
+        x_generator = headers.get("x-generator", "").lower()
+        if "joomla" in x_generator:
+            return "Joomla"
+        if "wordpress" in x_generator:
+            return "WordPress"
+
+        # Server não é CMS, mas registramos info útil para argumento comercial
+        server = headers.get("server", "").lower()
+        if "nginx" in server:
+            return None  # Não é CMS, apenas infra — retorna None para não poluir
+
         return None
+
+    def _check_seo(self, html_content: Optional[str]) -> Dict[str, Any]:
+        """Verifica SEO básico e menção a LGPD/privacidade a partir do HTML já baixado (sem nova requisição)."""
+        result = {
+            "seo_title_ok": False,
+            "seo_description_ok": False,
+            "seo_h1_ok": False,
+            "seo_title_length_ok": False,
+            "lgpd_mention_found": False,
+            "issues": [],
+        }
+
+        if not html_content:
+            result["issues"].append("HTML não disponível para análise de SEO")
+            return result
+
+        html_lower = html_content.lower()
+
+        # <title>
+        title_match = re.search(r'<title[^>]*>(.*?)</title>', html_content, re.IGNORECASE | re.DOTALL)
+        title_text = title_match.group(1).strip() if title_match else ""
+        if not title_text:
+            result["issues"].append("Tag <title> ausente ou vazia")
+        else:
+            result["seo_title_ok"] = True
+            if not (30 <= len(title_text) <= 60):
+                result["issues"].append(f"<title> com {len(title_text)} caracteres (ideal 30-60)")
+            else:
+                result["seo_title_length_ok"] = True
+
+        # <meta name="description">
+        desc_match = re.search(r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']', html_content, re.IGNORECASE | re.DOTALL)
+        desc_text = desc_match.group(1).strip() if desc_match else ""
+        if not desc_text:
+            result["issues"].append("Meta description ausente ou vazia")
+        else:
+            result["seo_description_ok"] = True
+
+        # <h1>
+        if re.search(r'<h1[^>]*>', html_content, re.IGNORECASE):
+            result["seo_h1_ok"] = True
+        else:
+            result["issues"].append("Nenhum <h1> encontrado na página")
+
+        # LGPD / privacidade (menção textual)
+        if re.search(r'privacidade|política|lgpd|cookies|termos de uso', html_lower):
+            result["lgpd_mention_found"] = True
+        else:
+            result["issues"].append("Nenhuma menção a privacidade/LGPD/cookies encontrada na home")
+
+        return result
+
+    def _rate_performance(self, load_time_ms: Optional[int]) -> Dict[str, Any]:
+        """Interpreta o tempo de carregamento em uma classificação legível."""
+        if load_time_ms is None:
+            return {"load_time_ms": None, "is_slow": False, "rating": "não medido"}
+
+        if load_time_ms < 1500:
+            rating = "rápido"
+        elif load_time_ms <= 3000:
+            rating = "aceitável"
+        elif load_time_ms <= 5000:
+            rating = "lento"
+        else:
+            rating = "muito lento"
+
+        return {
+            "load_time_ms": load_time_ms,
+            "is_slow": load_time_ms > 3000,
+            "rating": rating,
+        }
 
     async def _check_sensitive_paths(self, base_url: str) -> List[str]:
         """Verifica a exposição de arquivos ou diretórios sensíveis."""
@@ -174,7 +294,9 @@ class TechnicalEnrichmentService:
             "warnings": [],
             "ssl": {},
             "http_headers": {},
+            "performance": {},
             "cms_detection": None,
+            "seo": {},
             "exposed_paths": [],
         }
 
@@ -189,12 +311,16 @@ class TechnicalEnrichmentService:
                     report["errors"].append(f"Problema SSL/HTTPS: {ssl_result['error'] or 'Sem certificado ou inválido'}")
                     report["overall_status"] = "PROBLEMA"
             
-            # Status HTTP e Headers de Segurança
+            # Status HTTP, Headers de Segurança e HTML (uma única requisição)
             headers_result = await self._get_headers_and_status(website_url)
+            html_content = headers_result.get("html_content")
+            resp_headers = headers_result.get("headers", {})
+
             report["http_headers"] = {
                 "status_code": headers_result["status_code"],
                 "load_time_ms": headers_result["load_time_ms"],
-                "headers": headers_result["headers"]
+                "headers": resp_headers,
+                "security_headers_missing": headers_result["security_headers_missing"],
             }
             if headers_result["error"]:
                 report["errors"].append(f"Erro ao obter headers: {headers_result['error']}")
@@ -204,10 +330,20 @@ class TechnicalEnrichmentService:
                 if "x-frame-options" in headers_result["security_headers_missing"] or "content-security-policy" in headers_result["security_headers_missing"]:
                     report["overall_status"] = "PROBLEMA"
 
-            # Detecção de CMS
-            report["cms_detection"] = await self._detect_cms(website_url)
+            # Interpretação de performance (sem nova requisição)
+            report["performance"] = self._rate_performance(headers_result["load_time_ms"])
+            if report["performance"].get("is_slow"):
+                report["warnings"].append(f"Site lento: {report['performance']['rating']} ({report['performance']['load_time_ms']}ms)")
+
+            # Detecção de CMS/tecnologia (reusa HTML já baixado)
+            report["cms_detection"] = self._detect_cms(html_content, resp_headers)
             if report["cms_detection"] == "WordPress":
                 report["warnings"].append("CMS WordPress detectado (verificar versão e plugins)")
+
+            # SEO + LGPD (reusa HTML já baixado)
+            report["seo"] = self._check_seo(html_content)
+            for issue in report["seo"].get("issues", []):
+                report["warnings"].append(f"SEO/LGPD: {issue}")
 
             # Checagem de Caminhos Sensíveis
             report["exposed_paths"] = await self._check_sensitive_paths(website_url)

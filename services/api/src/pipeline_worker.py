@@ -173,6 +173,8 @@ async def run_pipeline(
                 _, scoring_result = await process_single_lead(
                     lead, enrichment_service, scoring_service, db,
                     analysis_profile=analysis_profile,
+                    campaign_target_service=campaign.target_service if campaign else "",
+                    campaign_target_segment=campaign.target_segment if campaign else "",
                 )
 
                 score = scoring_result.get("qualification_score", 0) if scoring_result else 0

@@ -16,6 +16,8 @@ async def process_single_lead(
     scoring_service: AIScoringService,
     db: Session,
     analysis_profile: AnalysisProfile = AnalysisProfile.WEB_PRESENCE,
+    campaign_target_service: str = "",
+    campaign_target_segment: str = "",
 ) -> Tuple[Optional[Enrichment], Optional[Dict[str, Any]]]:
     """
     Processa um lead de acordo com o perfil de análise da campanha.
@@ -56,7 +58,11 @@ async def process_single_lead(
             )
             db.add(enrichment)
 
-        scoring_data = await scoring_service.score_lead(technical_report)
+        scoring_data = await scoring_service.score_lead(
+            technical_report,
+            target_service=campaign_target_service,
+            target_segment=campaign_target_segment,
+        )
 
     else:
         scoring_data = await scoring_service.score_business_lead(
@@ -65,12 +71,16 @@ async def process_single_lead(
             city=lead.city or "",
             state=lead.state or "",
             website=lead.website,
+            target_service=campaign_target_service,
+            target_segment=campaign_target_segment,
         )
 
     if scoring_data:
         lead.qualification_score = scoring_data.get("qualification_score", 0)
         lead.qualification_reason = scoring_data.get("qualification_reason", "")
         lead.primary_need = scoring_data.get("primary_need", "NONE")
+        lead.pitch_angle = scoring_data.get("pitch_angle")
+        lead.suggested_subject = scoring_data.get("suggested_subject")
 
         if enrichment and scoring_data.get("issues_found"):
             issues = scoring_data["issues_found"]
