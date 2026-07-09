@@ -99,7 +99,7 @@ export function LeadList() {
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 sm:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Buscar empresa..." className="pl-9 h-10" />
+          <Input placeholder="Buscar lead..." className="pl-9 h-10" />
         </div>
         <Select defaultValue="all">
           <SelectTrigger className="w-full sm:w-[180px] h-10">

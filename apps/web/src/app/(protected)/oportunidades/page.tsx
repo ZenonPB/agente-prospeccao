@@ -6,7 +6,7 @@ export default function OportunidadesPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Oportunidades</h2>
         <p className="text-muted-foreground">
-          Empresas com potencial para contato
+          Leads com potencial para contato
         </p>
       </div>
 

@@ -16,8 +16,8 @@ interface PipelineStep {
 
 const pipelineSteps: PipelineStep[] = [
   { id: '1', name: 'Conectado ao Google Maps', status: 'completed' },
-  { id: '2', name: 'Buscando empresas em Araraquara, SP', status: 'completed', count: 29, details: '29 estabelecimentos encontrados' },
-  { id: '3', name: 'Coletando informações', status: 'completed', count: 12, details: '12 empresas selecionadas' },
+  { id: '2', name: 'Buscando leads em Araraquara, SP', status: 'completed', count: 29, details: '29 estabelecimentos encontrados' },
+  { id: '3', name: 'Coletando informações', status: 'completed', count: 12, details: '12 leads selecionados' },
   { id: '4', name: 'Analisando sites', status: 'in_progress', count: 8, details: '8 de 12 concluídos' },
   { id: '5', name: 'Calculando aptidão', status: 'pending' },
 ];
@@ -103,7 +103,7 @@ export function PipelineMonitor() {
           <div className="h-[300px] overflow-y-auto rounded-lg bg-muted/50 p-4 font-mono text-sm">
             <div className="space-y-1">
               <p><span className="text-emerald-500">✓</span> Conectado ao Google Maps</p>
-              <p><span className="text-blue-500">🔍</span> Buscando empresas em Araraquara, SP...</p>
+              <p><span className="text-blue-500">🔍</span> Buscando leads em Araraquara, SP...</p>
               <p><span className="text-emerald-500">✓</span> 29 estabelecimentos encontrados</p>
               <p><span className="text-blue-500">📋</span> Coletando informações...</p>
               <p><span className="text-emerald-500">✓</span> Tijuca Restaurante & Bar — coletado</p>
@@ -120,7 +120,7 @@ export function PipelineMonitor() {
               <p><span className="text-emerald-500">✓</span> Tijuca — Aptidão: 74 (Apto)</p>
               <p><span className="text-emerald-500">✓</span> Pau Seco — Aptidão: 88 (Apto)</p>
               <p><span className="text-emerald-500">✓</span> Busca finalizada</p>
-              <p className="font-bold">12 empresas | 9 aptas | 3 inaptas</p>
+              <p className="font-bold">12 leads | 9 aptos | 3 inaptos</p>
             </div>
           </div>
         </CardContent>

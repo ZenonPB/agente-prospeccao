@@ -84,7 +84,7 @@ export default function LeadDetailPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Informações da Empresa</CardTitle>
+                <CardTitle>Informações do Lead</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ export default function LeadDetailPage() {
                   <Badge>Apto para contato</Badge>
                 </div>
                 <div className="pt-2">
-                  <p className="text-sm text-muted-foreground">Por que esta empresa é uma oportunidade:</p>
+                  <p className="text-sm text-muted-foreground">Por que este lead é uma oportunidade:</p>
                   <p className="text-sm mt-1">{lead.qualification_reason}</p>
                 </div>
               </CardContent>

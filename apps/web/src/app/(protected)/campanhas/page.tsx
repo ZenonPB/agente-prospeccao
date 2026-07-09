@@ -6,7 +6,7 @@ export default function CampanhasPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Buscas</h2>
         <p className="text-muted-foreground">
-          Gerencie suas buscas por empresas
+          Gerencie suas buscas por leads
         </p>
       </div>
 

@@ -19,7 +19,7 @@ const quickActions: QuickAction[] = [
   {
     id: '1',
     title: 'Prosseguir com contatos',
-    description: '12 empresas aguardando sua mensagem',
+    description: '12 leads aguardando sua mensagem',
     icon: <Target className="h-4 w-4" />,
     href: '/oportunidades',
     count: 12,
@@ -28,7 +28,7 @@ const quickActions: QuickAction[] = [
   {
     id: '2',
     title: 'Fazer follow-up',
-    description: '3 empresas sem resposta há 7+ dias',
+    description: '3 leads sem resposta há 7+ dias',
     icon: <Phone className="h-4 w-4" />,
     href: '/vendas',
     count: 3,

@@ -128,7 +128,7 @@ export function KanbanBoard() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {totalLeads} empresa{totalLeads !== 1 ? 's' : ''} em acompanhamento
+          {totalLeads} lead{totalLeads !== 1 ? 's' : ''} em acompanhamento
         </p>
         <p className="text-sm text-muted-foreground">
           Arraste os cartões entre as colunas para atualizar o status
@@ -201,7 +201,7 @@ export function KanbanBoard() {
                       {provided.placeholder}
                       {column.leads.length === 0 && !snapshot.isDraggingOver && (
                         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                          Nenhuma empresa nesta etapa
+                          Nenhum lead nesta etapa
                         </div>
                       )}
                     </div>

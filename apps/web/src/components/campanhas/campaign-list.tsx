@@ -144,7 +144,7 @@ export function CampaignList() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Progresso</span>
                   <span className="font-medium">
-                    {campaign.lead_count} de {campaign.target_leads} empresas
+                    {campaign.lead_count} de {campaign.target_leads} leads
                   </span>
                 </div>
                 <Progress 

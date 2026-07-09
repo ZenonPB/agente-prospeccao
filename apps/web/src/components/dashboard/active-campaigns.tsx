@@ -79,7 +79,7 @@ export function ActiveCampaigns() {
                 </div>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">
-                    {campaign.lead_count} de {campaign.target_leads} empresas encontradas
+                    {campaign.lead_count} de {campaign.target_leads} leads encontrados
                   </span>
                   <span className="font-medium">Aptidão: {campaign.avg_score}</span>
                 </div>

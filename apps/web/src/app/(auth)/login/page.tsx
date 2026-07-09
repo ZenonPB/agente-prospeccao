@@ -11,7 +11,7 @@ export default function LoginPage() {
         <CardHeader className="space-y-2 text-center">
           <CardTitle className="text-2xl font-bold">Agente Prospecção</CardTitle>
           <CardDescription>
-            Encontre e qualifique empresas automaticamente
+            Encontre e qualifique leads automaticamente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

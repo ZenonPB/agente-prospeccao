@@ -6,7 +6,7 @@ export default function PipelinePage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Acompanhamento</h2>
         <p className="text-muted-foreground">
-          Veja o progresso da busca por empresas em tempo real
+          Veja o progresso da busca por leads em tempo real
         </p>
       </div>
 

@@ -15,7 +15,7 @@ const activities: Activity[] = [
   {
     id: '1',
     type: 'lead_qualified',
-    description: 'Empresa com site com problemas de segurança',
+    description: 'Lead com site com problemas de segurança',
     timestamp: '2 min atrás',
     lead_name: 'Tijuca Restaurante & Bar',
   },

@@ -6,7 +6,7 @@ export default function VendasPage() {
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Negociações</h2>
         <p className="text-muted-foreground">
-          Acompanhe e gerencie suas conversas com empresas
+          Acompanhe e gerencie suas conversas com leads
         </p>
       </div>
 
