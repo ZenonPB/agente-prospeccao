@@ -7,8 +7,8 @@ import {
   LayoutDashboard, 
   Megaphone, 
   Target, 
-  GitBranch, 
   DollarSign,
+  Settings,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -17,10 +17,10 @@ import { useAppStore } from '@/stores/useAppStore';
 
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Buscas', href: '/campanhas', icon: Megaphone },
+  { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
   { name: 'Oportunidades', href: '/oportunidades', icon: Target },
-  { name: 'Acompanhamento', href: '/pipeline', icon: GitBranch },
   { name: 'Negociações', href: '/vendas', icon: DollarSign },
+  { name: 'Configurações', href: '/configuracoes', icon: Settings },
 ];
 
 export function Sidebar() {

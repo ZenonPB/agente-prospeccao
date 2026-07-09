@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Plus, MoreHorizontal, Pause, Play, Archive, Copy } from 'lucide-react';
+import { Plus, MoreHorizontal, Pause, Play, Archive, Copy, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -28,11 +28,11 @@ export function CampaignList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Todas as Buscas</h3>
+        <h3 className="text-lg font-medium">Todas as Campanhas</h3>
         <Link href="/campanhas/nova">
           <Button className="h-10">
             <Plus className="mr-2 h-4 w-4" />
-            Nova Busca
+            Nova Campanha
           </Button>
         </Link>
       </div>
@@ -44,12 +44,14 @@ export function CampaignList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {campaigns.map((campaign) => (
-            <Card key={campaign.id} className="relative overflow-hidden transition-all hover:shadow-md">
+              <Card key={campaign.id} className="relative overflow-hidden transition-all hover:shadow-md">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{campaign.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
+                  <div className="flex-1 min-w-0">
+                    <Link href={`/campanhas/${campaign.id}`} className="hover:underline">
+                      <CardTitle className="text-lg truncate">{campaign.name}</CardTitle>
+                    </Link>
+                    <p className="text-sm text-muted-foreground truncate">
                       {campaign.target_service || campaign.target_segment || 'Geral'} • {campaign.target_city || 'Todas as cidades'}{campaign.target_state ? `, ${campaign.target_state}` : ''}
                     </p>
                   </div>
@@ -106,6 +108,12 @@ export function CampaignList() {
                       </span>
                     ) : null}
                   </div>
+                  <Link href={`/campanhas/${campaign.id}?start=true`}>
+                    <Button size="sm" className="w-full mt-2">
+                      <PlayCircle className="mr-2 h-4 w-4" />
+                      Iniciar Coleta
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
