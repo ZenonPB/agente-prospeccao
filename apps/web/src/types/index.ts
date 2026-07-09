@@ -26,6 +26,8 @@ export interface Lead {
   qualification_reason?: string;
   primary_need?: string;
   segment_opportunity?: string;
+  pitch_angle?: string;
+  suggested_subject?: string;
   campaign_id?: string;
   created_at: string;
   updated_at: string;

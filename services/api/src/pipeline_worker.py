@@ -207,7 +207,7 @@ async def run_pipeline(
             "summary": {
                 "collected": collected_count,
                 "qualified": qualified,
-                "total_processed": len(leads_to_enrich) if leads_to_enrich else 0,
+                "total_processed": len(leads_to_process) if leads_to_process else 0,
             },
             "timestamp": _ts(),
         }
