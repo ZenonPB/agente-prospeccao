@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Plus, MoreHorizontal, Pause, Play, Archive, Copy, PlayCircle } from 'lucide-react';
+import { Plus, MoreHorizontal, Pause, Play, Archive, Copy, PlayCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useCampaigns } from '@/hooks/use-api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const statusConfig = {
   ACTIVE: { label: 'Em andamento', color: 'bg-emerald-100 text-emerald-700' },
@@ -21,8 +22,38 @@ const statusConfig = {
   ARCHIVED: { label: 'Arquivada', color: 'bg-gray-100 text-gray-700' },
 };
 
+function CampaignCardSkeleton() {
+  return (
+    <Card className="relative overflow-hidden">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-56" />
+          </div>
+          <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+          <Skeleton className="h-2 w-full" />
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-5 w-24 rounded-full" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <Skeleton className="h-10 w-full rounded-md" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function CampaignList() {
-  const { data, isLoading } = useCampaigns();
+  const { data, isLoading, isError, error } = useCampaigns();
   const campaigns = data?.campaigns || [];
 
   return (
@@ -38,7 +69,23 @@ export function CampaignList() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-8 text-muted-foreground">Carregando campanhas...</div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <CampaignCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : isError ? (
+        <Card className="border-red-200 bg-red-50/50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <p className="text-sm font-medium">Erro ao carregar campanhas</p>
+            </div>
+            <p className="mt-1 text-xs text-red-500">
+              {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
+            </p>
+          </CardContent>
+        </Card>
       ) : campaigns.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">Nenhuma campanha encontrada</div>
       ) : (
@@ -94,8 +141,8 @@ export function CampaignList() {
                       {campaign.lead_count || 0} leads encontrados
                     </span>
                   </div>
-                  <Progress 
-                    value={campaign.lead_count ? Math.min((campaign.lead_count / 100) * 100, 100) : 0} 
+                  <Progress
+                    value={campaign.lead_count ? Math.min((campaign.lead_count / 100) * 100, 100) : 0}
                     className="h-2"
                   />
                   <div className="flex items-center justify-between">

@@ -2,9 +2,12 @@
 
 import { useMemo, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { GripVertical, Clock, AlertTriangle } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useLeads } from '@/hooks/use-api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface KanbanColumn {
   id: string;
@@ -40,8 +43,40 @@ function groupLeadsByColumn(leads: LeadData[]): Record<string, LeadData[]> {
   return grouped;
 }
 
+function KanbanColumnSkeleton() {
+  return (
+    <div className="min-w-[280px] flex-1">
+      <div className="rounded-xl bg-muted/50 p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-2 w-2 rounded-full" />
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <Skeleton className="h-5 w-6 rounded-full" />
+        </div>
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="mb-3 flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="h-5 w-10 rounded-full" />
+                </div>
+                <Skeleton className="h-4 w-32" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function KanbanBoard() {
-  const { data, isLoading } = useLeads();
+  const { data, isLoading, isError, error, refetch } = useLeads();
   const leads = data?.leads || [];
 
   const columns = useMemo(() => groupLeadsByColumn(leads), [leads]);
@@ -53,7 +88,33 @@ export function KanbanBoard() {
   const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);
 
   if (isLoading) {
-    return <div className="text-center py-8 text-muted-foreground">Carregando leads...</div>;
+    return (
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {COLUMNS.map((col) => (
+          <KanbanColumnSkeleton key={col.id} />
+        ))}
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card className="border-red-200 bg-red-50/50">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <p className="text-sm font-medium">Erro ao carregar leads</p>
+          </div>
+          <p className="mt-1 text-xs text-red-500">
+            {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
+          </p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={() => refetch()}>
+            <RefreshCw className="mr-2 h-3 w-3" />
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

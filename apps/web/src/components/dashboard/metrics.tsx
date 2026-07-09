@@ -1,8 +1,9 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Target, Phone, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, Target, Phone, Calendar, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
 import { useLeadStats } from '@/hooks/use-api';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MetricCardProps {
   title: string;
@@ -17,7 +18,7 @@ interface MetricCardProps {
 
 export function MetricCard({ title, value, description, icon, trend, trendValue, onClick, active }: MetricCardProps) {
   return (
-    <Card 
+    <Card
       className={`transition-all hover:shadow-md ${
         onClick ? 'cursor-pointer' : ''
       } ${active ? 'ring-2 ring-primary' : ''}`}
@@ -49,19 +50,64 @@ export function MetricCard({ title, value, description, icon, trend, trendValue,
   );
 }
 
+function MetricCardSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-8 w-8 rounded-md" />
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="mb-1 h-7 w-16" />
+        <Skeleton className="h-3 w-20" />
+      </CardContent>
+    </Card>
+  );
+}
+
 interface MetricsGridProps {
   onFilter?: (metric: string | null) => void;
   activeFilter?: string | null;
 }
 
 export function MetricsGrid({ onFilter, activeFilter }: MetricsGridProps) {
-  const { data: stats, isLoading } = useLeadStats();
+  const { data: stats, isLoading, isError, error } = useLeadStats();
+
+  if (isError) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="border-red-200 bg-red-50/50">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 text-red-600">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p className="text-sm font-medium">Erro ao carregar</p>
+              </div>
+              <p className="mt-1 text-xs text-red-500">
+                {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <MetricCardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
 
   const metrics = [
     {
       id: 'total',
       title: 'Encontrados',
-      value: isLoading ? '...' : stats?.total || 0,
+      value: stats?.total || 0,
       description: 'leads capturados',
       icon: <Users className="h-4 w-4 text-muted-foreground" />,
       trend: 'neutral' as const,
@@ -70,7 +116,7 @@ export function MetricsGrid({ onFilter, activeFilter }: MetricsGridProps) {
     {
       id: 'qualified',
       title: 'Aptos para contato',
-      value: isLoading ? '...' : stats?.qualified_count || 0,
+      value: stats?.qualified_count || 0,
       description: `score >= 60 (${stats?.qualified_pct || 0}%)`,
       icon: <Target className="h-4 w-4 text-muted-foreground" />,
       trend: 'neutral' as const,
@@ -79,7 +125,7 @@ export function MetricsGrid({ onFilter, activeFilter }: MetricsGridProps) {
     {
       id: 'contacted',
       title: 'Em contato',
-      value: isLoading ? '...' : (stats?.by_status?.CONTATADO || 0) + (stats?.by_status?.RESPONDIDO || 0),
+      value: (stats?.contacted_count) || 0,
       description: 'aguardando resposta',
       icon: <Phone className="h-4 w-4 text-muted-foreground" />,
       trend: 'neutral' as const,
@@ -88,7 +134,7 @@ export function MetricsGrid({ onFilter, activeFilter }: MetricsGridProps) {
     {
       id: 'meetings',
       title: 'Reuniões marcadas',
-      value: isLoading ? '...' : stats?.by_status?.REUNIAO_MARCADA || 0,
+      value: stats?.meetings_count || 0,
       description: 'agendadas',
       icon: <Calendar className="h-4 w-4 text-muted-foreground" />,
       trend: 'neutral' as const,

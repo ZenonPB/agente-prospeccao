@@ -61,7 +61,7 @@
 
 **Outros concluídos:**
 - Setup Next.js 16 + React 19 + TypeScript
-- shadcn/ui configurado (20+ componentes)
+- shadcn/ui configurado (21+ componentes, incluindo Skeleton)
 - NextAuth.js com Credentials provider (email/senha + JWT)
 - Backend FastAPI com auth (registro + login + bcrypt + JWT)
 - Todas as rotas da API protegidas por autenticação JWT
@@ -80,8 +80,16 @@
 - Bugfixes: POST /api/campaigns implementado, enrichment no GET /api/leads/{id}, 404 corrigidos, type mismatches corrigidos
 - SQLAlchemy 2 (DeclarativeBase) em vez do legado
 
+**Substituição de loading/erro por skeleton (2026-07-09):**
+- `Skeleton` component criado em `components/ui/skeleton.tsx`
+- `MetricsGrid` — 4 cards skeleton + cards de erro vermelhos
+- `FunnelChart` — barras horizontais skeleton + estado de erro
+- `CampaignList` — 3 cards skeleton + estado de erro
+- `LeadList` — 6 cards skeleton + botão "Tentar novamente" no erro
+- `KanbanBoard` — 5 colunas skeleton + botão "Tentar novamente" no erro
+
 **Pendente:**
-- Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → acompanhar pipeline → ver oportunidades
+- Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
 - Adicionar funcionalidade de "esqueci minha senha"
 - Adicionar página de configurações (trocar senha, editar perfil)
 - Revisar CSP para produção (nonces/hashes em vez de unsafe-eval/inline)
