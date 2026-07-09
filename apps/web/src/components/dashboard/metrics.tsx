@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Target, Phone, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import { useLeadStats } from '@/hooks/use-api';
 
 interface MetricCardProps {
   title: string;
@@ -54,42 +55,44 @@ interface MetricsGridProps {
 }
 
 export function MetricsGrid({ onFilter, activeFilter }: MetricsGridProps) {
+  const { data: stats, isLoading } = useLeadStats();
+
   const metrics = [
     {
       id: 'total',
       title: 'Encontrados',
-      value: '1.234',
+      value: isLoading ? '...' : stats?.total || 0,
       description: 'leads capturados',
       icon: <Users className="h-4 w-4 text-muted-foreground" />,
-      trend: 'up' as const,
-      trendValue: '+120 este mês',
+      trend: 'neutral' as const,
+      trendValue: '',
     },
     {
       id: 'qualified',
       title: 'Aptos para contato',
-      value: '456',
-      description: 'score de aptidão >= 60',
+      value: isLoading ? '...' : stats?.qualified_count || 0,
+      description: `score >= 60 (${stats?.qualified_pct || 0}%)`,
       icon: <Target className="h-4 w-4 text-muted-foreground" />,
-      trend: 'up' as const,
-      trendValue: '+32 esta semana',
+      trend: 'neutral' as const,
+      trendValue: '',
     },
     {
       id: 'contacted',
-      title: 'Mensagens enviadas',
-      value: '89',
-      description: 'últimos 7 dias',
+      title: 'Em contato',
+      value: isLoading ? '...' : (stats?.by_status?.CONTATADO || 0) + (stats?.by_status?.RESPONDIDO || 0),
+      description: 'aguardando resposta',
       icon: <Phone className="h-4 w-4 text-muted-foreground" />,
       trend: 'neutral' as const,
-      trendValue: 'estável',
+      trendValue: '',
     },
     {
       id: 'meetings',
       title: 'Reuniões marcadas',
-      value: '12',
+      value: isLoading ? '...' : stats?.by_status?.REUNIAO_MARCADA || 0,
       description: 'agendadas',
       icon: <Calendar className="h-4 w-4 text-muted-foreground" />,
-      trend: 'up' as const,
-      trendValue: '+3 esta semana',
+      trend: 'neutral' as const,
+      trendValue: '',
     },
   ];
 

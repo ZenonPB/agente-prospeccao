@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { useCreateCampaign } from '@/hooks/use-api';
 
 const steps = [
   { id: 1, title: 'O que você quer vender?' },
@@ -38,6 +40,8 @@ const segmentSuggestions = [
 ];
 
 export default function NovaCampanhaPage() {
+  const router = useRouter();
+  const createCampaign = useCreateCampaign();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState({
     service: '',
@@ -60,9 +64,22 @@ export default function NovaCampanhaPage() {
     }
   };
 
-  const handleSubmit = () => {
-    // TODO: Implement form submission
-    console.log('Form submitted:', formData);
+  const handleSubmit = async () => {
+    const name = `${formData.segment || 'Busca'} em ${formData.city || 'cidade'}`;
+    const query = `${formData.segment} em ${formData.city}, ${formData.state}`;
+
+    try {
+      await createCampaign.mutateAsync({
+        name,
+        target_service: formData.service || undefined,
+        target_segment: formData.segment || undefined,
+        target_city: formData.city || undefined,
+        target_state: formData.state || undefined,
+      });
+      router.push('/campanhas');
+    } catch (error) {
+      console.error('Error creating campaign:', error);
+    }
   };
 
   return (
@@ -303,8 +320,12 @@ export default function NovaCampanhaPage() {
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
-          <Button onClick={handleSubmit}>
-            <Check className="mr-2 h-4 w-4" />
+          <Button onClick={handleSubmit} disabled={createCampaign.isPending}>
+            {createCampaign.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="mr-2 h-4 w-4" />
+            )}
             Criar Campanha
           </Button>
         )}

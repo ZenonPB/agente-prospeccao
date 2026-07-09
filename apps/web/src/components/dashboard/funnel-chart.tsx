@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { useMetrics } from '@/hooks/use-api';
 
 interface FunnelItem {
   name: string;
@@ -19,14 +20,27 @@ interface FunnelItem {
   color: string;
 }
 
-const funnelData: FunnelItem[] = [
-  { name: 'Encontrados', value: 1234, color: '#3b82f6' },
-  { name: 'Analisados', value: 980, color: '#8b5cf6' },
-  { name: 'Aptos', value: 456, color: '#22c55e' },
-  { name: 'Mensagem enviada', value: 89, color: '#f59e0b' },
-  { name: 'Respondeu', value: 34, color: '#06b6d4' },
-  { name: 'Reunião marcada', value: 12, color: '#ec4899' },
-];
+const STAGE_COLORS: Record<string, string> = {
+  'NOVO': '#3b82f6',
+  'ANALISADO': '#8b5cf6',
+  'QUALIFICADO': '#22c55e',
+  'CONTATADO': '#f59e0b',
+  'RESPONDIDO': '#06b6d4',
+  'REUNIAO_MARCADA': '#ec4899',
+  'DESQUALIFICADO': '#ef4444',
+  'PERDIDO': '#6b7280',
+};
+
+const STAGE_LABELS: Record<string, string> = {
+  'NOVO': 'Encontrados',
+  'ANALISADO': 'Analisados',
+  'QUALIFICADO': 'Aptos',
+  'CONTATADO': 'Mensagem enviada',
+  'RESPONDIDO': 'Respondeu',
+  'REUNIAO_MARCADA': 'Reunião marcada',
+  'DESQUALIFICADO': 'Desqualificados',
+  'PERDIDO': 'Perdidos',
+};
 
 interface FunnelChartProps {
   onFilter?: (stage: string | null) => void;
@@ -35,6 +49,22 @@ interface FunnelChartProps {
 
 export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const { data: metrics, isLoading } = useMetrics();
+
+  const funnelData: FunnelItem[] = metrics?.funnel
+    ? metrics.funnel.map((item) => ({
+        name: STAGE_LABELS[item.stage] || item.stage,
+        value: item.count,
+        color: STAGE_COLORS[item.stage] || '#6b7280',
+      }))
+    : [
+        { name: 'Encontrados', value: 0, color: '#3b82f6' },
+        { name: 'Analisados', value: 0, color: '#8b5cf6' },
+        { name: 'Aptos', value: 0, color: '#22c55e' },
+        { name: 'Mensagem enviada', value: 0, color: '#f59e0b' },
+        { name: 'Respondeu', value: 0, color: '#06b6d4' },
+        { name: 'Reunião marcada', value: 0, color: '#ec4899' },
+      ];
 
   const handleClick = (data: any) => {
     if (data && data.activePayload && data.activePayload.length > 0) {
@@ -83,44 +113,50 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={funnelData}
-              layout="vertical"
-              margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
-              onClick={handleClick}
-              style={{ cursor: 'pointer' }}
-            >
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
-              <XAxis 
-                type="number" 
-                tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <YAxis 
-                dataKey="name" 
-                type="category" 
-                width={95}
-                tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-                stroke="hsl(var(--muted-foreground))"
-              />
-              <Tooltip content={<CustomTooltip />} />
-              <Bar 
-                dataKey="value" 
-                radius={[0, 4, 4, 0]}
-                onMouseEnter={(_, index) => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
+          {isLoading ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              Carregando...
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={funnelData}
+                layout="vertical"
+                margin={{ top: 5, right: 30, left: 100, bottom: 5 }}
+                onClick={handleClick}
+                style={{ cursor: 'pointer' }}
               >
-                {funnelData.map((entry, index) => (
-                  <Cell 
-                    key={`cell-${index}`} 
-                    fill={entry.color}
-                    opacity={activeFilter && activeFilter !== entry.name ? 0.3 : 1}
-                  />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                <XAxis 
+                  type="number" 
+                  tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                  stroke="hsl(var(--muted-foreground))"
+                />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={95}
+                  tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                  stroke="hsl(var(--muted-foreground))"
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar 
+                  dataKey="value" 
+                  radius={[0, 4, 4, 0]}
+                  onMouseEnter={(_, index) => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                >
+                  {funnelData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color}
+                      opacity={activeFilter && activeFilter !== entry.name ? 0.3 : 1}
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
         {/* Legend */}
         <div className="mt-4 flex flex-wrap gap-2">

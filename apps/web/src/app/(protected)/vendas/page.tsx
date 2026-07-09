@@ -1,3 +1,5 @@
+'use client';
+
 import { KanbanBoard } from '@/components/vendas/kanban-board';
 
 export default function VendasPage() {

@@ -13,7 +13,7 @@
 | Pipeline principal | ✅ | `main.py` |
 | Migrações Alembic | ✅ | `alembic/` |
 
-### Fase 1.5 — API REST ✅ Concluída
+### Fase 1.5 — API REST + WebSocket ✅ Concluída
 
 | Componente | Status | Arquivo |
 |---|---|---|
@@ -22,6 +22,10 @@
 | GET /api/leads/stats | ✅ | `routes/leads.py` |
 | GET /api/campaigns | ✅ | `routes/campaigns.py` |
 | GET /api/metrics | ✅ | `routes/metrics.py` |
+| POST /api/pipeline/start | ✅ | `routes/pipeline.py` |
+| WS /ws/pipeline/{job_id} | ✅ | `routes/pipeline.py` |
+| Pipeline worker (eventos) | ✅ | `pipeline_worker.py` |
+| Migration city nullable | ✅ | `6db61055` |
 | CORS configurado | ✅ | `main.py` |
 
 ### Fase 2 — Frontend Web 🟡 Em andamento
@@ -34,10 +38,12 @@
 | Dashboard | ✅ | Métricas, gráficos interativos |
 | Buscas (Campanhas) | ✅ | Lista + wizard 4 etapas |
 | Oportunidades | ✅ | Lista + detalhe com abas |
-| Acompanhamento (Pipeline) | ✅ | Monitor tempo real |
+| Acompanhamento (Pipeline) | ✅ | Monitor tempo real com WebSocket |
 | Negociações (Vendas) | ✅ | Kanban com drag-and-drop |
-| **Conectar frontend à API** | ⏳ | **Próximo passo** |
-| WebSocket pipeline tempo real | ⏳ | Fase 1.5 + frontend |
+| **Conectar frontend à API** | ✅ | Mock data removido, hooks criados |
+| **Autenticação funcional** | ✅ | NextAuth configurado |
+| **Pipeline WebSocket** | ✅ | Streaming em tempo real |
+| **Credenciais OAuth** | ⏳ | **Pendente** |
 
 ### Fase 3 — Services Avançados 🔮 Futuro
 
@@ -58,10 +64,9 @@
 
 ## Prioridades Próximas
 
-1. **WebSocket `/ws/pipeline`** — eventos em tempo real do worker para o frontend
-2. **Conectar frontend à API** — substituir mock data por chamadas reais
-3. **Autenticação funcional** — configurar OAuth no `.env`
-4. **Testes end-to-end** — fluxo completo
+1. **Configurar OAuth** — preencher `.env.local` com credenciais Google/GitHub
+2. **Commit e PR** — submeter todas as mudanças
+3. **Testes end-to-end** — fluxo completo de coleta → pipeline → dashboard
 
 ## Decisões Pendentes
 

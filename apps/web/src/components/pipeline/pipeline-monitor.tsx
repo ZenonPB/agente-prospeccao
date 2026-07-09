@@ -1,130 +1,227 @@
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Pause, RotateCcw, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Pause, RotateCcw, CheckCircle, XCircle, Loader2, Play } from 'lucide-react';
+import { useStartPipeline } from '@/hooks/use-api';
+import { createPipelineWs } from '@/lib/api';
 
-interface PipelineStep {
-  id: string;
-  name: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'error';
-  count?: number;
-  details?: string;
+interface PipelineEvent {
+  type: string;
+  message?: string;
+  step?: string;
+  percent?: number;
+  name?: string;
+  score?: number;
+  status?: string;
+  summary?: {
+    collected: number;
+    qualified: number;
+    total_processed: number;
+  };
+  timestamp?: string;
 }
 
-const pipelineSteps: PipelineStep[] = [
-  { id: '1', name: 'Conectado ao Google Maps', status: 'completed' },
-  { id: '2', name: 'Buscando leads em Araraquara, SP', status: 'completed', count: 29, details: '29 estabelecimentos encontrados' },
-  { id: '3', name: 'Coletando informações', status: 'completed', count: 12, details: '12 leads selecionados' },
-  { id: '4', name: 'Analisando sites', status: 'in_progress', count: 8, details: '8 de 12 concluídos' },
-  { id: '5', name: 'Calculando aptidão', status: 'pending' },
-];
-
-const statusConfig = {
-  pending: { icon: <div className="h-4 w-4 rounded-full border-2 border-muted" />, label: 'Aguardando' },
-  in_progress: { icon: <Loader2 className="h-4 w-4 animate-spin text-primary" />, label: 'Em andamento' },
-  completed: { icon: <CheckCircle className="h-4 w-4 text-emerald-500" />, label: 'Concluído' },
-  error: { icon: <XCircle className="h-4 w-4 text-red-500" />, label: 'Erro' },
-};
-
 export function PipelineMonitor() {
-  const completedSteps = pipelineSteps.filter((s) => s.status === 'completed').length;
-  const progress = (completedSteps / pipelineSteps.length) * 100;
+  const [query, setQuery] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+  const [events, setEvents] = useState<PipelineEvent[]>([]);
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState('');
+  const [summary, setSummary] = useState<PipelineEvent['summary'] | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  const startPipeline = useStartPipeline();
+
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [events]);
+
+  const handleStart = async () => {
+    if (!query.trim()) return;
+
+    setIsRunning(true);
+    setEvents([]);
+    setProgress(0);
+    setCurrentStep('');
+    setSummary(null);
+
+    try {
+      const result = await startPipeline.mutateAsync({
+        query: query.trim(),
+        max_leads: 10,
+      });
+
+      const ws = createPipelineWs(result.job_id);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        const data: PipelineEvent = JSON.parse(event.data);
+        setEvents((prev) => [...prev, data]);
+
+        if (data.type === 'progress' && data.percent !== undefined) {
+          setProgress(data.percent);
+          if (data.step) setCurrentStep(data.step);
+        }
+
+        if (data.type === 'done') {
+          setSummary(data.summary);
+          setIsRunning(false);
+        }
+
+        if (data.type === 'error') {
+          setIsRunning(false);
+        }
+      };
+
+      ws.onerror = () => {
+        setIsRunning(false);
+        setEvents((prev) => [...prev, { type: 'error', message: 'Erro na conexão WebSocket' }]);
+      };
+
+      ws.onclose = () => {
+        setIsRunning(false);
+      };
+    } catch (error) {
+      setIsRunning(false);
+      setEvents((prev) => [...prev, { type: 'error', message: 'Erro ao iniciar pipeline' }]);
+    }
+  };
+
+  const handleStop = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    setIsRunning(false);
+  };
 
   return (
     <div className="space-y-6">
-      {/* Progress Bar */}
+      {/* Start Pipeline */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle>Busca em Andamento</CardTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="h-9">
-                <Pause className="mr-2 h-4 w-4" />
-                Pausar
-              </Button>
-              <Button variant="outline" size="sm" className="h-9">
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Recomeçar
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Iniciar Nova Busca</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Progresso geral</span>
-            <span className="font-medium">{Math.round(progress)}%</span>
+          <div className="flex gap-3">
+            <Input
+              placeholder="Ex: Restaurantes em Araraquara, SP"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              disabled={isRunning}
+              className="flex-1"
+            />
+            {isRunning ? (
+              <Button variant="destructive" onClick={handleStop}>
+                <Pause className="mr-2 h-4 w-4" />
+                Parar
+              </Button>
+            ) : (
+              <Button onClick={handleStart} disabled={!query.trim() || startPipeline.isPending}>
+                {startPipeline.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                Iniciar
+              </Button>
+            )}
           </div>
-          <Progress value={progress} className="h-2" />
         </CardContent>
       </Card>
 
-      {/* Pipeline Steps */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Etapas da Busca</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {pipelineSteps.map((step) => {
-              const config = statusConfig[step.status];
-              return (
-                <div
-                  key={step.id}
-                  className="flex items-start gap-4 rounded-lg border p-4"
-                >
-                  <div className="mt-0.5">{config.icon}</div>
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{step.name}</span>
-                      {step.count && (
-                        <Badge variant="secondary">{step.count}</Badge>
-                      )}
-                    </div>
-                    {step.details && (
-                      <p className="mt-1 text-sm text-muted-foreground">{step.details}</p>
-                    )}
-                  </div>
+      {/* Progress Bar */}
+      {(isRunning || events.length > 0) && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>Busca em Andamento</CardTitle>
+              {summary && (
+                <Badge className="bg-emerald-100 text-emerald-700">
+                  Concluído
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                {currentStep ? `Etapa: ${currentStep}` : 'Progresso geral'}
+              </span>
+              <span className="font-medium">{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+            {summary && (
+              <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold">{summary.collected}</div>
+                  <div className="text-sm text-muted-foreground">Coletados</div>
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                <div>
+                  <div className="text-2xl font-bold text-emerald-600">{summary.qualified}</div>
+                  <div className="text-sm text-muted-foreground">Aptos</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold">{summary.total_processed}</div>
+                  <div className="text-sm text-muted-foreground">Analisados</div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Real-time Log */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Andamento em Tempo Real</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] overflow-y-auto rounded-lg bg-muted/50 p-4 font-mono text-sm">
-            <div className="space-y-1">
-              <p><span className="text-emerald-500">✓</span> Conectado ao Google Maps</p>
-              <p><span className="text-blue-500">🔍</span> Buscando leads em Araraquara, SP...</p>
-              <p><span className="text-emerald-500">✓</span> 29 estabelecimentos encontrados</p>
-              <p><span className="text-blue-500">📋</span> Coletando informações...</p>
-              <p><span className="text-emerald-500">✓</span> Tijuca Restaurante & Bar — coletado</p>
-              <p><span className="text-emerald-500">✓</span> Restaurante Pau Seco — coletado</p>
-              <p><span className="text-amber-500">⏳</span> KIBELANCHE — processando...</p>
-              <p><span className="text-blue-500">🔒</span> Analisando site...</p>
-              <p><span className="text-emerald-500">✓</span> Tijuca Restaurante & Bar</p>
-              <p className="pl-4">Certificado SSL: ❌ Inexistente</p>
-              <p className="pl-4">Segurança: ⚠️ 2 itens ausentes</p>
-              <p className="pl-4">Arquivos expostos: ❌ /robots.txt</p>
-              <p><span className="text-emerald-500">✓</span> Restaurante Pau Seco</p>
-              <p className="pl-4">Certificado SSL: ❌ Inexistente</p>
-              <p><span className="text-blue-500">🤖</span> Calculando aptidão...</p>
-              <p><span className="text-emerald-500">✓</span> Tijuca — Aptidão: 74 (Apto)</p>
-              <p><span className="text-emerald-500">✓</span> Pau Seco — Aptidão: 88 (Apto)</p>
-              <p><span className="text-emerald-500">✓</span> Busca finalizada</p>
-              <p className="font-bold">12 leads | 9 aptos | 3 inaptos</p>
+      {events.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Andamento em Tempo Real</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[400px] overflow-y-auto rounded-lg bg-muted/50 p-4 font-mono text-sm">
+              <div className="space-y-1">
+                {events.map((event, i) => {
+                  if (event.type === 'log') {
+                    return (
+                      <p key={i}>
+                        <span className="text-emerald-500">✓</span> {event.message}
+                      </p>
+                    );
+                  }
+                  if (event.type === 'progress') {
+                    return null; // Handled by progress bar
+                  }
+                  if (event.type === 'lead') {
+                    const scoreColor = (event.score || 0) >= 60 ? 'text-emerald-500' : 'text-amber-500';
+                    return (
+                      <p key={i}>
+                        <span className={scoreColor}>→</span> {event.name} — Aptidão: {event.score} ({event.status})
+                      </p>
+                    );
+                  }
+                  if (event.type === 'error') {
+                    return (
+                      <p key={i} className="text-red-500">
+                        ✗ {event.message}
+                      </p>
+                    );
+                  }
+                  return null;
+                })}
+                <div ref={logsEndRef} />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

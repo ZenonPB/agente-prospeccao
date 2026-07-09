@@ -78,10 +78,12 @@ agente-prospeccao/
 │   │       │   ├── session.py
 │   │       │   ├── dependencies.py
 │   │       │   └── models.py
-│   │       └── routes/
-│   │           ├── leads.py
-│   │           ├── campaigns.py
-│   │           └── metrics.py
+│   │       ├── routes/
+│   │       │   ├── leads.py
+│   │       │   ├── campaigns.py
+│   │       │   ├── metrics.py
+│   │       │   └── pipeline.py
+│   │       └── pipeline_worker.py
 │   └── workers/                      ← Python workers
 │       └── src/
 │           ├── config/settings.py
@@ -116,10 +118,21 @@ agente-prospeccao/
 |--------|------|-----------|
 | GET | `/api/metrics` | Métricas do dashboard + funnel data |
 
-### Próximos
+### Pipeline (Tempo Real)
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| WS | `/ws/pipeline` | Eventos em tempo real |
+| POST | `/api/pipeline/start` | Inicia pipeline em background, retorna `{job_id}` |
+| WS | `/ws/pipeline/{job_id}` | Streaming de eventos (log, progress, lead, done, error) |
+
+#### Eventos WebSocket
+
+| Tipo | Campos | Descrição |
+|------|--------|-----------|
+| `log` | `message`, `timestamp` | Log do pipeline |
+| `progress` | `step` (coleta/enriquecimento), `percent` (0-100) | Barra de progresso |
+| `lead` | `name`, `score`, `status`, `timestamp` | Lead analisado |
+| `done` | `summary.collected`, `summary.qualified`, `summary.total_processed` | Pipeline finalizado |
+| `error` | `message`, `timestamp` | Erro no pipeline |
 
 ## Pipeline Completo
 

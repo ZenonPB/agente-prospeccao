@@ -25,17 +25,21 @@
 - `main.py` — `run_enrichment_and_scoring` integrado com scoring
 - AsyncClient refactorado para pattern per-use
 
-### Fase 1.5 — API REST ✅ Pronta
+### Fase 1.5 — API REST + WebSocket ✅ Pronta
 
-- `services/api/` — FastAPI com endpoints REST
+- `services/api/` — FastAPI com endpoints REST + WebSocket
 - `GET /api/leads` — lista com filtros (status, campaign, search, min_score)
 - `GET /api/leads/stats` — estatísticas agregadas
 - `GET /api/leads/{id}` — detalhe do lead
 - `GET /api/campaigns` — lista com lead_count e avg_score
 - `GET /api/campaigns/{id}` — detalhe da campanha
 - `GET /api/metrics` — métricas do dashboard + funnel
+- `POST /api/pipeline/start` — inicia pipeline em background, retorna job_id
+- `WS /ws/pipeline/{job_id}` — streaming de eventos em tempo real
+- `pipeline_worker.py` — adapta lógica dos workers para yield eventos
 - Reutiliza models e session dos workers
 - CORS configurado para frontend
+- Migration `6db61055` — city nullable na tabela leads
 
 ### Fase 2 — Frontend Web 🟡 Em andamento
 
@@ -49,14 +53,17 @@
   - `/dashboard` — métricas interativas + gráficos
   - `/campanhas` — lista + wizard 4 etapas
   - `/oportunidades` — lista de leads + detalhe com abas
-  - `/pipeline` — monitor tempo real
+  - `/pipeline` — monitor tempo real com WebSocket
   - `/vendas` — kanban com drag-and-drop
 - UX: termos amigáveis, botões responsivos, filtros interativos
+- Frontend conectado à API REST (mock data removido)
+- Autenticação com NextAuth (Google/GitHub OAuth)
+- Pipeline monitor com WebSocket streaming
+- Kanban board com dados reais
 
 **Pendente:**
-- Conectar frontend à API REST (substituir mock data)
-- Autenticação funcional (credenciais OAuth no `.env`)
-- WebSocket para pipeline em tempo real
+- Configurar credenciais OAuth no `.env.local` (campos vazios)
+- Testar login real com Google/GitHub
 
 ### Fase 3 — Services Avançados (Futura)
 
@@ -65,9 +72,8 @@
 - Integração Cal.com para agendamento
 
 ### Próximo passo imediato
-1. WebSocket `/ws/pipeline` para tempo real
-2. Conectar frontend à API REST
-3. Adaptar workers para publicar eventos via WebSocket
+1. Configurar credenciais OAuth no `.env.local`
+2. Commit e PR das mudanças
 
 ## Como rodar
 

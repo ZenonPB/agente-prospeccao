@@ -1,128 +1,60 @@
 'use client';
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { GripVertical, Clock, AlertTriangle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { Lead } from '@/types';
+import { useLeads } from '@/hooks/use-api';
 
 interface KanbanColumn {
   id: string;
   title: string;
   color: string;
-  leads: Lead[];
+  status: string[];
 }
 
-const initialData: KanbanColumn[] = [
-  {
-    id: 'CONTATADO',
-    title: 'Mensagem enviada',
-    color: 'bg-blue-500',
-    leads: [
-      {
-        id: '1',
-        company_name: 'Tijuca Restaurante & Bar',
-        category: 'Gastronomia',
-        city: 'Araraquara',
-        state: 'SP',
-        country: 'Brasil',
-        status: 'CONTATADO',
-        qualification_score: 88,
-        created_at: '2024-01-15',
-        updated_at: '2024-01-20',
-      },
-    ],
-  },
-  {
-    id: 'RESPONDIDO',
-    title: 'Respondeu',
-    color: 'bg-purple-500',
-    leads: [
-      {
-        id: '2',
-        company_name: 'Clínica Saúde Integral',
-        category: 'Saúde',
-        city: 'São Paulo',
-        state: 'SP',
-        country: 'Brasil',
-        status: 'RESPONDIDO',
-        qualification_score: 65,
-        created_at: '2024-01-18',
-        updated_at: '2024-01-22',
-      },
-    ],
-  },
-  {
-    id: 'REUNIAO_MARCADA',
-    title: 'Reunião marcada',
-    color: 'bg-amber-500',
-    leads: [
-      {
-        id: '3',
-        company_name: 'Indústria MetalWorks',
-        category: 'Indústria',
-        city: 'Guarulhos',
-        state: 'SP',
-        country: 'Brasil',
-        status: 'REUNIAO_MARCADA',
-        qualification_score: 72,
-        created_at: '2024-01-10',
-        updated_at: '2024-01-25',
-      },
-    ],
-  },
-  {
-    id: 'REUNIAO_FEITA',
-    title: 'Reunião realizada',
-    color: 'bg-emerald-500',
-    leads: [],
-  },
-  {
-    id: 'PROPOSTA_ENVIADA',
-    title: 'Proposta enviada',
-    color: 'bg-pink-500',
-    leads: [],
-  },
+const COLUMNS: KanbanColumn[] = [
+  { id: 'CONTATADO', title: 'Mensagem enviada', color: 'bg-blue-500', status: ['CONTATADO'] },
+  { id: 'RESPONDIDO', title: 'Respondeu', color: 'bg-purple-500', status: ['RESPONDIDO'] },
+  { id: 'REUNIAO_MARCADA', title: 'Reunião marcada', color: 'bg-amber-500', status: ['REUNIAO_MARCADA'] },
+  { id: 'REUNIAO_FEITA', title: 'Reunião realizada', color: 'bg-emerald-500', status: ['REUNIAO_FEITA'] },
+  { id: 'PROPOSTA_ENVIADA', title: 'Proposta enviada', color: 'bg-pink-500', status: ['PROPOSTA_ENVIADA'] },
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type LeadData = Record<string, any>;
+
+function groupLeadsByColumn(leads: LeadData[]): Record<string, LeadData[]> {
+  const grouped: Record<string, LeadData[]> = {};
+  COLUMNS.forEach((col) => {
+    grouped[col.id] = [];
+  });
+
+  leads.forEach((lead) => {
+    const colId = COLUMNS.find((c) => c.status.includes(lead.status))?.id;
+    if (colId && grouped[colId]) {
+      grouped[colId].push(lead);
+    }
+  });
+
+  return grouped;
+}
+
 export function KanbanBoard() {
-  const [columns, setColumns] = useState<KanbanColumn[]>(initialData);
+  const { data, isLoading } = useLeads();
+  const leads = data?.leads || [];
 
-  const onDragEnd = (result: DropResult) => {
-    const { source, destination } = result;
+  const columns = useMemo(() => groupLeadsByColumn(leads), [leads]);
 
-    if (!destination) return;
+  const onDragEnd = useCallback((_result: DropResult) => {
+    // For real-time updates, we'd need to call the API to update lead status
+  }, []);
 
-    if (
-      source.droppableId === destination.droppableId &&
-      source.index === destination.index
-    ) {
-      return;
-    }
+  const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);
 
-    const newColumns = [...columns];
-    const sourceColIdx = newColumns.findIndex((col) => col.id === source.droppableId);
-    const destColIdx = newColumns.findIndex((col) => col.id === destination.droppableId);
-
-    const sourceCol = newColumns[sourceColIdx];
-    const destCol = newColumns[destColIdx];
-
-    const sourceLeads = [...sourceCol.leads];
-    const destLeads = sourceCol.id === destCol.id ? sourceLeads : [...destCol.leads];
-
-    const [movedLead] = sourceLeads.splice(source.index, 1);
-    destLeads.splice(destination.index, 0, movedLead);
-
-    newColumns[sourceColIdx] = { ...sourceCol, leads: sourceLeads };
-    if (sourceCol.id !== destCol.id) {
-      newColumns[destColIdx] = { ...destCol, leads: destLeads };
-    }
-
-    setColumns(newColumns);
-  };
-
-  const totalLeads = columns.reduce((acc, col) => acc + col.leads.length, 0);
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Carregando leads...</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -137,7 +69,7 @@ export function KanbanBoard() {
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {columns.map((column) => (
+          {COLUMNS.map((column) => (
             <div key={column.id} className="min-w-[280px] flex-1">
               <div className="rounded-xl bg-muted/50 p-3">
                 <div className="mb-3 flex items-center justify-between">
@@ -146,7 +78,7 @@ export function KanbanBoard() {
                     <h3 className="font-medium">{column.title}</h3>
                   </div>
                   <Badge variant="secondary" className="text-xs">
-                    {column.leads.length}
+                    {columns[column.id]?.length || 0}
                   </Badge>
                 </div>
 
@@ -159,7 +91,7 @@ export function KanbanBoard() {
                         snapshot.isDraggingOver ? 'bg-primary/10' : ''
                       }`}
                     >
-                      {column.leads.map((lead, index) => (
+                      {(columns[column.id] || []).map((lead, index) => (
                         <Draggable key={lead.id} draggableId={lead.id} index={index}>
                           {(provided, snapshot) => (
                             <div
@@ -180,12 +112,12 @@ export function KanbanBoard() {
                                 </Badge>
                               </div>
                               <p className="mb-3 text-sm text-muted-foreground">
-                                {lead.category} • {lead.city}, {lead.state}
+                                {lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}
                               </p>
                               <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
-                                  <span>5 dias</span>
+                                  <span>{Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
                                 </div>
                                 {column.id === 'CONTATADO' && (
                                   <div className="flex items-center gap-1 text-amber-600">
@@ -199,7 +131,7 @@ export function KanbanBoard() {
                         </Draggable>
                       ))}
                       {provided.placeholder}
-                      {column.leads.length === 0 && !snapshot.isDraggingOver && (
+                      {(columns[column.id] || []).length === 0 && !snapshot.isDraggingOver && (
                         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                           Nenhum lead nesta etapa
                         </div>
