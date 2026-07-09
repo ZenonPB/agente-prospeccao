@@ -2,12 +2,12 @@ import uuid
 from datetime import datetime
 from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 import enum
 
-Base = declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 class LeadStatus(enum.Enum):
     NOVO = "NOVO"

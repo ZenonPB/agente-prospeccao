@@ -2,23 +2,25 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from src.db.dependencies import get_db
-from src.db.models import Lead, Campaign, LeadStatus, CampaignStatus
+from src.db.models import Lead, Campaign, LeadStatus, CampaignStatus, User
+from src.auth.dependencies import get_current_user
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
 
 @router.get("")
-def get_metrics(db: Session = Depends(get_db)):
+def get_metrics(
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
     total_leads = db.query(Lead).count()
     qualified = db.query(Lead).filter(Lead.status == LeadStatus.QUALIFICADO).count()
     contacted = db.query(Lead).filter(Lead.status == LeadStatus.CONTATADO).count()
     meetings = db.query(Lead).filter(Lead.status == LeadStatus.REUNIAO_MARCADA).count()
 
-    # Response rate: responded / contacted
     responded = db.query(Lead).filter(Lead.status == LeadStatus.RESPONDIDO).count()
     response_rate = (responded / contacted * 100) if contacted > 0 else 0
 
-    # Funnel data
     funnel = []
     for status, label in [
         (LeadStatus.NOVO, "Novos"),
@@ -29,9 +31,8 @@ def get_metrics(db: Session = Depends(get_db)):
         (LeadStatus.REUNIAO_MARCADA, "Reuniões"),
     ]:
         count = db.query(Lead).filter(Lead.status == status).count()
-        funnel.append({"name": label, "value": count})
+        funnel.append({"stage": label, "count": count})
 
-    # Active campaigns
     active_campaigns = db.query(Campaign).filter(Campaign.status == CampaignStatus.ACTIVE).count()
 
     return {

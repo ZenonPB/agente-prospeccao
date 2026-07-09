@@ -27,11 +27,11 @@ Antes de qualquer funcionalidade, estes princípios guiam todas as decisões de 
 ## Stack Frontend
 
 - **Next.js** — framework principal (App Router)
-- **NextAuth.js** — autenticação (Google OAuth + GitHub)
+- **NextAuth.js** — autenticação (Credentials provider com email/senha + JWT)
 - **Tailwind CSS** — estilização
 - **shadcn/ui** — componentes base (acessíveis, customizáveis)
 - **Recharts** — gráficos do dashboard
-- **WebSockets ou Server-Sent Events** — pipeline em tempo real
+- **WebSockets** — pipeline em tempo real
 
 ---
 
@@ -57,11 +57,17 @@ Antes de qualquer funcionalidade, estes princípios guiam todas as decisões de 
 
 ### 1. Login
 
-Tela limpa com duas opções:
-- Entrar com Google
-- Entrar com GitHub
+Tela limpa com formulário de email e senha:
+- Campo de email
+- Campo de senha
+- Botão "Entrar"
+- Link para "Cadastre-se" (primeiro acesso)
 
-Sem formulário de cadastro manual no MVP — acesso controlado pelos admins.
+**Cadastro:**
+- Formulário com nome completo, email e senha (mínimo 8 caracteres)
+- Confirmação de senha
+- Ao cadastrar, o usuário é automaticamente logado e redirecionado ao dashboard
+- Cada usuário tem role (ex: SALES) para preparação multi-tenant futura
 
 ---
 

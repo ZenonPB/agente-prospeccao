@@ -36,7 +36,7 @@ cd apps/web
 npm run dev                          # http://localhost:3000
 ```
 
-Requires `.env` with NextAuth credentials (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, etc.) for login to work.
+Requires `.env` with JWT_SECRET and `NEXT_PUBLIC_API_URL` for API to work.
 
 ## Database / Alembic
 

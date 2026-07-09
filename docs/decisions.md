@@ -22,3 +22,9 @@ Se uma decisão precisar ser revertida, documente aqui o motivo.
 ## ADRs Detalhados
 
 Ver `docs/decisions/` para o raciocínio completo de cada decisão.
+
+| Decisão | Motivo |
+|---|---|
+| Credentials (email/senha) em vez de OAuth externo no MVP | OAuth exige domínio público e configuração externa; email/senha funciona localmente sem dependências; tabela users já existia com password_hash |
+| JWT em vez de session cookies na API | Frontend NextAuth usa JWT strategy; API FastAPI valida o mesmo token para manter sessão consistente sem backend de sessão separado |
+| bcrypt em vez de argon2 | bcrypt é suficiente para o caso de uso, tem suporte nativo em Python, e é mais simples de configurar sem dependências extras de sistema |

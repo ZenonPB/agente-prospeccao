@@ -273,9 +273,9 @@ Com 10+ conversões, o sistema recalibra o scoring automaticamente com dados rea
 ## Roadmap
 
 | Fase | Status | O que entrega |
-|---|---|---|
-| 1 — MVP coleta + scoring | 🟡 Em andamento | Places API, enriquecimento, scoring, mensagem manual |
-| 2 — Interface web | 🔲 | Next.js, login, dashboard, campanhas |
+|---|---|---|---|
+| 1 — MVP coleta + scoring | ✅ Concluído | Places API, enriquecimento, scoring, mensagem manual |
+| 2 — Interface web | 🟡 Em andamento | Next.js, login (email/senha), dashboard, campanhas, pipeline |
 | 3 — Outreach automatizado | 🔲 | E-mail via Resend, follow-up, Cal.com |
 | 4 — Enriquecimento avançado | 🔲 | Mobile, Lighthouse, SEO, formulários, Hunter.io |
 | 5 — Aprendizado contínuo | 🔲 | Conversions, recalibração do scoring |

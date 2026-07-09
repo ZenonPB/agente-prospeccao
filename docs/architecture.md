@@ -124,6 +124,12 @@ agente-prospeccao/
 | POST | `/api/pipeline/start` | Inicia pipeline em background, retorna `{job_id}` |
 | WS | `/ws/pipeline/{job_id}` | Streaming de eventos (log, progress, lead, done, error) |
 
+### Autenticação
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/api/auth/register` | Cadastro (name, email, password) → retorna usuário + JWT |
+| POST | `/api/auth/login` | Login (email, password) → retorna usuário + JWT |
+
 #### Eventos WebSocket
 
 | Tipo | Campos | Descrição |

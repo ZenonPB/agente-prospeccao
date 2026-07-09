@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from src.db.dependencies import get_db
-from src.db.models import Job, JobStatus, JobType, Campaign
+from src.db.models import Job, JobStatus, JobType, Campaign, User
+from src.auth.dependencies import get_current_user
 from src.pipeline_worker import run_pipeline
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ class StartPipelineRequest(BaseModel):
 async def start_pipeline(
     request: StartPipelineRequest,
     db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
 ):
     """Create a job and start the pipeline in background."""
     # Create job

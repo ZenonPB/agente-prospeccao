@@ -34,16 +34,18 @@
 |---|---|---|
 | Setup Next.js + TypeScript | ✅ | Next.js 16, React 19 |
 | shadcn/ui | ✅ | 20+ componentes |
-| Autenticação (NextAuth) | ✅ | Google/GitHub OAuth |
+| Autenticação (NextAuth + Credentials) | ✅ | Email/senha com JWT |
 | Dashboard | ✅ | Métricas, gráficos interativos |
 | Buscas (Campanhas) | ✅ | Lista + wizard 4 etapas |
 | Oportunidades | ✅ | Lista + detalhe com abas |
 | Acompanhamento (Pipeline) | ✅ | Monitor tempo real com WebSocket |
 | Negociações (Vendas) | ✅ | Kanban com drag-and-drop |
 | **Conectar frontend à API** | ✅ | Mock data removido, hooks criados |
-| **Autenticação funcional** | ✅ | NextAuth configurado |
+| **Autenticação funcional** | ✅ | Login + registro com email/senha |
 | **Pipeline WebSocket** | ✅ | Streaming em tempo real |
-| **Credenciais OAuth** | ⏳ | **Pendente** |
+| **API protegida por JWT** | ✅ | Todas as rotas com autenticação |
+| **API auth endpoints** | ✅ | POST /api/auth/register + /login |
+| **Bugfixes** | ✅ | 404, POST campaigns, enrichment, type mismatches |
 
 ### Fase 3 — Services Avançados 🔮 Futuro
 
@@ -64,9 +66,10 @@
 
 ## Prioridades Próximas
 
-1. **Configurar OAuth** — preencher `.env.local` com credenciais Google/GitHub
-2. **Commit e PR** — submeter todas as mudanças
-3. **Testes end-to-end** — fluxo completo de coleta → pipeline → dashboard
+1. **Testar build do frontend** — `npm run build` sem erros
+2. **Testar fluxo completo** — cadastro → login → criar campanha → pipeline
+3. **Gerar secrets reais** — NEXTAUTH_SECRET, JWT_SECRET
+4. **Recurso: esqueci minha senha** — para recuperação de acesso
 
 ## Decisões Pendentes
 

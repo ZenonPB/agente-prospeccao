@@ -1,0 +1,69 @@
+"""FastAPI dependency for JWT authentication."""
+import logging
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.orm import Session
+
+from src.db.dependencies import get_db
+from src.db.models import User
+from src.auth.security import decode_access_token
+
+logger = logging.getLogger(__name__)
+
+security_scheme = HTTPBearer(auto_error=False)
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """Validate JWT bearer token and return the current user."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autenticação não fornecido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_access_token(credentials.credentials)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido ou expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token malformado",
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário não encontrado",
+        )
+
+    return user
+
+
+def get_optional_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    """Like get_current_user but returns None instead of 401 for no token."""
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        return None
+
+    payload = decode_access_token(credentials.credentials)
+    if payload is None:
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+
+    return db.query(User).filter(User.id == user_id).first()

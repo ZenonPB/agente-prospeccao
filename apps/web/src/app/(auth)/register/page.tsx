@@ -9,19 +9,48 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
-export default function LoginPage() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+export default function RegisterPage() {
   const router = useRouter();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (password !== confirmPassword) {
+      setError('As senhas não conferem');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres');
+      return;
+    }
+
     setLoading(true);
 
     try {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.detail || 'Erro ao cadastrar');
+        setLoading(false);
+        return;
+      }
+
+      // Auto-login após cadastro bem-sucedido
       const result = await signIn('credentials', {
         email,
         password,
@@ -29,14 +58,14 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Email ou senha incorretos');
+        setError('Conta criada, mas erro ao fazer login automático');
         setLoading(false);
         return;
       }
 
       router.push('/dashboard');
     } catch {
-      setError('Erro ao fazer login. Tente novamente.');
+      setError('Erro de conexão com o servidor');
       setLoading(false);
     }
   };
@@ -45,13 +74,24 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Agente Prospecção</CardTitle>
+          <CardTitle className="text-2xl font-bold">Criar Conta</CardTitle>
           <CardDescription>
-            Encontre e qualifique leads automaticamente
+            Preencha seus dados para começar a prospectar leads
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome completo</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Seu nome"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -68,9 +108,22 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
+                placeholder="Mínimo 8 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                minLength={8}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar senha</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Digite a senha novamente"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                minLength={8}
                 required
               />
             </div>
@@ -80,23 +133,14 @@ export default function LoginPage() {
             )}
 
             <Button type="submit" className="h-12 w-full text-base" disabled={loading}>
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? 'Criando conta...' : 'Criar conta'}
             </Button>
           </form>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">ou</span>
-            </div>
-          </div>
-
           <p className="text-center text-sm text-muted-foreground">
-            Não tem conta?{' '}
-            <Link href="/register" className="text-primary hover:underline">
-              Cadastre-se
+            Já tem conta?{' '}
+            <Link href="/login" className="text-primary hover:underline">
+              Faça login
             </Link>
           </p>
         </CardContent>

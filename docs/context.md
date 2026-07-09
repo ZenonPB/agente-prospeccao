@@ -46,10 +46,13 @@
 **Concluído:**
 - Setup Next.js 16 + React 19 + TypeScript
 - shadcn/ui configurado (20+ componentes)
-- NextAuth.js (Google/GitHub OAuth)
+- NextAuth.js com Credentials provider (email/senha + JWT)
+- Backend FastAPI com auth (registro + login + bcrypt + JWT)
+- Todas as rotas da API protegidas por autenticação JWT
 - Recharts, TanStack Query, Zustand
 - Estrutura de rotas completa:
-  - `/login` — OAuth login
+  - `/login` — login com email/senha
+  - `/register` — cadastro de novo usuário
   - `/dashboard` — métricas interativas + gráficos
   - `/campanhas` — lista + wizard 4 etapas
   - `/oportunidades` — lista de leads + detalhe com abas
@@ -57,13 +60,16 @@
   - `/vendas` — kanban com drag-and-drop
 - UX: termos amigáveis, botões responsivos, filtros interativos
 - Frontend conectado à API REST (mock data removido)
-- Autenticação com NextAuth (Google/GitHub OAuth)
 - Pipeline monitor com WebSocket streaming
 - Kanban board com dados reais
+- Bugfixes: POST /api/campaigns implementado, enrichment no GET /api/leads/{id}, 404 corrigidos, type mismatches corrigidos
+- SQLAlchemy 2 (DeclarativeBase) em vez do legado
 
 **Pendente:**
-- Configurar credenciais OAuth no `.env.local` (campos vazios)
-- Testar login real com Google/GitHub
+- Gerar secrets reais (NEXTAUTH_SECRET, JWT_SECRET) para produção
+- Testar fluxo completo de cadastro → login → dashboard → pipeline
+- Adicionar funcionalidade de "esqueci minha senha"
+- Adicionar página de configurações (trocar senha, editar perfil)
 
 ### Fase 3 — Services Avançados (Futura)
 
@@ -72,8 +78,9 @@
 - Integração Cal.com para agendamento
 
 ### Próximo passo imediato
-1. Configurar credenciais OAuth no `.env.local`
-2. Commit e PR das mudanças
+1. Testar o build do frontend (`npm run build`)
+2. Testar fluxo completo: cadastro → login → criar campanha → pipeline
+3. Gerar secrets reais para produção
 
 ## Como rodar
 
@@ -103,6 +110,7 @@ npm run dev
 
 | Hash | Descrição |
 |------|-----------|
+| `12a1946` | feat(web): connect frontend to real API with auth |
 | `8030d07` | feat(api): create FastAPI with REST endpoints |
 | `460b88b` | fix(web): revert to "leads" terminology |
 | `77ebeec` | feat(web): UX improvements, drag-and-drop |

@@ -1,4 +1,3 @@
-import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -20,8 +19,6 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
     });
   }
 
-  // Get session token
-  await getSession();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((fetchOptions.headers as Record<string, string>) || {}),
@@ -59,6 +56,8 @@ export const leadsApi = {
     avg_score: number;
     qualified_count: number;
     qualified_pct: number;
+    contacted_count: number;
+    meetings_count: number;
   }>("/api/leads/stats"),
 };
 
