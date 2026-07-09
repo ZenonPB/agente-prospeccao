@@ -23,7 +23,7 @@ active_connections: Dict[str, list[WebSocket]] = {}
 
 
 class StartPipelineRequest(BaseModel):
-    query: str
+    query: str | None = None
     campaign_id: str | None = None
     max_leads: int = 10
 
@@ -34,7 +34,19 @@ async def start_pipeline(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
 ):
-    """Cria um job e inicia o pipeline em background."""
+    """Cria um job e inicia o pipeline em background.
+
+    Se `campaign_id` for fornecido, a query é construída automaticamente
+    a partir dos campos da campanha (target_segment, target_city, etc.)
+    e o analysis_profile da campanha define o comportamento do pipeline.
+    """
+    if not request.query and not request.campaign_id:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=422,
+            detail="Forneça 'campaign_id' ou 'query' para iniciar o pipeline"
+        )
+
     job = Job(
         job_type=JobType.LEAD_ENRICHMENT,
         status=JobStatus.PENDING,
@@ -51,15 +63,15 @@ async def start_pipeline(
     job_id = str(job.id)
 
     # Inicia pipeline em background
-    asyncio.create_task(_run_pipeline_task(job_id, request.query, request.max_leads))
+    asyncio.create_task(_run_pipeline_task(job_id, request.query, request.campaign_id, request.max_leads))
 
     return {"job_id": job_id, "status": "started"}
 
 
-async def _run_pipeline_task(job_id: str, query: str, max_leads: int):
+async def _run_pipeline_task(job_id: str, query: str | None, campaign_id: str | None, max_leads: int):
     """Executa o pipeline em background e transmite eventos via WebSocket."""
     try:
-        async for event in run_pipeline(job_id=job_id, query=query, max_leads=max_leads):
+        async for event in run_pipeline(job_id=job_id, query=query, campaign_id=campaign_id, max_leads=max_leads):
             # Lê conexões dinamicamente (WS pode conectar após a task iniciar)
             connections = active_connections.get(job_id, [])
             dead = []

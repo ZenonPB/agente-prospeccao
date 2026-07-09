@@ -32,20 +32,12 @@ interface PipelineEvent {
 interface CampaignPipelineProps {
   campaignId: string;
   campaignName: string;
-  targetService?: string;
-  targetSegment?: string;
-  targetCity?: string;
-  targetState?: string;
   autoStart?: boolean;
 }
 
 export function CampaignPipeline({
   campaignId,
   campaignName,
-  targetService,
-  targetSegment,
-  targetCity,
-  targetState,
   autoStart,
 }: CampaignPipelineProps) {
   const router = useRouter();
@@ -65,20 +57,11 @@ export function CampaignPipeline({
     }
   }, [events]);
 
-  useEffect(() => {
+    useEffect(() => {
     if (autoStart && !hasStarted && !isRunning) {
       handleStart();
     }
   }, [autoStart]);
-
-  const buildQuery = () => {
-    const parts = [];
-    if (targetService) parts.push(targetService);
-    if (targetSegment) parts.push(targetSegment);
-    if (targetCity) parts.push(targetCity);
-    if (targetState) parts.push(targetState);
-    return parts.join(' ') || campaignName;
-  };
 
   const handleStart = async () => {
     setHasStarted(true);
@@ -91,7 +74,6 @@ export function CampaignPipeline({
     try {
       const result = await startPipeline.mutateAsync({
         campaign_id: campaignId,
-        query: buildQuery(),
         max_leads: 10,
       });
 
@@ -151,10 +133,7 @@ export function CampaignPipeline({
               <div>
                 <h3 className="text-lg font-semibold">Pronto para coletar leads</h3>
                 <p className="text-sm text-muted-foreground">
-                  {targetCity
-                    ? `Busca por ${targetSegment || targetService || 'empresas'} em ${targetCity}${targetState ? `, ${targetState}` : ''}`
-                    : `Inicie a coleta de leads para "${campaignName}"`
-                  }
+                  Inicie a coleta de leads para &ldquo;{campaignName}&rdquo;
                 </p>
               </div>
               <Button size="lg" onClick={handleStart} disabled={startPipeline.isPending}>

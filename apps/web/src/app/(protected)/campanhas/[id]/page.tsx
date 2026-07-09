@@ -76,10 +76,6 @@ export default function CampaignDetailPage() {
       <CampaignPipeline
         campaignId={campaign.id}
         campaignName={campaign.name}
-        targetService={campaign.target_service}
-        targetSegment={campaign.target_segment}
-        targetCity={campaign.target_city}
-        targetState={campaign.target_state}
         autoStart={autoStart}
       />
 

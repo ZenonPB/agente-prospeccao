@@ -6,4 +6,4 @@ import os
 workers_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'workers', 'src')
 sys.path.insert(0, workers_path)
 
-from database.models import Lead, Campaign, Enrichment, Message, Job, User, LeadStatus, CampaignStatus, JobStatus, JobType
+from database.models import Lead, Campaign, Enrichment, Message, Job, User, LeadStatus, CampaignStatus, JobStatus, JobType, AnalysisProfile

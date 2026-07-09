@@ -47,6 +47,35 @@ USER_PROMPT_TEMPLATE = (
     "{report}"
 )
 
+BUSINESS_PROMPT_TEMPLATE = (
+    "Você é um analista de prospecção B2B. Avalie uma empresa brasileira "
+    "com base nos dados disponíveis e determine se ela é um bom alvo comercial "
+    "para uma empresa que vende serviços de tecnologia e consultoria.\n\n"
+    "Dados disponíveis:\n"
+    "{lead_data}\n\n"
+    "Regras de scoring (0-100):\n"
+    "- 80-100: empresa ativa, porte médio/grande, com contato disponível, setor promissor\n"
+    "- 60-79: empresa ativa, setor relevante, sem contato direto\n"
+    "- 40-59: empresa pequena ou dados insuficientes\n"
+    "- 20-39: setor de baixo potencial ou dados muito escassos\n"
+    "- 0-19: empresa parece inativa ou irrelevante\n\n"
+    "Retorne um JSON com exatamente esta estrutura:\n"
+    "{{\n"
+    '  "qualification_score": <inteiro 0-100>,\n'
+    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "NONE",\n'
+    '  "qualification_reason": "<2-4 frases em pt-BR analisando o potencial>",\n'
+    '  "issues_found": [\n'
+    "    {{\n"
+    '  "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO",\n'
+    '  "title": "<aspecto avaliado>",\n'
+    '  "description": "<descrição em pt-BR>",\n'
+    '  "recommendation": "<recomendação em pt-BR>"\n'
+    "    }}\n"
+    "  ]\n"
+    "}}\n\n"
+    "Avaliação baseada apenas nos dados fornecidos — sem visitar o site da empresa."
+)
+
 
 class AIScoringService:
     """Serviço de scoring de leads via Groq (llama-3.1-8b-instant)."""
@@ -107,6 +136,96 @@ class AIScoringService:
         except json.JSONDecodeError as e:
             logger.error("Falha ao decodificar JSON do Groq: %s", e)
             return None
+
+    def _build_business_payload(self, company_name: str, category: str, city: str, state: str, website: str | None) -> Dict[str, Any]:
+        """Monta payload para scoring de oportunidade de negócio."""
+        lead_data = (
+            f"Empresa: {company_name}\n"
+            f"Categoria: {category}\n"
+            f"Localização: {city}, {state}\n"
+            f"Website: {website or 'Não informado'}"
+        )
+        user_prompt = BUSINESS_PROMPT_TEMPLATE.format(lead_data=lead_data)
+        return {
+            "model": GROQ_MODEL,
+            "messages": [
+                {"role": "system", "content": (
+                    "Você é um analista de prospecção B2B. "
+                    "Responda SOMENTE com JSON puro, sem markdown, sem "
+                    "bloco de código. Nenhum texto antes ou depois do JSON."
+                )},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+            "response_format": {"type": "json_object"},
+        }
+
+    async def score_business_lead(
+        self,
+        company_name: str,
+        category: str = "",
+        city: str = "",
+        state: str = "",
+        website: str | None = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Avalia o potencial de negócio de um lead sem análise técnica de site.
+
+        Usa dados cadastrais da empresa para determinar se é um bom alvo
+        comercial. Ideal para campanhas com perfil business_opportunity
+        (ex: usinagem, manutenção industrial, consultoria).
+
+        Args:
+            company_name: Nome da empresa
+            category: Categoria/segmento da empresa
+            city: Cidade
+            state: Estado
+            website: URL do site (pode ser None)
+
+        Returns:
+            Dicionário com qualification_score (int 0-100), primary_need (str),
+            qualification_reason (str) e issues_found (lista); ou None em caso
+            de falha.
+        """
+        payload = self._build_business_payload(company_name, category, city, state, website)
+
+        try:
+            async with self._create_client() as client:
+                response = await client.post(GROQ_URL, json=payload)
+        except httpx.RequestError as e:
+            logger.error("Erro de rede ao chamar Groq (business): %s", e)
+            return None
+
+        if response.status_code != 200:
+            logger.error("Groq respondeu HTTP %s (business): %s", response.status_code, response.text[:500])
+            return None
+
+        try:
+            data = response.json()
+        except json.JSONDecodeError as e:
+            logger.error("Resposta do Groq não é JSON (business): %s", e)
+            return None
+
+        choices = data.get("choices") or []
+        if not choices:
+            logger.error("Resposta do Groq sem choices (business): %s", data)
+            return None
+
+        content = choices[0].get("message", {}).get("content", "")
+        parsed = self._parse_response(content)
+        if parsed is None:
+            return None
+
+        try:
+            score = int(parsed.get("qualification_score", 0))
+        except (TypeError, ValueError):
+            logger.warning("qualification_score inválido (%r); usando 0.", parsed.get("qualification_score"))
+            score = 0
+        parsed["qualification_score"] = max(0, min(100, score))
+
+        if not isinstance(parsed.get("issues_found"), list):
+            parsed["issues_found"] = []
+
+        return parsed
 
     async def score_lead(self, technical_report: dict) -> Optional[Dict[str, Any]]:
         """Gera o scoring de um lead a partir do relatório técnico do site.
