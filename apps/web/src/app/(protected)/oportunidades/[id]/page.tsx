@@ -158,6 +158,28 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </CardContent>
             </Card>
           </div>
+
+          {(lead.pitch_angle || lead.suggested_subject) && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pitch de Abordagem</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {lead.pitch_angle && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Gancho principal:</p>
+                    <p className="text-sm mt-1">{lead.pitch_angle}</p>
+                  </div>
+                )}
+                {lead.suggested_subject && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Sugestão de assunto para e-mail:</p>
+                    <p className="text-sm mt-1 italic">"{lead.suggested_subject}"</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="technical" className="space-y-4">

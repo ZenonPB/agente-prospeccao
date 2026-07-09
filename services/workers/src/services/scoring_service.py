@@ -374,7 +374,7 @@ async def main_test_scoring():
     }
     service = AIScoringService()
     result = await service.score_lead(sample_report)
-    print(json.dumps(result, ensure_ascii=False, indent=2) if result else "None")
+    logger.info("%s", json.dumps(result, ensure_ascii=False, indent=2) if result else "None")
 
 
 if __name__ == "__main__":

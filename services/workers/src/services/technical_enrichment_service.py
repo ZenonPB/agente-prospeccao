@@ -3,10 +3,13 @@ import ssl
 import certifi
 import re
 import json
+import logging
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse
 import asyncio
 import time
+
+logger = logging.getLogger(__name__)
 
 class TechnicalEnrichmentService:
     def __init__(self):
@@ -363,7 +366,7 @@ async def main_test_enrichment():
     enricher = TechnicalEnrichmentService()
     website = "https://www.google.com"
     report = await enricher.enrich_website(website)
-    print(json.dumps(report, indent=2))
+    logger.info("%s", json.dumps(report, indent=2))
 
 if __name__ == "__main__":
     try:

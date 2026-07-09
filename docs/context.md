@@ -120,11 +120,13 @@
 
 ### Próximo passo imediato
 1. ~~Unificar páginas /campanhas e /pipeline~~ ✅
-2. Exibir `pitch_angle` e `suggested_subject` na tela de detalhe do lead (API já expõe; UI ainda não mostra)
-3. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades (verificar scoring contextual + pitch/subject)
-4. Adicionar "esqueci minha senha"
-5. Adicionar página de configurações (trocar senha, editar perfil)
-6. Revisar CSP para produção
+2. ~~Exibir `pitch_angle` e `suggested_subject` na tela de detalhe do lead~~ ✅ (card "Pitch de Abordagem" na aba overview)
+3. ~~Corrigir bug `NameError` em `leads_to_enrich` no pipeline_worker~~ ✅
+4. ~~Trocar `print()` por `logger.info` em testes standalone dos services~~ ✅
+5. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades (verificar scoring contextual + pitch/subject exibidos)
+6. Adicionar "esqueci minha senha"
+7. Adicionar página de configurações (trocar senha, editar perfil — rota existe com placeholder)
+8. Revisar CSP para produção
 
 ## Como rodar
 

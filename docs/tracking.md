@@ -81,7 +81,9 @@
 | Menção a LGPD/política de privacidade no HTML | `technical_enrichment_service.py` | ✅ |
 | Interpretação de velocidade (rápido/aceitável/lento/muito lento) em `performance` | `technical_enrichment_service.py` | ✅ |
 | HTML baixado uma única vez em `_get_headers_and_status` | `technical_enrichment_service.py` | ✅ |
-| Responsividade mobile (Playwright viewport) | — | 🔮 |
+| Responsividade mobile (Playwright viewport) | `technical_enrichment_service.py` | 🟡 (coluna `responsive_design` já existe em models.py, serviço não preenche) |
+| Lighthouse score | `technical_enrichment_service.py` | 🟡 (coluna `lighthouse_score` já existe em models.py, serviço não preenche) |
+| SEO: meta tags, sitemap, robots.txt | `technical_enrichment_service.py` | 🟡 (coluna `seo_errors` já existe em models.py, `_check_seo` salva em `raw_technical_data` mas não em `seo_errors`) |
 | Verificação de formulários | — | 🔮 |
 
 ## 6. Scoring / Qualificação
@@ -130,7 +132,7 @@
 | Abas: Dados gerais, Análise do site, Contatos, Ações | `oportunidades/[id]/page.tsx` | ✅ |
 | Botão "Gerar mensagem personalizada" | `oportunidades/[id]/page.tsx` | 🔴 (apenas UI, sem API) |
 | Botão "Registrar contato realizado" → API + redirect | `oportunidades/[id]/page.tsx` | ✅ |
-| Exibir `pitch_angle` e `suggested_subject` na tela de detalhe | `oportunidades/[id]/page.tsx` | 🔴 (API expõe, UI ainda não mostra) |
+| Exibir `pitch_angle` e `suggested_subject` na tela de detalhe | `oportunidades/[id]/page.tsx` | ✅ (card "Pitch de Abordagem" na aba overview) |
 | Busca por contatos de decisores (Hunter.io + CNPJ) | — | 🔮 |
 | Tabela `contacts` + `contact_confidence` | — | 🔮 |
 
@@ -188,13 +190,16 @@
 
 ## Pendências imediatas (prioritárias)
 
-1. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades (com scoring contextual + pitch_angle/suggested_subject)
-2. Exibir `pitch_angle` e `suggested_subject` na tela de detalhe do lead (`oportunidades/[id]/page.tsx`) — dados já expostos pela API
-3. Botão "Me sugira segmentos" (IA) no wizard — precisa de endpoint + prompt
-4. Esqueci minha senha
-5. Página de configurações (trocar senha, editar perfil)
-6. Lead status PERDIDO voltar à fila em 90 dias (agendador)
-7. Rodar migration `1fb286c0715b` em ambientes que ainda não têm `pitch_angle`/`suggested_subject`
-8. Dashboard: leads por campanha, score médio por segmento, atividade recente, "o que fazer agora"
-9. Notificações no header (conectar à API real)
-10. CSP para produção (nonces/hashes)
+1. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades (com scoring contextual + pitch_angle/suggested_subject exibidos)
+2. ~~Exibir `pitch_angle` e `suggested_subject` na tela de detalhe do lead~~ ✅ (card "Pitch de Abordagem")
+3. ~~Bug `NameError` em `leads_to_enrich` no pipeline_worker~~ ✅ (corrigido para `leads_to_process`)
+4. ~~`print()` em testes standalone dos services~~ ✅ (trocado por `logger.info`)
+5. Botão "Me sugira segmentos" (IA) no wizard — precisa de endpoint + prompt
+6. Esqueci minha senha
+7. Página de configurações (trocar senha, editar perfil)
+8. Lead status PERDIDO voltar à fila em 90 dias (agendador)
+9. Rodar migration `1fb286c0715b` em ambientes que ainda não têm `pitch_angle`/`suggested_subject`
+10. Dashboard: leads por campanha, score médio por segmento, atividade recente, "o que fazer agora"
+11. Notificações no header (conectar à API real)
+12. CSP para produção (nonces/hashes)
+13. Preencher colunas `responsive_design`/`lighthouse_score`/`seo_errors` em Enrichment (já existem no models.py mas serviço não as popula)
