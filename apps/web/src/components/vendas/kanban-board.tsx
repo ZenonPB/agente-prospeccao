@@ -4,10 +4,11 @@ import { useMemo, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useLeads } from '@/hooks/use-api';
+import { useLeads, useUpdateLeadStatus } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
 
 interface KanbanColumn {
   id: string;
@@ -75,15 +76,34 @@ function KanbanColumnSkeleton() {
   );
 }
 
+const SALES_STATUSES = 'CONTATADO,RESPONDIDO,REUNIAO_MARCADA,REUNIAO_FEITA,PROPOSTA_ENVIADA';
+
 export function KanbanBoard() {
-  const { data, isLoading, isError, error, refetch } = useLeads();
+  const updateStatus = useUpdateLeadStatus();
+  const { data, isLoading, isError, error, refetch } = useLeads({
+    status: SALES_STATUSES,
+  });
   const leads = data?.leads || [];
 
   const columns = useMemo(() => groupLeadsByColumn(leads), [leads]);
 
-  const onDragEnd = useCallback((_result: DropResult) => {
-    // Para atualização em tempo real, seria necessário chamar a API
-  }, []);
+  const onDragEnd = useCallback((result: DropResult) => {
+    const { draggableId, destination } = result;
+    if (!destination) return;
+
+    const newStatus = destination.droppableId;
+    updateStatus.mutate(
+      { id: draggableId, status: newStatus },
+      {
+        onSuccess: () => {
+          toast.success('Lead movido para ' + destination.droppableId);
+        },
+        onError: () => {
+          toast.error('Erro ao mover lead');
+        },
+      }
+    );
+  }, [updateStatus]);
 
   const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);
 

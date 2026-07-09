@@ -64,6 +64,17 @@ export function useMetrics() {
   });
 }
 
+export function useUpdateLeadStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      leadsApi.updateStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
 export function useStartPipeline() {
   const queryClient = useQueryClient();
   return useMutation({

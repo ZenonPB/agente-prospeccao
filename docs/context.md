@@ -88,6 +88,15 @@
 - `LeadList` — 6 cards skeleton + botão "Tentar novamente" no erro
 - `KanbanBoard` — 5 colunas skeleton + botão "Tentar novamente" no erro
 
+**Kanban / PATCH status (2026-07-09):**
+- `POST /api/leads/{id}/status` — novo endpoint PATCH para atualizar status do lead
+- `LeadStatus` enum expandido: `REUNIAO_FEITA` e `PROPOSTA_ENVIADA` adicionados (+ migration)
+- `GET /api/leads?status=` agora aceita múltiplos valores separados por vírgula (ex: `CONTATADO,RESPONDIDO`)
+- KanbanBoard: filtra leads do funil de vendas (exclui NOVO, ANALISADO, QUALIFICADO, DESQUALIFICADO)
+- KanbanBoard: drag-and-drop chama `PATCH /api/leads/{id}/status` + toast de confirmação
+- Botão "Registrar contato realizado" no detail do lead chama API e redireciona para `/vendas`
+- `sonner` instalado para toasts
+
 **Pendente:**
 - Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
 - Adicionar funcionalidade de "esqueci minha senha"

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
@@ -8,6 +9,10 @@ from src.auth.dependencies import get_current_user
 from src.db.models import User
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+
+class UpdateLeadStatusRequest(BaseModel):
+    status: LeadStatus
 
 
 @router.get("")
@@ -24,7 +29,15 @@ def list_leads(
     query = db.query(Lead)
 
     if status:
-        query = query.filter(Lead.status == status)
+        status_list = [s.strip() for s in status.split(",") if s.strip()]
+        try:
+            enum_values = [LeadStatus(s) for s in status_list]
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Status inválido: {status_list}")
+        if len(enum_values) == 1:
+            query = query.filter(Lead.status == enum_values[0])
+        else:
+            query = query.filter(Lead.status.in_(enum_values))
     if campaign_id:
         query = query.filter(Lead.campaign_id == campaign_id)
     if search:
@@ -86,6 +99,28 @@ def lead_stats(
         "qualified_pct": round((qualified / total * 100), 1) if total > 0 else 0,
         "contacted_count": contacted,
         "meetings_count": meetings,
+    }
+
+
+@router.patch("/{lead_id}/status")
+def update_lead_status(
+    lead_id: str,
+    body: UpdateLeadStatusRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+    lead.status = body.status
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "id": str(lead.id),
+        "company_name": lead.company_name,
+        "status": lead.status.value if lead.status else None,
     }
 
 
