@@ -10,6 +10,24 @@ export type LeadStatus =
 
 export type CampaignStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
 
+export type LeadPriority = 'HOT' | 'WARM' | 'COLD';
+
+export interface ScoreFactor {
+  label: string;
+  impact: '+' | '-';
+  weight: 'high' | 'medium' | 'low';
+  rationale: string;
+  evidence_ref?: string;
+}
+
+export interface EvidenceItem {
+  type: string;
+  severity: 'CRITICO' | 'ALTO' | 'MEDIO' | 'BAIXO' | 'INFO';
+  title: string;
+  description: string;
+  source?: string;
+}
+
 export interface Lead {
   id: string;
   place_id?: string;
@@ -28,6 +46,11 @@ export interface Lead {
   segment_opportunity?: string;
   pitch_angle?: string;
   suggested_subject?: string;
+  priority?: LeadPriority;
+  priority_reasoning?: string;
+  executive_summary?: string;
+  score_factors?: ScoreFactor[];
+  evidence?: EvidenceItem[];
   campaign_id?: string;
   created_at: string;
   updated_at: string;
@@ -95,9 +118,25 @@ export type PipelineStage =
 
 export interface ScoringResult {
   qualification_score: number;
-  primary_need: 'SECURITY_FIX' | 'PERFORMANCE' | 'MODERN_WEBSITE' | 'SEO' | 'NONE';
+  primary_need: string;
   qualification_reason: string;
-  issues_found: Issue[];
+  priority: LeadPriority;
+  priority_reasoning: string;
+  executive_summary: string;
+  pitch_angle: string;
+  suggested_subject: string;
+  score_factors: ScoreFactor[];
+  evidence: EvidenceItem[];
+}
+
+export interface OutreachMessages {
+  subject: string;
+  body_opening: string;
+  followup_1: string;
+  followup_2: string;
+  closing: string;
+  whatsapp_short: string;
+  rationale: string;
 }
 
 export interface Issue {

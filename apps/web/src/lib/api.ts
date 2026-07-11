@@ -1,5 +1,6 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment } from "@/types";
+import type { OutreachMessages } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -26,9 +27,20 @@ async function resolveToken(): Promise<string | null> {
   return token ?? null;
 }
 
+interface OutreachMessages {
+  subject: string;
+  body_opening: string;
+  followup_1: string;
+  followup_2: string;
+  closing: string;
+  whatsapp_short: string;
+  rationale: string;
+}
+
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
+
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, ...fetchOptions } = options;
@@ -93,6 +105,38 @@ export const leadsApi = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+
+  generateMessages: (id: string, channel: "EMAIL" | "WHATSAPP" = "EMAIL") =>
+    request<OutreachMessages>(`/api/leads/${id}/generate-messages`, {
+      method: "POST",
+      body: JSON.stringify({ channel }),
+    }),
+};
+
+export const authApi = {
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ message: string }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
+
+  updateProfile: (name: string) =>
+    request<{ id: string; name: string; email: string; role: string }>("/api/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
+  forgotPassword: (email: string) =>
+    request<{ message: string }>("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, password: string) =>
+    request<{ message: string }>("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    }),
 };
 
 export const campaignsApi = {
@@ -129,11 +173,21 @@ export const metricsApi = {
 };
 
 export const pipelineApi = {
-  start: (data: { query?: string; max_leads?: number; campaign_id?: string }) =>
+  start: (data: {
+    query?: string;
+    max_leads?: number;
+    campaign_id?: string;
+    reanalyze_only?: boolean;
+  }) =>
     request<{ job_id: string; status: string }>("/api/pipeline/start", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  reanalyzeCampaign: (campaign_id: string) =>
+    request<{ job_id: string; status: string; leads_to_reanalyze: number }>(
+      `/api/campaigns/${campaign_id}/reanalyze`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
 };
 
 // Helper de conexão WebSocket — passa token JWT como query param para autenticação

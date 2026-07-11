@@ -85,3 +85,22 @@ export function useStartPipeline() {
     },
   });
 }
+
+export function useReanalyzeCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (campaign_id: string) => pipelineApi.reanalyzeCampaign(campaign_id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+    },
+  });
+}
+
+export function useGenerateMessages() {
+  return useMutation({
+    mutationFn: ({ id, channel }: { id: string; channel?: "EMAIL" | "WHATSAPP" }) =>
+      leadsApi.generateMessages(id, channel),
+  });
+}
