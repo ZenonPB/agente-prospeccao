@@ -26,6 +26,7 @@ class StartPipelineRequest(BaseModel):
     query: str | None = None
     campaign_id: str | None = None
     max_leads: int = 10
+    reanalyze_only: bool = False
 
 
 @router.post("/start")
@@ -39,12 +40,23 @@ async def start_pipeline(
     Se `campaign_id` for fornecido, a query é construída automaticamente
     a partir dos campos da campanha (target_segment, target_city, etc.)
     e o analysis_profile da campanha define o comportamento do pipeline.
+
+    Se `reanalyze_only=True`, pula a coleta e reanalisa TODOS os leads da
+    campanha usando o scoring contextual novo (útil para leads analizados
+    pelo pipeline legado específico de web).
     """
     if not request.query and not request.campaign_id:
         from fastapi import HTTPException
         raise HTTPException(
             status_code=422,
             detail="Forneça 'campaign_id' ou 'query' para iniciar o pipeline"
+        )
+
+    if request.reanalyze_only and not request.campaign_id:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=422,
+            detail="Reanálise requer 'campaign_id'"
         )
 
     job = Job(
@@ -54,6 +66,7 @@ async def start_pipeline(
             "query": request.query,
             "campaign_id": request.campaign_id,
             "max_leads": request.max_leads,
+            "reanalyze_only": request.reanalyze_only,
         },
     )
     db.add(job)
@@ -63,15 +76,24 @@ async def start_pipeline(
     job_id = str(job.id)
 
     # Inicia pipeline em background
-    asyncio.create_task(_run_pipeline_task(job_id, request.query, request.campaign_id, request.max_leads))
+    asyncio.create_task(_run_pipeline_task(
+        job_id, request.query, request.campaign_id, request.max_leads,
+        request.reanalyze_only,
+    ))
 
     return {"job_id": job_id, "status": "started"}
 
 
-async def _run_pipeline_task(job_id: str, query: str | None, campaign_id: str | None, max_leads: int):
+async def _run_pipeline_task(
+    job_id: str, query: str | None, campaign_id: str | None,
+    max_leads: int, reanalyze_only: bool = False,
+):
     """Executa o pipeline em background e transmite eventos via WebSocket."""
     try:
-        async for event in run_pipeline(job_id=job_id, query=query, campaign_id=campaign_id, max_leads=max_leads):
+        async for event in run_pipeline(
+            job_id=job_id, query=query, campaign_id=campaign_id,
+            max_leads=max_leads, reanalyze_only=reanalyze_only,
+        ):
             # Lê conexões dinamicamente (WS pode conectar após a task iniciar)
             connections = active_connections.get(job_id, [])
             dead = []

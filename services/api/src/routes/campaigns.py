@@ -4,7 +4,7 @@ from sqlalchemy import func
 from typing import Optional
 from pydantic import BaseModel, Field
 from src.db.dependencies import get_db
-from src.db.models import Campaign, CampaignStatus, Lead, User
+from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType
 from src.auth.dependencies import get_current_user
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -132,3 +132,71 @@ def get_campaign(
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
         "updated_at": campaign.updated_at.isoformat() if campaign.updated_at else None,
     }
+
+
+@router.post("/{campaign_id}/reanalyze")
+async def reanalyze_campaign(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """Dispara reanálise de TODOS os leads de uma campanha usando o pipeline
+    contextual novo.
+
+    - Pula a coleta (reusa leads existentes).
+    - Reseta scoring de cada lead (status=NOVO, fields limpos) internamente.
+    - Usa o scoring contextual baseado em campaign.target_service/target_segment
+      + fallback ao template 'Genérico'.
+
+    Retorna `{job_id}` para que o frontend possa escutar /ws/pipeline/{job_id}.
+    """
+    import asyncio
+    from src.pipeline_worker import run_pipeline
+    from src.routes.pipeline import active_connections
+
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    lead_count = db.query(Lead).filter(Lead.campaign_id == campaign.id).count()
+    if lead_count == 0:
+        raise HTTPException(status_code=400, detail="Campanha não tem leads para reanalisar")
+
+    job = Job(
+        job_type=JobType.LEAD_ENRICHMENT,
+        status=JobStatus.PENDING,
+        campaign_id=campaign.id,
+        payload={
+            "campaign_id": str(campaign.id),
+            "reanalyze_only": True,
+            "max_leads": lead_count,
+        },
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    job_id = str(job.id)
+
+    async def _runner():
+        try:
+            async for event in run_pipeline(
+                job_id=job_id, query=None, campaign_id=str(campaign.id),
+                max_leads=lead_count, reanalyze_only=True,
+            ):
+                connections = active_connections.get(job_id, [])
+                dead = []
+                for ws in connections:
+                    try:
+                        await ws.send_json(event)
+                    except Exception:
+                        dead.append(ws)
+                for ws in dead:
+                    connections.remove(ws)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error("Reanalyze task error: %s", e)
+
+    asyncio.create_task(_runner())
+
+    return {"job_id": job_id, "status": "started", "leads_to_reanalyze": lead_count}
