@@ -1,292 +1,428 @@
-# Visão do Produto — Plataforma de Inteligência Comercial
+# Visão do Produto — Assistente de Inteligência Comercial para PMEs Brasileiras
 
-> Este documento descreve o produto completo que estamos construindo.
-> É a referência de "o que" e "por quê" — não de "como" (isso está em architecture.md).
+> Este documento descreve o produto de forma **estável e viva**: o que ele é hoje,
+> o que almeja ser e por quê. É a referência de **"o que"** e **"por quê"** — o
+> **"como"** está em `architecture.md` e o **"como evoluir"** em
+> `evolution-analysis.md` + `roadmap.md`.
+>
 > Leitura obrigatória antes de qualquer tarefa que envolva novas funcionalidades.
+>
+> Atualizado em 2026-07-09 — reposicionalização de "ferramenta de prospecção
+> para dev houses" para "assistente de inteligência comercial para PMEs
+> brasileiras que prestam serviços".
 
 ---
 
-## O Problema que Resolvemos
+## 1. Reposicionamento
 
-Dois desenvolvedores full stack que vendem serviços de software (sites, landing pages,
-ERPs, apps) precisam prospectar clientes manualmente. Isso significa:
+A plataforma deixou de ser "coletor de empresas com score". É um
+**assistente de inteligência comercial** para pequenas e médias empresas
+brasileiras que vendem **serviços** — tecnologia, engenharia, marketing,
+consultoria, automação.
 
-- Horas por dia pesquisando empresas no Google Maps
-- Analisando site por site para ver se tem oportunidade
-- Escrevendo mensagens na mão, uma por uma
-- Sem rastreamento de quem respondeu, quem virou cliente, o que funcionou
-- O processo não escala — é limitado pelo tempo disponível
+O foco deixa de ser "como um desenvolvedor prospecta clientes de software"
+e passa a ser **como qualquer prestador de serviço PME brasileiro prospecta,
+qualifica e conduz vendas B2B**, sem precisar montar um time comercial.
 
-O resultado: 30+ mensagens enviadas para pouquíssimas respostas, porque são
-genéricas e sem contexto real sobre o cliente.
+### Por que reposicionar
 
----
+- O produto já suporta múltiplas categorias de serviço via
+  `campaign_scoring_templates` (web, marketing, engenharia, automação,
+  consultoria, genérico). A descrição "dev houses" ficou menor que o código.
+- O mercado de "ferramenta de prospecção para dev houses" é minúsculo. O
+  mercado de "ferramenta de inteligência comercial para PMEs de serviço" é
+  grande, fragmentado e mal servido por ferramentas americanas (Apollo.io,
+  Outreach, Lemlist) que não entendem realidade brasileira (WhatsApp,
+  Receita/CNPJ, LGPD, sem stack de CRM).
+- A IA contextual + explicável já implementada permite o salto: o sistema
+  não precisa apenas pontuar, precisa **aconselhar** o comercial.
 
-## O que Estamos Construindo
+### Não é
 
-Uma plataforma que faz tudo isso automaticamente, deixando para o desenvolvedor
-apenas a etapa de maior valor: **a reunião com o cliente**.
-
-Não é um bot de spam. É um pipeline de inteligência que:
-1. Encontra empresas com sinais reais de oportunidade
-2. Analisa tecnicamente a presença digital de cada uma
-3. Pontua e qualifica com IA
-4. Gera mensagens personalizadas citando problemas reais encontrados
-5. Aprende quais perfis convertem mais ao longo do tempo
-
----
-
-## Para Quem é
-
-### Usuários da plataforma
-- **Desenvolvedor A** (usuário principal) — full stack, co-fundador, usa para prospecção própria
-- **Desenvolvedor B** — co-fundador, usa a mesma ferramenta
-- **Empresa Júnior** (fase futura) — expansão para outros nichos, possível investidor
-
-### Cliente-alvo da prospecção (quem o sistema vai encontrar)
-- Pequenas e médias empresas brasileiras, qualquer segmento
-- Prioritários: clínicas, salões, academias, restaurantes, lojas, escritórios,
-  pequenas indústrias, transportadoras, imobiliárias
-- Sinal de oportunidade: sem site, site ruim/inseguro, dependência de WhatsApp/Excel,
-  sem sistema de gestão
-- Abrangência: nacional, começando pela cidade dos usuários
+- Não é um clone de Apollo.io. Conceitualmente inspirado, funcionalmente
+  brasileiro e voltado a serviço (não a SaaS de ticket médio alto para
+  enterprise).
+- Não é ferramenta de spam. Outreach é sempre B2B, dados públicos, opt-out
+  obrigatório, respeito à LGPD.
+- Não é substituto do vendedor. Automatiza pesquisa e qualificação; a reunião
+  permanece humana.
 
 ---
 
-## As 5 Etapas do Pipeline
+## 2. O Problema que Resolvemos
+
+PMEs brasileiras que prestam serviços (agências de marketing, engenharias,
+consultorias, desenvolvedores, integradores de automação) prospectam
+manualmente:
+
+- Horas/dia pesquisando empresas no Google, no Google Meu Negócio, no Maps,
+  no Instagram.
+- Análise ad-hoc, gonzo-a-gonzo: "este site é ruim? este petshop cresceu?
+  esta metalúrgica tem expansão?" — sem critérios consistentes entre vendedores.
+- Mensagens genéricas, baixíssima resposta (~2%).
+- Sem rastreamento de quem respondeu, qual sequência funcionou, qual perfil
+  converte.
+- Sem saber **quem é o decisor** — "Olá, contato@" não responde.
+
+Ferramentas americanas ignoram a realidade brasileira: não falam com Receita,
+não mandam WhatsApp, não entendem CNAE, não respeitam LGPD de forma nativa.
+
+---
+
+## 3. O que Estamos Construindo
+
+Uma plataforma que age como um **consultor comercial júnior aspiracional**:
+encontra oportunidades, monta tese comercial por lead, sugere argumentário,
+prevê objeções, sustenta cadência, e prepara o vendedor para a reunião.
+
+O vendedor fica responsável apenas pela etapa de maior valor — **a conversa
+humana**. Tudo o que é pesquisa, leitura, raciocínio e escrita comercial
+repetitiva é automatizado.
+
+### Princípios de produto
+
+1. **Cada lead chega "pronto para conversar"** — não apenas pontuado. Tese
+   comercial, dores prováveis, argumentário, objeções esperadas, cadência
+   sugerida.
+2. **Contexto é por campanha, não global.** Vender SEO para academia é
+   diferente de vender aquecimento industrial para metalúrgica. A奥林匹ada
+   de critérios mora em `campaign_scoring_templates`, editável sem código.
+3. **Tudo passivo.** A IA observa o que é publicamente acessível. Nada de
+   probing, scanning de vulnerabilidades, testes de autenticação (Lei
+   12.737/2012).
+4. **Brasileiro nativo.** CNPJ/Receita, LGPD, WhatsApp, CNAE — não
+   adaptações de ferramentas americanas.
+5. **Aprende com o uso.** Conversões registradas voltam como
+   ajustes de playbook. Sem installs-base não há moat; com installs-base o
+   sistema fica mais esperto por cliente.
+
+---
+
+## 4. Para Quem é
+
+### Usuário direto (operador da plataforma)
+
+- Pequenas e médias empresas brasileiras **prestadoras de serviço**:
+  - Agências de marketing digital.
+  - Software houses / dev shops.
+  - Engenharias (mecânica, civil, elétrica, automação).
+  - Consultorias (gestão, financeira, RH, processos).
+  - Integradores de automação industrial.
+  - Estúdios de design/branding/content.
+- Vendedor solitary, fundador-comercial, ou 1-2 vendedores.
+- Não tem CRM sofisticado, não tem SDR dedicado, não tem stack de outreach
+  como Lemlist/Apollo configurado.
+
+### Cliente-alvo da prospecção (quem a plataforma encontra para o usuário)
+
+- PMEs brasileiras, qualquer segmento.
+- Sinais de oportunidade dependem da campanha:
+  - Para "Marketing Digital para Academias": IG ativo mas site sem CTA;
+    sem área de membros; vitrine de planos fraca.
+  - Para "Engenharia Mecânica": porte/fábrica/CNAE industrial; expansão
+    recente (filiais); site é secundário.
+  - Para "Desenvolvimento de Sites": SSL/SEO/performance/CMS desatualizado.
+- A definição de "sinais relevantes" é declarada no template da campanha,
+  não hardcoded.
+
+### Não é para
+
+- Enterprise com ciclo de venda 6-12 meses e múltiplos decisores.
+- E-commerce B2C high-volume.
+- Prospecção internacional (sinão pode ser estendido, mas não é o foco).
+- Substituir SDRs de um time comercial grande.
+
+---
+
+## 5. Arquitetura Conceitual do Produto (5 etapas)
 
 ### Etapa 1 — Coleta (automático)
-Busca empresas em fontes de dados abertas.
 
-**Hoje:** Google Places API (New)
-- Nome, endereço, telefone, site, categoria
+Fonte atual: Google Places API (New) — nome, endereço, telefone, site,
+categoria.
 
-**Futuro:**
-- CNPJ / Receita Federal — dados cadastrais, CNAE, porte, situação da empresa
-- WHOIS / DNS — idade do domínio, provedor, dados técnicos
-- Google Search — menções, notícias, perfis sociais
-- Instagram / Facebook — presença e atividade nas redes (parcial)
+Futuro próximo:
+- **CNPJ / Receita Federal** — razão social, CNAE principal/secundário,
+  porte, situação cadastral, sócios, filiais, idade do negócio.
+- **WHOIS / DNS** — idade do domínio, provedor.
+- **Google Search dorks** — menções, notícias, "contratou", "expansão",
+  "nova filial".
+- **Instagram / Facebook** — presença, atividade, frequência de post.
 
-**Nunca automatizar:** LinkedIn para envio de mensagens — risco de ban inaceitável.
-A IA qualifica e gera a mensagem, mas o envio no LinkedIn é sempre manual.
+Princípio: a coleta respeita o template da campanha. Se o template declara
+que alvos são "indústria por CNAE", a coleta faz pós-filtro por CNAE — não
+inventa a segmentação no `searchText`.
+
+**Nunca automatizar:** envio de mensagens no LinkedIn (risco de ban) e
+qualquer ação não-passiva.
 
 ---
 
-### Etapa 2 — Enriquecimento Técnico (automático)
-Analisa a presença digital de cada lead de forma **totalmente passiva**.
-Nenhuma exploração ativa. Apenas o que qualquer pessoa veria abrindo o site.
+### Etapa 2 — Enriquecimento (multi-provider)
 
-**Sinais que coletamos e o argumento comercial de cada um:**
+Hoje: enriquecimento **técnico passivo de sites** — SSL, headers, CMS,
+load time, SEO, LGPD, paths expostos. Tudo o que qualquer pessoa veria
+abrindo o site.
 
-| Sinal | Como detectar | O que dizemos ao cliente |
+Evolução para **sistema de providers**, registrado e declarado por template:
+
+| Provider | Quando relevante | Origem |
 |---|---|---|
-| SSL ausente ou expirado | Requisição HTTPS + certificado | "Seu site não tem cadeado — visitantes recebem alerta de risco" |
-| Sem redirecionamento HTTPS | Verificar resposta HTTP 301/302 | "Dados dos seus clientes podem ser interceptados" |
-| CMS desatualizado (ex: WP 4.x) | Headers HTTP + meta tags | "Versões antigas têm falhas conhecidas publicamente" |
-| Site não responsivo | Playwright em viewport mobile | "60%+ dos acessos são mobile — seu site afasta clientes" |
-| Site lento (LCP > 4s) | Lighthouse via Playwright | "Site lento perde posição no Google" |
-| Erros de SEO graves | Meta tags, sitemap, robots.txt | "Sua empresa não aparece nas buscas" |
-| Sem política de privacidade | Varredura de links e rodapé | "Pode estar em desacordo com a LGPD — multas de até R$50mi" |
-| Formulários quebrados | Playwright preenchendo e verificando submit | "Clientes tentam entrar em contato e o formulário não funciona" |
-| Arquivos sensíveis expostos | HEAD em /.env, /.git/config, /wp-config.php | "Informações internas estão publicamente acessíveis" |
-| Headers de segurança ausentes | Análise dos headers HTTP | Argumento técnico de vulnerabilidade |
+| `technical` (sites) | Marketing digital, dev web | httpx passivo |
+| `cnpj` (Receita) | Engenharia, consultoria, automação — tese baseada em porte/CNAE | API CNPJ |
+| `hunter` (decisores) | Qualquer B2B | Hunter.io |
+| `socials` (IG/FB) | Marketing, branding | Scrape público |
+| `domain_age` | Expansão / antiguidade | WHOIS |
 
-**Limite legal absoluto:** A plataforma jamais tenta explorar vulnerabilidades,
-executar injeções, testar autenticação ou qualquer ação não-passiva.
-Isso configuraria crime pela Lei 12.737/2012 (Lei Carolina Dieckmann).
+O template da campanha declara `providers: ["cnpj", "hunter", "technical"]`
+e o orquestrador chama exatamente esses — sem `if/else` no código. Adicionar
+categoria de serviço = novo row de template. Adicionar provider = registro
+no registry. **Zero alteração de código.**
 
-**Futuro do enriquecimento:**
-- Enriquecimento de contatos: Hunter.io + CNPJ para encontrar o decisor (CEO, sócio)
-- `contact_confidence` para saber o quão confiável é aquele contato (0-100)
-- Tabela `contacts` separada de `leads` — um lead pode ter múltiplos decisores
+**Limite legal absoluto:** análise 100% passiva. Lei 12.737/2012.
 
 ---
 
-### Etapa 3 — Scoring com IA (automático)
-Cada lead recebe uma pontuação de 0 a 100 com justificativa e sugestão de serviço.
+### Etapa 3 — Inteligência Comercial (IA, multi-dimensional)
 
-**Score e significado:**
-- 80-100 → Crítico: .env exposto, sem HTTPS, .git acessível
-- 60-79 → Grave: múltiplos problemas de segurança ou performance
-- 40-59 → Moderado: headers ausentes, WordPress detectado
-- 20-39 → Leve: site funcional mas com melhorias
-- 0-19 → Bem configurado, baixa oportunidade
+Cada lead recebe não apenas um score, mas um **raciocínio comercial
+multi-dimensional**:
 
-**Score >= 60 → QUALIFICADO → entra na fila de outreach**
-**Score < 60 → ANALISADO → não entra no outreach automático**
+| Dimensão | O que avalia |
+|---|---|
+| Fito comercial | Este lead precisa do serviço que vendemos? |
+| Maturidade digital | Está pronto para aceitar a proposta? |
+| Potencial de compra | Ticket médio provável |
+| Urgência | Há sinais de momento (expansão, regulatório)? |
+| Acessibilidade | Quão fácil contatar um decisor? |
 
-**Campos gerados pelo scoring:**
-- `qualification_score` — número de 0 a 100
-- `qualification_reason` — texto em português para o dono da empresa, sem jargão técnico
-- `primary_need` — SECURITY_FIX | PERFORMANCE | MODERN_WEBSITE | SEO | NONE
-- `issues_found` — lista de problemas com severidade, descrição e recomendação
+Cada dimensão tem nota + evidências. O score global é **média ponderada**
+dos pesos definidos no template.
 
-**Modelo:** Llama 3.1 8B via Groq (tarefa simples de classificação, free tier)
+Além das dimensões, a IA produz:
 
-**Configuração por campanha:**
-O usuário define no dashboard qual serviço quer prospectar naquela campanha
-(ex: "landing pages para restaurantes", "ERP para clínicas", "app para academias").
-O prompt enviado à IA é gerado dinamicamente com base nisso — tornando o scoring
-específico para o objetivo de cada campanha, sem precisar de código novo.
+- **Hipóteses de dores prováveis** — nunca "confirmadas" (ético), sempre
+  `pain_hypothesis` + `confidence` + `evidence`.
+- **Argumentário priorizado** — 3-5 argumentos de venda, cada um com
+  `angle`, `evidence_ref`, `objection_risk`.
+- **Objeções prováveis** — top-3 + respostas sugeridas.
+- **Previsão de interesse** — chance de marcar reunião na 1ª mensagem
+  (inicialmente heurística, depois baseada em conversões reais do usuário).
+- **Briefing de 5 minutos** — 1-pager narrativo no estilo McKinsey:
+  Resumo do Negócio, Tese Comercial, Decisor, Pontos de Entrada, Cadência
+  Já Feita, Roteiro de Perguntas, Objeções, Próxima Ação.
 
-**Futuro — Aprendizado Contínuo:**
-Após 10+ conversões registradas, o sistema inclui no prompt de scoring um resumo
-dos perfis históricos de sucesso:
-> "Clínicas odontológicas com site desatualizado em cidades do interior de SP
-> converteram 3.8x mais. Vestuário tem respondido pouco nos últimos 90 dias."
+**Modelo de IA:** scoring na Geração Atual usa Groq Llama 3.1 8B (rápido,
+preso a schema JSON, free tier). Geração de mensagens e briefings narrativos
+usará Llama 3.3 70B (qualidade superior de texto).
+
+**Aprendizado contínuo:** a cada conversão registrada, o sistema ajusta
+pesos das dimensões do template. Após 10+ conversões por categoria, a IA
+inclui no prompt um resumo de "perfis que convertem mais para este usuário".
 
 ---
 
-### Etapa 4 — Outreach (automático)
-Gera e envia mensagens personalizadas. Nunca genéricas — sempre referenciam
-dados reais encontrados na análise.
+### Etapa 4 — Outreach e Cadência (semi-automático)
 
-**Exemplo de mensagem gerada:**
-> "Olá! Encontrei a [Empresa] no Google e fiquei curioso — vocês têm um público
-> bem ativo (mais de 80 avaliações!), mas percebi que o site está sem certificado
-> de segurança e não abre bem no celular. Sabendo que 60%+ das buscas são feitas
-> no celular, isso pode estar afastando clientes sem que vocês percebam. Somos
-> especialistas em sites rápidos e seguros para [segmento] e gostaríamos de mostrar
-> o que conseguimos fazer em uma conversa de 20 minutos. Topam?"
+Gera **sequência completa** de mensagens personalizadas — não apenas "1ª
+mensagem". Cada referência a dados reais do lead (CMS detectado, CNAE, porte,
+dores prováveis).
 
-**Sequência de follow-up automática (e-mail):**
+**Cadência de follow-up** (já definida em `business-rules.md`):
 
 | Mensagem | Quando | Objetivo |
 |---|---|---|
-| 1ª mensagem | Dia 0 | Apresentação + problema identificado + CTA reunião |
-| Follow-up 1 | Dia 3 sem resposta | Reforço leve + nova perspectiva |
-| Follow-up 2 | Dia 7 sem resposta | Última tentativa + proposta de valor direto |
-| Encerramento | Dia 14 sem resposta | Ciclo encerrado — lead volta à fila em 90 dias |
+| 1ª | Dia 0 | Apresentação + problema + CTA reunião |
+| Follow-up 1 | Dia 3 sem resposta | Reforço leve, novo ângulo |
+| Follow-up 2 | Dia 7 sem resposta | Caso similar + valor direto |
+| Encerramento | Dia 14 sem resposta | Ciclo encerrado, lead volta em 90 dias |
 
-**Modelo:** Llama 3.3 70B via Groq (geração de texto de qualidade)
-**Envio:** Resend (API de e-mail com bom deliverability, plano gratuito)
-**Agendamento:** Cal.com self-hosted (link enviado no e-mail de outreach)
+Evolução futura: **cadência adaptativa** — se lead respondeu "quer mais
+informações", próxima mensagem é case study, não reabertura.
 
-**Riscos do outreach:**
-- E-mails caindo em spam → throttle de envio, domínio dedicado, warm-up gradual, opt-out obrigatório
-- Violação da LGPD → apenas dados públicos B2B, opt-out em toda comunicação
+**Canais:**
+- **E-mail** via Resend (com LGPD opt-out, throttle, warm-up).
+- **WhatsApp Business** via API oficial Meta (futuro, moat brasileiro).
+- **LinkedIn** — envio sempre manual (risco de ban).
 
----
-
-### Etapa 5 — Reunião (manual, sempre)
-O desenvolvedor conduz a reunião. Todo o pipeline anterior existe para garantir
-que quando ele sentar com o cliente, a reunião já tenha alta probabilidade de conversão.
-
-Esta etapa é **deliberadamente humana** e nunca será automatizada.
+**Agendamento de reuniões:** Cal.com self-hosted, link na mensagem.
 
 ---
 
-## Funil de Status dos Leads
+### Etapa 5 — Reunião e Pós-reunião (humana, sempre)
+
+O vendedor conduz. Antes da reunião, lê o **Briefing de 5 Minutos** da
+plateforma — tudo o que precisa para entrar confiante.
+
+Após a reunião, registra:
+- Objeções reais ouvidas (alimenta aprendizado).
+- Status do lead (avança no funil ou PERDIDO com motivo).
+- Próxima ação.
+
+A plataforma usa isto para refinar scores seguintes.
+
+---
+
+## 6. Funil de Status dos Leads
+
+```
 NOVO
-→ ANALISADO        após enriquecimento técnico
-→ QUALIFICADO      score >= 60
-→ DESQUALIFICADO   score < 60 ou sem oportunidade
-→ CONTATADO        1ª mensagem enviada
-→ RESPONDIDO       lead respondeu (positivo ou negativo)
-→ REUNIAO_MARCADA  reunião agendada no Cal.com
-→ PERDIDO          desistiu ou não é fit → volta à fila em 90 dias
+ → ANALISADO        após enriquecimento
+ → QUALIFICADO      score >= 60
+ → DESQUALIFICADO   score < 60 ou sem fito
+ → CONTATADO        1ª mensagem enviada
+ → RESPONDIDO       lead respondeu
+ → REUNIAO_MARCADA
+ → REUNIAO_FEITA
+ → PROPOSTA_ENVIADA
+ → (ganho/perdido)
+ → PERDIDO          volta à fila em 90 dias
+```
+
+`PERDIDO` reentra na fila após 90 dias para nova análise — pode ter mudado
+-contexto (novo sócio, expansão,	stack renovado).
 
 ---
 
-## MVP — Coleta e Scoring (Fase 1)
+## 7. Dossiê Comercial por Lead
 
-O que está sendo implementado agora:
-- Coleta via Google Places API (New) — nome, telefone, site, categoria, endereço
-- Enriquecimento técnico passivo via httpx — SSL, headers, CMS, arquivos expostos
-- Scoring com IA via Groq (Llama 3.1 8B) — score 0-100, justificativa, primary_need
-- Persistência no PostgreSQL via SQLAlchemy
-- Pipeline executado via terminal (main.py)
-- Mensagem de outreach gerada manualmente com base no qualification_reason
+Cada lead recebe um **dossiê** além do score. Estrutura:
 
-O MVP está pronto quando o desenvolvedor consegue rodar o pipeline completo
-pelo terminal e ter leads qualificados com score e justificativa no banco.
+1. **Identidade** — razão social, nome fantasia, CNAE, porte, idade,
+   situação cadastral.
+2. **Localização & operação** — endereço, filiais, pólos regionais.
+3. **Decisor** — nome, cargo, email, confidence, perfil em redes.
+4. **Maturidade digital** — site, stack, responsive, SEO, LGPD, redes
+   sociais, atividade recente.
+5. **Sinais de negócio** — categoria, tipo (indústria/varejo/serviço),
+   porte, expansão recente.
+6. **Hipóteses de dor** — baseadas no template + facts do lead.
+7. **Oportunidade contextual** — fito, primary_need, argumentário
+   priorizado para esta campanha.
+8. **Riscos & objeções** — top-3 + respostas sugeridas.
+9. **Histórico** — coleta, contatos, follow-ups, reuniões, conversões.
 
----
-
-## Interface Web (Fase 2)
-
-O que o usuário verá no dashboard:
-
-- **Funil visual** — quantos leads em cada status
-- **Lista de leads** com score, necessidade primária, site, telefone
-- **Detalhe do lead** — relatório técnico completo, mensagem gerada, histórico
-- **Campanhas** — criar/pausar/arquivar campanhas por nicho e cidade
-- **Métricas** — taxa de resposta, conversão, custo por lead, tempo economizado
-- **Configuração de campanha** — definir serviço-alvo, segmento, região
-
-**Stack:** Next.js + NextAuth.js (Google OAuth + GitHub)
-**Autenticação:** multi-usuário desde o início — preparado para empresa júnior
+Apresentado na UI como **briefing narrativo** (estilo McKinsey 1-pager),
+não ficha técnica. Substitui a atual tela detalhe do lead.
 
 ---
 
-## Outreach Automatizado (Fase 3)
+## 8. Diferenciais Defensáveis (moat)
 
-O que será implementado:
-- Envio de e-mail via Resend
-- Sequência de follow-up automática (dia 0, 3, 7, 14)
-- Link de agendamento do Cal.com self-hosted no e-mail
-- Throttle de envio para evitar blacklist
-- Opt-out obrigatório em toda comunicação
+O que torna a plataforma difícil de copiar:
 
----
-
-## Enriquecimento Avançado (Fase 4)
-
-O que será implementado:
-- Responsividade mobile via Playwright em viewport mobile
-- Lighthouse score via Playwright
-- Análise de SEO: meta tags, sitemap, robots.txt
-- Verificação de formulários: Playwright preenchendo e verificando submit
-- Enriquecimento de contatos via Hunter.io + CNPJ
-- Tabela `contacts` com decisores (CEO, sócio) e `contact_confidence`
+1. **Dossiê comercial narrativo LLM-contextualizado** — não é "50 campos
+   como Apollo", é 1-pager que depende de curadoria humana de playbooks por
+   categoria.
+2. **Playbooks editáveis por categoria de serviço** — quanto mais o
+   usuário usa, mais calibrado o template fica. Difícil de copiar sem
+   curadoria inicial.
+3. **Aprendizado por conversões do próprio usuário** — insights não
+   exportáveis: cada instalação fica esperta sozinha.
+4. **Brasileiro nativo** — CNPJ, CNAE, LGPD, WhatsApp, Google Meu
+   Negócio. Apollo.io não constrói isto.
+5. **Heatmap de oportunidade CNAE × região** — combinando Receita + Places
+   num BI embutido. Ninguém no Brasil faz.
+6. **Fluxo do vendedor brasileiro** — WhatsApp + agenda + cadência. Apollo
+   é americano, ；e-mail-centric.
 
 ---
 
-## Aprendizado Contínuo (Fase 5)
+## 9. Estado Atual
 
-Cada contrato fechado registra na tabela `conversions`:
-- Segmento da empresa
-- Cidade e região
-- Porte estimado
-- Tecnologias e sinais identificados
-- Canal do primeiro contato
-- Mensagem que gerou resposta
-- Serviço vendido e valor
-- Tempo entre primeiro contato e fechamento
+### ✅ Pronto
 
-Com 10+ conversões, o sistema recalibra o scoring automaticamente com dados reais.
+- Coleta via Google Places (async, httpx).
+- Enriquecimento técnico passivo (SSL, CMS, SEO, LGPD, perf, paths).
+- Scoring contextual via Groq Llama 3.1 8B — template editável, prompt
+  dinâmico, fallback "Genérico".
+- Explicabilidade: `score_factors[]`, `evidence[]`, `priority` (LLM-decidida),
+  `priority_reasoning`, `executive_summary`.
+- API REST + WebSocket com auth JWT (FastAPI).
+- Frontend Next.js 16 + React 19 + shadcn/ui (base-nova): login, dashboard,
+  campanhas com wizard + pipeline inline, oportunidades, vendas (kanban).
+- Reanálise end-to-end com template contextual validada (academias, petshop,
+  farmácias).
+- 9 templates seedados (web genérico, marketing para academias/petshop/
+  farmácias, dev de sites, SEO, engenharia, automação, consultoria).
+
+### 🟡 Em andamento
+
+- Funcionalidades pendentes da Fase 2 (esqueci-minha-senha, configurações
+  funcionais, CSP produção).
+- Testar fluxo completo end-to-end.
+
+### 🔲 Não existe ainda
+
+- Tabela `contacts` com decisores ( maior gap isolado).
+- `outreach_service.py` — geração de corpo de e-mail + follow-up.
+- Scheduler de cadência (APScheduler/RQ+Redis).
+- Envio via Resend.
+- `lead_events` para timeline real (kanban hoje usa `created_at` — está errado).
+- `lead_dossiers` — UI narrativa de briefing.
+- Scoring multi-dimensional (fit/maturidade/potencial/urgência/acessibilidade).
+- Registry de providers de enriquecimento (CNPJ, Hunter, socials).
+- Aprendizado por conversões (`Conversion` model existe, endpoint não).
+- Coleta multi-source (hoje só Places).
+- WhatsApp Business.
+- Heatmap CNAE × região.
 
 ---
 
-## Metas de Sucesso
+## 10. Não-funcionais
 
-| Métrica | Meta |
-|---|---|
-| Leads processados por dia | >= 30 |
-| Taxa de resposta | > 5% (vs ~2% manual hoje) |
-| Conversão para reunião | > 15% das respostas |
-| Custo por lead qualificado | < R$ 1,00 |
-| Tempo economizado por semana | > 5h por usuário |
+- **Limites legais (Lei 12.737/2012):** nada de probing, scanning,
+  injeção, teste de autenticação. Apenas passivo.
+- **LGPD:** dados públicos B2B, opt-out em toda comunicação, retenção
+  documentada.
+- **Limites de API:** Google Search 100/dia, Hunter.io 1k/mês, WHOIS 50/mês,
+  CNPJ 20/mês por chave. Fallback e cache quando estoura.
+- **Custo por lead:** Groq free tier;elmanha de scoring ~ $0.0001/lead,
+  mensagem Llama 3.3 70B ~ $0.001/lead.
+- **Multi-tenant:** planejado para fase futura; hoje single-tenant.
 
 ---
 
-## Roadmap
+## 11. Metas de Sucesso
 
-| Fase | Status | O que entrega |
+| Métrica | Hoje / atual | Meta Fase A | Meta Fase C |
 |---|---|---|---|
-| 1 — MVP coleta + scoring | ✅ Concluído | Places API, enriquecimento, scoring, mensagem manual |
-| 2 — Interface web | 🟡 Em andamento | Next.js, login (email/senha), dashboard, campanhas, pipeline |
-| 3 — Outreach automatizado | 🔲 | E-mail via Resend, follow-up, Cal.com |
-| 4 — Enriquecimento avançado | 🔲 | Mobile, Lighthouse, SEO, formulários, Hunter.io |
-| 5 — Aprendizado contínuo | 🔲 | Conversions, recalibração do scoring |
-| 6 — Expansão | 🔲 | Multi-tenant, empresa júnior, outros nichos |
+| Leads processados por campanha | 5-20 | 50+ | 200+ |
+| Decisor identificado (% dos leads) | 0% | 60%+ | 85%+ |
+| Taxa de resposta (e-mail) | ~2% (manual) | 8%+ | 15%+ |
+| Conversão para reunião | n/a | 15% das respostas | 25%+ |
+| Tempo economizado/semana | 0 | 5h | >10h |
+| Briefing de 5 min disponível | não | sim | sim + PDF |
 
 ---
 
-## O que Nunca Fazer
+## 12. Roadmap resumido
 
-- Automatizar envio de mensagens no LinkedIn
-- Tentar explorar vulnerabilidades de qualquer tipo
-- Coletar dados pessoais sensíveis
-- Enviar e-mails sem opt-out
-- Commitar chaves de API ou o arquivo .env
+Detalhes completos em `roadmap.md` + `evolution-analysis.md` (Fases A/B/C/D).
+
+- **Fase A — Destravar o funil comercial** (essencial): contacts + CNPJ,
+  outreach_service, scheduler, lead_events + alerta, dossiê comercial inicial.
+- **Fase B — Consolidar inteligência** (importante): expandir template
+  (dimensions, pains, objections), registry de providers, audience builder,
+  dashboard "o que fazer agora" inteligente.
+- **Fase C — Defensibilidade competitiva** (diferencial): aprendizado por
+  conversões, heatmap CNAE × região, WhatsApp, notas manuais no loop,
+  briefing PDF.
+- **Fase D — Futuro** (expansão): multi-tenant, marketplace de playbooks,
+  templates auto-gerados por LLM, voice briefing, benchmarking anônimo.
+
+---
+
+## 13. O que Nunca Fazer
+
+- Automatizar envio de mensagens no LinkedIn.
+- Tentar explorar vulnerabilidades de qualquer tipo (Lei 12.737/2012).
+- Coletar dados pessoais sensíveis fora do escopo B2B público.
+- Enviar mensagens sem opt-out e sem contexto real do lead (zero spam
+  genérico).
+- Commitar chaves de API, `.env`, ou qualquer segredo.
+- Tratar `score` como a única saída da IA — score é subproduto do
+  raciocínio; o dossiê é o produto.
+- Escrever playbooks hard-coded — sempre em `campaign_scoring_templates`,
+  editáveis.
+- Adaptar ferramentas americanas sem perguntar "faz sentido no Brasil?".
