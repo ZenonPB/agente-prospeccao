@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
-import { Camera, Sun, Moon, Palette, Lock, Save } from 'lucide-react';
+import { Camera, Sun, Moon, Palette, Lock, Save, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { authApi } from '@/lib/api';
 
 const themes = [
   {
@@ -42,14 +44,60 @@ const themes = [
 ];
 
 export default function ConfiguracoesPage() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const [selectedTheme, setSelectedTheme] = useState('dark');
+
+  const [name, setName] = useState(session?.user?.name || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const initials = session?.user?.name
     ?.split(' ')
     .map((n) => n[0])
     .join('')
     .toUpperCase() || 'U';
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await authApi.updateProfile(name);
+      await update();
+      toast.success('Perfil atualizado com sucesso.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar perfil.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast.error('A senha deve ter no mínimo 8 caracteres.');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await authApi.changePassword(currentPassword, newPassword);
+      toast.success('Senha alterada com sucesso.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao alterar senha.');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -69,7 +117,6 @@ export default function ConfiguracoesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Avatar */}
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
               <AvatarFallback className="text-lg">{initials}</AvatarFallback>
@@ -83,17 +130,16 @@ export default function ConfiguracoesPage() {
             </div>
           </div>
 
-          {/* Nome */}
           <div className="space-y-2">
             <Label htmlFor="name">Nome completo</Label>
             <Input
               id="name"
-              defaultValue={session?.user?.name || ''}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="Seu nome"
             />
           </div>
 
-          {/* Email */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Label htmlFor="email">Email</Label>
@@ -110,7 +156,6 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
 
-          {/* Função */}
           <div className="space-y-2">
             <Label>Função</Label>
             <Input
@@ -121,8 +166,12 @@ export default function ConfiguracoesPage() {
           </div>
 
           <div className="flex justify-end">
-            <Button>
-              <Save className="mr-1.5 h-4 w-4" />
+            <Button onClick={handleSaveProfile} disabled={savingProfile}>
+              {savingProfile ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 h-4 w-4" />
+              )}
               Salvar alterações
             </Button>
           </div>
@@ -153,7 +202,6 @@ export default function ConfiguracoesPage() {
                       : 'border-transparent bg-muted/50 hover:border-muted-foreground/20'
                   }`}
                 >
-                  {/* Preview */}
                   <div
                     className={`flex h-20 w-full items-center justify-center rounded-lg border ${theme.preview} ${theme.previewText}`}
                   >
@@ -189,15 +237,63 @@ export default function ConfiguracoesPage() {
             Gerencie sua senha e métodos de acesso
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="rounded-lg border border-dashed bg-muted/30 p-6 text-center">
-            <Lock className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-            <p className="text-sm font-medium">Alteração de senha</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              A funcionalidade de alterar senha será integrada com verificação por email.
-            </p>
-            <Badge variant="secondary" className="mt-3">Em breve</Badge>
-          </div>
+        <CardContent>
+          <form onSubmit={handleChangePassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Senha atual</Label>
+              <Input
+                id="currentPassword"
+                type={showPasswords ? 'text' : 'password'}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">Nova senha</Label>
+              <Input
+                id="newPassword"
+                type={showPasswords ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                minLength={8}
+                placeholder="••••••••"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirmar nova senha</Label>
+              <Input
+                id="confirmPassword"
+                type={showPasswords ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={8}
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                onClick={() => setShowPasswords(!showPasswords)}
+              >
+                {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPasswords ? 'Ocultar senhas' : 'Mostrar senhas'}
+              </button>
+              <Button type="submit" disabled={changingPassword}>
+                {changingPassword ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Lock className="mr-1.5 h-4 w-4" />
+                )}
+                Alterar senha
+              </Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
     </div>
