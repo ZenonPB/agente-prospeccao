@@ -28,7 +28,19 @@ const primaryNeedLabels: Record<string, string> = {
   MODERN_WEBSITE: 'Site desatualizado',
   PERFORMANCE: 'Site lento',
   SEO: 'Problemas de visibilidade',
-  NONE: 'Sem problemas',
+  LGPD: 'Adequação LGPD',
+  NONE: 'Sem necessidade',
+};
+
+const formatPrimaryNeed = (value?: string) => {
+  if (!value) return 'Sem necessidade';
+  return primaryNeedLabels[value] || value;
+};
+
+const priorityBadgeConfig: Record<string, { label: string; color: string; emoji: string }> = {
+  HOT: { label: 'Quente', color: 'bg-red-100 text-red-700', emoji: '🔥' },
+  WARM: { label: 'Morno', color: 'bg-amber-100 text-amber-700', emoji: '🌤️' },
+  COLD: { label: 'Frio', color: 'bg-sky-100 text-sky-700', emoji: '❄️' },
 };
 
 const statusLabels: Record<string, string> = {
@@ -171,13 +183,21 @@ export function LeadList() {
               <Card className="transition-all hover:shadow-md hover:border-primary">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <div>
+                    <div className="min-w-0 pr-2">
                       <CardTitle className="text-lg">{lead.company_name}</CardTitle>
                       <p className="text-sm text-muted-foreground">{lead.category || 'Sem categoria'}</p>
                     </div>
-                    <Badge className={getScoreColor(lead.qualification_score)}>
-                      {lead.qualification_score}
-                    </Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {lead.priority && priorityBadgeConfig[lead.priority] && (
+                        <Badge className={`${priorityBadgeConfig[lead.priority].color} text-xs`}>
+                          <span className="mr-1">{priorityBadgeConfig[lead.priority].emoji}</span>
+                          {priorityBadgeConfig[lead.priority].label}
+                        </Badge>
+                      )}
+                      <Badge className={getScoreColor(lead.qualification_score)}>
+                        {lead.qualification_score}
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -185,7 +205,7 @@ export function LeadList() {
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Necessidade:</span>
                       <Badge variant="outline" className="text-xs">
-                        {primaryNeedLabels[lead.primary_need || 'NONE']}
+                        {formatPrimaryNeed(lead.primary_need)}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
