@@ -33,7 +33,7 @@
 - `main.py` — `run_enrichment_and_scoring` integrado com scoring
 - AsyncClient refactorado para pattern per-use
 
-### Fase 1.5 — API REST + WebSocket ✅ Pronta
+### Fase 1.5 — API REST + WebSocket ✅ Pronta (2026-07-10)
 
 - `services/api/` — FastAPI com endpoints REST + WebSocket
 - `GET /api/leads` — lista com filtros (status, campaign, search, min_score)
@@ -43,90 +43,88 @@
 - `GET /api/campaigns/{id}` — detalhe da campanha
 - `GET /api/metrics` — métricas do dashboard + funnel
 - `POST /api/pipeline/start` — inicia pipeline em background, retorna job_id
+- `POST /api/leads/{id}/generate-messages` — gera sequência de outreach via Groq Llama 3.3 70B
+  - Busca lead + campanha (context_service/segment) + contatos
+  - Retorna subject, body_opening, followup_1/2, closing, whatsapp_short, rationale
+- `POST /api/auth/forgot-password` — gera token de reset e envia email (ou loga no console)
+- `POST /api/auth/reset-password` — redefinie senha com token válido
+- `POST /api/auth/change-password` — altera senha do usuário autenticado
+- `PATCH /api/auth/profile` — atualiza nome do perfil
 - `pipeline_worker.py` — repassa `campaign.target_service/segment` ao scoring ao chamar `process_single_lead`
 - `WS /ws/pipeline/{job_id}` — streaming de eventos em tempo real
 - Reutiliza models e session dos workers
 - CORS configurado para frontend
-- Migration `6db61055` — city nullable na tabela leads
-- Migration `1fb286c0715b` — `pitch_angle` + `suggested_subject` em leads
+- Email service (stdlib smtplib) com fallback para console em desenvolvimento
+- Migration `d5e6f7a8b9c0` — `reset_token` + `reset_token_expires` em users
 
-### Fase 2 — Frontend Web 🟡 Em andamento (parcial) / ✅ Unificação concluída
+### Fase 2 — Frontend Web ✅ Concluído (2026-07-10)
 
-**Anteriormente:** páginas `/campanhas` (lista + wizard) e `/pipeline` (monitor WebSocket) eram desconectadas — não havia botão "Iniciar coleta" na campanha nem contexto de campanha no pipeline.
-
-**Unificação realizada (2026-07-09):**
-- `/campanhas/[id]` — nova página de detalhe da campanha que integra:
-  - Informações da campanha (serviço, segmento, local, status)
-  - `CampaignPipeline` inline — WebSocket ao vivo com barra de progresso e log
-  - Botão "Iniciar Coleta" com auto-start via `?start=true`
-  - Tabela de leads da campanha ao finalizar
-  - Link "Ver Oportunidades" após coleta concluída
-- `CampaignList` — cada card agora tem:
-  - Nome clicável (link para `/campanhas/[id]`)
-  - Botão "Iniciar Coleta" que navega para `/campanhas/[id]?start=true`
+**Unificação campanhas/pipeline:**
+- `/campanhas/[id]` — detalhe da campanha com pipeline inline, botão "Iniciar Coleta", tabela de leads
+- `CampaignList` — cards com link para detalhe + botão "Iniciar Coleta"
 - Sidebar: "Buscas" → "Campanhas"; "Acompanhamento" removido
-- Página `/pipeline` removida (rota não existe mais)
-- Componente `CampaignPipeline` criado em `components/campanhas/`
+- Página `/pipeline` removida
 
-**Outros concluídos:**
+**Auth completo:**
 - Setup Next.js 16 + React 19 + TypeScript
-- shadcn/ui configurado (21+ componentes, incluindo Skeleton)
+- shadcn/ui configurado (21+ componentes)
 - NextAuth.js com Credentials provider (email/senha + JWT)
-- Backend FastAPI com auth (registro + login + bcrypt + JWT)
+- Login + Registro + Esqueci senha + Resetar senha
+- Link "Esqueci minha senha?" na página de login
+- Páginas: `/esqueci-senha` (form email → token enviado) e `/resetar-senha` (token URL → nova senha)
+- Backend FastAPI com auth (registro + login + bcrypt + JWT, forgot/reset/change/profile)
 - Todas as rotas da API protegidas por autenticação JWT
-- Recharts, TanStack Query, Zustand
-- Estrutura de rotas completa:
-  - `/login` — login com email/senha
-  - `/register` — cadastro de novo usuário
-  - `/dashboard` — métricas interativas + gráficos
-  - `/campanhas` — lista + wizard 4 etapas + detalhe com pipeline inline
-  - `/oportunidades` — lista de leads + detalhe com abas
-  - `/vendas` — kanban com drag-and-drop
-- UX: termos amigáveis, botões responsivos, filtros interativos
-- Frontend conectado à API REST (mock data removido)
-- Pipeline monitor com WebSocket streaming (integrado nas campanhas)
-- Kanban board com dados reais
-- Bugfixes: POST /api/campaigns implementado, enrichment no GET /api/leads/{id}, 404 corrigidos, type mismatches corrigidos
-- SQLAlchemy 2 (DeclarativeBase) em vez do legado
 
-**Substituição de loading/erro por skeleton (2026-07-09):**
-- `Skeleton` component criado em `components/ui/skeleton.tsx`
-- `MetricsGrid` — 4 cards skeleton + cards de erro vermelhos
-- `FunnelChart` — barras horizontais skeleton + estado de erro
-- `CampaignList` — 3 cards skeleton + estado de erro
-- `LeadList` — 6 cards skeleton + botão "Tentar novamente" no erro
-- `KanbanBoard` — 5 colunas skeleton + botão "Tentar novamente" no erro
+**Páginas do app:**
+- `/dashboard` — métricas interativas + gráficos (Recharts + TanStack Query)
+- `/campanhas` — lista + wizard 4 etapas (criação) + detalhe com pipeline inline
+- `/oportunidades` — lista de leads + detalhe com abas (Dados gerais, Evidências, Análise do site, Contatos, Ações)
+  - Botão "Gerar mensagem personalizada" com modal de Tabs e cópia integrada
+- `/vendas` — kanban com drag-and-drop (6 colunas do funil)
+- `/configuracoes` — perfil (editar nome), aparência (temas claro/escuro/alpha), segurança (trocar senha)
 
-**Kanban / PATCH status (2026-07-09):**
-- `POST /api/leads/{id}/status` — novo endpoint PATCH para atualizar status do lead
-- `LeadStatus` enum expandido: `REUNIAO_FEITA` e `PROPOSTA_ENVIADA` adicionados (+ migration)
-- `GET /api/leads?status=` agora aceita múltiplos valores separados por vírgula (ex: `CONTATADO,RESPONDIDO`)
-- KanbanBoard: filtra leads do funil de vendas (exclui NOVO, ANALISADO, QUALIFICADO, DESQUALIFICADO)
-- KanbanBoard: drag-and-drop chama `PATCH /api/leads/{id}/status` + toast de confirmação
-- Botão "Registrar contato realizado" no detail do lead chama API e redireciona para `/vendas`
-- `sonner` instalado para toasts
+**Pipeline / Reanálise:**
+- Pipeline monitor com WebSocket streaming
+- `POST /api/campaigns/{id}/reanalyze` — reanalisa leads existentes sobrescrevendo scoring legado
+- Botão "Reanalisar leads" no `CampaignPipeline`
+- `load_scoring_template` com match por `target_service` e `target_segment`
 
-**Pendente:**
-- Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
-- Adicionar funcionalidade de "esqueci minha senha"
-- Adicionar página de configurações (trocar senha, editar perfil)
-- Revisar CSP para produção (nonces/hashes em vez de unsafe-eval/inline)
+**Kanban / PATCH status:**
+- `POST /api/leads/{id}/status` — endpoint PATCH para atualizar status
+- `LeadStatus` enum expandido: `REUNIAO_FEITA` e `PROPOSTA_ENVIADA`
+- `GET /api/leads?status=` aceita múltiplos valores separados por vírgula
+- KanbanBoard: drag-and-drop chama PATCH + toast de confirmação (sonner)
+- Botão "Registrar contato realizado" no detalhe do lead
+
+**Scoring explicabilidade (Fase 2):**
+- `score_factors[]` (±), `evidence[]` (severidade), `priority` (HOT/WARM/COLD), `executive_summary`
+- Frontend: EvidenceCard com fatores +/− coloridos, prioridade com badge
+- Migration `c4a1f2e8b9d0` + tabela `campaign_scoring_templates`
+- 6 templates seedados: Desenvolvimento de Sites, SEO/Marketing Digital, Eng. Mecânica, Automação Industrial, Consultoria Empresarial, Genérico
+
+**Gerar mensagens de outreach:**
+- `apps/web/src/types/index.ts` — `OutreachMessages` interface
+- `apps/web/src/lib/api.ts` — `leadsApi.generateMessages` + `authApi` completo
+- `apps/web/src/hooks/use-api.ts` — `useGenerateMessages` (useMutation sem invalidate)
+- Modal Dialog com Tabs (E-mail, Follow-ups, WhatsApp) e botões de cópia
+
+**Segurança / CSP:**
+- `middleware.ts` (renomeado de proxy.ts) — proteção de rotas + CSP por ambiente
+  - Dev: `'unsafe-eval'` + `'unsafe-inline'` para HMR
+  - Prod: `'strict-dynamic'` + nonces, mais restrito
+  - Rotas públicas: /login, /register, /esqueci-senha, /resetar-senha, /api/auth
 
 ### Fase 3 — Services Avançados (Futura)
 
 - `contact_enrichment_service.py` — Hunter.io + WHOIS + CNPJ
-- `outreach_service.py` — mensagens IA + envio via Resend
+- `outreach_service.py` — mensagens IA + envio via Resend ✅ (agora em uso pelo endpoint generate-messages)
 - Integração Cal.com para agendamento
 
 ### Próximo passo imediato
-1. ~~Unificar páginas /campanhas e /pipeline~~ ✅
-2. ~~Exibir `pitch_angle` e `suggested_subject` na tela de detalhe do lead~~ ✅ (card "Pitch de Abordagem" na aba overview)
-3. ~~Corrigir bug `NameError` em `leads_to_enrich` no pipeline_worker~~ ✅
-4. ~~Trocar `print()` por `logger.info` em testes standalone dos services~~ ✅
-5. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades (verificar scoring contextual + pitch/subject exibidos)
-6. Adicionar "esqueci minha senha"
-7. Adicionar página de configurações (trocar senha, editar perfil — rota existe com placeholder)
-8. Revisar CSP para produção
+
+1. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
+2. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
+3. Testar reanálise das campanhas "Petshop" e "Farmácias" (têm score legado 60)
 
 ## Como rodar
 

@@ -38,7 +38,19 @@ Ver `docs/decisions/` para o raciocínio completo de cada decisão.
 | WebSocket /ws/{job_id} requer autenticação | Impedir que terceiros escutem eventos de pipeline sem token válido |
 | `getSession()` não deve ser chamado em toda request de API | Substituir por leitura do token do store Zustand ou cookie — `getSession()` faz fetch HTTP a cada chamada, dobrando latência |
 
-## Comentários: português, mínimos e apenas quando necessário
+## ADRs de Scoring Contextual & Explicabilidade (2026-07-09)
+
+| Decisão | Motivo |
+|---|---|
+| Templates de critérios em tabela `campaign_scoring_templates` em vez de hardcoded | Permite adicionar categorias de serviço sem alterar código; admin pode editar via UI futura ou SQL |
+| Evidências híbridas: facts determinísticos + interpretação LLM | Reprodutibilidade — a LLM não inventa valores (CMS, SSL, load_time são facts); apenas interpreta |
+| Prioridade HOT/WARM/COLD como decisão LLM (não faixa de score) | Captura nuances (ex.: lead 70 pode ser Quente se sinais de compra forem claros); reasoning separado |
+| `primary_need` alargado para string livre (era enum de web) | Categorias não-web não se encaixam em `SECURITY_FIX/PERFORMANCE/etc.`; LLM define necessidade contextual |
+| Sem reprocessamento automático de leads existentes | Decisão do usuário; novos leads passam pelo pipeline contextual, antigos mantêm scoring legado |
+| `load_scoring_template()` com fallback a 'Genérico' | Garante que campanhas de serviços sem template específico ainda recebam análise contextual razoável |
+| Score 60 continua sendo o limiar QUALIFICADO/DESQUALIFICADO | Mantém regra de negócio existente (outreach automático) sem mudança |
+
+## Comentários: português, mínimos e apenas quando necessários
 
 A partir de 2026-07-09, todo o código usa:
 - Comentários em português

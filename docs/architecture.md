@@ -170,13 +170,29 @@ outreach_service.py
 ### `leads`
 - id (UUID PK), place_id, company_name, website, phone, email, category
 - city, state, country
-- status, qualification_score, qualification_reason, primary_need
+- status, qualification_score, qualification_reason, primary_need (string livre, contextual)
+- pitch_angle, suggested_subject (outreach)
+- priority (HOT/WARM/COLD) — decisão LLM
+- priority_reasoning, executive_summary — explicabilidade
+- score_factors (JSONB) — [{label, impact, weight, rationale, evidence_ref}]
+- evidence (JSONB) — [{type, severity, title, description, source}]
 - campaign_id (FK), created_at, updated_at
 
 ### `campaigns`
 - id, user_id (FK), name
 - target_service, target_segment, target_city, target_state, target_country
-- status, created_at, updated_at
+- scoring_template_id (FK → campaign_scoring_templates) — template de critérios contextual
+- analysis_profile, status, created_at, updated_at
+
+### `campaign_scoring_templates`
+- id, service_label (chave natural, único por lower-case)
+- positive_signals (JSONB) — sinais que aumentam o score
+- negative_signals (JSONB) — sinais que reduzem o score
+- context_signals (JSONB) — sinais contextuais (segmento, região)
+- requires_technical_report (bool) — se análise técnica do site é relevante
+- requires_business_data (bool) — se dados cadastrais são relevantes
+- extra_instructions (text) — instruções livres injetadas no prompt
+- is_active, created_at, updated_at
 
 ### `enrichments`
 - id, lead_id (FK)

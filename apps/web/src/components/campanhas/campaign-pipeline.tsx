@@ -3,14 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
   Play, CheckCircle, XCircle, Loader2,
-  ExternalLink, Sparkles
+  ExternalLink, Sparkles, RefreshCw,
 } from 'lucide-react';
-import { useStartPipeline } from '@/hooks/use-api';
+import { useStartPipeline, useReanalyzeCampaign } from '@/hooks/use-api';
 import { createPipelineWs } from '@/lib/api';
 
 interface PipelineEvent {
@@ -33,23 +32,28 @@ interface CampaignPipelineProps {
   campaignId: string;
   campaignName: string;
   autoStart?: boolean;
+  hasExistingLeads?: boolean;
 }
 
 export function CampaignPipeline({
   campaignId,
   campaignName,
   autoStart,
+  hasExistingLeads,
 }: CampaignPipelineProps) {
   const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
+  const [mode, setMode] = useState<'collect' | 'reanalyze'>('collect');
   const [events, setEvents] = useState<PipelineEvent[]>([]);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [summary, setSummary] = useState<PipelineEvent['summary'] | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const startPipeline = useStartPipeline();
+  const reanalyzeCampaign = useReanalyzeCampaign();
 
   useEffect(() => {
     if (logsEndRef.current) {
@@ -59,23 +63,29 @@ export function CampaignPipeline({
 
     useEffect(() => {
     if (autoStart && !hasStarted && !isRunning) {
-      handleStart();
+      handleStart('collect');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart]);
 
-  const handleStart = async () => {
+  const handleStart = async (startMode: 'collect' | 'reanalyze' = 'collect') => {
     setHasStarted(true);
     setIsRunning(true);
+    setMode(startMode);
     setEvents([]);
     setProgress(0);
     setCurrentStep('');
     setSummary(null);
+    setErrorMessage(null);
 
     try {
-      const result = await startPipeline.mutateAsync({
-        campaign_id: campaignId,
-        max_leads: 10,
-      });
+      const result =
+        startMode === 'reanalyze'
+          ? await reanalyzeCampaign.mutateAsync(campaignId)
+          : await startPipeline.mutateAsync({
+              campaign_id: campaignId,
+              max_leads: 10,
+            });
 
       const ws = createPipelineWs(result.job_id);
       wsRef.current = ws;
@@ -96,6 +106,7 @@ export function CampaignPipeline({
 
         if (data.type === 'error') {
           setIsRunning(false);
+          setErrorMessage(data.message || 'Erro durante o pipeline');
         }
       };
 
@@ -107,9 +118,11 @@ export function CampaignPipeline({
       ws.onclose = () => {
         setIsRunning(false);
       };
-    } catch {
+    } catch (e) {
       setIsRunning(false);
-      setEvents((prev) => [...prev, { type: 'error', message: 'Erro ao iniciar pipeline' }]);
+      const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';
+      setErrorMessage(msg);
+      setEvents((prev) => [...prev, { type: 'error', message: msg }]);
     }
   };
 
@@ -136,14 +149,46 @@ export function CampaignPipeline({
                   Inicie a coleta de leads para &ldquo;{campaignName}&rdquo;
                 </p>
               </div>
-              <Button size="lg" onClick={handleStart} disabled={startPipeline.isPending}>
-                {startPipeline.isPending ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                ) : (
-                  <Play className="mr-2 h-5 w-5" />
+              <div className="flex flex-wrap gap-2 justify-center">
+                <Button size="lg" onClick={() => handleStart('collect')} disabled={startPipeline.isPending || reanalyzeCampaign.isPending}>
+                  {startPipeline.isPending ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 h-5 w-5" />
+                  )}
+                  Iniciar Coleta
+                </Button>
+                {hasExistingLeads && (
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => handleStart('reanalyze')}
+                    disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
+                    title="Reanalisa os leads já coletados desta campanha com os critérios contextuais atualizados"
+                  >
+                    {reanalyzeCampaign.isPending ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-5 w-5" />
+                    )}
+                    Reanalisar leads
+                  </Button>
                 )}
-                Iniciar Coleta
-              </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {errorMessage && !isRunning && (
+        <Card className="border-red-200 bg-red-50/50">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-2">
+              <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-semibold text-red-800">Erro</h3>
+                <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -155,7 +200,9 @@ export function CampaignPipeline({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <CardTitle>Coletando leads...</CardTitle>
+                <CardTitle>
+                  {mode === 'reanalyze' ? 'Reanalisando leads...' : 'Coletando leads...'}
+                </CardTitle>
               </div>
               <Button variant="outline" size="sm" onClick={handleStop}>
                 <XCircle className="mr-2 h-4 w-4" />
@@ -180,7 +227,9 @@ export function CampaignPipeline({
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-4">
               <CheckCircle className="h-6 w-6 text-emerald-600" />
-              <h3 className="text-lg font-semibold text-emerald-800">Coleta finalizada</h3>
+              <h3 className="text-lg font-semibold text-emerald-800">
+                {mode === 'reanalyze' ? 'Reanálise finalizada' : 'Coleta finalizada'}
+              </h3>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center mb-4">
               <div className="rounded-lg bg-white p-3 shadow-sm">

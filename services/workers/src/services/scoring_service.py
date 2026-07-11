@@ -1,13 +1,37 @@
-import os
-import sys
+"""AIScoringService — scoring contextual e explicável via Groq.
+
+Esta versão substitui a abordagem anterior (específica para tecnologia):
+
+- NÃO há mais prompts hard-coded para segurança/SEO/HTTPS/WordPress.
+- O prompt é montado a partir de:
+  - contexto da campanha (target_service / target_segment)
+  - template de critérios (CampaignScoringTemplate) — editável no banco,
+    uma entrada por categoria de serviço. Permite adicionar novas categorias
+    sem tocar no código.
+  - facts técnicos determinísticos extraídos do relatório do site (quando
+    relevante para a categoria) — ex.: "WordPress detectado", "SSL válido".
+    Esses facts são a evidência bruta; a LLM apenas interpreta.
+  - dados cadastrais do lead (categoria, porte inferido, cidade, segmento).
+- A resposta é expandida para incluir explicabilidade completa:
+  - score_factors[] : fatores + (impacto positivo) / − (impacto negativo)
+                       com caption curta e referência à evidência
+  - evidence[]      : lista de evidências estruturadas
+                      {type, severity, title, description, source}
+  - priority        : HOT | WARM | COLD (decisão LLM, não faixa de score)
+  - priority_reasoning : justificativa textual da prioridade
+  - executive_summary : resumo consultor comercial (2-4 frases)
+  - pitch_angle / suggested_subject : mantidos para outreach
+"""
 import json
 import logging
-from typing import Dict, Any, Optional
+import os
+import sys
+from typing import Any, Dict, List, Optional
 
 import httpx
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from config.settings import settings
+from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -15,150 +39,315 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.1-8b-instant"
 
 SYSTEM_PROMPT = (
-    "Você é um especialista em auditoria técnica de sites de empresas. "
-    "Recebe um relatório técnico passivo de um website e devolve uma qualificação "
-    "para prospecção B2B. Responda SOMENTE com JSON puro, sem markdown, sem "
-    "bloco de código. Nenhum texto antes ou depois do JSON."
+    "Você é um consultor comercial B2B especializado em prospecção qualificada. "
+    "Avalia empresas com base no CONTEXTO da campanha (serviço que se quer vender + "
+    "segmento prospectado) e nos critérios orientadores fornecidos. "
+    "Toda conclusão deve ser JUSTIFICADA por evidências explícitas — nunca retorne "
+    "apenas uma pontuação. "
+    "Responda SOMENTE com JSON puro, sem markdown, sem bloco de código, "
+    "sem texto antes ou depois do JSON."
 )
 
-USER_PROMPT_TEMPLATE = (
-    "Analise o relatório técnico abaixo e gere a qualificação do lead.\n\n"
-    "{context_block}"
-    "Regras de scoring (0-100):\n"
-    "- 80-100: crítico (.env exposto, .git exposto, sem HTTPS)\n"
-    "- 60-79: múltiplos problemas de segurança ou performance\n"
-    "- 40-59: headers ausentes, WordPress detectado, ausência de LGPD\n"
-    "- 20-39: site funcional com melhorias possíveis\n"
-    "- 0-19: site bem configurado, baixa oportunidade\n\n"
-    "Retorne um JSON com exatamente esta estrutura:\n"
-    "{{\n"
-    '  "qualification_score": <inteiro 0-100>,\n'
-    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "LGPD" | "NONE",\n'
-    '  "qualification_reason": "<2-4 frases em pt-BR como argumento de venda, citando problemas reais e conectando ao serviço que queremos vender>",\n'
-    '  "pitch_angle": "<1-2 frases: qual é o gancho principal para abordar este lead, baseado nos problemas encontrados e no serviço que queremos vender>",\n'
-    '  "suggested_subject": "<sugestão de assunto para o e-mail de prospecção, personalizado para esta empresa e segmento>",\n'
-    '  "issues_found": [\n'
-    "    {{\n"
-    '  "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO",\n'
-    '  "title": "<título curto>",\n'
-    '  "description": "<descrição em pt-BR>",\n'
-    '  "recommendation": "<recomendação em pt-BR>"\n'
-    "    }}\n"
-    "  ]\n"
-    "}}\n\n"
-    "Relatório técnico:\n"
-    "{report}"
-)
-
-BUSINESS_PROMPT_TEMPLATE = (
-    "Você é um analista de prospecção B2B. Avalie uma empresa brasileira "
-    "com base nos dados disponíveis e determine se ela é um bom alvo comercial "
-    "para uma empresa que vende serviços de tecnologia e consultoria.\n\n"
-    "{context_block}"
-    "Dados disponíveis:\n"
-    "{lead_data}\n\n"
-    "Regras de scoring (0-100):\n"
-    "- 80-100: empresa ativa, porte médio/grande, com contato disponível, setor promissor\n"
-    "- 60-79: empresa ativa, setor relevante, sem contato direto\n"
-    "- 40-59: empresa pequena ou dados insuficientes\n"
-    "- 20-39: setor de baixo potencial ou dados muito escassos\n"
-    "- 0-19: empresa parece inativa ou irrelevante\n\n"
-    "Retorne um JSON com exatamente esta estrutura:\n"
-    "{{\n"
-    '  "qualification_score": <inteiro 0-100>,\n'
-    '  "primary_need": "SECURITY_FIX" | "PERFORMANCE" | "MODERN_WEBSITE" | "SEO" | "LGPD" | "NONE",\n'
-    '  "qualification_reason": "<2-4 frases em pt-BR como argumento de venda, não análise genérica — mencione o potencial e como nosso serviço resolve>",\n'
-    '  "pitch_angle": "<1-2 frases com o gancho principal de abordagem>",\n'
-    '  "suggested_subject": "<sugestão de assunto para e-mail de prospecção>",\n'
-    '  "issues_found": [\n'
-    "    {{\n"
-    '  "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO",\n'
-    '  "title": "<aspecto avaliado>",\n'
-    '  "description": "<descrição em pt-BR>",\n'
-    '  "recommendation": "<recomendação em pt-BR>"\n'
-    "    }}\n"
-    "  ]\n"
-    "}}\n\n"
-    "Avaliação baseada apenas nos dados fornecidos — sem visitar o site da empresa."
-)
+# Esquema JSON esperado na resposta — compartilhado entre perfis.
+RESPONSE_SCHEMA_HINT = """
+Retorne um JSON com EXATAMENTE esta estrutura:
+{
+  "qualification_score": <inteiro 0-100>,
+  "primary_need": "<necessidade provável do lead neste contexto — string livre em pt-BR, máx 80 chars>",
+  "qualification_reason": "<2-4 frases em pt-BR explicando o raciocínio que justifica o score, conectando evidências ao serviço que queremos vender>",
+  "priority": "HOT" | "WARM" | "COLD",
+  "priority_reasoning": "<1-3 frases em pt-BR justificando a prioridade. Não use simplesmente a faixa do score — explique o que torna o lead hot/warm/cold (urgência, fito, sinais de compra, etc.)>",
+  "executive_summary": "<2-4 frases em pt-BR com o resumo consultor comercial: principal oportunidade + principal risco + recomendação de abordagem>",
+  "pitch_angle": "<1-2 frases: gancho principal de abordagem, baseado nas evidências e no serviço que queremos vender>",
+  "suggested_subject": "<sugestão de assunto de e-mail de prospecção personalizada>",
+  "score_factors": [
+    {
+      "label": "<nome curto do fator>",
+      "impact": "+" | "-",
+      "weight": "high" | "medium" | "low",
+      "rationale": "<1 frase: por que este fator impacta o score neste contexto>",
+      "evidence_ref": "<referência à entrada correspondente em evidence[], pelo title>"
+    }
+  ],
+  "evidence": [
+    {
+      "type": "<categoria: 'technical' | 'business' | 'context'>",
+      "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | "INFO",
+      "title": "<título curto da evidência>",
+      "description": "<descrição em pt-BR EMBUTINDO o valor concreto (ex.: 'WordPress 5.8 detectado', 'Load time 4800ms', 'Setor: metalomecânica')>",
+      "source": "<origem: 'relatório técnico' | 'dados cadastrais' | 'contexto da campanha' | 'inferência LLM'>"
+    }
+  ]
+}
+"""
 
 
-def _build_context_block(target_service: str, target_segment: str) -> str:
-    """Monta o bloco de contexto da campanha para o prompt da LLM, ou vazio se faltarem ambos."""
-    if not target_service and not target_segment:
-        return ""
-    lines = ["Contexto da prospecção:"]
-    if target_service:
-        lines.append(f"- Serviço que queremos vender: {target_service}")
-    if target_segment:
-        lines.append(f"- Segmento-alvo: {target_segment}")
+def _format_signals(signals: List[Dict[str, Any]], header: str) -> str:
+    """Formata uma lista de sinais (positive/negative/context) em texto para o prompt."""
+    if not signals:
+        return f"{header}:\n  (nenhum)\n"
+    lines = [f"{header}:"]
+    for s in signals:
+        label = s.get("label", "")
+        desc = s.get("description", "")
+        weight = s.get("weight_hint", "medium")
+        lines.append(f"  - [{weight}] {label}: {desc}")
+    return "\n".join(lines) + "\n"
+
+
+def build_prompt(
+    target_service: str,
+    target_segment: str,
+    template: Optional[Dict[str, Any]],
+    technical_facts: List[Dict[str, Any]],
+    business_facts: List[Dict[str, Any]],
+) -> str:
+    """Monta o prompt do usuário final, contextualizado para a campanha.
+
+    Args:
+        target_service: Serviço que queremos vender.
+        target_segment: Segmento prospectado.
+        template: Template de critérios (dict-like com positive_signals etc.).
+                  Pode ser None — nesse caso pede-se à LLM que infera critérios.
+        technical_facts: Facts técnicos determinísticos (lista de strings curtas).
+        business_facts: Facts cadastrais (lista de strings curtas).
+    """
+    lines: List[str] = []
+
+    lines.append("== CONTEXTO DA CAMPANHA ==")
+    lines.append(f"Serviço que queremos vender: {target_service or '(não informado)'}")
+    lines.append(f"Segmento prospectado: {target_segment or '(não informado)'}")
     lines.append("")
-    lines.append("Use este contexto para:")
-    lines.append("1. Avaliar se os problemas encontrados são relevantes para este segmento")
-    lines.append("2. Gerar o qualification_reason como um argumento de venda direto,")
-    lines.append("   mencionando o problema específico E como nosso serviço resolve")
-    lines.append("3. Sugerir o ângulo de abordagem mais efetivo")
+
+    lines.append("== CRITÉRIOS ORIENTADORES ==")
+    if template:
+        lines.append(f"Categoria do serviço: {template.get('service_label', '(não informado)')}")
+        lines.append(_format_signals(template.get("positive_signals", []), "Sinais que AUMENTAM o score (positivos)"))
+        lines.append(_format_signals(template.get("negative_signals", []), "Sinais que DIMINUEM o score (negativos)"))
+        lines.append(_format_signals(template.get("context_signals", []), "Sinais contextuais a considerar"))
+        if template.get("extra_instructions"):
+            lines.append(f"Instruções adicionais:\n  {template['extra_instructions']}\n")
+    else:
+        lines.append(
+            "Não há template específico para este serviço. INFERA os critérios relevantes "
+            "a partir do serviço e segmento informados no contexto da campanha, e explique "
+            "os critérios usados dentro de priority_reasoning.\n"
+        )
+
+    lines.append("== EVIDÊNCIAS DISPONÍVEIS (facts) ==")
+    lines.append("Estes são FATOS coletados passivamente — use-os como base para as evidências:")
+    if technical_facts:
+        lines.append("Facts técnicos do site:")
+        for f in technical_facts:
+            lines.append(f"  - {f}")
+    else:
+        lines.append("Facts técnicos do site: (não disponíveis — análise técnica não se aplica a esta categoria ou site inacessível)")
+    if business_facts:
+        lines.append("Facts cadastrais do lead:")
+        for f in business_facts:
+            lines.append(f"  - {f}")
     lines.append("")
+
+    lines.append("== INSTRUÇÕES ==")
+    lines.append("1. Use EXCLUSIVAMENTE as evidências fornecidas acima (facts + contexto).")
+    lines.append("2. Se um fact técnico conflitar com a categoria (ex.: analysis técnica de site para 'Engenharia Mecânica'),")
+    lines.append("   trate-o como evidência secundária e pondere-o baixo no score_factors.")
+    lines.append("3. Cada score_factors PRECISA referenciar uma entrada de evidence[] pelo title.")
+    lines.append("4. Cada evidence[] deve EMBUTIR o valor concreto do fact (não dizer apenas 'lento', dizer '4800ms').")
+    lines.append("5. priority é decisão LLM: HOT = urgência + fito + sinais de compra; COLD = poucos sinais.")
+    lines.append("   Não derive priority matematicamente do score — justifique em priority_reasoning.")
+    lines.append("6. qualification_score 0-100, guideline geral:")
+    lines.append("   - 80-100: várias evidências positivas fortes para ESTA campanha")
+    lines.append("   - 60-79: fito razoável, alguns sinais positivos")
+    lines.append("   - 40-59: fito parcial / sinais mistos")
+    lines.append("   - 20-39: poucos sinais relevantes para a campanha")
+    lines.append("   - 0-19:  não se encaixa ou sinais contrários")
+    lines.append("")
+
+    lines.append(RESPONSE_SCHEMA_HINT)
     return "\n".join(lines)
 
 
+def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
+    """Camada determinística: transforma o relatório técnico em facts curtos.
+
+    Esta é a fonte de evidência reprodutível — a LLM não inventa valores.
+    """
+    if not report:
+        return []
+    facts: List[str] = []
+
+    ssl = report.get("ssl") or {}
+    if ssl.get("ssl_ok"):
+        facts.append("SSL/HTTPS válido")
+    else:
+        err = ssl.get("error") or "sem certificado válido"
+        facts.append(f"SSL/HTTPS inválido ou ausente: {err}")
+    if ssl.get("https_redirect_ok"):
+        facts.append("Redirecionamento HTTP→HTTPS ativo")
+    else:
+        facts.append("Redirecionamento HTTP→HTTPS ausente")
+
+    hh = report.get("http_headers") or {}
+    code = hh.get("status_code")
+    if code:
+        facts.append(f"HTTP status: {code}")
+    lt = hh.get("load_time_ms")
+    if lt is not None:
+        facts.append(f"Load time: {lt}ms")
+    missing = hh.get("security_headers_missing") or []
+    if missing:
+        facts.append(f"Headers de segurança ausentes: {', '.join(missing)}")
+    else:
+        facts.append("Headers de segurança presentes")
+
+    cms = report.get("cms_detection")
+    if cms:
+        facts.append(f"CMS/tecnologia detectada: {cms}")
+    else:
+        facts.append("Nenhum CMS/tecnologia identificado")
+
+    perf = report.get("performance") or {}
+    if perf.get("rating"):
+        facts.append(f"Performance rating: {perf.get('rating')} ({lt}ms)" if lt is not None else f"Performance rating: {perf.get('rating')}")
+
+    seo = report.get("seo") or {}
+    if seo:
+        issues = seo.get("issues") or []
+        if issues:
+            facts.append(f"SEO/LGPD issues: {', '.join(issues)}")
+        else:
+            facts.append("SEO e menção a LGPD OK")
+
+    exposed = report.get("exposed_paths") or []
+    if exposed:
+        facts.append(f"Caminhos sensíveis expostos: {', '.join(exposed)}")
+    else:
+        facts.append("Nenhum caminho sensível exposto")
+
+    warnings = report.get("warnings") or []
+    if warnings:
+        facts.append(f"Avisos gerais: {', '.join(warnings[:5])}")
+    errors = report.get("errors") or []
+    if errors:
+        facts.append(f"Erros gerais: {', '.join(errors[:5])}")
+
+    return facts
+
+
+def extract_business_facts(
+    company_name: str,
+    category: str,
+    city: str,
+    state: str,
+    website: Optional[str],
+    segment_hint: str,
+) -> List[str]:
+    facts: List[str] = []
+    facts.append(f"Empresa: {company_name}")
+    if category:
+        facts.append(f"Categoria (Google Places): {category}")
+    facts.append(f"Localização: {city}, {state}")
+    facts.append(f"Tem website: {'sim' if website else 'não'}")
+    if website:
+        facts.append(f"Website URL: {website}")
+    if segment_hint:
+        facts.append(f"Segmento declarado na campanha: {segment_hint}")
+    return facts
+
+
 class AIScoringService:
-    """Serviço de scoring de leads via Groq (llama-3.1-8b-instant)."""
+    """Serviço de scoring contextual e explicável via Groq (llama-3.1-8b-instant)."""
 
     def __init__(self):
         self.api_key = settings.GROQ_API_KEY
-    
+
     def _create_client(self) -> httpx.AsyncClient:
-        """Cria um novo AsyncClient para cada operação."""
         return httpx.AsyncClient(
-            timeout=30.0,
+            timeout=60.0,
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
             },
         )
 
-    def _build_payload(
-        self,
-        technical_report: Dict[str, Any],
-        target_service: str = "",
-        target_segment: str = "",
-    ) -> Dict[str, Any]:
-        """Monta o payload para a API de chat completions do Groq."""
-        report_str = json.dumps(technical_report, ensure_ascii=False, indent=2)
-        context_block = _build_context_block(target_service, target_segment)
-        user_prompt = USER_PROMPT_TEMPLATE.format(
-            report=report_str, context_block=context_block
-        )
-        return {
-            "model": GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
+    # ---------- normalização da resposta ----------
+
+    def _normalize_response(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Normaliza e valida o JSON devolvido pela LLM.
+
+        Garante defaults e tipos para todos os campos esperados pela camada
+        de persistência (orchestrator).
+        """
+        try:
+            score = int(parsed.get("qualification_score", 0))
+        except (TypeError, ValueError):
+            score = 0
+        score = max(0, min(100, score))
+        parsed["qualification_score"] = score
+
+        parsed["primary_need"] = str(parsed.get("primary_need") or "")[:255]
+        parsed["qualification_reason"] = str(parsed.get("qualification_reason") or "")
+        parsed["priority"] = str(parsed.get("priority") or "").upper()
+        if parsed["priority"] not in ("HOT", "WARM", "COLD"):
+            parsed["priority"] = ""
+        parsed["priority_reasoning"] = str(parsed.get("priority_reasoning") or "")
+        parsed["executive_summary"] = str(parsed.get("executive_summary") or "")
+        parsed["pitch_angle"] = str(parsed.get("pitch_angle") or "")
+        parsed["suggested_subject"] = str(parsed.get("suggested_subject") or "")
+
+        score_factors = parsed.get("score_factors") or []
+        if not isinstance(score_factors, list):
+            score_factors = []
+        clean_factors = []
+        for f in score_factors:
+            if not isinstance(f, dict):
+                continue
+            impact = str(f.get("impact") or "").strip()
+            if impact not in ("+", "-"):
+                impact = "+"
+            weight = str(f.get("weight") or "medium").lower()
+            if weight not in ("high", "medium", "low"):
+                weight = "medium"
+            clean_factors.append({
+                "label": str(f.get("label") or "")[:120],
+                "impact": impact,
+                "weight": weight,
+                "rationale": str(f.get("rationale") or ""),
+                "evidence_ref": str(f.get("evidence_ref") or "")[:120],
+            })
+        parsed["score_factors"] = clean_factors
+
+        evidence = parsed.get("evidence") or []
+        if not isinstance(evidence, list):
+            evidence = []
+        clean_evidence = []
+        for e in evidence:
+            if not isinstance(e, dict):
+                continue
+            sev = str(e.get("severity") or "INFO").upper()
+            if sev not in ("CRITICO", "ALTO", "MEDIO", "BAIXO", "INFO"):
+                sev = "INFO"
+            clean_evidence.append({
+                "type": str(e.get("type") or "")[:40],
+                "severity": sev,
+                "title": str(e.get("title") or "")[:160],
+                "description": str(e.get("description") or ""),
+                "source": str(e.get("source") or "")[:60],
+            })
+        parsed["evidence"] = clean_evidence
+
+        return parsed
 
     def _parse_response(self, content: str) -> Optional[Dict[str, Any]]:
-        """Extrai o JSON devolvido pelo modelo, tolerando cercas de markdown.
-
-        Args:
-            content: Texto bruto retornado pelo Groq.
-
-        Returns:
-            Dicionário parseado, ou None se o conteúdo não for JSON válido.
-        """
         if not content:
             logger.warning("Resposta vazia do Groq.")
             return None
 
         text = content.strip()
-        # Tolerar cercas de markdown apesar da instrução no prompt.
         if text.startswith("```"):
-            # remove primeira linha (```json ou ```)
             lines = text.splitlines()
-            if lines[0].startswith("```"):
+            if lines and lines[0].startswith("```"):
                 lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
@@ -170,148 +359,18 @@ class AIScoringService:
             logger.error("Falha ao decodificar JSON do Groq: %s", e)
             return None
 
-    def _build_business_payload(
-        self,
-        company_name: str,
-        category: str,
-        city: str,
-        state: str,
-        website: str | None,
-        target_service: str = "",
-        target_segment: str = "",
-    ) -> Dict[str, Any]:
-        """Monta payload para scoring de oportunidade de negócio."""
-        lead_data = (
-            f"Empresa: {company_name}\n"
-            f"Categoria: {category}\n"
-            f"Localização: {city}, {state}\n"
-            f"Website: {website or 'Não informado'}"
-        )
-        context_block = _build_context_block(target_service, target_segment)
-        user_prompt = BUSINESS_PROMPT_TEMPLATE.format(
-            lead_data=lead_data, context_block=context_block
-        )
-        return {
+    # ---------- chamada ao modelo ----------
+
+    async def _call_groq(self, user_prompt: str) -> Optional[Dict[str, Any]]:
+        payload = {
             "model": GROQ_MODEL,
             "messages": [
-                {"role": "system", "content": (
-                    "Você é um analista de prospecção B2B. "
-                    "Responda SOMENTE com JSON puro, sem markdown, sem "
-                    "bloco de código. Nenhum texto antes ou depois do JSON."
-                )},
+                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.2,
             "response_format": {"type": "json_object"},
         }
-
-    async def score_business_lead(
-        self,
-        company_name: str,
-        category: str = "",
-        city: str = "",
-        state: str = "",
-        website: str | None = None,
-        target_service: str = "",
-        target_segment: str = "",
-    ) -> Optional[Dict[str, Any]]:
-        """Avalia o potencial de negócio de um lead sem análise técnica de site.
-
-        Usa dados cadastrais da empresa para determinar se é um bom alvo
-        comercial. Ideal para campanhas com perfil business_opportunity
-        (ex: usinagem, manutenção industrial, consultoria).
-
-        Args:
-            company_name: Nome da empresa
-            category: Categoria/segmento da empresa
-            city: Cidade
-            state: Estado
-            website: URL do site (pode ser None)
-            target_service: Serviço que a campanha quer vender (opcional).
-            target_segment: Segmento-alvo da campanha (opcional).
-
-        Returns:
-            Dicionário com qualification_score (int 0-100), primary_need (str),
-            qualification_reason (str), pitch_angle (str), suggested_subject (str)
-            e issues_found (lista); ou None em caso de falha.
-        """
-        payload = self._build_business_payload(
-            company_name, category, city, state, website,
-            target_service, target_segment,
-        )
-
-        try:
-            async with self._create_client() as client:
-                response = await client.post(GROQ_URL, json=payload)
-        except httpx.RequestError as e:
-            logger.error("Erro de rede ao chamar Groq (business): %s", e)
-            return None
-
-        if response.status_code != 200:
-            logger.error("Groq respondeu HTTP %s (business): %s", response.status_code, response.text[:500])
-            return None
-
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            logger.error("Resposta do Groq não é JSON (business): %s", e)
-            return None
-
-        choices = data.get("choices") or []
-        if not choices:
-            logger.error("Resposta do Groq sem choices (business): %s", data)
-            return None
-
-        content = choices[0].get("message", {}).get("content", "")
-        parsed = self._parse_response(content)
-        if parsed is None:
-            return None
-
-        try:
-            score = int(parsed.get("qualification_score", 0))
-        except (TypeError, ValueError):
-            logger.warning("qualification_score inválido (%r); usando 0.", parsed.get("qualification_score"))
-            score = 0
-        parsed["qualification_score"] = max(0, min(100, score))
-
-        if not isinstance(parsed.get("issues_found"), list):
-            parsed["issues_found"] = []
-
-        return parsed
-
-    async def score_lead(
-        self,
-        technical_report: dict,
-        target_service: str = "",
-        target_segment: str = "",
-    ) -> Optional[Dict[str, Any]]:
-        """Gera o scoring de um lead a partir do relatório técnico do site.
-
-        Envia o relatório técnico passivo para o Groq (llama-3.1-8b-instant) e
-        devolve a qualificação estruturada como JSON. A análise é apenas sobre
-        dados já coletados passivamente — nenhuma ação não-passiva é feita.
-
-        Args:
-            technical_report: Dicionário do relatório retornado por
-                TechnicalEnrichmentService.enrich_website, contendo ssl,
-                http_headers, cms_detection, exposed_paths, errors e warnings.
-            target_service: Serviço que a campanha quer vender (opcional).
-                Quando fornecido, a LLM gera o qualification_reason como
-                argumento de venda conectando os problemas ao serviço.
-            target_segment: Segmento-alvo da campanha (opcional).
-
-        Returns:
-            Dicionário com qualification_score (int 0-100), primary_need (str),
-            qualification_reason (str), pitch_angle (str), suggested_subject (str)
-            e issues_found (lista); ou None em caso de falha (API indisponível,
-            JSON inválido, etc.).
-        """
-        if not technical_report:
-            logger.warning("Relatório técnico vazio; scoring abortado.")
-            return None
-
-        payload = self._build_payload(technical_report, target_service, target_segment)
-
         try:
             async with self._create_client() as client:
                 response = await client.post(GROQ_URL, json=payload)
@@ -320,11 +379,7 @@ class AIScoringService:
             return None
 
         if response.status_code != 200:
-            logger.error(
-                "Groq respondeu HTTP %s: %s",
-                response.status_code,
-                response.text[:500],
-            )
+            logger.error("Groq respondeu HTTP %s: %s", response.status_code, response.text[:500])
             return None
 
         try:
@@ -342,42 +397,120 @@ class AIScoringService:
         parsed = self._parse_response(content)
         if parsed is None:
             return None
+        return self._normalize_response(parsed)
 
-        # Normalização mínima do escore para int 0-100.
-        try:
-            score = int(parsed.get("qualification_score", 0))
-        except (TypeError, ValueError):
-            logger.warning(
-                "qualification_score inválido (%r); usando 0.",
-                parsed.get("qualification_score"),
-            )
-            score = 0
-        parsed["qualification_score"] = max(0, min(100, score))
+    # ---------- API pública ----------
 
-        if not isinstance(parsed.get("issues_found"), list):
-            parsed["issues_found"] = []
+    async def score_lead(
+        self,
+        technical_report: dict,
+        target_service: str = "",
+        target_segment: str = "",
+        template: Optional[Dict[str, Any]] = None,
+        company_name: str = "",
+        category: str = "",
+        city: str = "",
+        state: str = "",
+        website: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Scoring contextual de um lead com site (web_presence).
 
-        return parsed
+        Combina facts técnicos do relatório + facts cadastrais, monta o prompt
+        usando o template de critérios (se houver), e devolve a qualificação
+        explicável.
+
+        Args:
+            technical_report: Relatório de TechnicalEnrichmentService.enrich_website.
+            target_service / target_segment: Contexto da campanha.
+            template: Optional[dict] — serialização de CampaignScoringTemplate.
+                      Se None, a LLM infere os critérios.
+            company_name / category / city / state / website: dados cadastrais
+                complementares, usados para enriquecer facts de business.
+
+        Returns:
+            Dicionário normalizado com qualification_score, primary_need,
+            qualification_reason, priority, priority_reasoning,
+            executive_summary, pitch_angle, suggested_subject,
+            score_factors[], evidence[], ou None em caso de falha.
+        """
+        technical_facts = extract_technical_facts(technical_report)
+        business_facts = extract_business_facts(
+            company_name=company_name,
+            category=category,
+            city=city,
+            state=state,
+            website=website,
+            segment_hint=target_segment,
+        )
+        prompt = build_prompt(
+            target_service=target_service,
+            target_segment=target_segment,
+            template=template,
+            technical_facts=technical_facts,
+            business_facts=business_facts,
+        )
+        return await self._call_groq(prompt)
+
+    async def score_business_lead(
+        self,
+        company_name: str,
+        category: str = "",
+        city: str = "",
+        state: str = "",
+        website: Optional[str] = None,
+        target_service: str = "",
+        target_segment: str = "",
+        template: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Scoring contextual de um lead sem análise técnica (business_opportunity).
+
+        Mesma resposta que score_lead, mas sem facts técnicos. Usado quando o
+        template de categoria define requires_technical_report=False (ex.:
+        Engenharia Mecânica, Automação Industrial, Consultoria).
+        """
+        business_facts = extract_business_facts(
+            company_name=company_name,
+            category=category,
+            city=city,
+            state=state,
+            website=website,
+            segment_hint=target_segment,
+        )
+        prompt = build_prompt(
+            target_service=target_service,
+            target_segment=target_segment,
+            template=template,
+            technical_facts=[],
+            business_facts=business_facts,
+        )
+        return await self._call_groq(prompt)
 
 
 async def main_test_scoring():
-    """Teste standalone contra um relatório de exemplo (.google.com)."""
-    sample_report = {
-        "target_url": "https://www.google.com",
-        "overall_status": "OK",
-        "errors": [],
-        "warnings": [],
-        "ssl": {"ssl_ok": True, "https_redirect_ok": True},
-        "http_headers": {"status_code": 200, "load_time_ms": 120},
-        "cms_detection": None,
-        "exposed_paths": [],
-    }
+    """Smoke test: scoring de exemplo para 'Engenharia Mecânica'."""
     service = AIScoringService()
-    result = await service.score_lead(sample_report)
+    template = {
+        "service_label": "Engenharia Mecânica",
+        "positive_signals": [
+            {"label": "Indústria/fábrica", "description": "Categoria industrial", "weight_hint": "high"},
+        ],
+        "negative_signals": [],
+        "context_signals": [],
+        "extra_instructions": "Ignore qualidade do site.",
+    }
+    result = await service.score_business_lead(
+        company_name="Metalúrgica Brasil SA",
+        category="metalúrgica",
+        city="São Paulo",
+        state="SP",
+        website="https://example.com",
+        target_service="Projetos de Engenharia Mecânica",
+        target_segment="metalomecânica",
+        template=template,
+    )
     logger.info("%s", json.dumps(result, ensure_ascii=False, indent=2) if result else "None")
 
 
 if __name__ == "__main__":
     import asyncio
-
     asyncio.run(main_test_scoring())

@@ -8,22 +8,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useLead, useUpdateLeadStatus } from '@/hooks/use-api';
-
-const severityConfig: Record<string, { label: string; color: string }> = {
-  CRITICO: { label: 'Crítico', color: 'bg-red-100 text-red-700' },
-  ALTO: { label: 'Alto', color: 'bg-orange-100 text-orange-700' },
-  MEDIO: { label: 'Médio', color: 'bg-amber-100 text-amber-700' },
-  BAIXO: { label: 'Baixo', color: 'bg-blue-100 text-blue-700' },
-};
+import { useLead, useUpdateLeadStatus, useGenerateMessages } from '@/hooks/use-api';
+import { EvidenceCard } from '@/components/oportunidades/evidence-card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { OutreachMessages } from '@/types/index';
+import { useState } from 'react';
 
 const primaryNeedLabels: Record<string, string> = {
   SECURITY_FIX: 'Problemas de segurança',
   MODERN_WEBSITE: 'Site desatualizado',
   PERFORMANCE: 'Site lento',
   SEO: 'Problemas de visibilidade',
-  NONE: 'Sem problemas',
+  LGPD: 'Adequação LGPD',
+  NONE: 'Sem necessidade identificada',
 };
+
+const priorityBadgeConfig: Record<string, { label: string; color: string; emoji: string }> = {
+  HOT: { label: 'Quente', color: 'bg-red-100 text-red-700', emoji: '🔥' },
+  WARM: { label: 'Morno', color: 'bg-amber-100 text-amber-700', emoji: '🌤️' },
+  COLD: { label: 'Frio', color: 'bg-sky-100 text-sky-700', emoji: '❄️' },
+};
+
+const priorityOrder = ['HOT', 'WARM', 'COLD'];
+
+function formatPrimaryNeed(value?: string): string {
+  if (!value) return 'Sem necessidade identificada';
+  return primaryNeedLabels[value] || value;
+}
 
 const statusLabels: Record<string, string> = {
   NOVO: 'Novo',
@@ -41,6 +55,16 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const router = useRouter();
   const { data: lead, isLoading } = useLead(params.id);
   const updateStatus = useUpdateLeadStatus();
+  const generateMessagesMutation = useGenerateMessages();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<"EMAIL" | "WHATSAPP">("EMAIL");
+
+  const copyToClipboard = (text: string, message: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(message);
+  };
 
   if (isLoading) {
     return (
@@ -77,6 +101,12 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-bold tracking-tight">{lead.company_name}</h2>
             <Badge className="bg-emerald-100 text-emerald-700 text-lg">{lead.qualification_score}</Badge>
+            {lead.priority && priorityBadgeConfig[lead.priority] && (
+              <Badge className={priorityBadgeConfig[lead.priority].color}>
+                <span className="mr-1">{priorityBadgeConfig[lead.priority].emoji}</span>
+                {priorityBadgeConfig[lead.priority].label}
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
         </div>
@@ -89,6 +119,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="h-10">
           <TabsTrigger value="overview" className="h-9">Dados gerais</TabsTrigger>
+          <TabsTrigger value="evidence" className="h-9">Evidências</TabsTrigger>
           <TabsTrigger value="technical" className="h-9">Análise do site</TabsTrigger>
           <TabsTrigger value="contacts" className="h-9">Contatos</TabsTrigger>
           <TabsTrigger value="actions" className="h-9">Ações</TabsTrigger>
@@ -143,7 +174,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Necessidade:</span>
-                  <Badge variant="outline">{primaryNeedLabels[lead.primary_need || 'NONE']}</Badge>
+                  <Badge variant="outline">{formatPrimaryNeed(lead.primary_need)}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Status:</span>
@@ -180,6 +211,17 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="evidence" className="space-y-4">
+          <EvidenceCard
+            score={lead.qualification_score}
+            priority={lead.priority}
+            priorityReasoning={lead.priority_reasoning}
+            executiveSummary={lead.executive_summary}
+            scoreFactors={lead.score_factors}
+            evidence={lead.evidence}
+          />
         </TabsContent>
 
         <TabsContent value="technical" className="space-y-4">
@@ -246,8 +288,25 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               <CardTitle>Próximas Ações</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full h-11">
-                <Mail className="mr-2 h-4 w-4" />
+              <Button
+                className="w-full h-11"
+                onClick={async () => {
+                  try {
+                    const result = await generateMessagesMutation.mutateAsync({ id: lead.id, channel: selectedChannel });
+                    setGeneratedMessages(result);
+                    setIsModalOpen(true);
+                  } catch (error) {
+                    toast.error("Falha ao gerar mensagem.");
+                    console.error("Erro ao gerar mensagem:", error);
+                  }
+                }}
+                disabled={generateMessagesMutation.isPending}
+              >
+                {generateMessagesMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="mr-2 h-4 w-4" />
+                )}
                 Gerar mensagem personalizada
               </Button>
               <Button
@@ -272,6 +331,79 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Mensagem gerada para {lead.company_name}</DialogTitle>
+          </DialogHeader>
+          {generatedMessages && (
+            <Tabs defaultValue="email" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="email">E-mail</TabsTrigger>
+                <TabsTrigger value="followups">Follow-ups</TabsTrigger>
+                <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+              </TabsList>
+              <TabsContent value="email" className="space-y-4 pt-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Assunto:</p>
+                  <div className="flex items-center space-x-2">
+                    <Input value={generatedMessages.subject} readOnly />
+                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(generatedMessages.subject, 'Assunto copiado!')}>
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Corpo da mensagem:</p>
+                  <div className="flex items-center space-x-2">
+                    <Textarea value={generatedMessages.body_opening} readOnly rows={8} />
+                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(generatedMessages.body_opening, 'Corpo do e-mail copiado!')}>
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Gerado com base nas evidências reais do lead</p>
+              </TabsContent>
+              <TabsContent value="followups" className="space-y-4 pt-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Follow-up 1 — Dia 3:</p>
+                  <Textarea value={generatedMessages.followup_1} readOnly rows={5} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Follow-up 2 — Dia 7:</p>
+                  <Textarea value={generatedMessages.followup_2} readOnly rows={5} />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Encerramento — Dia 14:</p>
+                  <Textarea value={generatedMessages.closing} readOnly rows={3} />
+                </div>
+              </TabsContent>
+              <TabsContent value="whatsapp" className="space-y-4 pt-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Mensagem para WhatsApp:</p>
+                  <Textarea value={generatedMessages.whatsapp_short} readOnly rows={6} />
+                  <Badge className="mt-2">Versão curta para WhatsApp Business</Badge>
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Fechar</Button>
+            <Button
+              onClick={() =>
+                copyToClipboard(
+                  `${generatedMessages?.subject}\n\n${generatedMessages?.body_opening}`,
+                  'E-mail completo copiado!'
+                )
+              }
+              disabled={!generatedMessages}
+            >
+              Copiar e-mail completo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -21,7 +21,7 @@ sys.path.insert(0, workers_path)
 from services.places_service import GooglePlacesService
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
-from services.enrichment_orchestrator import process_single_lead
+from services.enrichment_orchestrator import process_single_lead, load_scoring_template
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ async def run_pipeline(
     query: str | None = None,
     campaign_id: str | None = None,
     max_leads: int = 10,
+    reanalyze_only: bool = False,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Executa o pipeline completo (coleta + enriquecimento + scoring) e gera
@@ -43,6 +44,11 @@ async def run_pipeline(
     Se `campaign_id` for fornecido, a query é construída automaticamente
     a partir dos campos da campanha e o analysis_profile define o
     comportamento do pipeline.
+
+    Se `reanalyze_only=True`, pula a coleta e reanalisa TODOS os leads da
+    campanha (qualquer status anterior) usando o scoring contextual novo.
+    Útil para leads que foram analisados pelo pipeline legado específico
+    de web antes da migração de scoring contextual.
     """
     db = SessionLocal()
 
@@ -62,7 +68,7 @@ async def run_pipeline(
             campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
             if campaign:
                 analysis_profile = campaign.analysis_profile or AnalysisProfile.WEB_PRESENCE
-                if not query:
+                if not query and not reanalyze_only:
                     parts = []
                     if campaign.target_segment:
                         parts.append(campaign.target_segment)
@@ -75,89 +81,131 @@ async def run_pipeline(
         if not query:
             query = "empresas"
 
-        # --- Fase 1: Coleta ---
-        yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
-        yield {"type": "progress", "step": "coleta", "percent": 0}
-
-        places_service = GooglePlacesService()
-
-        yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
-
-        results = await places_service.search_places(query, max_results=max_leads)
-
-        logger.info("Pipeline collected %d results", len(results))
-        yield {"type": "log", "message": f"{len(results)} estabelecimentos encontrados", "timestamp": _ts()}
-        yield {"type": "progress", "step": "coleta", "percent": 30}
-
+        # --- Fase 1: Coleta (pulada em reanalyze_only) ---
         collected_count = 0
-        for i, item in enumerate(results):
-            company_name = item.get("name")
-            if not company_name:
-                continue
+        if reanalyze_only:
+            yield {"type": "log", "message": "Modo reanálise: pulando coleta, reusando leads existentes", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 50}
+        else:
+            yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 0}
 
-            google_place_id = item.get("place_id_candidate")
-            website_url = item.get("website")
+            places_service = GooglePlacesService()
 
-            existing_lead = db.query(Lead).filter(
-                (Lead.place_id == google_place_id) |
-                ((Lead.company_name == company_name) & (Lead.website == website_url))
-            ).first()
+            yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
 
-            if existing_lead:
-                continue
+            results = await places_service.search_places(query, max_results=max_leads)
 
-            new_lead = Lead(
-                place_id=google_place_id,
-                company_name=company_name,
-                website=website_url,
-                phone=item.get("phone"),
-                email=None,
-                category=item.get("category"),
-                city=item.get("city"),
-                state=item.get("state"),
-                country=item.get("country", "Brasil"),
-                campaign_id=campaign.id if campaign else None,
-                status=LeadStatus.NOVO,
-            )
-            db.add(new_lead)
-            collected_count += 1
+            logger.info("Pipeline collected %d results", len(results))
+            yield {"type": "log", "message": f"{len(results)} estabelecimentos encontrados", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 30}
 
-            yield {
-                "type": "log",
-                "message": f"Coletado: {company_name}",
-                "timestamp": _ts(),
-            }
+            for i, item in enumerate(results):
+                company_name = item.get("name")
+                if not company_name:
+                    continue
 
-            percent = 30 + int((i + 1) / len(results) * 20)
-            yield {"type": "progress", "step": "coleta", "percent": min(percent, 50)}
+                google_place_id = item.get("place_id_candidate")
+                website_url = item.get("website")
 
-        db.commit()
-        yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
-        yield {"type": "progress", "step": "coleta", "percent": 50}
+                existing_lead = db.query(Lead).filter(
+                    (Lead.place_id == google_place_id) |
+                    ((Lead.company_name == company_name) & (Lead.website == website_url))
+                ).first()
+
+                if existing_lead:
+                    continue
+
+                new_lead = Lead(
+                    place_id=google_place_id,
+                    company_name=company_name,
+                    website=website_url,
+                    phone=item.get("phone"),
+                    email=None,
+                    category=item.get("category"),
+                    city=item.get("city"),
+                    state=item.get("state"),
+                    country=item.get("country", "Brasil"),
+                    campaign_id=campaign.id if campaign else None,
+                    status=LeadStatus.NOVO,
+                )
+                db.add(new_lead)
+                collected_count += 1
+
+                yield {
+                    "type": "log",
+                    "message": f"Coletado: {company_name}",
+                    "timestamp": _ts(),
+                }
+
+                percent = 30 + int((i + 1) / len(results) * 20)
+                yield {"type": "progress", "step": "coleta", "percent": min(percent, 50)}
+
+            db.commit()
+            yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 50}
 
         # --- Fase 2: Análise por perfil ---
         is_web_presence = analysis_profile == AnalysisProfile.WEB_PRESENCE
         profile_label = "técnica" if is_web_presence else "de negócio"
 
-        yield {"type": "log", "message": f"Iniciando análise {profile_label}...", "timestamp": _ts()}
+        mode_label = " (REAVALIAÇÃO)" if reanalyze_only else ""
+        yield {"type": "log", "message": f"Iniciando análise {profile_label}{mode_label}...", "timestamp": _ts()}
         yield {"type": "progress", "step": "analise", "percent": 50}
 
         enrichment_service = TechnicalEnrichmentService()
         scoring_service = AIScoringService()
 
-        leads_to_process = db.query(Lead).filter(
-            Lead.status == LeadStatus.NOVO,
-        )
-
-        if is_web_presence:
-            leads_to_process = leads_to_process.filter(Lead.website.isnot(None))
-
+        # Carrega template de critérios contextual da campanha (uma vez para todo o batch).
+        scoring_template = None
         if campaign:
-            leads_to_process = leads_to_process.filter(Lead.campaign_id == campaign.id)
-        else:
-            leads_to_process = leads_to_process.filter(Lead.campaign_id == None)
+            scoring_template = load_scoring_template(
+                db,
+                explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
+                target_service=campaign.target_service or "",
+                target_segment=campaign.target_segment or "",
+            )
+            if scoring_template:
+                yield {
+                    "type": "log",
+                    "message": f"Template de critérios: {scoring_template.get('service_label','(none)')}",
+                    "timestamp": _ts(),
+                }
 
-        leads_to_process = leads_to_process.limit(max_leads).all()
+        # Seleção dos leads a processar
+        leads_query = db.query(Lead)
+        if reanalyze_only:
+            if campaign:
+                leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
+            else:
+                leads_query = leads_query.filter(Lead.campaign_id == None)
+            # Reanalisa leads da campanha (qualquer status prévio), sobrescrevendo
+            # o scoring legado com o contextual novo. Respeita max_leads.
+            leads_query = leads_query.limit(max_leads)
+            leads_to_process = leads_query.all()
+            for lead in leads_to_process:
+                lead.status = LeadStatus.NOVO
+                lead.qualification_score = 0
+                lead.qualification_reason = None
+                lead.primary_need = None
+                lead.pitch_angle = None
+                lead.suggested_subject = None
+                lead.priority = None
+                lead.priority_reasoning = None
+                lead.executive_summary = None
+                lead.score_factors = None
+                lead.evidence = None
+            db.flush()
+        else:
+            leads_query = leads_query.filter(Lead.status == LeadStatus.NOVO)
+            if is_web_presence:
+                leads_query = leads_query.filter(Lead.website.isnot(None))
+            if campaign:
+                leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
+            else:
+                leads_query = leads_query.filter(Lead.campaign_id == None)
+            leads_query = leads_query.limit(max_leads)
+            leads_to_process = leads_query.all()
 
         if not leads_to_process:
             yield {"type": "log", "message": "Nenhum lead novo para analisar", "timestamp": _ts()}
@@ -175,6 +223,8 @@ async def run_pipeline(
                     analysis_profile=analysis_profile,
                     campaign_target_service=campaign.target_service if campaign else "",
                     campaign_target_segment=campaign.target_segment if campaign else "",
+                    scoring_template=scoring_template,
+                    allow_business_fallback=reanalyze_only,
                 )
 
                 score = scoring_result.get("qualification_score", 0) if scoring_result else 0

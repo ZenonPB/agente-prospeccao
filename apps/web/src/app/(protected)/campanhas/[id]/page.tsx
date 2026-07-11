@@ -77,6 +77,7 @@ export default function CampaignDetailPage() {
         campaignId={campaign.id}
         campaignName={campaign.name}
         autoStart={autoStart}
+        hasExistingLeads={leads.length > 0}
       />
 
       <Card>
@@ -100,6 +101,11 @@ export default function CampaignDetailPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {lead.priority && (
+                      <Badge className="text-xs">
+                        {lead.priority === 'HOT' ? '🔥 Quente' : lead.priority === 'WARM' ? '🌤️ Morno' : '❄️ Frio'}
+                      </Badge>
+                    )}
                     {lead.qualification_score != null && (
                       <Badge className={lead.qualification_score >= 60 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
                         {lead.qualification_score}
