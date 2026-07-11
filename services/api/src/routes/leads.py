@@ -3,16 +3,127 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
+import os
+import sys
+
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign
 from src.auth.dependencies import get_current_user
 from src.db.models import User
+
+# Importa serviços dos workers (reaproveitando a fonte única).
+_workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
+sys.path.insert(0, _workers_path)
+from services.cnpj_service import CnpjService  # noqa: E402
+from services.outreach_service import OutreachService  # noqa: E402
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 
 class UpdateLeadStatusRequest(BaseModel):
     status: LeadStatus
+
+
+class EnrichContactsRequest(BaseModel):
+    cnpj: str
+
+
+class GenerateMessagesRequest(BaseModel):
+    channel: str = "EMAIL"  # EMAIL | WHATSAPP — afeta foco de retorno hoje
+    force_regenerate: bool = False
+
+
+def _contact_to_dict(c: Contact) -> dict:
+    return {
+        "id": str(c.id),
+        "name": c.name,
+        "role": c.role.value if c.role else None,
+        "role_label": c.role_label,
+        "email": c.email,
+        "phone": c.phone,
+        "document_cpf": c.document_cpf,
+        "confidence": c.confidence,
+        "is_primary": c.is_primary,
+        "source": c.source,
+        "raw_data": c.raw_data,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    }
+
+
+def _company_record_to_dict(cr: Optional[CompanyRecord]) -> Optional[dict]:
+    if not cr:
+        return None
+    return {
+        "cnpj": cr.cnpj,
+        "razao_social": cr.razao_social,
+        "nome_fantasia": cr.nome_fantasia,
+        "porte": cr.porte,
+        "porte_label": cr.porte_label,
+        "natureza_juridica": cr.natureza_juridica,
+        "capital_social": float(cr.capital_social) if cr.capital_social is not None else None,
+        "situacao_cadastral": cr.situacao_cadastral,
+        "data_abertura": cr.data_abertura,
+        "idade_anos": cr.idade_anos,
+        "cnae_principal": cr.cnae_principal,
+        "cnae_principal_label": cr.cnae_principal_label,
+        "cnae_secundarios": cr.cnae_secundarios,
+        "endereco": cr.endereco,
+        "municipios_ativos": cr.municipios_ativos,
+        "raw_data": cr.raw_data,
+    }
+
+
+def _lead_summary(lead: Lead) -> dict:
+    """Resumo do lead para a listagem (sem JSONB pesado)."""
+    return {
+        "id": str(lead.id),
+        "company_name": lead.company_name,
+        "website": lead.website,
+        "phone": lead.phone,
+        "email": lead.email,
+        "category": lead.category,
+        "city": lead.city,
+        "state": lead.state,
+        "country": lead.country,
+        "status": lead.status.value if lead.status else None,
+        "qualification_score": lead.qualification_score,
+        "qualification_reason": lead.qualification_reason,
+        "primary_need": lead.primary_need,
+        "priority": lead.priority.value if lead.priority else None,
+        "priority_reasoning": lead.priority_reasoning,
+        "executive_summary": lead.executive_summary,
+        "pitch_angle": lead.pitch_angle,
+        "suggested_subject": lead.suggested_subject,
+        "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
+        "created_at": lead.created_at.isoformat() if lead.created_at else None,
+        "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
+    }
+
+
+def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
+    """Detalhe do lead com evidence/score_factors estruturados."""
+    summary = _lead_summary(lead)
+    summary.update({
+        "score_factors": lead.score_factors,
+        "evidence": lead.evidence,
+        "enrichment": {
+            "id": str(enrichment.id),
+            "lead_id": str(enrichment.lead_id),
+            "website_exists": enrichment.website_exists,
+            "ssl_ok": enrichment.ssl_ok,
+            "https_redirect_ok": enrichment.https_redirect_ok,
+            "responsive_design": enrichment.responsive_design,
+            "cms": enrichment.cms,
+            "lighthouse_score": enrichment.lighthouse_score,
+            "seo_errors": enrichment.seo_errors,
+            "load_time_ms": enrichment.load_time_ms,
+            "security_issues": enrichment.security_issues,
+            "raw_technical_data": enrichment.raw_technical_data,
+            "created_at": enrichment.created_at.isoformat() if enrichment.created_at else None,
+            "updated_at": enrichment.updated_at.isoformat() if enrichment.updated_at else None,
+        } if enrichment else None,
+    })
+    return summary
 
 
 @router.get("")
@@ -50,27 +161,7 @@ def list_leads(
 
     return {
         "total": total,
-        "leads": [
-            {
-                "id": str(lead.id),
-                "company_name": lead.company_name,
-                "website": lead.website,
-                "phone": lead.phone,
-                "email": lead.email,
-                "category": lead.category,
-                "city": lead.city,
-                "state": lead.state,
-                "country": lead.country,
-                "status": lead.status.value if lead.status else None,
-                "qualification_score": lead.qualification_score,
-                "qualification_reason": lead.qualification_reason,
-                "primary_need": lead.primary_need,
-                "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
-                "created_at": lead.created_at.isoformat() if lead.created_at else None,
-                "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
-            }
-            for lead in leads
-        ],
+        "leads": [_lead_summary(lead) for lead in leads],
     }
 
 
@@ -136,39 +227,53 @@ def get_lead(
 
     enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
 
-    return {
-        "id": str(lead.id),
+    return _lead_detail(lead, enrichment)
+
+
+@router.post("/{lead_id}/generate-messages")
+async def generate_messages(
+    lead_id: str,
+    body: GenerateMessagesRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+    campaign = (
+        db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        if lead.campaign_id
+        else None
+    )
+    context_service = campaign.target_service if campaign else None
+    context_segment = campaign.target_segment if campaign else None
+
+    contacts = (
+        db.query(Contact)
+        .filter(Contact.lead_id == lead.id)
+        .order_by(Contact.is_primary.desc())
+        .all()
+    )
+
+    lead_dict = {
         "company_name": lead.company_name,
-        "website": lead.website,
-        "phone": lead.phone,
-        "email": lead.email,
         "category": lead.category,
         "city": lead.city,
         "state": lead.state,
-        "country": lead.country,
-        "status": lead.status.value if lead.status else None,
-        "qualification_score": lead.qualification_score,
-        "qualification_reason": lead.qualification_reason,
+        "website": lead.website,
+        "evidence": lead.evidence,
         "primary_need": lead.primary_need,
         "pitch_angle": lead.pitch_angle,
-        "suggested_subject": lead.suggested_subject,
-        "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
-        "created_at": lead.created_at.isoformat() if lead.created_at else None,
-        "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
-        "enrichment": {
-            "id": str(enrichment.id),
-            "lead_id": str(enrichment.lead_id),
-            "website_exists": enrichment.website_exists,
-            "ssl_ok": enrichment.ssl_ok,
-            "https_redirect_ok": enrichment.https_redirect_ok,
-            "responsive_design": enrichment.responsive_design,
-            "cms": enrichment.cms,
-            "lighthouse_score": enrichment.lighthouse_score,
-            "seo_errors": enrichment.seo_errors,
-            "load_time_ms": enrichment.load_time_ms,
-            "security_issues": enrichment.security_issues,
-            "raw_technical_data": enrichment.raw_technical_data,
-            "created_at": enrichment.created_at.isoformat() if enrichment.created_at else None,
-            "updated_at": enrichment.updated_at.isoformat() if enrichment.updated_at else None,
-        } if enrichment else None,
+        "qualification_reason": lead.qualification_reason,
+        "contacts": [_contact_to_dict(c) for c in contacts],
+        "email": lead.email,
     }
+
+    result = await OutreachService().generate_sequence(
+        lead_dict, context_service or "", context_segment or ""
+    )
+    if result is None:
+        raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
+
+    return result
