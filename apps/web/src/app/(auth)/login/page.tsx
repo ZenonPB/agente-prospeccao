@@ -79,6 +79,11 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              <div className="text-right">
+                <Link href="/esqueci-senha" className="text-sm text-primary hover:underline">
+                  Esqueci minha senha?
+                </Link>
+              </div>
             </div>
 
             {error && (
