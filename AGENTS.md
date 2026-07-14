@@ -33,7 +33,7 @@ python -m src.main                  # runs run_lead_enrichment_and_scoring(limit
 
 ```bash
 cd apps/web
-npm run dev                          # http://localhost:3000
+npm run dev                          # http://localhost:3001
 ```
 
 Requires `.env` with JWT_SECRET and `NEXT_PUBLIC_API_URL` for API to work.
