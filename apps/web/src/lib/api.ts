@@ -158,6 +158,22 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  suggestSegment: (data: {
+    profile: 'web_presence' | 'business_opportunity';
+    current_segment?: string;
+    exclude?: string[];
+  }) =>
+    request<{
+      segment: string;
+      rationale: string;
+      subniches: string[];
+      hook: string;
+      cities_hint: string[];
+    }>("/api/campaigns/suggest-segment", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export const metricsApi = {

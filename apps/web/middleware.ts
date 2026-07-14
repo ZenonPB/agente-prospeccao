@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
-import crypto from "crypto";
-
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
@@ -42,7 +40,7 @@ export async function proxy(request: NextRequest) {
 
   // Content Security Policy
   const isDev = process.env.NODE_ENV === "development";
-  const nonce = crypto.randomBytes(16).toString("base64");
+  const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 
   if (isDev) {
     // CSP relaxada para desenvolvimento (HMR precisa de unsafe-eval e unsafe-inline)

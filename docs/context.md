@@ -114,6 +114,23 @@
   - Prod: `'strict-dynamic'` + nonces, mais restrito
   - Rotas públicas: /login, /register, /esqueci-senha, /resetar-senha, /api/auth
 
+**Sugestão de segmentos por IA (wizard de campanha):**
+- `services/workers/src/services/segment_suggestion_service.py` — Groq Llama 3.3 70B
+  - `SegmentSuggestionService.suggest(profile, current_segment?, exclude?)` → dict
+  - Prompt conhece o perfil (`web_presence` / `business_opportunity`) e variação por
+    `temperature=0.9` + lista `exclude[]` para evitar repetição imediata
+  - Fallback determinístico offline (`FALLBACKS` por perfil) quando Groq falha
+  - Retorna: `segment`, `rationale`, `subniches[]`, `hook`, `cities_hint[]`
+- `POST /api/campaigns/suggest-segment` — endpoint autenticado (JWT)
+  - Body: `{ profile, current_segment?, exclude? }` — `profile` válido via Pydantic
+  - Rota declarada antes de `/{campaign_id}` para evitar conflito de path matching
+- `apps/web/src/lib/api.ts` — `campaignsApi.suggestSegment`
+- `apps/web/src/hooks/use-api.ts` — `useSuggestSegment` + tipo `SegmentSuggestion`
+- Wizard `/campanhas/nova` (step 2): botão "Me sugira segmentos" ativo
+  - Card de resultado com segmento (preenche input), rationale, hook em itálico,
+    subnichos clicáveis como Badges, cidades com densidade via `cities_hint`
+  - Botão "Gerar outro" no canto do card — repete chamada com `exclude` atualizado
+
 ### Fase 3 — Services Avançados (Futura)
 
 - `contact_enrichment_service.py` — Hunter.io + WHOIS + CNPJ
@@ -122,7 +139,7 @@
 
 ### Próximo passo imediato
 
-1. Testar fluxo completo: cadastro → login → criar campanha → iniciar coleta → pipeline inline → oportunidades
+1. Testar fluxo completo: cadastro → login → criar campanha (com sugestão de segmento pelo botão "Me sugira segmentos") → iniciar coleta → pipeline inline → oportunidades
 2. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
 3. Testar reanálise das campanhas "Petshop" e "Farmácias" (têm score legado 60)
 
@@ -147,7 +164,7 @@ python -m uvicorn main:app --host 0.0.0.0 --port 8000
 ```bash
 cd apps/web
 npm run dev
-# http://localhost:3000
+# http://localhost:3001
 ```
 
 ## Commits Recentes

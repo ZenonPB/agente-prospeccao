@@ -1,11 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import Optional
+from typing import List, Optional
+import os
+import sys
 from pydantic import BaseModel, Field
+
 from src.db.dependencies import get_db
 from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType
 from src.auth.dependencies import get_current_user
+
+# Importa o serviço de sugestão de segmentos dos workers (reaproveitando a fonte única).
+_workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
+if _workers_path not in sys.path:
+    sys.path.insert(0, _workers_path)
+from services.segment_suggestion_service import SegmentSuggestionService  # noqa: E402
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -18,6 +27,18 @@ class CreateCampaignRequest(BaseModel):
     target_state: Optional[str] = None
     target_country: Optional[str] = None
     analysis_profile: str = "web_presence"
+
+
+class SuggestSegmentRequest(BaseModel):
+    """Corpo do POST /api/campaigns/suggest-segment.
+
+    `profile` deve ser `web_presence` ou `business_opportunity` (mesmos
+    valores de `Campaign.analysis_profile`). Os demais campos são
+    opcionais e ajudam a variar as sugestões sem repetir.
+    """
+    profile: str = Field("web_presence", pattern="^(web_presence|business_opportunity)$")
+    current_segment: Optional[str] = Field(None, max_length=120)
+    exclude: Optional[List[str]] = Field(None, max_length=20)
 
 
 @router.get("")
@@ -102,6 +123,31 @@ def create_campaign(
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
         "updated_at": campaign.updated_at.isoformat() if campaign.updated_at else None,
     }
+
+
+@router.post("/suggest-segment")
+async def suggest_segment(
+    body: SuggestSegmentRequest,
+    _user: User = Depends(get_current_user),
+):
+    """Sugere um segmento de prospecção via IA, baseado no perfil.
+
+    - `profile=web_presence`        → tecnologia/serviços digitais.
+    - `profile=business_opportunity` → engenharia/serviços industriais.
+
+    O campo `exclude[]` permite que o frontend passe segmentos já sugeridos
+    nesta sessão, evitando repetição imediata. Em caso de falha da LLM,
+    retorna um fallback determinístico (offline-friendly).
+    """
+    service = SegmentSuggestionService()
+    result = await service.suggest(
+        profile=body.profile,
+        current_segment=body.current_segment or "",
+        exclude=body.exclude or [],
+    )
+    if not result.get("segment"):
+        raise HTTPException(status_code=502, detail="Não foi possível gerar sugestão")
+    return result
 
 
 @router.get("/{campaign_id}")

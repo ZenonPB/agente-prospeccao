@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Password reset
     RESET_TOKEN_EXPIRY_HOURS: int = Field(2, description='Horas até expiração do token de reset de senha')
-    APP_BASE_URL: str = Field("http://localhost:3000", description='URL base da aplicação para links de reset')
+    APP_BASE_URL: str = Field("http://localhost:3001", description='URL base da aplicação para links de reset')
 
     # SMTP
     SMTP_HOST: str = Field("", description='Servidor SMTP')
