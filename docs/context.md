@@ -134,12 +134,25 @@
 ### Fase 3 — Services Avançados (Futura)
 
 - `contact_enrichment_service.py` — Hunter.io + WHOIS + CNPJ
-- `outreach_service.py` — mensagens IA + envio via Resend ✅ (agora em uso pelo endpoint generate-messages)
+-        `outreach_service.py` — mensagens IA + envio via Resend ✅ (agora em uso pelo endpoint generate-messages)
+   - **Quality overhaul das mensagens (2026-07-14)** — `outreach_service.py`:
+     SYSTEM_PROMPT reescrito como copywriter sênior com regras anti-generic-AI
+     (primeira frase factual direta, sem "notei que"/"ao analisar", sem jargão
+     como "soluções"/"sinergia", sem frases-IA"diante disso"/"vale destacar"),
+     CTA específico com horário proposto ("terça 10h ou quarta 14h"),
+     contagens mínimas: body 200-280, followup_1 120-160, followup_2 140-180,
+     closing 70-100 palavras. `max_tokens=3200` no payload Groq. Schema JSON
+     atualizado. Bugfix do rodapé LGPD ("B2P" → "B2B"). INSTRUÇÕES do
+     `build_prompt` agora guiam saudação em linha separada + observação
+     factual imediata.
 - Integração Cal.com para agendamento
 
 ### Próximo passo imediato
 
-1. Testar fluxo completo: cadastro → login → criar campanha (com sugestão de segmento pelo botão "Me sugira segmentos") → iniciar coleta → pipeline inline → oportunidades
+1. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
+   geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
+   `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
+   e humano.
 2. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
 3. Testar reanálise das campanhas "Petshop" e "Farmácias" (têm score legado 60)
 

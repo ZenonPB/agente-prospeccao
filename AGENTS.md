@@ -4,6 +4,8 @@ Compact guidance for OpenCode sessions working in this repo. Read alongside `doc
 
 ## Start here
 
+**Always read the knowledge graph dashboard first** (`.ua/knowledge-graph.json`) before any task — it provides the full project architecture, component relationships, and data flow in a structured format, saving significant tokens vs re-scanning the entire codebase. The dashboard visualizes all files, layers, and connections.
+
 `docs/context.md` is the canonical "live state" doc — read it first and **update it at the end of every session** (sections _Estado atual_ and _Próximo passo imediato_). Then read `docs/architecture.md` and `docs/business-rules.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes. All docs are in Portuguese.
 
 ## Environment & secrets

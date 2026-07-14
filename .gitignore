@@ -26,5 +26,11 @@ venv/
 .coverage
 .mypy_cache/
 
+# Knowledge graph (gerado pelo /understand)
+.ua/
+
+# macOS
+.DS_Store
+
 # Artefatos de build/zip locais
 *.zip
