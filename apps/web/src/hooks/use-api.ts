@@ -3,6 +3,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { leadsApi, campaignsApi, metricsApi, pipelineApi } from "@/lib/api";
 
+export type SegmentSuggestion = {
+  segment: string;
+  rationale: string;
+  subniches: string[];
+  hook: string;
+  cities_hint: string[];
+};
+
 export function useLeads(params?: {
   status?: string;
   campaign_id?: string;
@@ -54,6 +62,12 @@ export function useCreateCampaign() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
     },
+  });
+}
+
+export function useSuggestSegment() {
+  return useMutation({
+    mutationFn: campaignsApi.suggestSegment,
   });
 }
 

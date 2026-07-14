@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog, Sparkles, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useCreateCampaign } from '@/hooks/use-api';
+import { useCreateCampaign, useSuggestSegment, type SegmentSuggestion } from '@/hooks/use-api';
 
 const steps = [
   { id: 1, title: 'Perfil da prospecção' },
@@ -47,8 +48,11 @@ const segmentSuggestions = [
 export default function NovaCampanhaPage() {
   const router = useRouter();
   const createCampaign = useCreateCampaign();
+  const suggestSegment = useSuggestSegment();
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
+  const [suggestion, setSuggestion] = useState<SegmentSuggestion | null>(null);
+  const [excludedSuggestions, setExcludedSuggestions] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     analysisProfile: 'web_presence',
     segment: '',
@@ -56,6 +60,28 @@ export default function NovaCampanhaPage() {
     state: '',
     radius: '10',
   });
+
+  const handleSuggestSegment = async () => {
+    setError('');
+    try {
+      const result = await suggestSegment.mutateAsync({
+        profile: formData.analysisProfile as 'web_presence' | 'business_opportunity',
+        current_segment: formData.segment || undefined,
+        exclude: excludedSuggestions,
+      });
+      setSuggestion(result);
+      // Preenche o input automaticamente e marca o segmento como sugerido
+      // para evitar repetição na próxima chamada.
+      setFormData((prev) => ({ ...prev, segment: result.segment }));
+      setExcludedSuggestions((prev) =>
+        result.segment && !prev.includes(result.segment)
+          ? [...prev, result.segment]
+          : prev,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao gerar sugestão');
+    }
+  };
 
   const handleNext = () => {
     setError('');
@@ -226,9 +252,86 @@ export default function NovaCampanhaPage() {
                   ))}
                 </div>
               </div>
-              <Button variant="outline" className="w-full" disabled>
-                🤖 Me sugira segmentos
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleSuggestSegment}
+                disabled={suggestSegment.isPending}
+              >
+                {suggestSegment.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Gerando sugestão...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Me sugira segmentos
+                  </>
+                )}
               </Button>
+
+              {suggestion && (
+                <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Sugestão da IA
+                        </span>
+                      </div>
+                      <p className="text-lg font-semibold">{suggestion.segment}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleSuggestSegment}
+                      disabled={suggestSegment.isPending}
+                    >
+                      {suggestSegment.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        'Gerar outro'
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{suggestion.rationale}</p>
+                  {suggestion.hook && (
+                    <p className="text-sm italic text-foreground/80">
+                      “{suggestion.hook}”
+                    </p>
+                  )}
+                  {suggestion.subniches?.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Subnichos (clique para usar):
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestion.subniches.map((sub) => (
+                          <Badge
+                            key={sub}
+                            variant="secondary"
+                            className="cursor-pointer hover:bg-secondary/80 transition-colors"
+                            onClick={() =>
+                              setFormData({ ...formData, segment: sub })
+                            }
+                          >
+                            {sub}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {suggestion.cities_hint?.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      <span>Densidade em: {suggestion.cities_hint.join(', ')}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
 
