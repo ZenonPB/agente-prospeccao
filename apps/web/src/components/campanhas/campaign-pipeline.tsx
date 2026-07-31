@@ -61,13 +61,6 @@ export function CampaignPipeline({
     }
   }, [events]);
 
-    useEffect(() => {
-    if (autoStart && !hasStarted && !isRunning) {
-      handleStart('collect');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
-
   const handleStart = async (startMode: 'collect' | 'reanalyze' = 'collect') => {
     setHasStarted(true);
     setIsRunning(true);
@@ -133,6 +126,17 @@ export function CampaignPipeline({
     }
     setIsRunning(false);
   };
+
+  useEffect(() => {
+    if (autoStart && !hasStarted && !isRunning) {
+      // Use setTimeout to break the synchronous setState chain
+      const timer = setTimeout(() => {
+        handleStart('collect');
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   return (
     <div className="space-y-6">

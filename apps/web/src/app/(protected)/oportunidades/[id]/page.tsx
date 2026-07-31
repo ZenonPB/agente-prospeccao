@@ -205,7 +205,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 {lead.suggested_subject && (
                   <div>
                     <p className="text-sm text-muted-foreground">Sugestão de assunto para e-mail:</p>
-                    <p className="text-sm mt-1 italic">"{lead.suggested_subject}"</p>
+                    <p className="text-sm mt-1 italic">&ldquo;{lead.suggested_subject}&rdquo;</p>
                   </div>
                 )}
               </CardContent>

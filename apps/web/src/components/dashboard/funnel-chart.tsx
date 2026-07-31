@@ -71,6 +71,30 @@ function FunnelSkeleton() {
   );
 }
 
+interface TooltipPayloadItem {
+  payload: FunnelItem;
+  value: number;
+  name: string;
+}
+
+interface TooltipProps {
+  active?: boolean;
+  payload?: TooltipPayloadItem[];
+  label?: string;
+}
+
+function FunnelTooltip({ active, payload }: TooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+  const data = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-lg">
+      <p className="font-medium text-foreground">{data.name}</p>
+      <p className="text-sm text-foreground">{data.value.toLocaleString('pt-BR')} leads</p>
+      <p className="mt-1 text-xs text-muted-foreground">Clique para filtrar</p>
+    </div>
+  );
+}
+
 export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const { data: metrics, isLoading, isError, error } = useMetrics();
@@ -102,34 +126,12 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
       }))
     : [];
 
-  const handleClick = (data: any) => {
-    if (data && data.activePayload && data.activePayload.length > 0) {
-      const clickedName = data.activePayload[0].payload.name;
-      if (onFilter) {
-        onFilter(activeFilter === clickedName ? null : clickedName);
-      }
+  const handleClick = (nextState: unknown) => {
+    const typed = nextState as { activePayload?: { payload: FunnelItem }[] };
+    if (typed?.activePayload?.length) {
+      const clickedName = typed.activePayload[0].payload.name;
+      onFilter?.(activeFilter === clickedName ? null : clickedName);
     }
-  };
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || !payload.length) return null;
-    const data = payload[0].payload;
-    const idx = funnelData.findIndex(d => d.name === data.name);
-    const prevValue = idx > 0 ? funnelData[idx - 1].value : null;
-    const dropoff = prevValue ? Math.round((1 - data.value / prevValue) * 100) : null;
-
-    return (
-      <div className="rounded-lg border bg-background p-3 shadow-lg">
-        <p className="font-medium text-foreground">{data.name}</p>
-        <p className="text-sm text-foreground">{data.value.toLocaleString('pt-BR')} leads</p>
-        {dropoff !== null && (
-          <p className="text-xs text-muted-foreground">
-            Queda de {dropoff}% vs etapa anterior
-          </p>
-        )}
-        <p className="mt-1 text-xs text-muted-foreground">Clique para filtrar</p>
-      </div>
-    );
   };
 
   return (
@@ -175,7 +177,7 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
                   tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                   stroke="hsl(var(--muted-foreground))"
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<FunnelTooltip />} />
                 <Bar
                   dataKey="value"
                   radius={[0, 4, 4, 0]}

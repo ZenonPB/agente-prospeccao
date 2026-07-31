@@ -14,6 +14,8 @@ yarn-error.log*
 .vercel
 .turbo
 
+graphify-out/
+
 __pycache__/
 *.pyc
 *.pyo

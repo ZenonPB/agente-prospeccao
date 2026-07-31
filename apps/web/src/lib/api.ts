@@ -1,6 +1,5 @@
 import { getSession } from "next-auth/react";
-import type { Lead, Campaign, Enrichment } from "@/types";
-import type { OutreachMessages } from "@/types";
+import type { Lead, Campaign, Enrichment, OutreachMessages } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -25,16 +24,6 @@ async function resolveToken(): Promise<string | null> {
   const token = (session as SessionWithToken | null)?.accessToken;
   if (token) _cachedToken = token;
   return token ?? null;
-}
-
-interface OutreachMessages {
-  subject: string;
-  body_opening: string;
-  followup_1: string;
-  followup_2: string;
-  closing: string;
-  whatsapp_short: string;
-  rationale: string;
 }
 
 interface RequestOptions extends RequestInit {
