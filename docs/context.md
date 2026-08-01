@@ -147,14 +147,46 @@
      factual imediata.
 - Integração Cal.com para agendamento
 
+### Fase A — Multi-tenant e Isolamento (P0) ✅ Concluído (2026-08-01)
+
+**Models (workers):**
+- `Organization` (workspace com `slug` único) + `OrganizationMember` (owner/admin/member)
+  + `Invite` (convite por e-mail com token)
+- `Campaign.organization_id` (NOT NULL) e `Lead.organization_id` (NOT NULL)
+- `Lead.place_id` unique global → composta `uq_leads_org_place_id (organization_id, place_id)`
+- `Job.organization_id` (nullable, jobs legados sem campanha)
+
+**Migration `9a7b6c5d4e3f2`:**
+- Cria `organizations`, `organization_members`, `invites`
+- Enum `organization_role` (owner/admin/member)
+- Backfill: uma org pessoal por usuário existente + membership owner + propagação
+  para campanhas/leads/jobs
+- Índices em `organization_id` (campaigns/leads/members)
+
+**API (isolamento cross-tenant):**
+- `org_service.py`: `create_personal_organization` (registro), `unique_slug`, `user_organization`
+- `auth/dependencies.py`: `get_user_organization` — dependency que resolve a org do usuário
+- `leads.py`, `campaigns.py`, `metrics.py`: toda listagem/detalhe/mutate filtra por org
+- `pipeline.py`: job cria com `organization_id`; campanha validada como da org;
+  WebSocket valida que o job pertence à org do usuário (403)
+- `auth.py` register: cria org pessoal no onboarding
+- `pipeline_worker.py`: leads coletados herdam org da campanha; filtro de leads por org
+
+**Testado E2E:** registro de 2 usuários → orgs separadas; mesmo `place_id` em orgs
+diferentes persiste; duplicata na mesma org rejeitada; A não vê lead/campanha de B (404).
+
 ### Próximo passo imediato
 
-1. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
+1. **Fase B — Templates inteligentes (P0/P1):** router fuzzy/LLM de `CampaignScoringTemplate`
+   para `target_service`/`segment`, geração de template sob demanda, CRUD na UI.
+   (Branch sugerida: `feat/smart-scoring-templates`)
+2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
+   (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
+3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
    e humano.
-2. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
-3. Testar reanálise das campanhas "Petshop" e "Farmácias" (têm score legado 60)
+4. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
 
 ## Como rodar
 

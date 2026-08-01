@@ -418,7 +418,7 @@ Não abrir PR até o dono validar localmente.
 
 | Fase | Status | Notas |
 |---|---|---|
-| A Multi-tenant | ⬜ Não iniciado | Bloqueador P0 |
+| A Multi-tenant | 🟡 A1–A3 done; A4/A5 pendentes | Isolamento E2E validado |
 | B Templates smart | ⬜ Não iniciado | |
 | C Agente NL | ⬜ Não iniciado | |
 | D Fontes | ⬜ Não iniciado | CSV pode adiantar |

@@ -50,6 +50,18 @@ Ver `docs/decisions/` para o raciocínio completo de cada decisão.
 | `load_scoring_template()` com fallback a 'Genérico' | Garante que campanhas de serviços sem template específico ainda recebam análise contextual razoável |
 | Score 60 continua sendo o limiar QUALIFICADO/DESQUALIFICADO | Mantém regra de negócio existente (outreach automático) sem mudança |
 
+## ADRs de Multi-tenant / Organizações (2026-08-01)
+
+| Decisão | Motivo |
+|---|---|
+| `organizations` + `organization_members` (owner/admin/member) como unidade de isolamento | Amigos/empresa compartilham workspace com papéis; usuário único continua funcionando via org pessoal |
+| Org pessoal criada automaticamente no registro | Onboarding zero-config; usuário individual não precisa entender workspaces |
+| `organization_id` em `campaigns`/`leads` (NOT NULL) e em `jobs` (nullable) | Isola dados por workspace; jobs legados sem campanha não quebram |
+| `Lead.place_id` unique global → composta `(organization_id, place_id)` | Dois usuários podem prospectar o mesmo lugar em orgs diferentes |
+| Isolamento aplicado nas queries das rotas via dependency `get_user_organization` | Toda listagem/detalhe/mutate filtra pela org do usuário; cross-tenant retorna 404 |
+| Enum `organization_role` com valores minúsculos + `values_callable` no modelo | Padroniza com o padrão já usado por `AnalysisProfile`; storage lowercase no banco |
+| `Invite` como tabela separada para convites por e-mail | Owner/admin convida sem expor membership; aceite via token único |
+
 ## Comentários: português, mínimos e apenas quando necessários
 
 A partir de 2026-07-09, todo o código usa:
