@@ -109,14 +109,16 @@ async def run_pipeline(
                 website_url = item.get("website")
 
                 existing_lead = db.query(Lead).filter(
-                    (Lead.place_id == google_place_id) |
-                    ((Lead.company_name == company_name) & (Lead.website == website_url))
+                    (Lead.organization_id == (campaign.organization_id if campaign else None)) &
+                    ((Lead.place_id == google_place_id) |
+                     ((Lead.company_name == company_name) & (Lead.website == website_url)))
                 ).first()
 
                 if existing_lead:
                     continue
 
                 new_lead = Lead(
+                    organization_id=campaign.organization_id if campaign else None,
                     place_id=google_place_id,
                     company_name=company_name,
                     website=website_url,
@@ -174,6 +176,10 @@ async def run_pipeline(
 
         # Seleção dos leads a processar
         leads_query = db.query(Lead)
+        if campaign:
+            leads_query = leads_query.filter(Lead.organization_id == campaign.organization_id)
+        else:
+            leads_query = leads_query.filter(Lead.organization_id.is_(None))
         if reanalyze_only:
             if campaign:
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
@@ -250,6 +256,8 @@ async def run_pipeline(
         lead_filter = Lead.status == LeadStatus.QUALIFICADO
         if campaign:
             lead_filter = lead_filter & (Lead.campaign_id == campaign.id)
+        else:
+            lead_filter = lead_filter & (Lead.organization_id.is_(None))
         qualified = db.query(Lead).filter(lead_filter).count()
 
         yield {

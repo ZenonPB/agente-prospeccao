@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from src.db.dependencies import get_db
-from src.db.models import Job, JobStatus, JobType, Campaign, User
-from src.auth.dependencies import get_current_user
+from src.db.models import Job, JobStatus, JobType, Campaign, User, Organization
+from src.auth.dependencies import get_current_user, get_user_organization
 from src.auth.security import decode_access_token
 from src.pipeline_worker import run_pipeline
+from src.services.org_service import user_organization
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ async def start_pipeline(
     request: StartPipelineRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
     """Cria um job e inicia o pipeline em background.
 
@@ -59,9 +61,23 @@ async def start_pipeline(
             detail="Reanálise requer 'campaign_id'"
         )
 
+    campaign = None
+    if request.campaign_id:
+        campaign = db.query(Campaign).filter(
+            Campaign.id == request.campaign_id,
+            Campaign.organization_id == _org.id,
+        ).first()
+        if not campaign:
+            raise HTTPException(
+                status_code=404,
+                detail="Campanha não encontrada",
+            )
+
     job = Job(
         job_type=JobType.LEAD_ENRICHMENT,
         status=JobStatus.PENDING,
+        organization_id=_org.id,
+        campaign_id=str(campaign.id) if campaign else None,
         payload={
             "query": request.query,
             "campaign_id": request.campaign_id,
@@ -125,6 +141,7 @@ async def websocket_pipeline(
 
     Requer token JWT válido como query parameter `token`.
     Fecha conexão com código 4001 se token ausente ou inválido.
+    Fecha com 403 se o job não pertencer à organização do usuário.
     """
     if not token:
         await websocket.close(code=4001, reason="Token de autenticação não fornecido")
@@ -134,6 +151,25 @@ async def websocket_pipeline(
     if payload is None:
         await websocket.close(code=4001, reason="Token inválido ou expirado")
         return
+
+    user_id = payload.get("sub")
+    if not user_id:
+        await websocket.close(code=4001, reason="Token malformado")
+        return
+
+    db = next(get_db())
+    try:
+        org = user_organization(db, db.query(User).filter(User.id == user_id).first())
+        if org is None:
+            await websocket.close(code=403, reason="Usuário sem organização")
+            return
+
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if job is None or (job.organization_id and str(job.organization_id) != str(org.id)):
+            await websocket.close(code=403, reason="Acesso negado a este job")
+            return
+    finally:
+        db.close()
 
     await websocket.accept()
 
