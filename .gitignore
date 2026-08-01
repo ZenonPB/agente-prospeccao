@@ -34,3 +34,8 @@ venv/
 
 # Artefatos de build/zip locais
 *.zip
+
+# graphify outputs (nunca commitar no GitHub)
+graphify-out/
+graph.html
+graph.svg
