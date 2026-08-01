@@ -13,6 +13,7 @@ from src.auth.dependencies import get_current_user
 from src.middleware.rate_limit import limiter
 from src.config.settings import settings
 from src.services.email_service import send_password_reset_email
+from src.services.org_service import create_personal_organization
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,11 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
         role="SALES",
     )
     db.add(user)
+    db.flush()
+
+    # Onboarding multi-tenant: cada usuário nasce com um workspace pessoal.
+    create_personal_organization(db, user)
+
     db.commit()
     db.refresh(user)
 

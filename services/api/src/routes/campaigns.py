@@ -7,8 +7,8 @@ import sys
 from pydantic import BaseModel, Field
 
 from src.db.dependencies import get_db
-from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType
-from src.auth.dependencies import get_current_user
+from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType, Organization
+from src.auth.dependencies import get_current_user, get_user_organization
 
 # Importa o serviço de sugestão de segmentos dos workers (reaproveitando a fonte única).
 _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
@@ -47,9 +47,10 @@ def list_campaigns(
     limit: int = Query(50, le=100),
     offset: int = 0,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    query = db.query(Campaign)
+    query = db.query(Campaign).filter(Campaign.organization_id == _org.id)
 
     if status:
         query = query.filter(Campaign.status == status)
@@ -91,9 +92,11 @@ def create_campaign(
     request: CreateCampaignRequest,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
     campaign = Campaign(
         user_id=user.id,
+        organization_id=_org.id,
         name=request.name,
         target_service=request.target_service,
         target_segment=request.target_segment,
@@ -155,8 +158,12 @@ def get_campaign(
     campaign_id: str,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
@@ -185,6 +192,7 @@ async def reanalyze_campaign(
     campaign_id: str,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
     """Dispara reanálise de TODOS os leads de uma campanha usando o pipeline
     contextual novo.
@@ -200,7 +208,10 @@ async def reanalyze_campaign(
     from src.pipeline_worker import run_pipeline
     from src.routes.pipeline import active_connections
 
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
@@ -212,6 +223,7 @@ async def reanalyze_campaign(
         job_type=JobType.LEAD_ENRICHMENT,
         status=JobStatus.PENDING,
         campaign_id=campaign.id,
+        organization_id=_org.id,
         payload={
             "campaign_id": str(campaign.id),
             "reanalyze_only": True,

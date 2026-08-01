@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean
+from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -49,12 +49,77 @@ class JobStatus(enum.Enum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
+class OrganizationRole(enum.Enum):
+    """Papel do membro dentro de uma organização/workspace."""
+    OWNER = "owner"
+    ADMIN = "admin"
+    MEMBER = "member"
+
 class MessageChannel(enum.Enum):
     EMAIL = "EMAIL"
     WHATSAPP = "WHATSAPP"
     LINKEDIN = "LINKEDIN"
 
 # Modelos
+class Organization(Base):
+    """Workspace que agrupa usuários e isola seus dados.
+
+    Cada usuário nasce com uma organização pessoal (criada no registro).
+    Membros (OrganizationMember) compartilham campanhas e leads; o papel
+    define o que podem gerenciar (owner/admin/member).
+    """
+    __tablename__ = "organizations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(120), unique=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    members = relationship("OrganizationMember", back_populates="organization", cascade="all, delete-orphan")
+    campaigns = relationship("Campaign", back_populates="organization")
+    invites = relationship("Invite", back_populates="organization", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Organization(id='{self.id}', name='{self.name}')>"
+
+
+class OrganizationMember(Base):
+    """Vínculo de um usuário a uma organização com papel (owner/admin/member)."""
+    __tablename__ = "organization_members"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id", name="uq_organization_members_org_user"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization", back_populates="members")
+    user = relationship("User", back_populates="memberships")
+
+    def __repr__(self):
+        return f"<OrganizationMember(org='{self.organization_id}', user='{self.user_id}', role='{self.role.value}')>"
+
+
+class Invite(Base):
+    """Convite pendente para uma organização (owner/admin convida por e-mail)."""
+    __tablename__ = "invites"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    email = Column(String(255), nullable=False)
+    role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
+    token = Column(String(64), unique=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization", back_populates="invites")
+
+    def __repr__(self):
+        return f"<Invite(org='{self.organization_id}', email='{self.email}', accepted={self.accepted_at is not None})>"
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -68,6 +133,7 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     campaigns = relationship("Campaign", back_populates="created_by_user")
+    memberships = relationship("OrganizationMember", back_populates="user")
 
     def __repr__(self):
         return f"<User(id='{self.id}', email='{self.email}')>"
@@ -76,6 +142,7 @@ class Campaign(Base):
     __tablename__ = "campaigns"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     name = Column(String(255), nullable=False)
     target_service = Column(String(255))
     target_segment = Column(String(100))
@@ -89,6 +156,7 @@ class Campaign(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     created_by_user = relationship("User", back_populates="campaigns")
+    organization = relationship("Organization", back_populates="campaigns")
     leads = relationship("Lead", back_populates="campaign")
     jobs = relationship("Job", back_populates="campaign")
     scoring_template = relationship("CampaignScoringTemplate", back_populates="campaigns")
@@ -130,8 +198,12 @@ class CampaignScoringTemplate(Base):
 
 class Lead(Base):
     __tablename__ = "leads"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "place_id", name="uq_leads_org_place_id"),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    place_id = Column(String(255), unique=True, nullable=True) 
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    place_id = Column(String(255), unique=False, nullable=True)
     company_name = Column(String(255), nullable=False)
     website = Column(String(255))
     phone = Column(String(50))
@@ -300,7 +372,8 @@ class Conversion(Base):
 class Job(Base):
     __tablename__ = "jobs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True) 
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     job_type = Column(Enum(JobType, name='job_type', create_type=True), nullable=False)
     status = Column(Enum(JobStatus, name='job_status', create_type=True), default=JobStatus.PENDING)
     payload = Column(JSONB) 

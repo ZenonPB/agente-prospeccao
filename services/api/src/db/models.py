@@ -16,6 +16,9 @@ from database.models import (
     Contact,
     CompanyRecord,
     Conversion,
+    Organization,
+    OrganizationMember,
+    Invite,
     LeadStatus,
     CampaignStatus,
     JobStatus,
@@ -23,5 +26,6 @@ from database.models import (
     AnalysisProfile,
     LeadPriority,
     ContactRole,
+    OrganizationRole,
     CampaignScoringTemplate,
 )

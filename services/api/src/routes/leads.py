@@ -7,9 +7,8 @@ import os
 import sys
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign
-from src.auth.dependencies import get_current_user
-from src.db.models import User
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization
+from src.auth.dependencies import get_current_user, get_user_organization
 
 # Importa serviços dos workers (reaproveitando a fonte única).
 _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
@@ -136,8 +135,9 @@ def list_leads(
     offset: int = 0,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    query = db.query(Lead)
+    query = db.query(Lead).filter(Lead.organization_id == _org.id)
 
     if status:
         status_list = [s.strip() for s in status.split(",") if s.strip()]
@@ -169,16 +169,18 @@ def list_leads(
 def lead_stats(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    total = db.query(Lead).count()
-    qualified = db.query(Lead).filter(Lead.status == LeadStatus.QUALIFICADO).count()
-    contacted = db.query(Lead).filter(Lead.status == LeadStatus.CONTATADO).count()
-    meetings = db.query(Lead).filter(Lead.status == LeadStatus.REUNIAO_MARCADA).count()
-    avg_score = db.query(func.avg(Lead.qualification_score)).scalar() or 0
+    base = db.query(Lead).filter(Lead.organization_id == _org.id)
+    total = base.count()
+    qualified = base.filter(Lead.status == LeadStatus.QUALIFICADO).count()
+    contacted = base.filter(Lead.status == LeadStatus.CONTATADO).count()
+    meetings = base.filter(Lead.status == LeadStatus.REUNIAO_MARCADA).count()
+    avg_score = db.query(func.avg(Lead.qualification_score)).filter(Lead.organization_id == _org.id).scalar() or 0
 
     by_status = {}
     for s in LeadStatus:
-        count = db.query(Lead).filter(Lead.status == s).count()
+        count = base.filter(Lead.status == s).count()
         if count > 0:
             by_status[s.value] = count
 
@@ -199,8 +201,12 @@ def update_lead_status(
     body: UpdateLeadStatusRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
@@ -220,8 +226,12 @@ def get_lead(
     lead_id: str,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
@@ -236,8 +246,12 @@ async def generate_messages(
     body: GenerateMessagesRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
