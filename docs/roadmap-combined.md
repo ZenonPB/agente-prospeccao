@@ -214,10 +214,11 @@ Branch: `feat/smart-template-router`
 
 ---
 
-### Item 1.3 — Geração de template sob demanda ⬜
+### Item 1.3 — Geração de template sob demanda ✅
 
 Branch: `feat/template-on-demand`
 **Prioridade**: 1º sprint (nada de vertical hardcoded).
+**Status**: entregue — PR #22 (2026-08-01); Groq 70B com schema + validação Pydantic + fallback Genérico; `is_generated` + `organization_id` na migration `7d4e5f6a8b9c0`; pipeline consome `GENERATE_NEW`.
 
 | Sub-item | O quê |
 |---|---|
@@ -237,10 +238,11 @@ Branch: `feat/template-on-demand`
 
 ---
 
-### Item 1.4 — Campanha por linguagem natural (agente) ⬜
+### Item 1.4 — Campanha por linguagem natural (agente) ✅
 
 Branch: `feat/nl-campaign-brief`
 **Prioridade**: 2º sprint da Fase 1.
+**Status**: entregue — `campaign_brief_service.py` + `POST /api/campaigns/from-brief` + `places_query` (migration `8a1b2c3d4e5f6`) + toggle Wizard|Agente no frontend.
 
 | Sub-item | O quê |
 |---|---|
@@ -615,8 +617,8 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 |---|---|---|
 | 1.1 Atribuição + trilha | ✅ Entregue (2026-08-01) | `feat/sales-intel-assignment`; E2E validado |
 | 1.2 Router de template | ✅ Entregue (2026-08-01) | `feat/smart-template-router`; fuzzy + LLM + cache validados |
-| 1.3 Geração de template | ⬜ Não iniciado | nada hardcoded |
-| 1.4 Campanha por linguagem natural | ⬜ Não iniciado | brief PT-BR |
+| 1.3 Geração de template | ✅ Entregue (2026-08-01) | `feat/template-on-demand` (PR #22); Groq 70B + fallback validados |
+| 1.4 Campanha por linguagem natural | ✅ Entregue (2026-08-01) | `feat/nl-campaign-brief`; from-brief + places_query E2E validados |
 | 1.5 CRUD de templates + wizard | ⬜ Não iniciado | revisão humana |
 | 2.1 Papéis de venda | ⬜ Não iniciado | CONSULTOR/ANALYST/MANAGER |
 | 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
