@@ -21,7 +21,8 @@ sys.path.insert(0, workers_path)
 from services.places_service import GooglePlacesService
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
-from services.enrichment_orchestrator import process_single_lead, load_scoring_template
+from services.enrichment_orchestrator import process_single_lead
+from services.template_router import route_scoring_template
 
 logger = logging.getLogger(__name__)
 
@@ -159,18 +160,28 @@ async def run_pipeline(
         scoring_service = AIScoringService()
 
         # Carrega template de critérios contextual da campanha (uma vez para todo o batch).
+        # Router inteligente: exact → fuzzy → LLM → Genérico (item 1.2).
         scoring_template = None
         if campaign:
-            scoring_template = load_scoring_template(
+            route_result = await route_scoring_template(
                 db,
-                explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
                 target_service=campaign.target_service or "",
                 target_segment=campaign.target_segment or "",
+                explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
             )
-            if scoring_template:
+            scoring_template = route_result.get("template")
+            route_label = route_result.get("route")
+            matched_label = route_result.get("matched_label")
+            if route_label == "GENERATE_NEW":
                 yield {
                     "type": "log",
-                    "message": f"Template de critérios: {scoring_template.get('service_label','(none)')}",
+                    "message": "Vertical nova detectada — template será gerado sob demanda (item 1.3). Usando Genérico por ora.",
+                    "timestamp": _ts(),
+                }
+            elif scoring_template:
+                yield {
+                    "type": "log",
+                    "message": f"Template de critérios: {matched_label or scoring_template.get('service_label','(none)')}",
                     "timestamp": _ts(),
                 }
 
