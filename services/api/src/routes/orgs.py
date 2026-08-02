@@ -12,6 +12,7 @@ from src.db.models import (
     SalesRole,
 )
 from src.auth.dependencies import (
+    get_current_user,
     get_user_organization,
     get_user_membership,
     require_org_admin,
@@ -33,6 +34,38 @@ def _member_dict(m: OrganizationMember) -> dict:
         "role": m.role.value if m.role else None,
         "sales_role": m.sales_role.value if m.sales_role else None,
         "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
+
+
+@router.get("/me")
+def get_my_org(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Retorna a organização do usuário autenticado + seu papel de venda.
+
+    O frontend precisa do `organization_id` e do `sales_role` do usuário
+    atual para: (a) montar a tela de membros; (b) decidir se pode gerenciar
+    papéis; (c) exibir o badge de papel de venda. Rota declarada antes de
+    `/{org_id}/...` para não colidir com o path matching.
+    """
+    member = db.query(OrganizationMember).filter(
+        OrganizationMember.user_id == user.id,
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Usuário sem organização")
+
+    return {
+        "organization": {
+            "id": str(member.organization_id),
+            "name": member.organization.name if member.organization else None,
+            "slug": member.organization.slug if member.organization else None,
+        },
+        "membership": {
+            "role": member.role.value if member.role else None,
+            "sales_role": member.sales_role.value if member.sales_role else None,
+            "user_id": str(member.user_id),
+        },
     }
 
 

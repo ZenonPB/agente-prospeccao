@@ -97,6 +97,7 @@ def _lead_summary(lead: Lead) -> dict:
         "suggested_subject": lead.suggested_subject,
         "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
+        "assigned_to_name": lead.assigned_to.name if lead.assigned_to else None,
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
         "created_at": lead.created_at.isoformat() if lead.created_at else None,
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
