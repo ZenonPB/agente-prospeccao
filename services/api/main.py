@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from src.middleware.rate_limit import limiter
-from src.routes import leads, campaigns, metrics, pipeline
+from src.routes import leads, campaigns, metrics, pipeline, scoring_templates
 from src.routes.auth import router as auth_router
 
 app = FastAPI(
@@ -36,6 +36,7 @@ app.include_router(leads.router, prefix="/api")
 app.include_router(campaigns.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
+app.include_router(scoring_templates.router, prefix="/api")
 
 
 @app.get("/")

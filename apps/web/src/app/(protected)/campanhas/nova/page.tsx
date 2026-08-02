@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog, Sparkles, MapPin, Wand2, ListOrdered, Send } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useCreateCampaign, useSuggestSegment, useCampaignFromBrief, type SegmentSuggestion, type CampaignBrief } from '@/hooks/use-api';
+import { useCreateCampaign, useSuggestSegment, useCampaignFromBrief, useUpdateCampaign, type SegmentSuggestion, type CampaignBrief } from '@/hooks/use-api';
+import { TemplateSelector } from '@/components/campanhas/template-selector';
 
 const steps = [
   { id: 1, title: 'Perfil da prospecção' },
@@ -53,6 +54,7 @@ export default function NovaCampanhaPage() {
   const createCampaign = useCreateCampaign();
   const suggestSegment = useSuggestSegment();
   const campaignFromBrief = useCampaignFromBrief();
+  const updateCampaign = useUpdateCampaign();
   const [mode, setMode] = useState<Mode>('wizard');
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
@@ -68,6 +70,7 @@ export default function NovaCampanhaPage() {
     state: '',
     radius: '10',
   });
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const handleSuggestSegment = async () => {
     setError('');
@@ -120,13 +123,19 @@ export default function NovaCampanhaPage() {
     const name = `${formData.segment} em ${formData.city}`;
 
     try {
-      await createCampaign.mutateAsync({
+      const campaign = await createCampaign.mutateAsync({
         name,
         analysis_profile: formData.analysisProfile as 'web_presence' | 'business_opportunity',
         target_segment: formData.segment || undefined,
         target_city: formData.city || undefined,
         target_state: formData.state || undefined,
       });
+      if (selectedTemplateId) {
+        await updateCampaign.mutateAsync({
+          id: campaign.id,
+          data: { scoring_template_id: selectedTemplateId },
+        });
+      }
       router.push('/campanhas');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
@@ -686,16 +695,21 @@ export default function NovaCampanhaPage() {
                   </div>
                 </dl>
               </div>
-              <div className="rounded-lg bg-muted p-4 text-sm">
-                <p className="font-medium">Estimativa de leads disponíveis</p>
-                <p className="text-muted-foreground">
-                  Baseado em buscas similares, estimamos aproximadamente{' '}
-                  <span className="font-medium text-foreground">45-60 leads</span>{' '}
-                  nesta região para o segmento selecionado.
-                </p>
-              </div>
-            </div>
-          )}
+                  <div className="rounded-lg bg-muted p-4 text-sm">
+                    <p className="font-medium">Estimativa de leads disponíveis</p>
+                    <p className="text-muted-foreground">
+                      Baseado em buscas similares, estimamos aproximadamente{' '}
+                      <span className="font-medium text-foreground">45-60 leads</span>{' '}
+                      nesta região para o segmento selecionado.
+                    </p>
+                  </div>
+
+                  <TemplateSelector
+                    value={selectedTemplateId}
+                    onChange={(id) => setSelectedTemplateId(id)}
+                  />
+                </div>
+              )}
         </CardContent>
       </Card>
 
