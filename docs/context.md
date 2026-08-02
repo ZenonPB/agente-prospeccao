@@ -241,10 +241,37 @@ qualificou 2 (score 62/64) usando a query do agente.
 **Testado E2E:** lista globais (9 seeds); criar template local (org scoping);
 PATCH sinais/flags; vincular template à campanha; outra org → 404 + scope=org vazio.
 
+### Fase 2.1 — Papéis de venda 🟡 em andamento (2026-08-01)
+
+- `OrganizationMember.sales_role` — enum `CONSULTOR`/`ANALYST`/`MANAGER`
+  (default CONSULTOR), **por organização** (migration `b2c3d4e5f6a7b`, aplicada)
+- `SalesRole` exportado no re-export da API; pesos: CONSULTOR=0, ANALYST=1, MANAGER=2
+- Dependencies novas (`auth/dependencies.py`):
+  - `get_user_membership()` — membership da org ativa (403 se não membro)
+  - `require_sales_role(min)` (fábrica) + `require_analyst()` + `require_manager()`
+  - `require_org_admin()` — owner/admin (gestão de membros)
+  - owner/admin equivalem a MANAGER para leitura/BI independente do papel de venda
+- `src/services/org_service.py`: `is_full_access(member)` (ANALYST/MANAGER/owner/admin)
+  + `consultant_lead_scope(member, query)` — CONSULTOR vê só leads dele OU não atribuídos
+- `routes/orgs.py` (novo): `GET /api/orgs/{id}/members` (MANAGER+)
+  + `PATCH /api/orgs/{id}/members/{user_id}` (owner/admin) → define `sales_role`
+- `routes/leads.py`: escopo por papel em `list`, `stats`, `get`, `status`, `assign`,
+  `generate-messages` (CONSULTOR → 403 em lead de outro consultor; auto-atribuição de
+  lead não atribuído permitida)
+- Registrado em `main.py`
+
+**Testado E2E:** CONSULTOR vê 3 (2 seus + 1 não atribuído) e é bloqueado (403)
+em lead do ANALYST; ANALYST vê todos (4); owner promove/rebaixa membro
+(CONSULTOR↔MANAGER); CONSULTOR não lista membros (403) nem muda papel (403).
+
+**Pendente 2.1:** frontend (badge de papel, gestão na tela de membros), testes
+automáticos, revisão de `require_org_admin` para ADMIN (hoje ADMIN já passa).
+
 ### Próximo passo imediato
 
-1. **Item 2.1 — Papéis de venda** (`feat/sales-roles`): CONSULTOR/ANALYST/MANAGER
-   por org + endpoint `PATCH /api/orgs/{id}/members/{user_id}`.
+1. **Item 2.1 — finalizar** `feat/sales-roles`: revisar diff, criar PR
+   (base: main, main já tem 1.1–1.5), então **Item 2.2 — APIs de BI**
+   (`feat/analytics-api`): 6 endpoints ANALYST/MANAGER-only org-scoped.
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
