@@ -7,7 +7,7 @@
 1. `docs/architecture.md` — estrutura do sistema, stack, serviços
 2. `docs/business-rules.md` — regras de negócio, pipeline, status dos leads
 3. `docs/interface.md` — requisitos da interface web (UX, fluxos, telas)
-4. `docs/sales-intelligence-plan.md` — **visão e plano** da camada de inteligência comercial (BI, consultores, PDF, pitch)
+4. `docs/roadmap-combined.md` — **roadmap único e visão**: multi-vertical sem hardcode + inteligência comercial (BI, consultores, PDF, pitch, fontes, custos)
 
 ## Consulte antes de modificar
 
