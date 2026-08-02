@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, type ScoringTemplateInput } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, type ScoringTemplateInput } from "@/lib/api";
 import type { SalesRole } from "@/types";
 
 export type SegmentSuggestion = {
@@ -203,5 +203,58 @@ export function useAssignLead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
+  });
+}
+
+export interface AnalyticsPeriod {
+  from?: string;
+  to?: string;
+}
+
+export function useAnalyticsOverview(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "overview", period],
+    queryFn: () => analyticsApi.overview(period),
+  });
+}
+
+export function useAnalyticsConsultants(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "consultants", period],
+    queryFn: () => analyticsApi.consultants(period),
+  });
+}
+
+export function useAnalyticsRanking(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "ranking", period],
+    queryFn: () => analyticsApi.leadsRanking({ ...period, limit: 10 }),
+  });
+}
+
+export function useAnalyticsGeo(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "geo", period],
+    queryFn: () => analyticsApi.geo(period),
+  });
+}
+
+export function useAnalyticsCampaigns(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "campaigns", period],
+    queryFn: () => analyticsApi.campaigns(period),
+  });
+}
+
+export function useAnalyticsTimeline(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "timeline", period],
+    queryFn: () => analyticsApi.timeline({ group_by: "day", ...period }),
+  });
+}
+
+export function useExportAnalyticsPdf() {
+  return useMutation({
+    mutationFn: (period?: AnalyticsPeriod) => analyticsApi.exportPdf(period),
   });
 }

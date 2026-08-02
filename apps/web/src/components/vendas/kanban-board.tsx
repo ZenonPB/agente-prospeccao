@@ -5,10 +5,11 @@ import { useSession } from 'next-auth/react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useLeads, useUpdateLeadStatus, useAssignLead } from '@/hooks/use-api';
+import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
 interface KanbanColumn {
@@ -84,6 +85,12 @@ export function KanbanBoard() {
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const updateStatus = useUpdateLeadStatus();
   const assignLead = useAssignLead();
+  const { data: membership } = useOrgMembership();
+  const orgId = membership?.organization?.id;
+  const myRole = membership?.membership?.role;
+  const mySalesRole = membership?.membership?.sales_role;
+  const canAssignOthers = myRole === 'OWNER' || myRole === 'ADMIN' || mySalesRole === 'MANAGER';
+  const { data: membersData } = useOrgMembers(canAssignOthers ? orgId : undefined);
   const { data, isLoading, isError, error, refetch } = useLeads({
     status: SALES_STATUSES,
   });
@@ -125,6 +132,20 @@ export function KanbanBoard() {
       }
     );
   }, [currentUserId, assignLead]);
+
+  const onAssignTo = useCallback((leadId: string, userId: string | null, name?: string) => {
+    assignLead.mutate(
+      { id: leadId, assignedToId: userId },
+      {
+        onSuccess: () => {
+          toast.success(userId ? `Lead atribuído a ${name || 'consultor'}.` : 'Lead desatribuído.');
+        },
+        onError: () => {
+          toast.error('Não foi possível atribuir o lead.');
+        },
+      }
+    );
+  }, [assignLead]);
 
   const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);
 
@@ -271,6 +292,60 @@ export function KanbanBoard() {
                                       )}
                                       Atribuir a mim
                                     </Button>
+                                  )}
+                                  {canAssignOthers && (
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger
+                                        render={
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+                                            aria-label="Atribuir lead"
+                                          >
+                                            <MoreHorizontal className="h-3.5 w-3.5" />
+                                          </Button>
+                                        }
+                                      />
+                                      <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                                        <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onAssignTo(lead.id, currentUserId as string, 'você');
+                                          }}
+                                          disabled={!currentUserId}
+                                        >
+                                          <User className="h-3.5 w-3.5" />
+                                          Você
+                                        </DropdownMenuItem>
+                                        {membersData?.members
+                                          .filter((m) => m.user_id !== currentUserId)
+                                          .map((m) => (
+                                            <DropdownMenuItem
+                                              key={m.user_id}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAssignTo(lead.id, m.user_id, m.name);
+                                              }}
+                                            >
+                                              <User className="h-3.5 w-3.5" />
+                                              {m.name || m.email}
+                                            </DropdownMenuItem>
+                                          ))}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            onAssignTo(lead.id, null);
+                                          }}
+                                        >
+                                          Desatribuir
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   )}
                                 </div>
                               </div>

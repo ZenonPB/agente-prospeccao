@@ -306,12 +306,31 @@ filtro período) corretos; **ANALYST → 200 em todos; CONSULTOR → 403 em todo
 **Testado E2E** (banco temporário): PDF gerado (`%PDF-1.7`, 29KB, seções presentes);
 **ANALYST → 200 + application/pdf**; **CONSULTOR → 403**; PDF com período OK.
 
+### Fase 2.4 — Frontend relatórios/kanban/mapa ✅ (2026-08-02)
+
+- **Dependência nova aprovada**: `leaflet` + `react-leaflet@5` (React 19) + `@types/leaflet`
+- **`/relatorios`** (nova rota, guard MANAGER/ANALYST/owner/admin — CONSULTOR vê acesso restrito):
+  - KPIs executivos (leads, qualificados, contatados, reuniões, convertidos, receita)
+  - Funil, taxas (conversão/resposta/reunião), faixas de score
+  - **Mapa de oportunidades** (Leaflet): círculos por UF, cor = score médio, tamanho = nº leads,
+    tooltip com convertidos — centroides estáticos (sem API de geocodificação; offline/LGPD)
+  - Desempenho por consultor + campanhas + melhores oportunidades
+  - Evolução temporal (Recharts: barras novos/reuniões + linha de fechados)
+  - Filtro de período (presets 30/90 dias/Tudo + datas) e botão **Exportar PDF** (download)
+- **Kanban `/vendas`**: menu "Atribuir para" (owner/admin/MANAGER) com lista de membros +
+  desatribuir; CONSULTOR mantém "Atribuir a mim" (item 2.1)
+- **Detalhe do lead**: nova aba **Atividades** — trilha (quem fez o quê, quando, transições)
+- Sidebar: item "Relatórios" (visível apenas para ANALYST/MANAGER/owner/admin)
+- `analyticsApi` + hooks `useAnalytics*` no client
+
+**Build**: `npm run build` OK (rota `/relatorios`); lint sem erros novos (4 erros são
+pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server responde.
+
 ### Próximo passo imediato
 
-1. **Item 2.3 — PR #27 aberto** (`feat/analytics-pdf`, base main): revisar e mergear.
-   Depois **Item 2.4 — Frontend relatórios/kanban/mapa** (`feat/analytics-web`):
-   `/relatorios` (MANAGER/ANALYST), Leaflet + Recharts, kanban com atribuição,
-   trilha de atividades no detalhe — UI/UX skills aqui.
+1. **Item 2.4 — PR #28 aberto** (`feat/analytics-web`, base main): revisar e mergear.
+   Depois **Item 2.5 — Pitch one-pager + site audit** (`feat/pitch-one-pager`):
+   `GET /api/leads/{id}/pitch` + site audit legível + exposição no detalhe/PDF.
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens

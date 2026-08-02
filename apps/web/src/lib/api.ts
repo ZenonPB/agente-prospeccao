@@ -30,11 +30,12 @@ async function resolveToken(): Promise<string | null> {
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+  responseType?: "json" | "blob";
 }
 
 
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { params, ...fetchOptions } = options;
+  const { params, responseType = "json", ...fetchOptions } = options;
 
   const url = new URL(`${API_BASE_URL}${endpoint}`);
   if (params) {
@@ -64,6 +65,10 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "Erro desconhecido" }));
     throw new Error(error.message || `Erro ${response.status}: ${response.statusText}`);
+  }
+
+  if (responseType === "blob") {
+    return response.blob() as Promise<T>;
   }
 
   return response.json();
@@ -232,6 +237,123 @@ export const orgsApi = {
       method: "PATCH",
       body: JSON.stringify({ sales_role: salesRole }),
     }),
+};
+
+export interface AnalyticsOverview {
+  total_leads: number;
+  qualified_leads: number;
+  contacted_leads: number;
+  responded_leads: number;
+  meetings_scheduled: number;
+  proposals_sent: number;
+  converted_leads: number;
+  total_revenue: number;
+  conversion_rate: number;
+  response_rate: number;
+  meeting_rate: number;
+  funnel: { stage: string; count: number }[];
+  leads_by_score_band: { band: string; count: number }[];
+}
+
+export interface AnalyticsConsultant {
+  user_id: string;
+  name: string;
+  email: string;
+  assigned_leads: number;
+  contacted_leads: number;
+  meetings: number;
+  proposals_sent: number;
+  converted_leads: number;
+  conversion_rate: number;
+}
+
+export interface AnalyticsRankingItem {
+  id: string;
+  company_name: string;
+  city: string;
+  state: string;
+  status: string;
+  qualification_score: number;
+  campaign_id: string | null;
+  assigned_to_name: string | null;
+  created_at: string;
+  converted: boolean;
+}
+
+export interface AnalyticsGeoCity {
+  city: string;
+  state: string;
+  count: number;
+  avg_score: number;
+  converted: number;
+}
+
+export interface AnalyticsGeoState {
+  state: string;
+  count: number;
+  avg_score: number;
+  converted: number;
+}
+
+export interface AnalyticsCampaign {
+  id: string;
+  name: string;
+  leads: number;
+  qualified_leads: number;
+  contacted_leads: number;
+  meetings: number;
+  converted_leads: number;
+  conversion_rate: number;
+  revenue: number;
+}
+
+export interface AnalyticsTimelineItem {
+  date: string;
+  new_leads: number;
+  meetings: number;
+  closed: number;
+}
+
+export const analyticsApi = {
+  overview: (params?: { from?: string; to?: string }) =>
+    request<AnalyticsOverview>("/api/analytics/overview", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  consultants: (params?: { from?: string; to?: string }) =>
+    request<{ consultants: AnalyticsConsultant[] }>("/api/analytics/consultants", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  leadsRanking: (params?: { sort_by?: "score" | "converted" | "created"; campaign_id?: string; from?: string; to?: string; limit?: number }) =>
+    request<{ sort_by: string; items: AnalyticsRankingItem[] }>("/api/analytics/leads-ranking", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  geo: (params?: { from?: string; to?: string }) =>
+    request<{ cities: AnalyticsGeoCity[]; states: AnalyticsGeoState[] }>("/api/analytics/geo", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  campaigns: (params?: { from?: string; to?: string }) =>
+    request<{ campaigns: AnalyticsCampaign[] }>("/api/analytics/campaigns", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  timeline: (params?: { group_by?: "day" | "week"; from?: string; to?: string }) =>
+    request<{ timeline: AnalyticsTimelineItem[] }>("/api/analytics/timeline", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  exportPdf: (params?: { from?: string; to?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    const q = qs.toString();
+    return request<Blob>(`/api/analytics/export/pdf${q ? `?${q}` : ""}`, {
+      responseType: "blob",
+    });
+  },
 };
 
 export interface ScoringTemplate {

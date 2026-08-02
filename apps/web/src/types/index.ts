@@ -32,6 +32,17 @@ export interface EvidenceItem {
   source?: string;
 }
 
+export interface LeadActivityItem {
+  id: string;
+  action: string;
+  user_id?: string;
+  user_name?: string;
+  status_from?: string;
+  status_to?: string;
+  detail?: string;
+  created_at: string;
+}
+
 export interface Lead {
   id: string;
   place_id?: string;
@@ -59,6 +70,7 @@ export interface Lead {
   assigned_to_id?: string;
   assigned_to_name?: string;
   assigned_at?: string;
+  activities?: LeadActivityItem[];
   created_at: string;
   updated_at: string;
 }

@@ -10,17 +10,20 @@ import {
   DollarSign,
   Settings,
   Users,
+  BarChart3,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
+import { useOrgMembership } from '@/hooks/use-api';
 
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
   { name: 'Oportunidades', href: '/oportunidades', icon: Target },
   { name: 'Negociações', href: '/vendas', icon: DollarSign },
+  { name: 'Relatórios', href: '/relatorios', icon: BarChart3, analystOnly: true },
   { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
   { name: 'Configurações', href: '/configuracoes', icon: Settings },
 ];
@@ -28,6 +31,12 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarOpen, toggleSidebar } = useAppStore();
+  const { data: membership } = useOrgMembership();
+
+  const canViewAnalytics = membership?.membership?.role === 'OWNER' || membership?.membership?.role === 'ADMIN' ||
+    membership?.membership?.sales_role === 'ANALYST' || membership?.membership?.sales_role === 'MANAGER';
+
+  const visibleNavigation = navigation.filter((item) => !item.analystOnly || canViewAnalytics);
 
   return (
     <>
@@ -66,7 +75,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-2">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link
