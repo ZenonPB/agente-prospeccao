@@ -193,15 +193,25 @@ diferentes persiste; duplicata na mesma org rejeitada; A não vê lead/campanha 
 **Testado E2E:** atribuir consultor da mesma org OK; atribuir usuário de outra org → 403;
 mudança de status grava trilha (from/to corretos); trilha aparece no detalhe.
 
+### Fase 1.2/1.3 — Router + geração de template sob demanda ✅ (2026-08-01)
+
+- `template_router.py`: `route_scoring_template()` — exact → fuzzy (token overlap) →
+  LLM (Groq 8B) → `GENERATE_NEW`/Genérico; cache em memória (256, chave=texto+labels)
+- `template_generation_service.py`: `TemplateGenerationService.generate()` — Groq 70B
+  cria `positive/negative/context_signals` + flags + `extra_instructions` no schema do
+  seed; persiste com `is_generated=True` + `organization_id`; reutiliza por label; fallback Genérico
+- `campaign_scoring_templates.is_generated` + `organization_id` (migration `7d4e5f6a8b9c0`)
+- `pipeline_worker.py`: consome `GENERATE_NEW` → gera e vincula o template à campanha
+
+**Testado:** router classifica "engenharia mecânica" → Eng. Mecânica; "auditoria contábil"
+→ Consultoria; geração cria 7 sinais positivos p/ "landing pages para clínicas de psicologia".
+
 ### Próximo passo imediato
 
-1. **Item 1.3 — Geração de template sob demanda** (`feat/template-on-demand`): a IA
-   cria os critérios da vertical (nada hardcoded). Consome o sinal `GENERATE_NEW`
-   do router (item 1.2) para gerar e persistir o template.
-2. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
-3. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
+1. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
+2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
-4. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
+3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
    e humano.
