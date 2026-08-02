@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, type ScoringTemplateInput } from "@/lib/api";
 
 export type SegmentSuggestion = {
   segment: string;
@@ -52,6 +52,46 @@ export function useCampaign(id: string) {
     queryKey: ["campaigns", id],
     queryFn: () => campaignsApi.get(id),
     enabled: !!id,
+  });
+}
+
+export function useScoringTemplates(params?: { scope?: 'all' | 'global' | 'org'; include_inactive?: boolean; search?: string }) {
+  return useQuery({
+    queryKey: ["scoring-templates", params],
+    queryFn: () => scoringTemplatesApi.list(params),
+  });
+}
+
+export function useUpdateCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof campaignsApi.patch>[1] }) =>
+      campaignsApi.patch(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["scoring-templates"] });
+    },
+  });
+}
+
+export function useCreateScoringTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ScoringTemplateInput) => scoringTemplatesApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scoring-templates"] });
+    },
+  });
+}
+
+export function usePatchScoringTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<ScoringTemplateInput> }) =>
+      scoringTemplatesApi.patch(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scoring-templates"] });
+    },
   });
 }
 

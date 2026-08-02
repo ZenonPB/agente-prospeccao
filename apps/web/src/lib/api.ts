@@ -135,6 +135,22 @@ export const campaignsApi = {
 
   get: (id: string) => request<Campaign>(`/api/campaigns/${id}`),
 
+  patch: (id: string, data: {
+    name?: string;
+    analysis_profile?: 'web_presence' | 'business_opportunity';
+    target_service?: string;
+    target_segment?: string;
+    target_city?: string;
+    target_state?: string;
+    target_country?: string;
+    places_query?: string;
+    scoring_template_id?: string | null;
+  }) =>
+    request<{ id: string; name: string; scoring_template_id: string | null }>(`/api/campaigns/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   create: (data: {
     name: string;
     analysis_profile?: 'web_presence' | 'business_opportunity';
@@ -195,6 +211,49 @@ export const metricsApi = {
       response_rate: number;
       funnel: { stage: string; count: number }[];
     }>("/api/metrics"),
+};
+
+export interface ScoringTemplate {
+  id: string;
+  service_label: string;
+  positive_signals: { label: string; description?: string; weight_hint: string }[];
+  negative_signals: { label: string; description?: string; weight_hint: string }[];
+  context_signals: { label: string; description?: string; weight_hint: string }[];
+  requires_technical_report: boolean;
+  requires_business_data: boolean;
+  extra_instructions?: string;
+  is_generated: boolean;
+  is_active: boolean;
+  organization_id: string | null;
+}
+
+export interface ScoringTemplateInput {
+  service_label: string;
+  positive_signals?: { label: string; description?: string; weight_hint: string }[];
+  negative_signals?: { label: string; description?: string; weight_hint: string }[];
+  context_signals?: { label: string; description?: string; weight_hint: string }[];
+  requires_technical_report?: boolean;
+  requires_business_data?: boolean;
+  extra_instructions?: string;
+  is_active?: boolean;
+}
+
+export const scoringTemplatesApi = {
+  list: (params?: { scope?: 'all' | 'global' | 'org'; include_inactive?: boolean; search?: string }) =>
+    request<{ total: number; templates: ScoringTemplate[] }>("/api/scoring-templates", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+  get: (id: string) => request<ScoringTemplate>(`/api/scoring-templates/${id}`),
+  create: (data: ScoringTemplateInput) =>
+    request<ScoringTemplate>("/api/scoring-templates", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  patch: (id: string, data: Partial<ScoringTemplateInput>) =>
+    request<ScoringTemplate>(`/api/scoring-templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 };
 
 export const pipelineApi = {

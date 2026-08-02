@@ -51,6 +51,20 @@ class SuggestSegmentRequest(BaseModel):
     exclude: Optional[List[str]] = Field(None, max_length=20)
 
 
+class PatchCampaignRequest(BaseModel):
+    """Atualização parcial de campanha — usado para vincular o template de
+    scoring escolhido no wizard (item 1.5.3) e ajustar os alvos."""
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    target_service: Optional[str] = Field(None, max_length=255)
+    target_segment: Optional[str] = Field(None, max_length=100)
+    target_city: Optional[str] = Field(None, max_length=100)
+    target_state: Optional[str] = Field(None, max_length=2)
+    target_country: Optional[str] = Field(None, max_length=100)
+    analysis_profile: Optional[str] = Field(None, pattern="^(web_presence|business_opportunity)$")
+    places_query: Optional[str] = Field(None, max_length=255)
+    scoring_template_id: Optional[str] = Field(None)
+
+
 @router.get("")
 def list_campaigns(
     status: Optional[str] = None,
@@ -250,10 +264,65 @@ def get_campaign(
         "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
         "places_query": campaign.places_query,
+        "scoring_template_id": str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
         "lead_count": lead_count,
         "avg_score": round(float(avg_score), 1),
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
         "updated_at": campaign.updated_at.isoformat() if campaign.updated_at else None,
+    }
+
+
+@router.patch("/{campaign_id}")
+def patch_campaign(
+    campaign_id: str,
+    body: PatchCampaignRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Atualiza parcialmente uma campanha da org do usuário.
+
+    `scoring_template_id` vincula o template de critérios escolhido no wizard
+    (item 1.5.3) — o pipeline passa a usar o template explícito em vez de
+    rotear. Valida que o template pertence à org ou é global.
+    """
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    updates = body.model_dump(exclude_unset=True)
+
+    if updates.get("scoring_template_id") is not None:
+        from src.db.models import CampaignScoringTemplate
+        tmpl = db.query(CampaignScoringTemplate).filter(
+            CampaignScoringTemplate.id == updates["scoring_template_id"],
+            (CampaignScoringTemplate.organization_id.is_(None)) |
+            (CampaignScoringTemplate.organization_id == _org.id),
+        ).first()
+        if not tmpl:
+            raise HTTPException(status_code=404, detail="Template de scoring não encontrado")
+        campaign.scoring_template_id = tmpl.id
+    elif "scoring_template_id" in updates:
+        # Permite desvincular (scoring_template_id=null → router decide).
+        campaign.scoring_template_id = None
+
+    for field in ("name", "target_service", "target_segment", "target_city",
+                  "target_state", "target_country", "places_query"):
+        if field in updates:
+            setattr(campaign, field, updates[field])
+
+    if "analysis_profile" in updates:
+        campaign.analysis_profile = updates["analysis_profile"]
+
+    db.commit()
+    db.refresh(campaign)
+    return {
+        "id": str(campaign.id),
+        "name": campaign.name,
+        "scoring_template_id": str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
     }
 
 
