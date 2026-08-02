@@ -613,7 +613,7 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 
 | Item | Status | Notas |
 |---|---|---|
-| 1.1 Atribuição + trilha | ⬜ Não iniciado | Base de tudo; 1º sprint |
+| 1.1 Atribuição + trilha | ✅ Entregue (2026-08-01) | `feat/sales-intel-assignment`; E2E validado |
 | 1.2 Router de template | ⬜ Não iniciado | fuzzy + LLM + cache |
 | 1.3 Geração de template | ⬜ Não iniciado | nada hardcoded |
 | 1.4 Campanha por linguagem natural | ⬜ Não iniciado | brief PT-BR |
