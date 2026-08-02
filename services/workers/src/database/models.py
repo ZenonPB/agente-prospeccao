@@ -55,6 +55,18 @@ class OrganizationRole(enum.Enum):
     ADMIN = "admin"
     MEMBER = "member"
 
+class SalesRole(enum.Enum):
+    """Papel de venda dentro da organização — o que o membro enxerga/faz.
+
+    - CONSULTOR: trabalha o próprio funil (vê/edita apenas os leads dele ou
+      não atribuídos; pode se auto-atribuir).
+    - ANALYST: lê tudo da org + BI + exporta PDF (não edita funil).
+    - MANAGER: lê tudo + BI + exporta PDF + gerencia papéis.
+    """
+    CONSULTOR = "CONSULTOR"
+    ANALYST = "ANALYST"
+    MANAGER = "MANAGER"
+
 class MessageChannel(enum.Enum):
     EMAIL = "EMAIL"
     WHATSAPP = "WHATSAPP"
@@ -93,6 +105,8 @@ class OrganizationMember(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
+    # Papel de venda por organização (item 2.1): CONSULTOR/ANALYST/MANAGER.
+    sales_role = Column(Enum(SalesRole, name='sales_role', create_type=True, values_callable=lambda e: [m.value for m in e]), default=SalesRole.CONSULTOR)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="members")

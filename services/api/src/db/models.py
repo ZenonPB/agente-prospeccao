@@ -29,5 +29,6 @@ from database.models import (
     LeadPriority,
     ContactRole,
     OrganizationRole,
+    SalesRole,
     CampaignScoringTemplate,
 )
