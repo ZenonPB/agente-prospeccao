@@ -225,10 +225,26 @@ campos corretos + template "SEO / Marketing Digital" (MATCHED); campanha criada
 com `places_query`; pipeline coletou 3 leads de psicologia em Araraquara e
 qualificou 2 (score 62/64) usando a query do agente.
 
+### Fase 1.5 — CRUD de templates + vínculo no wizard ✅ (2026-08-01)
+
+- `GET/POST/PATCH /api/scoring-templates` (novo route): globais (org NULL) + da org;
+  `scope=all|global|org`, `include_inactive`, `search`; POST cria com `is_generated=False`
+  na org do usuário; PATCH edita sinais/flags/instruções/`is_active` (usado na
+  revisão humana do item 1.5.4); isolamento por org validado (404 para outra org)
+- `PATCH /api/campaigns/{id}` — vincula/desvincula `scoring_template_id` (valida
+  org ou global); pipeline já consome via `explicit_template_id`
+- Frontend: `template-selector.tsx` no passo 4 do wizard — escolhe template,
+  edita sinais (positive/negative/context + weight), flags (técnica/cadastrais),
+  instruções; badge "Gerado por IA — revisar" para `is_generated` (1.5.4);
+  "Salvar alterações no template" (PATCH) e vínculo automático ao criar campanha
+
+**Testado E2E:** lista globais (9 seeds); criar template local (org scoping);
+PATCH sinais/flags; vincular template à campanha; outra org → 404 + scope=org vazio.
+
 ### Próximo passo imediato
 
-1. **Item 1.5 — CRUD de templates + vínculo no wizard** (`feat/template-crud-ui`):
-   `GET/POST/PATCH /api/scoring-templates` + editor de sinais no wizard.
+1. **Item 2.1 — Papéis de venda** (`feat/sales-roles`): CONSULTOR/ANALYST/MANAGER
+   por org + endpoint `PATCH /api/orgs/{id}/members/{user_id}`.
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
