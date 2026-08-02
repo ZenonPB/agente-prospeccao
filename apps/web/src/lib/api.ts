@@ -27,16 +27,6 @@ async function resolveToken(): Promise<string | null> {
   return token ?? null;
 }
 
-interface OutreachMessages {
-  subject: string;
-  body_opening: string;
-  followup_1: string;
-  followup_2: string;
-  closing: string;
-  whatsapp_short: string;
-  rationale: string;
-}
-
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
@@ -153,6 +143,7 @@ export const campaignsApi = {
     target_city?: string;
     target_state?: string;
     target_country?: string;
+    places_query?: string;
   }) =>
     request<Campaign>("/api/campaigns", {
       method: "POST",
@@ -173,6 +164,24 @@ export const campaignsApi = {
     }>("/api/campaigns/suggest-segment", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  fromBrief: (brief: string) =>
+    request<{
+      name: string;
+      target_service: string;
+      target_segment: string;
+      target_city: string;
+      target_state: string;
+      analysis_profile: 'web_presence' | 'business_opportunity';
+      places_query: string;
+      scoring_template_label: string;
+      scoring_template_id: string | null;
+      template_route: string;
+      rationale: string;
+    }>("/api/campaigns/from-brief", {
+      method: "POST",
+      body: JSON.stringify({ brief }),
     }),
 };
 
