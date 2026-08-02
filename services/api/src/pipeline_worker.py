@@ -72,14 +72,18 @@ async def run_pipeline(
             if campaign:
                 analysis_profile = campaign.analysis_profile or AnalysisProfile.WEB_PRESENCE
                 if not query and not reanalyze_only:
-                    parts = []
-                    if campaign.target_segment:
-                        parts.append(campaign.target_segment)
-                    if campaign.target_city:
-                        parts.append(campaign.target_city)
-                    if campaign.target_state:
-                        parts.append(campaign.target_state)
-                    query = ', '.join(parts) if parts else campaign.name
+                    if campaign.places_query:
+                        # Query sugerida pelo agente (item 1.4) — prioridade.
+                        query = campaign.places_query
+                    else:
+                        parts = []
+                        if campaign.target_segment:
+                            parts.append(campaign.target_segment)
+                        if campaign.target_city:
+                            parts.append(campaign.target_city)
+                        if campaign.target_state:
+                            parts.append(campaign.target_state)
+                        query = ', '.join(parts) if parts else campaign.name
 
         if not query:
             query = "empresas"
