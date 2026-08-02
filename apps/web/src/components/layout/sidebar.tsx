@@ -9,6 +9,7 @@ import {
   Target, 
   DollarSign,
   Settings,
+  Users,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -20,6 +21,7 @@ const navigation = [
   { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
   { name: 'Oportunidades', href: '/oportunidades', icon: Target },
   { name: 'Negociações', href: '/vendas', icon: DollarSign },
+  { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
   { name: 'Configurações', href: '/configuracoes', icon: Settings },
 ];
 

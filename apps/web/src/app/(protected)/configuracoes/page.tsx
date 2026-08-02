@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Separator } from '@/components/ui/separator';
 import { Camera, Sun, Moon, Palette, Lock, Save, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
+import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
+import { useOrgMembership } from '@/hooks/use-api';
 
 const themes = [
   {
@@ -45,6 +46,7 @@ const themes = [
 
 export default function ConfiguracoesPage() {
   const { data: session, update } = useSession();
+  const { data: membership } = useOrgMembership();
   const [selectedTheme, setSelectedTheme] = useState('dark');
 
   const [name, setName] = useState(session?.user?.name || '');
@@ -157,12 +159,16 @@ export default function ConfiguracoesPage() {
           </div>
 
           <div className="space-y-2">
-            <Label>Função</Label>
-            <Input
-              value={(session?.user as { role?: string } | undefined)?.role || 'Vendas'}
-              disabled
-              className="opacity-60"
-            />
+            <Label>Papel na equipe</Label>
+            <div className="flex items-center gap-2">
+              <SalesRoleBadge role={membership?.membership?.sales_role} />
+              <span className="text-sm text-muted-foreground">
+                {membership?.organization?.name || 'Sua organização'}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Define o que você vê e pode fazer na organização
+            </p>
           </div>
 
           <div className="flex justify-end">
