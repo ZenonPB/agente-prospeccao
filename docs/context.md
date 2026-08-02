@@ -264,14 +264,16 @@ PATCH sinais/flags; vincular template à campanha; outra org → 404 + scope=org
 em lead do ANALYST; ANALYST vê todos (4); owner promove/rebaixa membro
 (CONSULTOR↔MANAGER); CONSULTOR não lista membros (403) nem muda papel (403).
 
-**Pendente 2.1:** frontend (badge de papel, gestão na tela de membros), testes
-automáticos, revisão de `require_org_admin` para ADMIN (hoje ADMIN já passa).
+**Pendente 2.1:** ~~frontend (badge de papel, gestão na tela de membros), testes
+automáticos, revisão de `require_org_admin` para ADMIN (hoje ADMIN já passa).~~
+**Frontend entregue (2026-08-02)** — badge de papel de venda, página `/configuracoes/membros`
+(gestão de papéis por owner/admin), kanban com self-assign + badge de atribuição, badge no
+perfil, sidebar "Equipe", `GET /api/orgs/me` e `assigned_to_name` no lead. PR #25 aberto.
 
 ### Próximo passo imediato
 
-1. **Item 2.1 — finalizar** `feat/sales-roles`: revisar diff, criar PR
-   (base: main, main já tem 1.1–1.5), então **Item 2.2 — APIs de BI**
-   (`feat/analytics-api`): 6 endpoints ANALYST/MANAGER-only org-scoped.
+1. **Item 2.1 — PR #25 aberto** (`feat/sales-roles`, base main): revisar e mergear.
+   Depois **Item 2.2 — APIs de BI** (`feat/analytics-api`): 6 endpoints ANALYST/MANAGER-only org-scoped.
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
