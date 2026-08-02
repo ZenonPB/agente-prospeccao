@@ -289,18 +289,36 @@ perfil, sidebar "Equipe", `GET /api/orgs/me` e `assigned_to_name` no lead. PR #2
 consultor com 1 conversão, geo cidade/UF com convertidos, receita R$5.000, timeline e
 filtro período) corretos; **ANALYST → 200 em todos; CONSULTOR → 403 em todos**.
 
+### Fase 2.3 — Exportação PDF ✅ (2026-08-02)
+
+- `src/services/pdf_report_service.py` (novo) — `build_report_pdf()`: agrega via
+  `AnalyticsService` (org-scoped) e renderiza **WeasyPrint** (HTML→PDF) com branding:
+  visão executiva (KPIs + taxas), funil, por campanha, por consultor, top leads, geo,
+  evolução temporal (gráfico CSS)
+- **Dependência nova aprovada**: `weasyprint` (requirements da API) + runtime
+  GTK/Pango no Windows (`GTK3-Runtime Win64`) com `os.add_dll_directory()` automático;
+  em Linux basta o pacote de sistema do Pango
+- Cache em memória do HTML agregado (TTL 5min) — item 2.3.4
+- `GET /api/analytics/export/pdf?from=&to=` — **ANALYST/MANAGER-only**; retorna
+  `application/pdf` com `Content-Disposition: attachment`; 503 se WeasyPrint ausente
+- Registrado em `routes/analytics.py` (path fixo, sem conflito)
+
+**Testado E2E** (banco temporário): PDF gerado (`%PDF-1.7`, 29KB, seções presentes);
+**ANALYST → 200 + application/pdf**; **CONSULTOR → 403**; PDF com período OK.
+
 ### Próximo passo imediato
 
-1. **Item 2.2 — PR #26 aberto** (`feat/analytics-api`, base main): revisar e mergear.
-   Depois **Item 2.3 — Exportação PDF (weasyprint)** (`feat/analytics-pdf`): relatório
-   completo/detalhado para a diretoria (pedir aprovação para instalar `weasyprint`).
+1. **Item 2.3 — PR #27 aberto** (`feat/analytics-pdf`, base main): revisar e mergear.
+   Depois **Item 2.4 — Frontend relatórios/kanban/mapa** (`feat/analytics-web`):
+   `/relatorios` (MANAGER/ANALYST), Leaflet + Recharts, kanban com atribuição,
+   trilha de atividades no detalhe — UI/UX skills aqui.
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
    e humano.
-5. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
+4. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
 
 ## Como rodar
 

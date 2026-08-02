@@ -15,12 +15,14 @@ Endpoints:
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from src.db.dependencies import get_db
 from src.db.models import Organization, OrganizationMember
 from src.auth.dependencies import get_user_organization, require_analyst
 from src.services.analytics_service import AnalyticsService
+from src.services.pdf_report_service import build_report_pdf
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -96,3 +98,38 @@ def timeline(
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     return {"timeline": analytics.timeline(group_by=group_by, from_date=from_date, to_date=to_date)}
+
+
+@router.get("/export/pdf")
+def export_pdf(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(require_analyst()),
+    db: Session = Depends(get_db),
+):
+    """Exporta o relatório executivo completo em PDF (ANALYST/MANAGER-only).
+
+    Rota declarada após `/timeline` e antes de nenhum path com `{param}` —
+    não há conflito de roteamento aqui porque todos os outros endpoints
+    possuem path fixo.
+    """
+    try:
+        pdf_bytes = build_report_pdf(
+            db, org_name=org.name or "Minha organização", org_id=org.id,
+            from_date=from_date, to_date=to_date,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    filename = f"relatorio-prospeccao-{from_date or 'inicio'}-{to_date or 'hoje'}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
