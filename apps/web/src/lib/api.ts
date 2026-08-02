@@ -1,5 +1,5 @@
 import { getSession } from "next-auth/react";
-import type { Lead, Campaign, Enrichment } from "@/types";
+import type { Lead, Campaign, Enrichment, PitchOnePager } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole } from "@/types";
 
@@ -113,6 +113,9 @@ export const leadsApi = {
       method: "POST",
       body: JSON.stringify({ channel }),
     }),
+
+  getPitch: (id: string) =>
+    request<PitchOnePager>(`/api/leads/${id}/pitch`),
 };
 
 export const authApi = {

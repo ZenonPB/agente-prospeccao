@@ -188,3 +188,70 @@ export interface Issue {
   description: string;
   recommendation: string;
 }
+
+export interface SiteAuditSection {
+  title: string;
+  status: 'ok' | 'warning' | 'info';
+  detail: string;
+  items?: string[];
+}
+
+export interface SiteAudit {
+  available: boolean;
+  overall_status?: string;
+  summary: string;
+  sections: SiteAuditSection[];
+  errors?: string[];
+  warnings?: string[];
+}
+
+export interface PitchOnePager {
+  identity: {
+    company_name: string;
+    category?: string;
+    city?: string;
+    state?: string;
+    website?: string;
+    phone?: string;
+    email?: string;
+    cnpj?: string;
+    razao_social?: string;
+    nome_fantasia?: string;
+    porte?: string;
+    cnae_principal?: string;
+    data_abertura?: string;
+    idade_anos?: number;
+    situacao_cadastral?: string;
+    capital_social?: number;
+  };
+  campaign?: {
+    name: string;
+    target_service?: string;
+    target_segment?: string;
+  } | null;
+  qualification: {
+    score: number;
+    priority?: string;
+    priority_reasoning?: string;
+    status?: string;
+    primary_need?: string;
+    qualification_reason?: string;
+  };
+  executive_summary?: string;
+  pitch: {
+    pitch_angle?: string;
+    suggested_subject?: string;
+  };
+  score_factors: {
+    positive: ScoreFactor[];
+    negative: ScoreFactor[];
+  };
+  evidence: EvidenceItem[];
+  primary_contact?: {
+    name: string;
+    role?: string;
+    email?: string;
+    phone?: string;
+  } | null;
+  site_audit?: SiteAudit | null;
+}
