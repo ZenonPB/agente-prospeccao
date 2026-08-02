@@ -413,10 +413,11 @@ no detalhe do lead. Dependências aprovadas: `leaflet`/`react-leaflet`/`@types/l
 
 ---
 
-### Item 2.5 — Pitch one-pager + site audit ⬜
+### Item 2.5 — Pitch one-pager + site audit ✅
 
 Branch: `feat/pitch-one-pager`
-**Prioridade**: pode ser paralelo (reusa 1.1 para contexto).
+**Prioridade**: final da Fase 2.
+**Status**: entregue (2026-08-02) — `src/services/pitch_service.py` + `GET /api/leads/{id}/pitch` + aba **Pitch One-Pager** no detalhe do lead (`LeadPitchTab`) + inclusão dos pitches das top oportunidades no PDF executivo.
 
 | Sub-item | O quê |
 |---|---|
@@ -425,9 +426,9 @@ Branch: `feat/pitch-one-pager`
 | 2.5.3 | Expor pitch/site audit no detalhe do lead e no relatório PDF |
 
 **Critérios de aceite 2.5**
-- [ ] Pitch one-pager gera para qualquer lead com scoring
-- [ ] Site audit legível apresenta os dados técnicos já coletados
-- [ ] Conteúdo exportável no PDF do relatório
+- [x] Pitch one-pager gera para qualquer lead com scoring
+- [x] Site audit legível apresenta os dados técnicos já coletados
+- [x] Conteúdo exportável no PDF do relatório
 
 **Commits sugeridos**
 - `feat(api): lead pitch one-pager endpoint`
@@ -635,11 +636,8 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 2.1 Papéis de venda | ✅ Entregue (2026-08-02) | `feat/sales-roles` (PR #25); backend + frontend (badge, `/configuracoes/membros`, self-assign no kanban) |
 | 2.2 APIs de BI | ✅ Entregue (2026-08-02) | `feat/analytics-api` (PR #26); 6 endpoints ANALYST/MANAGER-only org-scoped, E2E validados |
 | 2.3 Exportação PDF (weasyprint) | ✅ Entregue (2026-08-02) | `feat/analytics-pdf` (PR #27); relatório completo via weasyprint, E2E validado |
-| 2.4 Frontend relatórios/kanban/mapa | ✅ Entregue (2026-08-02) | `feat/analytics-web`; `/relatorios` (Leaflet + Recharts + export PDF), kanban assign, trilha no detalhe |
-| 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
-| 2.3 Exportação PDF (weasyprint) | ⬜ Não iniciado | relatório detalhado |
-| 2.4 Frontend relatórios/kanban/mapa | ⬜ Não iniciado | Leaflet + Recharts |
-| 2.5 Pitch one-pager + site audit | ⬜ Não iniciado | reusa scoring/enriquecimento |
+| 2.4 Frontend relatórios/kanban/mapa | ✅ Entregue (2026-08-02) | `feat/analytics-web` (PR #28); `/relatorios` (Leaflet + Recharts + export PDF), kanban assign, trilha no detalhe |
+| 2.5 Pitch one-pager + site audit | ✅ Entregue (2026-08-02) | `feat/pitch-one-pager`; `GET /api/leads/{id}/pitch`, site audit legível, aba no detalhe + exposição em PDF |
 | 3.1 Import CSV | ⬜ Não iniciado | quick win |
 | 3.2 Descoberta CNAE | ⬜ Não iniciado | fontes industriais |
 | 3.3 Enriquecimento adaptativo | ⬜ Não iniciado | steps conforme template |

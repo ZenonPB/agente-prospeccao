@@ -206,6 +206,14 @@ export function useAssignLead() {
   });
 }
 
+export function useLeadPitch(id: string) {
+  return useQuery({
+    queryKey: ["leads", id, "pitch"],
+    queryFn: () => leadsApi.getPitch(id),
+    enabled: !!id,
+  });
+}
+
 export interface AnalyticsPeriod {
   from?: string;
   to?: string;

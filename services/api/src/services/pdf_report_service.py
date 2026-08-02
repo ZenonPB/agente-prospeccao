@@ -21,6 +21,8 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from src.services.analytics_service import AnalyticsService
+from src.services.pitch_service import build_lead_pitch_pdf_section
+from src.db.models import Lead, Enrichment, Campaign
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +251,11 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
             "</div>"
         )
 
+    top_pitches = data.get("top_lead_pitches", [])
+    pitches_html = ""
+    if top_pitches:
+        pitches_html = "<h2>Dossiê das melhores oportunidades</h2>" + "".join(top_pitches)
+
     period_label = f"{html.escape(from_label)} — {html.escape(to_label)}"
 
     return f"""<!DOCTYPE html>
@@ -430,6 +437,8 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
   <h2>Evolução temporal</h2>
   {timeline_html}
 
+  {pitches_html}
+
   <div class="footer-note">
     Relatório gerado automaticamente pelo Agente Prospecção. Dados restritos à organização
     e ao período selecionado. Análise de sites 100% passiva (Lei 12.737/2012).
@@ -452,6 +461,22 @@ def build_report_pdf(
     """
     svc = AnalyticsService(db, org_id)
 
+    top_leads_qs = (
+        db.query(Lead)
+        .filter(Lead.organization_id == org_id)
+        .order_by(Lead.qualification_score.desc())
+        .limit(3)
+        .all()
+    )
+    top_lead_pitches = []
+    for lead in top_leads_qs:
+        enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+        campaign = (
+            db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+            if lead.campaign_id else None
+        )
+        top_lead_pitches.append(build_lead_pitch_pdf_section(lead, enrichment, campaign))
+
     data = {
         "overview": svc.overview(from_date=from_date, to_date=to_date),
         "consultants": svc.consultants(from_date=from_date, to_date=to_date),
@@ -459,6 +484,7 @@ def build_report_pdf(
         "ranking": svc.leads_ranking(sort_by="score", from_date=from_date, to_date=to_date, limit=20),
         "geo": svc.geo(from_date=from_date, to_date=to_date),
         "timeline": svc.timeline(group_by="day", from_date=from_date, to_date=to_date),
+        "top_lead_pitches": top_lead_pitches,
     }
 
     from_label = from_date or "início"

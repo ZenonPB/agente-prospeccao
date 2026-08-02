@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLead, useUpdateLeadStatus, useGenerateMessages } from '@/hooks/use-api';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
+import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -133,6 +134,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="h-10">
           <TabsTrigger value="overview" className="h-9">Dados gerais</TabsTrigger>
+          <TabsTrigger value="pitch" className="h-9">Pitch One-Pager</TabsTrigger>
           <TabsTrigger value="evidence" className="h-9">Evidências</TabsTrigger>
           <TabsTrigger value="technical" className="h-9">Análise do site</TabsTrigger>
           <TabsTrigger value="contacts" className="h-9">Contatos</TabsTrigger>
@@ -226,6 +228,10 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="pitch" className="space-y-4">
+          <LeadPitchTab leadId={lead.id} />
         </TabsContent>
 
         <TabsContent value="evidence" className="space-y-4">
