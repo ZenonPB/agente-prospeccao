@@ -19,6 +19,8 @@ from database.models import (
     Organization,
     OrganizationMember,
     Invite,
+    LeadActivity,
+    LeadActivityAction,
     LeadStatus,
     CampaignStatus,
     JobStatus,
