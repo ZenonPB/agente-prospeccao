@@ -358,27 +358,30 @@ Todas **org-scoped** (herdam isolamento). ANALYST/MANAGER-only.
 
 ---
 
-### Item 2.3 — Exportação PDF (weasyprint) ⬜
+### Item 2.3 — Exportação PDF (weasyprint) ✅
 
 Branch: `feat/analytics-pdf`
 **Prioridade**: depende de 2.2.
+**Status**: entregue (2026-08-02) — `weasyprint` aprovado e instalado; relatório
+completo renderizado offline; E2E validado (PDF 29KB `%PDF-1.7`, ANALYST 200,
+CONSULTOR 403).
 
 | Sub-item | O quê |
 |---|---|
 | 2.3.1 | `GET /api/analytics/export/pdf?from=&to=` — relatório **completo/detalhado**: visão executiva, funil, por campanha, por consultor, top leads, evolução temporal |
-| 2.3.2 | **Dependência nova**: `weasyprint` (HTML→PDF, renderização visual rica) — **pedir aprovação antes de instalar** |
+| 2.3.2 | **Dependência nova**: `weasyprint` (HTML→PDF, renderização visual rica) — **aprovada** |
 | 2.3.3 | Template HTML com branding (cabeçalho com org, data, seções, tabelas, gráficos simples via CSS) |
 | 2.3.4 | Cache do agregado (item 2.2) para não recalcular a cada export |
-| 2.3.5 | Geração assíncrona se o relatório ficar pesado (job + notificação) |
+| 2.3.5 | Geração assíncrona se o relatório ficar pesado (job + notificação) — pendente (leve hoje; considerar se crescer) |
 
 **Critérios de aceite 2.3**
-- [ ] PDF baixa com as seções do relatório completo
-- [ ] Renderiza offline (sem depender de serviço externo)
-- [ ] Apenas ANALYST/MANAGER/owner pode exportar
+- [x] PDF baixa com as seções do relatório completo
+- [x] Renderiza offline (sem depender de serviço externo)
+- [x] Apenas ANALYST/MANAGER/owner pode exportar
 
 **Commits sugeridos**
 - `feat(api,pdf): executive bi report export via weasyprint`
-- `feat(api): analytics report aggregation with cache`
+- `feat(api): analytics pdf export endpoint with org scoping`
 
 ---
 
@@ -627,7 +630,8 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 1.4 Campanha por linguagem natural | ✅ Entregue (2026-08-01) | `feat/nl-campaign-brief`; from-brief + places_query E2E validados |
 | 1.5 CRUD de templates + wizard | ✅ Entregue (2026-08-01) | `feat/template-crud-ui`; CRUD + editor + vínculo E2E validados |
 | 2.1 Papéis de venda | ✅ Entregue (2026-08-02) | `feat/sales-roles` (PR #25); backend + frontend (badge, `/configuracoes/membros`, self-assign no kanban) |
-| 2.2 APIs de BI | ✅ Entregue (2026-08-02) | `feat/analytics-api`; 6 endpoints ANALYST/MANAGER-only org-scoped, E2E validados |
+| 2.2 APIs de BI | ✅ Entregue (2026-08-02) | `feat/analytics-api` (PR #26); 6 endpoints ANALYST/MANAGER-only org-scoped, E2E validados |
+| 2.3 Exportação PDF (weasyprint) | ✅ Entregue (2026-08-02) | `feat/analytics-pdf`; relatório completo via weasyprint, E2E validado |
 | 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
 | 2.3 Exportação PDF (weasyprint) | ⬜ Não iniciado | relatório detalhado |
 | 2.4 Frontend relatórios/kanban/mapa | ⬜ Não iniciado | Leaflet + Recharts |
