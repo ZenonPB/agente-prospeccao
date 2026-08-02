@@ -151,6 +151,10 @@ class Campaign(Base):
     scoring_template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=True)
     target_state = Column(String(2))
     target_country = Column(String(100))
+    # Query otimizada para o Google Places, sugerida pelo agente (item 1.4).
+    # Quando presente, o pipeline usa esta query em vez de montar uma
+    # automaticamente a partir de target_segment/city/state.
+    places_query = Column(String(255))
     status = Column(Enum(CampaignStatus, name='campaign_status', create_type=True), default=CampaignStatus.ACTIVE)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
