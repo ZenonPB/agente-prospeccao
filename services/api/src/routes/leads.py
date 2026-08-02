@@ -7,9 +7,10 @@ import os
 import sys
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, LeadActivity, LeadActivityAction
-from src.auth.dependencies import get_current_user, get_user_organization
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction
+from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.services.lead_activity_service import log_activity, log_status_change
+from src.services.org_service import consultant_lead_scope, is_full_access
 
 # Importa serviços dos workers (reaproveitando a fonte única).
 _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
@@ -96,6 +97,7 @@ def _lead_summary(lead: Lead) -> dict:
         "suggested_subject": lead.suggested_subject,
         "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
+        "assigned_to_name": lead.assigned_to.name if lead.assigned_to else None,
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
         "created_at": lead.created_at.isoformat() if lead.created_at else None,
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
@@ -143,6 +145,17 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
     return summary
 
 
+def _can_access_lead(member: OrganizationMember, lead: Lead) -> bool:
+    """True se o membro pode ver/editar o lead (regra 2.1.3).
+
+    - ANALYST/MANAGER: acesso total.
+    - CONSULTOR: apenas o próprio funil ou leads não atribuídos.
+    """
+    if is_full_access(member):
+        return True
+    return lead.assigned_to_id is None or lead.assigned_to_id == member.user_id
+
+
 @router.get("")
 def list_leads(
     status: Optional[str] = None,
@@ -154,8 +167,10 @@ def list_leads(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
     query = db.query(Lead).filter(Lead.organization_id == _org.id)
+    query = consultant_lead_scope(member, query)
 
     if status:
         status_list = [s.strip() for s in status.split(",") if s.strip()]
@@ -188,13 +203,18 @@ def lead_stats(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
     base = db.query(Lead).filter(Lead.organization_id == _org.id)
+    base = consultant_lead_scope(member, base)
     total = base.count()
     qualified = base.filter(Lead.status == LeadStatus.QUALIFICADO).count()
     contacted = base.filter(Lead.status == LeadStatus.CONTATADO).count()
     meetings = base.filter(Lead.status == LeadStatus.REUNIAO_MARCADA).count()
-    avg_score = db.query(func.avg(Lead.qualification_score)).filter(Lead.organization_id == _org.id).scalar() or 0
+    avg_score = db.query(func.avg(Lead.qualification_score)).filter(
+        Lead.organization_id == _org.id,
+        (Lead.assigned_to_id == member.user_id) | (Lead.assigned_to_id.is_(None)),
+    ).scalar() or 0 if not is_full_access(member) else db.query(func.avg(Lead.qualification_score)).filter(Lead.organization_id == _org.id).scalar() or 0
 
     by_status = {}
     for s in LeadStatus:
@@ -220,6 +240,7 @@ def update_lead_status(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
@@ -227,6 +248,8 @@ def update_lead_status(
     ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
     previous = lead.status
     lead.status = body.status
@@ -256,12 +279,15 @@ def assign_lead(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
     """Atribui/desatribui um consultor ao lead (mesma organização).
 
     - `assigned_to_id` deve ser um usuário da mesma org (valida).
     - `null` desatribui o lead.
     - Registra ASSIGNED/UNASSIGNED na trilha.
+    - CONSULTOR pode se auto-atribuir um lead não atribuído (regra 2.1.3);
+      não pode mexer em lead de outro consultor.
     """
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
@@ -269,6 +295,8 @@ def assign_lead(
     ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
     new_assignee = None
     if body.assigned_to_id:
@@ -316,6 +344,7 @@ def get_lead(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
@@ -323,6 +352,8 @@ def get_lead(
     ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
     enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
 
@@ -336,6 +367,7 @@ async def generate_messages(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
@@ -343,6 +375,8 @@ async def generate_messages(
     ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
     campaign = (
         db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()

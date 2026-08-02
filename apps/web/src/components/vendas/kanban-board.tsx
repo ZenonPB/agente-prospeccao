@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useLeads, useUpdateLeadStatus } from '@/hooks/use-api';
+import { useLeads, useUpdateLeadStatus, useAssignLead } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
@@ -79,13 +80,18 @@ function KanbanColumnSkeleton() {
 const SALES_STATUSES = 'CONTATADO,RESPONDIDO,REUNIAO_MARCADA,REUNIAO_FEITA,PROPOSTA_ENVIADA';
 
 export function KanbanBoard() {
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const updateStatus = useUpdateLeadStatus();
+  const assignLead = useAssignLead();
   const { data, isLoading, isError, error, refetch } = useLeads({
     status: SALES_STATUSES,
   });
-  const leads = data?.leads || [];
 
-  const columns = useMemo(() => groupLeadsByColumn(leads), [leads]);
+  const columns = useMemo(
+    () => groupLeadsByColumn(data?.leads || []),
+    [data?.leads]
+  );
 
   const onDragEnd = useCallback((result: DropResult) => {
     const { draggableId, destination } = result;
@@ -104,6 +110,21 @@ export function KanbanBoard() {
       }
     );
   }, [updateStatus]);
+
+  const onAssignToMe = useCallback((leadId: string) => {
+    if (!currentUserId) return;
+    assignLead.mutate(
+      { id: leadId, assignedToId: currentUserId },
+      {
+        onSuccess: () => {
+          toast.success('Lead atribuído a você.');
+        },
+        onError: () => {
+          toast.error('Não foi possível atribuir o lead.');
+        },
+      }
+    );
+  }, [currentUserId, assignLead]);
 
   const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);
 
@@ -195,17 +216,63 @@ export function KanbanBoard() {
                               <p className="mb-3 text-sm text-muted-foreground">
                                 {lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}
                               </p>
+                              <div className="mb-2 flex items-center gap-2 text-xs">
+                                {lead.assigned_to_id ? (
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                                      lead.assigned_to_id === currentUserId
+                                        ? 'bg-primary/10 text-primary'
+                                        : 'bg-muted text-muted-foreground'
+                                    }`}
+                                  >
+                                    {lead.assigned_to_id === currentUserId ? (
+                                      <Check className="h-3 w-3" />
+                                    ) : (
+                                      <User className="h-3 w-3" />
+                                    )}
+                                    {lead.assigned_to_id === currentUserId
+                                      ? 'Seu lead'
+                                      : (lead.assigned_to_name || 'Atribuído')}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                                    <User className="h-3 w-3" />
+                                    Não atribuído
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
                                   <span>{Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
                                 </div>
-                                {column.id === 'CONTATADO' && (
-                                  <div className="flex items-center gap-1 text-amber-600">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    <span>Pendente</span>
-                                  </div>
-                                )}
+                                <div className="flex items-center gap-2">
+                                  {column.id === 'CONTATADO' && (
+                                    <div className="flex items-center gap-1 text-amber-600">
+                                      <AlertTriangle className="h-3 w-3" />
+                                      <span>Pendente</span>
+                                    </div>
+                                  )}
+                                  {!lead.assigned_to_id && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-6 gap-1 px-2 text-[11px]"
+                                      disabled={assignLead.isPending && assignLead.variables?.id === lead.id}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAssignToMe(lead.id);
+                                      }}
+                                    >
+                                      {assignLead.isPending && assignLead.variables?.id === lead.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <UserPlus className="h-3 w-3" />
+                                      )}
+                                      Atribuir a mim
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}

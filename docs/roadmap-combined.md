@@ -301,10 +301,13 @@ Branch: `feat/template-crud-ui`
 > **Objetivo**: analista enxerga e exporta; consultor trabalha o próprio funil;
 > papéis isolam; diretoria recebe o PDF.
 
-### Item 2.1 — Papéis de venda ⬜
+### Item 2.1 — Papéis de venda ✅
 
 Branch: `feat/sales-roles`
 **Prioridade**: início da Fase 2 (pré-requisito do BI).
+**Status**: entregue (2026-08-02) — backend E2E validado + frontend
+(badge de papel, página `/configuracoes/membros`, self-assign no kanban,
+`GET /api/orgs/me`, `assigned_to_name`). PR #25 aberto.
 
 | Sub-item | O quê |
 |---|---|
@@ -621,7 +624,7 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 1.3 Geração de template | ✅ Entregue (2026-08-01) | `feat/template-on-demand` (PR #22); Groq 70B + fallback validados |
 | 1.4 Campanha por linguagem natural | ✅ Entregue (2026-08-01) | `feat/nl-campaign-brief`; from-brief + places_query E2E validados |
 | 1.5 CRUD de templates + wizard | ✅ Entregue (2026-08-01) | `feat/template-crud-ui`; CRUD + editor + vínculo E2E validados |
-| 2.1 Papéis de venda | ⬜ Não iniciado | CONSULTOR/ANALYST/MANAGER |
+| 2.1 Papéis de venda | ✅ Entregue (2026-08-02) | `feat/sales-roles` (PR #25); backend + frontend (badge, `/configuracoes/membros`, self-assign no kanban) |
 | 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
 | 2.3 Exportação PDF (weasyprint) | ⬜ Não iniciado | relatório detalhado |
 | 2.4 Frontend relatórios/kanban/mapa | ⬜ Não iniciado | Leaflet + Recharts |

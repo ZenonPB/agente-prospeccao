@@ -14,9 +14,40 @@ from src.db.models import (
     Organization,
     OrganizationMember,
     OrganizationRole,
+    SalesRole,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def is_full_access(member: OrganizationMember) -> bool:
+    """True se o membro enxerga TODOS os leads da org.
+
+    ANALYST/MANAGER (papel de venda) e owner/admin (papel administrativo)
+    têm acesso total. CONSULTOR tem acesso restrito ao próprio funil (ou
+    leads não atribuídos).
+    """
+    if member.sales_role in (SalesRole.ANALYST, SalesRole.MANAGER):
+        return True
+    return member.role in (OrganizationRole.OWNER, OrganizationRole.ADMIN)
+
+
+def consultant_lead_scope(member: OrganizationMember, query):
+    """Aplica o escopo de visibilidade de CONSULTOR à query de leads.
+
+    CONSULTOR vê apenas:
+    - leads atribuídos a ele (`assigned_to_id == member.user_id`), OU
+    - leads não atribuídos (`assigned_to_id IS NULL` — pool para auto-atribuição).
+
+    ANALYST/MANAGER/owner/admin não são filtrados (acesso total).
+    """
+    if is_full_access(member):
+        return query
+    entity = query.column_descriptions[0]["entity"]
+    return query.filter(
+        (entity.assigned_to_id == member.user_id) |
+        (entity.assigned_to_id.is_(None))
+    )
 
 
 def slugify(value: str) -> str:

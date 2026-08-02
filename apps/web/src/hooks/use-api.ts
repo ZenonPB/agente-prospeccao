@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, type ScoringTemplateInput } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, type ScoringTemplateInput } from "@/lib/api";
+import type { SalesRole } from "@/types";
 
 export type SegmentSuggestion = {
   segment: string;
@@ -164,5 +165,43 @@ export function useGenerateMessages() {
   return useMutation({
     mutationFn: ({ id, channel }: { id: string; channel?: "EMAIL" | "WHATSAPP" }) =>
       leadsApi.generateMessages(id, channel),
+  });
+}
+
+export function useOrgMembership() {
+  return useQuery({
+    queryKey: ["org", "me"],
+    queryFn: () => orgsApi.me(),
+  });
+}
+
+export function useOrgMembers(orgId?: string) {
+  return useQuery({
+    queryKey: ["org", orgId, "members"],
+    queryFn: () => orgsApi.listMembers(orgId as string),
+    enabled: !!orgId,
+  });
+}
+
+export function usePatchMemberSalesRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, userId, salesRole }: { orgId: string; userId: string; salesRole: SalesRole }) =>
+      orgsApi.patchMemberSalesRole(orgId, userId, salesRole),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["org"] });
+    },
+  });
+}
+
+export function useAssignLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, assignedToId }: { id: string; assignedToId: string | null }) =>
+      leadsApi.assign(id, assignedToId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
   });
 }
