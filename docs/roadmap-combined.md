@@ -329,10 +329,12 @@ Branch: `feat/sales-roles`
 
 ---
 
-### Item 2.2 — APIs de BI ⬜
+### Item 2.2 — APIs de BI ✅
 
 Branch: `feat/analytics-api`
 **Prioridade**: depende de 1.1 (dados) + 2.1 (papéis).
+**Status**: entregue (2026-08-02) — `AnalyticsService` org-scoped + 6 endpoints
+ANALYST/MANAGER-only; E2E validados em Postgres (dados reais + ACL 200/403).
 
 | Endpoint | Retorna |
 |---|---|
@@ -346,9 +348,9 @@ Branch: `feat/analytics-api`
 Todas **org-scoped** (herdam isolamento). ANALYST/MANAGER-only.
 
 **Critérios de aceite 2.2**
-- [ ] Métricas por consultor refletem atribuição + atividades reais
-- [ ] Dados geo permitem montar heatmap por cidade e mapa por UF
-- [ ] Filtro por período funciona em todos os endpoints
+- [x] Métricas por consultor refletem atribuição + atividades reais
+- [x] Dados geo permitem montar heatmap por cidade e mapa por UF
+- [x] Filtro por período funciona em todos os endpoints
 
 **Commits sugeridos**
 - `feat(api): analytics endpoints (overview, consultants, ranking, geo, campaigns, timeline)`
@@ -625,6 +627,7 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 1.4 Campanha por linguagem natural | ✅ Entregue (2026-08-01) | `feat/nl-campaign-brief`; from-brief + places_query E2E validados |
 | 1.5 CRUD de templates + wizard | ✅ Entregue (2026-08-01) | `feat/template-crud-ui`; CRUD + editor + vínculo E2E validados |
 | 2.1 Papéis de venda | ✅ Entregue (2026-08-02) | `feat/sales-roles` (PR #25); backend + frontend (badge, `/configuracoes/membros`, self-assign no kanban) |
+| 2.2 APIs de BI | ✅ Entregue (2026-08-02) | `feat/analytics-api`; 6 endpoints ANALYST/MANAGER-only org-scoped, E2E validados |
 | 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
 | 2.3 Exportação PDF (weasyprint) | ⬜ Não iniciado | relatório detalhado |
 | 2.4 Frontend relatórios/kanban/mapa | ⬜ Não iniciado | Leaflet + Recharts |

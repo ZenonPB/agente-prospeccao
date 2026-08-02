@@ -270,10 +270,30 @@ automáticos, revisão de `require_org_admin` para ADMIN (hoje ADMIN já passa).
 (gestão de papéis por owner/admin), kanban com self-assign + badge de atribuição, badge no
 perfil, sidebar "Equipe", `GET /api/orgs/me` e `assigned_to_name` no lead. PR #25 aberto.
 
+### Fase 2.2 — APIs de BI ✅ (2026-08-02)
+
+- `src/services/analytics_service.py` (novo) — `AnalyticsService` org-scoped (filtra
+  por `organization_id` em todas as queries; nada vaza entre tenants)
+- `routes/analytics.py` (novo) — 6 endpoints **ANALYST/MANAGER-only**
+  (owner/admin passam); CONSULTOR → 403:
+  - `GET /api/analytics/overview` — KPIs, funil, conversão/reunião/resposta, leads por faixa de score
+  - `GET /api/analytics/consultants` — por consultor: atribuídos, contatados, reuniões, propostas, convertidos, conversão %
+  - `GET /api/analytics/leads-ranking` — top leads (`sort_by=score|converted|created`, filtro campanha/período)
+  - `GET /api/analytics/geo` — agregação por cidade e UF (count, avg_score, convertidos) p/ heatmap + mapa
+  - `GET /api/analytics/campaigns` — leads, qualificados, contatados, reuniões, conversão, receita
+  - `GET /api/analytics/timeline` — evolução temporal `group_by=day|week` (novos, reuniões, fechados)
+- Filtro de período `from`/`to` (YYYY-MM-DD) em todos os endpoints
+- Registrado em `main.py`
+
+**Testado E2E** (banco temporário Postgres + TestClient): dados reais (funil, faixas,
+consultor com 1 conversão, geo cidade/UF com convertidos, receita R$5.000, timeline e
+filtro período) corretos; **ANALYST → 200 em todos; CONSULTOR → 403 em todos**.
+
 ### Próximo passo imediato
 
-1. **Item 2.1 — PR #25 aberto** (`feat/sales-roles`, base main): revisar e mergear.
-   Depois **Item 2.2 — APIs de BI** (`feat/analytics-api`): 6 endpoints ANALYST/MANAGER-only org-scoped.
+1. **Item 2.2 — PR #26 aberto** (`feat/analytics-api`, base main): revisar e mergear.
+   Depois **Item 2.3 — Exportação PDF (weasyprint)** (`feat/analytics-pdf`): relatório
+   completo/detalhado para a diretoria (pedir aprovação para instalar `weasyprint`).
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
