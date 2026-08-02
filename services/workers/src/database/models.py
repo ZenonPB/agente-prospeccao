@@ -188,10 +188,15 @@ class CampaignScoringTemplate(Base):
     # Instruções extras, free-text, injetadas no prompt.
     extra_instructions = Column(Text)
     is_active = Column(Boolean, default=True)
+    # Template gerado por IA sob demanda (item 1.3) — distingue de seeds manuais.
+    is_generated = Column(Boolean, default=False, server_default="false")
+    # Org dona do template (NULL = global/seed); templates gerados são por org.
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     campaigns = relationship("Campaign", back_populates="scoring_template")
+    organization = relationship("Organization")
 
     def __repr__(self):
         return f"<CampaignScoringTemplate(id='{self.id}', service='{self.service_label}')>"
