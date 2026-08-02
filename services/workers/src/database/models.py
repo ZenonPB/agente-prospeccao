@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, UniqueConstraint
+from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -230,9 +230,16 @@ class Lead(Base):
 
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
     campaign = relationship("Campaign", back_populates="leads")
+
+    # Atribuição a consultor de vendas (Fase X1 — desempenho por consultor).
+    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    assigned_at = Column(DateTime(timezone=True), nullable=True)
+    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
+
     enrichments = relationship("Enrichment", back_populates="lead")
     messages = relationship("Message", back_populates="lead")
     conversions = relationship("Conversion", back_populates="lead")
+    activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="lead", cascade="all, delete-orphan")
     company_record = relationship("CompanyRecord", back_populates="lead", uselist=False, cascade="all, delete-orphan")
 
@@ -363,11 +370,56 @@ class Conversion(Base):
     outreach_message_used = Column(Text)
     time_to_close_days = Column(Integer)
     notes = Column(Text)
+    # Quem vendeu/fechou e quem trabalhava o lead no momento (Fase X1).
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     lead = relationship("Lead", back_populates="conversions")
 
     def __repr__(self):
         return f"<Conversion(id='{self.id}', lead_id='{self.lead_id}', service='{self.service_sold}')>"
+
+
+class LeadActivityAction(enum.Enum):
+    """Ações registradas na trilha do lead (Fase X1)."""
+    CREATED = "CREATED"
+    ASSIGNED = "ASSIGNED"
+    UNASSIGNED = "UNASSIGNED"
+    STATUS_CHANGED = "STATUS_CHANGED"
+    MESSAGE_GENERATED = "MESSAGE_GENERATED"
+    CONTACTED = "CONTACTED"
+    RESPONDED = "RESPONDED"
+    MEETING_SCHEDULED = "MEETING_SCHEDULED"
+    CONVERTED = "CONVERTED"
+
+
+class LeadActivity(Base):
+    """Trilha de atividades do lead — quem fez o quê e quando.
+
+    Base das métricas por consultor (BI) e da auditoria. Registrada a cada
+    mudança relevante: atribuição, status, mensagem, contato, reunião,
+    conversão.
+    """
+    __tablename__ = "lead_activities"
+    __table_args__ = (
+        Index("ix_lead_activities_lead_id", "lead_id"),
+        Index("ix_lead_activities_user_id", "user_id"),
+        Index("ix_lead_activities_created_at", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    action = Column(Enum(LeadActivityAction, name='lead_activity_action', create_type=True), nullable=False)
+    status_from = Column(Enum(LeadStatus, name='lead_status', create_type=False), nullable=True)
+    status_to = Column(Enum(LeadStatus, name='lead_status', create_type=False), nullable=True)
+    detail = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    lead = relationship("Lead", back_populates="activities")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<LeadActivity(lead='{self.lead_id}', action='{self.action.value}', at={self.created_at})>"
 
 class Job(Base):
     __tablename__ = "jobs"
