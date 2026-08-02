@@ -206,9 +206,29 @@ mudança de status grava trilha (from/to corretos); trilha aparece no detalhe.
 **Testado:** router classifica "engenharia mecânica" → Eng. Mecânica; "auditoria contábil"
 → Consultoria; geração cria 7 sinais positivos p/ "landing pages para clínicas de psicologia".
 
+### Fase 1.4 — Campanha por linguagem natural ✅ (2026-08-01)
+
+- `campaign_brief_service.py`: `CampaignBriefService.interpret()` — Groq 70B parseia
+  brief PT-BR → `name`, `target_service`, `target_segment`, `target_city`,
+  `target_state`, `analysis_profile`, `places_query`, `scoring_template_label`,
+  `rationale`; validação Pydantic + erro 502 claro em falha (sem fallback inventado)
+- `POST /api/campaigns/from-brief` — devolve a sugestão SEM criar; resolve o template
+  mais próximo via router (exact/fuzzy/LLM) para o review card
+- `campaigns.places_query` (migration `8a1b2c3d4e5f6`) — query otimizada p/ Places;
+  pipeline a usa quando presente (senão monta de target_segment/city/state)
+- Frontend `/campanhas/nova`: toggle **Wizard | Agente**; modo agente = textarea +
+  "Gerar campanha" → review card editável → "Criar" ou "Criar e iniciar coleta"
+- Corrigido erro TS pré-existente (interface `OutreachMessages` duplicada em api.ts)
+
+**Testado E2E:** brief "landing pages p/ clínicas de psicologia em Araraquara" →
+campos corretos + template "SEO / Marketing Digital" (MATCHED); campanha criada
+com `places_query`; pipeline coletou 3 leads de psicologia em Araraquara e
+qualificou 2 (score 62/64) usando a query do agente.
+
 ### Próximo passo imediato
 
-1. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
+1. **Item 1.5 — CRUD de templates + vínculo no wizard** (`feat/template-crud-ui`):
+   `GET/POST/PATCH /api/scoring-templates` + editor de sinais no wizard.
 2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens

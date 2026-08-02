@@ -27,6 +27,16 @@ class CreateCampaignRequest(BaseModel):
     target_state: Optional[str] = None
     target_country: Optional[str] = None
     analysis_profile: str = "web_presence"
+    places_query: Optional[str] = Field(None, max_length=255)
+
+
+class BriefCampaignRequest(BaseModel):
+    """Corpo do POST /api/campaigns/from-brief.
+
+    `brief` é a intenção em linguagem natural (pt-BR), ex.:
+    "quero vender landing pages para clínicas de psicologia em Araraquara".
+    """
+    brief: str = Field(..., min_length=3, max_length=1000)
 
 
 class SuggestSegmentRequest(BaseModel):
@@ -75,6 +85,7 @@ def list_campaigns(
             "target_country": campaign.target_country,
             "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
             "status": campaign.status.value if campaign.status else None,
+            "places_query": campaign.places_query,
             "lead_count": lead_count,
             "avg_score": round(float(avg_score), 1),
             "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -104,6 +115,7 @@ def create_campaign(
         target_state=request.target_state,
         target_country=request.target_country or "Brasil",
         analysis_profile=request.analysis_profile,
+        places_query=request.places_query,
         status=CampaignStatus.ACTIVE,
     )
     db.add(campaign)
@@ -121,6 +133,7 @@ def create_campaign(
         "target_country": campaign.target_country,
         "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
+        "places_query": campaign.places_query,
         "lead_count": 0,
         "avg_score": 0,
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -153,6 +166,62 @@ async def suggest_segment(
     return result
 
 
+@router.post("/from-brief")
+async def create_campaign_from_brief(
+    body: BriefCampaignRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Interpreta um brief em linguagem natural e devolve a campanha sugerida.
+
+    Item 1.4: o usuário descreve o que quer prospectar ("quero vender landing
+    pages para clínicas de psicologia em Araraquara") e a IA devolve os campos
+    estruturados (name, target_service, target_segment, target_city,
+    target_state, analysis_profile, places_query) + rationale.
+
+    NÃO cria a campanha — o usuário revisa/edita os campos e confirma via
+    `POST /api/campaigns`. Também resolve o template de scoring mais próximo
+    (matched via router exact/fuzzy/LLM), semelhante ao que o pipeline fará,
+    para o review card exibir qual template será usado.
+    """
+    # Importa o serviço dos workers (fonte única) e o router de template.
+    from services.campaign_brief_service import CampaignBriefService
+    from services.template_router import route_scoring_template
+    from src.db.models import CampaignScoringTemplate
+
+    service = CampaignBriefService()
+    try:
+        suggestion = await service.interpret(body.brief)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+    # Resolve o template de scoring mais próximo para o review card.
+    template_info = await route_scoring_template(
+        db,
+        target_service=suggestion.get("target_service") or "",
+        target_segment=suggestion.get("target_segment") or "",
+    )
+    scoring_template_id = None
+    scoring_template_label = None
+    if template_info.get("template") and template_info.get("matched_label"):
+        matched_label = template_info["matched_label"]
+        tmpl = db.query(CampaignScoringTemplate).filter(
+            CampaignScoringTemplate.service_label == matched_label,
+            CampaignScoringTemplate.is_active.is_(True),
+        ).first()
+        if tmpl:
+            scoring_template_id = str(tmpl.id)
+            scoring_template_label = tmpl.service_label
+
+    return {
+        **suggestion,
+        "scoring_template_id": scoring_template_id,
+        "scoring_template_label": scoring_template_label,
+        "template_route": template_info.get("route"),
+    }
+
+
 @router.get("/{campaign_id}")
 def get_campaign(
     campaign_id: str,
@@ -180,6 +249,7 @@ def get_campaign(
         "target_country": campaign.target_country,
         "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
+        "places_query": campaign.places_query,
         "lead_count": lead_count,
         "avg_score": round(float(avg_score), 1),
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,

@@ -71,6 +71,14 @@ export function useSuggestSegment() {
   });
 }
 
+export function useCampaignFromBrief() {
+  return useMutation({
+    mutationFn: (brief: string) => campaignsApi.fromBrief(brief),
+  });
+}
+
+export type CampaignBrief = Awaited<ReturnType<typeof campaignsApi.fromBrief>>;
+
 export function useMetrics() {
   return useQuery({
     queryKey: ["metrics"],
