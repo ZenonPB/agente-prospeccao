@@ -17,6 +17,7 @@ _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", 
 sys.path.insert(0, _workers_path)
 from services.cnpj_service import CnpjService  # noqa: E402
 from services.outreach_service import OutreachService  # noqa: E402
+from src.services.pitch_service import build_pitch_one_pager, build_site_audit  # noqa: E402
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -358,6 +359,41 @@ def get_lead(
     enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
 
     return _lead_detail(lead, enrichment)
+
+
+@router.get("/{lead_id}/pitch")
+def get_lead_pitch(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+    campaign = (
+        db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        if lead.campaign_id else None
+    )
+    contacts = (
+        db.query(Contact)
+        .filter(Contact.lead_id == lead.id)
+        .order_by(Contact.is_primary.desc())
+        .all()
+    )
+    company_record = (
+        db.query(CompanyRecord).filter(CompanyRecord.lead_id == lead.id).first()
+    )
+
+    return build_pitch_one_pager(lead, enrichment, campaign, contacts, company_record)
 
 
 @router.post("/{lead_id}/generate-messages")
