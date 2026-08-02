@@ -193,15 +193,45 @@ diferentes persiste; duplicata na mesma org rejeitada; A não vê lead/campanha 
 **Testado E2E:** atribuir consultor da mesma org OK; atribuir usuário de outra org → 403;
 mudança de status grava trilha (from/to corretos); trilha aparece no detalhe.
 
+### Fase 1.2/1.3 — Router + geração de template sob demanda ✅ (2026-08-01)
+
+- `template_router.py`: `route_scoring_template()` — exact → fuzzy (token overlap) →
+  LLM (Groq 8B) → `GENERATE_NEW`/Genérico; cache em memória (256, chave=texto+labels)
+- `template_generation_service.py`: `TemplateGenerationService.generate()` — Groq 70B
+  cria `positive/negative/context_signals` + flags + `extra_instructions` no schema do
+  seed; persiste com `is_generated=True` + `organization_id`; reutiliza por label; fallback Genérico
+- `campaign_scoring_templates.is_generated` + `organization_id` (migration `7d4e5f6a8b9c0`)
+- `pipeline_worker.py`: consome `GENERATE_NEW` → gera e vincula o template à campanha
+
+**Testado:** router classifica "engenharia mecânica" → Eng. Mecânica; "auditoria contábil"
+→ Consultoria; geração cria 7 sinais positivos p/ "landing pages para clínicas de psicologia".
+
+### Fase 1.4 — Campanha por linguagem natural ✅ (2026-08-01)
+
+- `campaign_brief_service.py`: `CampaignBriefService.interpret()` — Groq 70B parseia
+  brief PT-BR → `name`, `target_service`, `target_segment`, `target_city`,
+  `target_state`, `analysis_profile`, `places_query`, `scoring_template_label`,
+  `rationale`; validação Pydantic + erro 502 claro em falha (sem fallback inventado)
+- `POST /api/campaigns/from-brief` — devolve a sugestão SEM criar; resolve o template
+  mais próximo via router (exact/fuzzy/LLM) para o review card
+- `campaigns.places_query` (migration `8a1b2c3d4e5f6`) — query otimizada p/ Places;
+  pipeline a usa quando presente (senão monta de target_segment/city/state)
+- Frontend `/campanhas/nova`: toggle **Wizard | Agente**; modo agente = textarea +
+  "Gerar campanha" → review card editável → "Criar" ou "Criar e iniciar coleta"
+- Corrigido erro TS pré-existente (interface `OutreachMessages` duplicada em api.ts)
+
+**Testado E2E:** brief "landing pages p/ clínicas de psicologia em Araraquara" →
+campos corretos + template "SEO / Marketing Digital" (MATCHED); campanha criada
+com `places_query`; pipeline coletou 3 leads de psicologia em Araraquara e
+qualificou 2 (score 62/64) usando a query do agente.
+
 ### Próximo passo imediato
 
-1. **Item 1.3 — Geração de template sob demanda** (`feat/template-on-demand`): a IA
-   cria os critérios da vertical (nada hardcoded). Consome o sinal `GENERATE_NEW`
-   do router (item 1.2) para gerar e persistir o template.
-2. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
-3. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
+1. **Item 1.5 — CRUD de templates + vínculo no wizard** (`feat/template-crud-ui`):
+   `GET/POST/PATCH /api/scoring-templates` + editor de sinais no wizard.
+2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
-4. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
+3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
    e humano.

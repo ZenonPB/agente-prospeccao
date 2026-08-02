@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog, Sparkles, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog, Sparkles, MapPin, Wand2, ListOrdered, Send } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { useCreateCampaign, useSuggestSegment, type SegmentSuggestion } from '@/hooks/use-api';
+import { useCreateCampaign, useSuggestSegment, useCampaignFromBrief, type SegmentSuggestion, type CampaignBrief } from '@/hooks/use-api';
 
 const steps = [
   { id: 1, title: 'Perfil da prospecção' },
@@ -45,14 +46,21 @@ const segmentSuggestions = [
   'Farmácias',
 ];
 
+type Mode = 'wizard' | 'agente';
+
 export default function NovaCampanhaPage() {
   const router = useRouter();
   const createCampaign = useCreateCampaign();
   const suggestSegment = useSuggestSegment();
+  const campaignFromBrief = useCampaignFromBrief();
+  const [mode, setMode] = useState<Mode>('wizard');
   const [currentStep, setCurrentStep] = useState(1);
   const [error, setError] = useState('');
   const [suggestion, setSuggestion] = useState<SegmentSuggestion | null>(null);
   const [excludedSuggestions, setExcludedSuggestions] = useState<string[]>([]);
+  const [brief, setBrief] = useState('');
+  const [briefResult, setBriefResult] = useState<CampaignBrief | null>(null);
+  const [briefDraft, setBriefDraft] = useState<CampaignBrief | null>(null);
   const [formData, setFormData] = useState({
     analysisProfile: 'web_presence',
     segment: '',
@@ -125,6 +133,52 @@ export default function NovaCampanhaPage() {
     }
   };
 
+  const handleGenerateBrief = async () => {
+    setError('');
+    if (!brief.trim()) {
+      setError('Descreva o que você quer prospectar');
+      return;
+    }
+    try {
+      const result = await campaignFromBrief.mutateAsync(brief);
+      setBriefResult(result);
+      setBriefDraft({ ...result });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao interpretar o brief');
+    }
+  };
+
+  const handleConfirmBrief = async (startCollection: boolean) => {
+    setError('');
+    if (!briefDraft) return;
+    if (!briefDraft.name.trim() || !briefDraft.target_segment.trim()) {
+      setError('Preencha ao menos nome e segmento-alvo');
+      return;
+    }
+    try {
+      const campaign = await createCampaign.mutateAsync({
+        name: briefDraft.name,
+        analysis_profile: briefDraft.analysis_profile,
+        target_service: briefDraft.target_service || undefined,
+        target_segment: briefDraft.target_segment || undefined,
+        target_city: briefDraft.target_city || undefined,
+        target_state: briefDraft.target_state || undefined,
+        places_query: briefDraft.places_query || undefined,
+      });
+      if (startCollection) {
+        router.push(`/campanhas/${campaign.id}`);
+      } else {
+        router.push('/campanhas');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
+    }
+  };
+
+  const updateBriefDraft = (patch: Partial<CampaignBrief>) => {
+    setBriefDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
+
   const profileLabel =
     formData.analysisProfile === 'web_presence'
       ? 'Serviços digitais'
@@ -146,6 +200,223 @@ export default function NovaCampanhaPage() {
         </div>
       </div>
 
+      {/* Mode toggle */}
+      <div className="flex items-center gap-2 rounded-lg border bg-card p-1">
+        <button
+          type="button"
+          onClick={() => setMode('agente')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            mode === 'agente' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <Wand2 className="h-4 w-4" />
+          Agente (descreva o que quer vender)
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('wizard')}
+          className={cn(
+            'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            mode === 'wizard' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <ListOrdered className="h-4 w-4" />
+          Wizard (passo a passo)
+        </button>
+      </div>
+
+      {mode === 'agente' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Descreva sua prospecção</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {!briefResult ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="brief">O que você quer prospectar?</Label>
+                  <Textarea
+                    id="brief"
+                    rows={4}
+                    placeholder='Ex.: "quero vender landing pages para clínicas de psicologia em Araraquara" ou "projetos de engenharia mecânica para metalúrgicas em São Paulo"'
+                    value={brief}
+                    onChange={(e) => setBrief(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Escreva em português, do jeito que você falaria: serviço + público + (opcional) cidade.
+                  </p>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={handleGenerateBrief}
+                  disabled={campaignFromBrief.isPending}
+                >
+                  {campaignFromBrief.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Interpretando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Gerar campanha
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              briefDraft && (
+                <div className="space-y-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                          Sugestão da IA — revise e edite
+                        </span>
+                      </div>
+                      {briefDraft.rationale && (
+                        <p className="text-sm text-muted-foreground">{briefDraft.rationale}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setBriefResult(null);
+                        setBriefDraft(null);
+                        setBrief('');
+                      }}
+                    >
+                      Recomeçar
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-name">Nome da campanha</Label>
+                    <Input
+                      id="brief-name"
+                      value={briefDraft.name}
+                      onChange={(e) => updateBriefDraft({ name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="brief-service">Serviço que você vende</Label>
+                      <Input
+                        id="brief-service"
+                        value={briefDraft.target_service}
+                        onChange={(e) => updateBriefDraft({ target_service: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="brief-segment">Segmento-alvo</Label>
+                      <Input
+                        id="brief-segment"
+                        value={briefDraft.target_segment}
+                        onChange={(e) => updateBriefDraft({ target_segment: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="brief-city">Cidade</Label>
+                      <Input
+                        id="brief-city"
+                        value={briefDraft.target_city}
+                        onChange={(e) => updateBriefDraft({ target_city: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="brief-state">Estado</Label>
+                      <Input
+                        id="brief-state"
+                        placeholder="UF (ex.: SP)"
+                        value={briefDraft.target_state}
+                        onChange={(e) => updateBriefDraft({ target_state: e.target.value.toUpperCase() })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-profile">Perfil da prospecção</Label>
+                    <Select
+                      value={briefDraft.analysis_profile}
+                      onValueChange={(value) =>
+                        value && updateBriefDraft({ analysis_profile: value as 'web_presence' | 'business_opportunity' })
+                      }
+                    >
+                      <SelectTrigger id="brief-profile">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="web_presence">Serviços digitais</SelectItem>
+                        <SelectItem value="business_opportunity">Serviços industriais/presenciais</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-query">Query do Google Maps (coleta)</Label>
+                    <Input
+                      id="brief-query"
+                      value={briefDraft.places_query}
+                      onChange={(e) => updateBriefDraft({ places_query: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Como um cliente pesquisaria no Google Maps para encontrar o segmento.
+                    </p>
+                  </div>
+
+                  {briefDraft.scoring_template_label && (
+                    <div className="flex items-center gap-2 rounded-lg border bg-muted p-3 text-sm">
+                      <Badge variant="secondary">Template de critérios</Badge>
+                      <span>{briefDraft.scoring_template_label}</span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleConfirmBrief(false)}
+                      disabled={createCampaign.isPending}
+                    >
+                      {createCampaign.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Check className="mr-2 h-4 w-4" />
+                      )}
+                      Criar campanha
+                    </Button>
+                    <Button
+                      onClick={() => handleConfirmBrief(true)}
+                      disabled={createCampaign.isPending}
+                    >
+                      {createCampaign.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="mr-2 h-4 w-4" />
+                      )}
+                      Criar e iniciar coleta
+                    </Button>
+                  </div>
+                </div>
+              )
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
       {/* Progress Steps */}
       <div className="flex items-center justify-between">
         {steps.map((step, index) => (
@@ -454,6 +725,8 @@ export default function NovaCampanhaPage() {
           </Button>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

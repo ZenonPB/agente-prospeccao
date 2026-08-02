@@ -66,6 +66,7 @@ export interface Campaign {
   target_state?: string;
   target_country?: string;
   analysis_profile?: 'web_presence' | 'business_opportunity';
+  places_query?: string;
   status: CampaignStatus;
   lead_count?: number;
   avg_score?: number;

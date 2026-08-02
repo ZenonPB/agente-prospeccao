@@ -8,9 +8,10 @@ from datetime import datetime, timezone
 from typing import AsyncGenerator, Dict, Any
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sqlfunc
 
 from src.db.session import SessionLocal
-from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile
+from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile, CampaignScoringTemplate
 
 # Importa serviços dos workers
 import sys
@@ -23,6 +24,7 @@ from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
 from services.enrichment_orchestrator import process_single_lead
 from services.template_router import route_scoring_template
+from services.template_generation_service import TemplateGenerationService
 
 logger = logging.getLogger(__name__)
 
@@ -70,14 +72,18 @@ async def run_pipeline(
             if campaign:
                 analysis_profile = campaign.analysis_profile or AnalysisProfile.WEB_PRESENCE
                 if not query and not reanalyze_only:
-                    parts = []
-                    if campaign.target_segment:
-                        parts.append(campaign.target_segment)
-                    if campaign.target_city:
-                        parts.append(campaign.target_city)
-                    if campaign.target_state:
-                        parts.append(campaign.target_state)
-                    query = ', '.join(parts) if parts else campaign.name
+                    if campaign.places_query:
+                        # Query sugerida pelo agente (item 1.4) — prioridade.
+                        query = campaign.places_query
+                    else:
+                        parts = []
+                        if campaign.target_segment:
+                            parts.append(campaign.target_segment)
+                        if campaign.target_city:
+                            parts.append(campaign.target_city)
+                        if campaign.target_state:
+                            parts.append(campaign.target_state)
+                        query = ', '.join(parts) if parts else campaign.name
 
         if not query:
             query = "empresas"
@@ -160,7 +166,7 @@ async def run_pipeline(
         scoring_service = AIScoringService()
 
         # Carrega template de critérios contextual da campanha (uma vez para todo o batch).
-        # Router inteligente: exact → fuzzy → LLM → Genérico (item 1.2).
+        # Router inteligente: exact → fuzzy → LLM → geração sob demanda → Genérico (itens 1.2/1.3).
         scoring_template = None
         if campaign:
             route_result = await route_scoring_template(
@@ -175,9 +181,39 @@ async def run_pipeline(
             if route_label == "GENERATE_NEW":
                 yield {
                     "type": "log",
-                    "message": "Vertical nova detectada — template será gerado sob demanda (item 1.3). Usando Genérico por ora.",
+                    "message": "Vertical nova detectada — gerando template de critérios sob demanda...",
                     "timestamp": _ts(),
                 }
+                try:
+                    generation = TemplateGenerationService()
+                    scoring_template = await generation.generate(
+                        db,
+                        target_service=campaign.target_service or "",
+                        target_segment=campaign.target_segment or "",
+                        organization_id=str(campaign.organization_id),
+                    )
+                    if scoring_template:
+                        # Vincula o template gerado à campanha para reuso.
+                        label = scoring_template.get("service_label", "")
+                        tmpl_row = (
+                            db.query(CampaignScoringTemplate)
+                            .filter(
+                                sqlfunc.lower(CampaignScoringTemplate.service_label) == label.lower().strip(),
+                                CampaignScoringTemplate.is_active.is_(True),
+                            )
+                            .order_by(CampaignScoringTemplate.created_at.asc())
+                            .first()
+                        )
+                        if tmpl_row:
+                            campaign.scoring_template_id = tmpl_row.id
+                            db.flush()
+                        yield {
+                            "type": "log",
+                            "message": f"Template gerado: {scoring_template.get('service_label')}",
+                            "timestamp": _ts(),
+                        }
+                except Exception as e:
+                    logger.warning("Falha ao gerar template sob demanda: %s", e)
             elif scoring_template:
                 yield {
                     "type": "log",
