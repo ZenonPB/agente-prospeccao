@@ -195,18 +195,17 @@ mudança de status grava trilha (from/to corretos); trilha aparece no detalhe.
 
 ### Próximo passo imediato
 
-1. **Item 1.2 — Router de template** (`feat/smart-template-router`): match fuzzy + LLM
-   em `load_scoring_template` + cache. Qualidade do score em qualquer vertical.
-2. **Item 1.3 — Geração de template sob demanda** (`feat/template-on-demand`): a IA
-   cria os critérios da vertical (nada hardcoded).
-3. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
-4. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
+1. **Item 1.3 — Geração de template sob demanda** (`feat/template-on-demand`): a IA
+   cria os critérios da vertical (nada hardcoded). Consome o sinal `GENERATE_NEW`
+   do router (item 1.2) para gerar e persistir o template.
+2. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
+3. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
-3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
+4. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
    e humano.
-4. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
+5. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
 
 ## Como rodar
 
