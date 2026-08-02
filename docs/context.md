@@ -326,18 +326,32 @@ filtro período) corretos; **ANALYST → 200 em todos; CONSULTOR → 403 em todo
 **Build**: `npm run build` OK (rota `/relatorios`); lint sem erros novos (4 erros são
 pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server responde.
 
+### Fase 2.5 — Pitch one-pager + site audit ✅ (2026-08-02)
+
+- `src/services/pitch_service.py` (novo) — `build_pitch_one_pager()` e `build_site_audit()`:
+  consolida identidade (CNPJ/porte/CNAE), contexto da campanha, qualificação (score, dores,
+  necessidade), pitch (gancho, assunto), fatores +/−, evidências, contato principal e auditoria do site
+  (SSL, CMS, velocidade, segurança, SEO, LGPD, caminhos expostos)
+- `GET /api/leads/{id}/pitch` (endpoint novo no `routes/leads.py`): retorna o pitch one-pager
+  estruturado para o vendedor/consultor
+- `pdf_report_service.py`: inclui dossiê das 3 melhores oportunidades no PDF do relatório executivo
+- Frontend:
+  - Rota `/oportunidades/[id]`: nova aba **Pitch One-Pager** (`LeadPitchTab`) com cards de pitch,
+    identidade cadastral, contato principal, fatores de qualificação, evidências e auditoria do site
+  - `leadsApi.getPitch` e hook `useLeadPitch`
+  - Interfaces `PitchOnePager`, `SiteAudit`, `SiteAuditSection` em `types/index.ts`
+
 ### Próximo passo imediato
 
-1. **Item 2.4 — PR #28 aberto** (`feat/analytics-web`, base main): revisar e mergear.
-   Depois **Item 2.5 — Pitch one-pager + site audit** (`feat/pitch-one-pager`):
-   `GET /api/leads/{id}/pitch` + site audit legível + exposição no detalhe/PDF.
-2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
+1. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
+2. **Fase 3 — Ampliar fontes e fechar o loop:**
+   - **Item 3.1 — Import CSV** (`feat/csv-import`): endpoint + UI para importação de leads via CSV.
+   - **Item 3.2 — Descoberta por CNAE** (`feat/cnae-discovery`).
+   - **Item 3.3 — Enriquecimento adaptativo** (`feat/adaptive-enrichment`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
-   `generate-messages` e revisar o `body_opening` Lagrangeando entre específico
-   e humano.
-4. UI futura: gerenciar templates de scoring (CRUD de `campaign_scoring_templates`) e vincular à campanha no wizard
+   `generate-messages` e revisar o `body_opening`.
 
 ## Como rodar
 
