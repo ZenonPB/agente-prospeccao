@@ -47,7 +47,21 @@ const statusLabels: Record<string, string> = {
   CONTATADO: 'Contatado',
   RESPONDIDO: 'Respondeu',
   REUNIAO_MARCADA: 'Reunião marcada',
+  REUNIAO_FEITA: 'Reunião realizada',
+  PROPOSTA_ENVIADA: 'Proposta enviada',
   PERDIDO: 'Perdido',
+};
+
+const activityLabels: Record<string, string> = {
+  CREATED: 'Lead criado',
+  ASSIGNED: 'Atribuído a consultor',
+  UNASSIGNED: 'Lead desatribuído',
+  STATUS_CHANGED: 'Status alterado',
+  MESSAGE_GENERATED: 'Mensagem gerada',
+  CONTACTED: 'Contato realizado',
+  RESPONDED: 'Lead respondeu',
+  MEETING_SCHEDULED: 'Reunião marcada',
+  CONVERTED: 'Conversão registrada',
 };
 
 export default function LeadDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -122,6 +136,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           <TabsTrigger value="evidence" className="h-9">Evidências</TabsTrigger>
           <TabsTrigger value="technical" className="h-9">Análise do site</TabsTrigger>
           <TabsTrigger value="contacts" className="h-9">Contatos</TabsTrigger>
+          <TabsTrigger value="activities" className="h-9">Atividades</TabsTrigger>
           <TabsTrigger value="actions" className="h-9">Ações</TabsTrigger>
         </TabsList>
 
@@ -205,7 +220,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 {lead.suggested_subject && (
                   <div>
                     <p className="text-sm text-muted-foreground">Sugestão de assunto para e-mail:</p>
-                    <p className="text-sm mt-1 italic">"{lead.suggested_subject}"</p>
+                    <p className="text-sm mt-1 italic">&ldquo;{lead.suggested_subject}&rdquo;</p>
                   </div>
                 )}
               </CardContent>
@@ -278,6 +293,46 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               <p className="text-sm text-muted-foreground">
                 A busca por contatos de decisores será disponibilizada em breve.
               </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="activities" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Trilha de atividades</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {lead.activities && lead.activities.length > 0 ? (
+                <ol className="relative space-y-4 border-l pl-6">
+                  {lead.activities.map((activity) => (
+                    <li key={activity.id} className="relative">
+                      <span className="absolute -left-[31px] flex h-4 w-4 items-center justify-center rounded-full border-2 border-background bg-primary" />
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="font-medium">{activityLabels[activity.action] || activity.action}</span>
+                        {activity.user_name && (
+                          <span className="text-xs text-muted-foreground">por {activity.user_name}</span>
+                        )}
+                        <span className="ml-auto text-xs text-muted-foreground">
+                          {new Date(activity.created_at).toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      {activity.status_from && activity.status_to && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {statusLabels[activity.status_from] || activity.status_from} → {statusLabels[activity.status_to] || activity.status_to}
+                        </p>
+                      )}
+                      {activity.detail && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">{activity.detail}</p>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma atividade registrada ainda.
+                </p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
