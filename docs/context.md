@@ -176,12 +176,31 @@
 **Testado E2E:** registro de 2 usuários → orgs separadas; mesmo `place_id` em orgs
 diferentes persiste; duplicata na mesma org rejeitada; A não vê lead/campanha de B (404).
 
+### Fase X1 — Atribuição de leads + trilha (item 1.1 do roadmap) ✅ (2026-08-01)
+
+- `Lead.assigned_to_id` (FK users) + `Lead.assigned_at` — dono do lead (consultor)
+- Tabela `lead_activities` + enum `lead_activity_action` (CREATED/ASSIGNED/UNASSIGNED/
+  STATUS_CHANGED/MESSAGE_GENERATED/CONTACTED/RESPONDED/MEETING_SCHEDULED/CONVERTED)
+- `Conversion.user_id` + `Conversion.assigned_to_id` (quem fechou / quem trabalhava)
+- `lead_activity_service.py`: `log_activity()` / `log_status_change()` — gravação central
+- `PATCH /api/leads/{id}/assign` — atribui/desatribui (valida membro da mesma org, 403
+  se não pertencer); grava ASSIGNED/UNASSIGNED
+- `PATCH /api/leads/{id}/status` agora grava STATUS_CHANGED com status anterior
+- `POST /api/leads/{id}/generate-messages` grava MESSAGE_GENERATED
+- Detalhe do lead (`_lead_detail`) expõe `assigned_to` + `activities[]` (trilha)
+- Migration `6b3c2a1d9e8f4`
+
+**Testado E2E:** atribuir consultor da mesma org OK; atribuir usuário de outra org → 403;
+mudança de status grava trilha (from/to corretos); trilha aparece no detalhe.
+
 ### Próximo passo imediato
 
-1. **Fase B — Templates inteligentes (P0/P1):** router fuzzy/LLM de `CampaignScoringTemplate`
-   para `target_service`/`segment`, geração de template sob demanda, CRUD na UI.
-   (Branch sugerida: `feat/smart-scoring-templates`)
-2. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
+1. **Item 1.2 — Router de template** (`feat/smart-template-router`): match fuzzy + LLM
+   em `load_scoring_template` + cache. Qualidade do score em qualquer vertical.
+2. **Item 1.3 — Geração de template sob demanda** (`feat/template-on-demand`): a IA
+   cria os critérios da vertical (nada hardcoded).
+3. **Item 1.4 — Campanha por linguagem natural** (`feat/nl-campaign-brief`).
+4. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
    (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
 3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
