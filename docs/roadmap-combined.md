@@ -264,10 +264,11 @@ Branch: `feat/nl-campaign-brief`
 
 ---
 
-### Item 1.5 — CRUD de templates + vínculo no wizard ⬜
+### Item 1.5 — CRUD de templates + vínculo no wizard ✅
 
 Branch: `feat/template-crud-ui`
 **Prioridade**: 2º sprint da Fase 1.
+**Status**: entregue — `GET/POST/PATCH /api/scoring-templates` + `PATCH /api/campaigns/{id}` (vínculo) + `template-selector.tsx` no wizard (editor de sinais + revisão de gerados).
 
 | Sub-item | O quê |
 |---|---|
@@ -619,7 +620,7 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 1.2 Router de template | ✅ Entregue (2026-08-01) | `feat/smart-template-router`; fuzzy + LLM + cache validados |
 | 1.3 Geração de template | ✅ Entregue (2026-08-01) | `feat/template-on-demand` (PR #22); Groq 70B + fallback validados |
 | 1.4 Campanha por linguagem natural | ✅ Entregue (2026-08-01) | `feat/nl-campaign-brief`; from-brief + places_query E2E validados |
-| 1.5 CRUD de templates + wizard | ⬜ Não iniciado | revisão humana |
+| 1.5 CRUD de templates + wizard | ✅ Entregue (2026-08-01) | `feat/template-crud-ui`; CRUD + editor + vínculo E2E validados |
 | 2.1 Papéis de venda | ⬜ Não iniciado | CONSULTOR/ANALYST/MANAGER |
 | 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
 | 2.3 Exportação PDF (weasyprint) | ⬜ Não iniciado | relatório detalhado |
