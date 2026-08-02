@@ -385,28 +385,31 @@ CONSULTOR 403).
 
 ---
 
-### Item 2.4 — Frontend: relatórios + kanban + mapa ⬜
+### Item 2.4 — Frontend: relatórios + kanban + mapa ✅
 
 Branch: `feat/analytics-web`
 **Prioridade**: depende de 2.1+2.2+2.3.
+**Status**: entregue (2026-08-02) — `/relatorios` (MANAGER/ANALYST), mapa Leaflet
+por UF + heatmap Recharts, export PDF, kanban com atribuição, trilha de atividades
+no detalhe do lead. Dependências aprovadas: `leaflet`/`react-leaflet`/`@types/leaflet`.
 
 | Sub-item | O quê |
 |---|---|
 | 2.4.1 | Nova rota `/relatorios` (guarda MANAGER/ANALYST): visão executiva, melhores leads, mapa, desempenho por consultor, timeline, filtro período, botão "Exportar PDF" |
-| 2.4.2 | **Mapa** — heatmap por cidade (tabela/gráfico Recharts, já instalado) + mapa interativo **Leaflet** (dependência nova; pedir aprovação) |
+| 2.4.2 | **Mapa** — heatmap por cidade (Recharts) + mapa interativo **Leaflet** por UF (dependência aprovada; centroides estáticos, sem geocodificação) |
 | 2.4.3 | Kanban `/vendas`: menu "Atribuir a mim / para outro"; consultor vê só os próprios |
 | 2.4.4 | Detalhe do lead: trilha de atividades (quem fez o quê) |
 
 **Critérios de aceite 2.4**
-- [ ] Analista vê todos os relatórios e exporta PDF
-- [ ] Consultor vê kanban só com seus leads + pode se atribuir não atribuídos
-- [ ] Mapa e heatmap renderizam com dados reais
-- [ ] Trilha de atividades visível no detalhe do lead
+- [x] Analista vê todos os relatórios e exporta PDF
+- [x] Consultor vê kanban só com seus leads + pode se atribuir não atribuídos
+- [x] Mapa e heatmap renderizam com dados reais
+- [x] Trilha de atividades visível no detalhe do lead
 
 **Commits sugeridos**
-- `feat(web): analytics reports page`
-- `feat(web): leaflet map and city heatmap`
-- `feat(web): kanban assignment and lead activity timeline`
+- `feat(web): analytics api client, hooks and report types`
+- `feat(web): executive reports page with kpis, funnel, map and timeline`
+- `feat(web): kanban assign-to menu, reports nav and lead activity trail`
 
 ---
 
@@ -631,7 +634,8 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 1.5 CRUD de templates + wizard | ✅ Entregue (2026-08-01) | `feat/template-crud-ui`; CRUD + editor + vínculo E2E validados |
 | 2.1 Papéis de venda | ✅ Entregue (2026-08-02) | `feat/sales-roles` (PR #25); backend + frontend (badge, `/configuracoes/membros`, self-assign no kanban) |
 | 2.2 APIs de BI | ✅ Entregue (2026-08-02) | `feat/analytics-api` (PR #26); 6 endpoints ANALYST/MANAGER-only org-scoped, E2E validados |
-| 2.3 Exportação PDF (weasyprint) | ✅ Entregue (2026-08-02) | `feat/analytics-pdf`; relatório completo via weasyprint, E2E validado |
+| 2.3 Exportação PDF (weasyprint) | ✅ Entregue (2026-08-02) | `feat/analytics-pdf` (PR #27); relatório completo via weasyprint, E2E validado |
+| 2.4 Frontend relatórios/kanban/mapa | ✅ Entregue (2026-08-02) | `feat/analytics-web`; `/relatorios` (Leaflet + Recharts + export PDF), kanban assign, trilha no detalhe |
 | 2.2 APIs de BI | ⬜ Não iniciado | 6 endpoints |
 | 2.3 Exportação PDF (weasyprint) | ⬜ Não iniciado | relatório detalhado |
 | 2.4 Frontend relatórios/kanban/mapa | ⬜ Não iniciado | Leaflet + Recharts |
