@@ -12,6 +12,10 @@ export type CampaignStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
 
 export type LeadPriority = 'HOT' | 'WARM' | 'COLD';
 
+export type SalesRole = 'CONSULTOR' | 'ANALYST' | 'MANAGER';
+
+export type OrgRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+
 export interface ScoreFactor {
   label: string;
   impact: '+' | '-';
@@ -52,8 +56,34 @@ export interface Lead {
   score_factors?: ScoreFactor[];
   evidence?: EvidenceItem[];
   campaign_id?: string;
+  assigned_to_id?: string;
+  assigned_to_name?: string;
+  assigned_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface OrganizationMember {
+  organization_id: string;
+  user_id: string;
+  name?: string;
+  email?: string;
+  role: OrgRole;
+  sales_role: SalesRole;
+  created_at?: string;
+}
+
+export interface OrgMembership {
+  organization: {
+    id: string;
+    name?: string;
+    slug?: string;
+  };
+  membership: {
+    role: OrgRole;
+    sales_role: SalesRole;
+    user_id: string;
+  };
 }
 
 export interface Campaign {

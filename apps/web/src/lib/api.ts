@@ -1,6 +1,7 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment } from "@/types";
 import type { OutreachMessages } from "@/types";
+import type { OrgMembership, OrganizationMember, SalesRole } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -94,6 +95,12 @@ export const leadsApi = {
     request<{ id: string; company_name: string; status: string }>(`/api/leads/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
+    }),
+
+  assign: (id: string, assignedToId: string | null) =>
+    request<{ id: string; company_name: string; assigned_to_id: string | null; assigned_at: string | null; assigned_to_name: string | null; previous_assignee_id: string | null }>(`/api/leads/${id}/assign`, {
+      method: "PATCH",
+      body: JSON.stringify({ assigned_to_id: assignedToId }),
     }),
 
   generateMessages: (id: string, channel: "EMAIL" | "WHATSAPP" = "EMAIL") =>
@@ -211,6 +218,20 @@ export const metricsApi = {
       response_rate: number;
       funnel: { stage: string; count: number }[];
     }>("/api/metrics"),
+};
+
+export const orgsApi = {
+  me: () =>
+    request<OrgMembership>("/api/orgs/me"),
+
+  listMembers: (orgId: string) =>
+    request<{ members: OrganizationMember[] }>(`/api/orgs/${orgId}/members`),
+
+  patchMemberSalesRole: (orgId: string, userId: string, salesRole: SalesRole) =>
+    request<OrganizationMember>(`/api/orgs/${orgId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ sales_role: salesRole }),
+    }),
 };
 
 export interface ScoringTemplate {
