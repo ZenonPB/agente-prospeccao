@@ -342,6 +342,9 @@ class Contact(Base):
     phone = Column(String(50))
     document_cpf = Column(String(20))
     confidence = Column(Integer, default=0)
+    # Fase 3.4 — canal LinkedIn do decisor (busca passiva + validação HEAD).
+    linkedin_url = Column(String(255))
+    linkedin_confidence = Column(Integer, default=0)
     is_primary = Column(Boolean, default=False)
     source = Column(String(60), default="cnpj_receita")
     raw_data = Column(JSONB)
@@ -417,6 +420,7 @@ class LeadActivityAction(enum.Enum):
     RESPONDED = "RESPONDED"
     MEETING_SCHEDULED = "MEETING_SCHEDULED"
     CONVERTED = "CONVERTED"
+    CONTACT_ENRICHED = "CONTACT_ENRICHED"
 
 
 class LeadActivity(Base):

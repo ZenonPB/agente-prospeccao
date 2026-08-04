@@ -381,6 +381,53 @@ async def run_pipeline(
 
             db.commit()
 
+        # --- Fase 3: Enriquecimento automático de decisores (email + LinkedIn) ---
+        # Apenas leads QUALIFICADOS (score >= 60) entram na fila de outreach;
+        # enriquecer contatos melhora a taxa de contato. Busca passiva (LGPD-safe).
+        if not reanalyze_only:
+            yield {
+                "type": "log",
+                "message": "Enriquecendo decisores dos leads qualificados (e-mail/LinkedIn)...",
+                "timestamp": _ts(),
+            }
+
+            enrich_query = db.query(Lead).filter(
+                Lead.status == LeadStatus.QUALIFICADO
+            )
+            if campaign:
+                enrich_query = enrich_query.filter(Lead.campaign_id == campaign.id)
+            else:
+                enrich_query = enrich_query.filter(Lead.organization_id.is_(None))
+            to_enrich = enrich_query.limit(max_leads).all()
+
+            from services.contact_enrichment_service import ContactEnrichmentService
+
+            enrich_svc = ContactEnrichmentService()
+            enriched_count = 0
+            for lead in to_enrich:
+                try:
+                    contacts = await enrich_svc.enrich_contacts(lead, db)
+                    if contacts:
+                        enriched_count += len(contacts)
+                        yield {
+                            "type": "log",
+                            "message": (
+                                f"Decisores de {lead.company_name} enriquecidos "
+                                f"({len(contacts)} contato(s))"
+                            ),
+                            "timestamp": _ts(),
+                        }
+                except Exception as e:
+                    logger.warning("Falha ao enriquecer decisores de %s: %s",
+                                   lead.company_name, e)
+            db.commit()
+
+            yield {
+                "type": "log",
+                "message": f"{enriched_count} contatos de decisores enriquecidos",
+                "timestamp": _ts(),
+            }
+
         # --- Finalizado ---
         lead_filter = Lead.status == LeadStatus.QUALIFICADO
         if campaign:
