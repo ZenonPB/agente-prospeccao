@@ -118,14 +118,32 @@ class AnalyticsService:
             {"stage": "PERDIDO", "count": self._count_status(base, LeadStatus.PERDIDO)},
         ]
 
+        # Leads com conversão (fechados) na org — usado p/ cruzar taxa de acerto
+        # do score por faixa (Item 3.6.2).
+        converted_sub = (
+            self.db.query(Lead.id)
+            .join(Conversion, Conversion.lead_id == Lead.id)
+            .filter(Lead.organization_id == self.org_id)
+            .subquery()
+        )
+
         score_bands = []
         for lo, hi, label in SCORE_BANDS:
+            band_q = base.filter(
+                Lead.qualification_score >= lo,
+                Lead.qualification_score <= hi,
+            )
+            band_count = band_q.count()
+            band_converted = band_q.filter(
+                Lead.id.in_(self.db.query(converted_sub.c.id)),
+            ).count()
             score_bands.append({
                 "band": label,
-                "count": base.filter(
-                    Lead.qualification_score >= lo,
-                    Lead.qualification_score <= hi,
-                ).count(),
+                "count": band_count,
+                "converted": band_converted,
+                "conversion_rate": round(
+                    (band_converted / band_count * 100), 1
+                ) if band_count else 0,
             })
 
         return {
