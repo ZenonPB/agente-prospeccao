@@ -16,6 +16,13 @@ class Signal(BaseModel):
     weight_hint: str = Field("medium", pattern="^(high|medium|low)$")
 
 
+class Playbook(BaseModel):
+    """Playbook de outreach por vertical (item 3.8)."""
+    hooks: List[str] = Field(default_factory=list)
+    subject_ideas: List[str] = Field(default_factory=list)
+    objections: List[dict] = Field(default_factory=list)
+
+
 class CreateScoringTemplateRequest(BaseModel):
     service_label: str = Field(..., min_length=1, max_length=255)
     positive_signals: List[Signal] = Field(default_factory=list)
@@ -24,6 +31,7 @@ class CreateScoringTemplateRequest(BaseModel):
     requires_technical_report: bool = True
     requires_business_data: bool = True
     extra_instructions: Optional[str] = Field(None, max_length=4000)
+    playbook: Optional[Playbook] = None
 
 
 class PatchScoringTemplateRequest(BaseModel):
@@ -35,6 +43,7 @@ class PatchScoringTemplateRequest(BaseModel):
     requires_business_data: Optional[bool] = None
     extra_instructions: Optional[str] = Field(None, max_length=4000)
     is_active: Optional[bool] = None
+    playbook: Optional[Playbook] = None
 
 
 def _serialize(tmpl: CampaignScoringTemplate) -> dict:
@@ -47,11 +56,24 @@ def _serialize(tmpl: CampaignScoringTemplate) -> dict:
         "requires_technical_report": tmpl.requires_technical_report,
         "requires_business_data": tmpl.requires_business_data,
         "extra_instructions": tmpl.extra_instructions,
+        "playbook": tmpl.playbook or {},
         "is_generated": tmpl.is_generated,
         "is_active": tmpl.is_active,
         "organization_id": str(tmpl.organization_id) if tmpl.organization_id else None,
         "created_at": tmpl.created_at.isoformat() if tmpl.created_at else None,
         "updated_at": tmpl.updated_at.isoformat() if tmpl.updated_at else None,
+    }
+
+
+def _playbook_dict(pb) -> dict:
+    if pb is None:
+        return {}
+    if isinstance(pb, Playbook):
+        return pb.model_dump()
+    return {
+        "hooks": pb.get("hooks") or [],
+        "subject_ideas": pb.get("subject_ideas") or [],
+        "objections": pb.get("objections") or [],
     }
 
 
@@ -164,6 +186,7 @@ def create_scoring_template(
         requires_technical_report=body.requires_technical_report,
         requires_business_data=body.requires_business_data,
         extra_instructions=body.extra_instructions,
+        playbook=_playbook_dict(body.playbook),
         is_active=True,
         organization_id=org.id,
     )
@@ -212,6 +235,8 @@ def patch_scoring_template(
         tmpl.extra_instructions = updates["extra_instructions"]
     if "is_active" in updates:
         tmpl.is_active = updates["is_active"]
+    if "playbook" in updates and updates["playbook"] is not None:
+        tmpl.playbook = _playbook_dict(updates["playbook"])
 
     db.commit()
     db.refresh(tmpl)

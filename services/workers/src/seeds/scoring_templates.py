@@ -45,6 +45,23 @@ DEFAULT_TEMPLATES = [
         "service_label": "Desenvolvimento de Sites",
         "requires_technical_report": True,
         "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Site da empresa perde cliente porque não converte (sem CTA/formulário na home)",
+                "Versão do CMS/plataforma desatualizada deixa o site lento e inseguro",
+                "Empresa aparece bem no Google/Maps mas o site não vende — primeira impressão errada",
+            ],
+            "subject_ideas": [
+                "Seu site ainda usa {tech}?",
+                "Sobre o {problema_concreto} do site",
+                "{empresa} sem formulário de contato na home",
+            ],
+            "objections": [
+                {"objection": "Já temos alguém que cuida do site", "approach": "Oferecer auditoria gratuita comparando com boas práticas atuais"},
+                {"objection": "Orçamento apertado", "approach": "Mostrar o custo de continuar sem conversão — site é canal que deveria vender"},
+                {"objection": "Não dá tempo de trocar agora", "approach": "Propor mudança incremental: home + formulário primeiro, resto depois"},
+            ],
+        },
         "positive_signals": [
             {"label": "Site desatualizado / CMS antigo", "description": "WordPress antigo, Joomla, ou sem framework moderno", "weight_hint": "high"},
             {"label": "Ausência de HTTPS / SSL inválido", "description": "Site servido em HTTP sem redirecionamento ou certificado vencido", "weight_hint": "high"},
@@ -140,6 +157,23 @@ DEFAULT_TEMPLATES = [
         "service_label": "Marketing Digital para Petshops",
         "requires_technical_report": True,
         "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Petshop depende de dono local — cliente com pet não acha o petshop no Google quando precisa",
+                "Sem WhatsApp/agendamento no site, o dono liga no concorrente que atende primeiro",
+                "Venda de ração/acessórios vai toda para o e-commerce grande, não para a loja local",
+            ],
+            "subject_ideas": [
+                "Banho e tosa: seus clientes acham você no Google?",
+                "O dono de pet da sua região não acha seu WhatsApp",
+                "Petshop local × e-commerce de ração: quem ganha?",
+            ],
+            "objections": [
+                {"objection": "Meus clientes são fiéis, não preciso de marketing", "approach": "Fidelidade existe, mas novos donos de pet não te acham — a captura local cresce o ticket"},
+                {"objection": "Já tenho Instagram", "approach": "Instagram sem Google Meu Negócio + WhatsApp otimizados afunda leads prontos para comprar"},
+                {"objection": "Não vendo online", "approach": "Não precisa vender online — precisa o cliente AGENDAR banho/tosa e pedir ração pelo WhatsApp"},
+            ],
+        },
         "positive_signals": [
             {"label": "Petshop ativo no Google Places", "description": "Categoria indica operação real de varejo pet", "weight_hint": "high"},
             {"label": "Site ausente ou desatualizado", "description": "Baixa presença digital em segmento que depende de captura local", "weight_hint": "high"},
@@ -167,6 +201,23 @@ DEFAULT_TEMPLATES = [
         "service_label": "Marketing Digital para Academias",
         "requires_technical_report": True,
         "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Academia perde matrícula porque o interessado não consegue agendar aula experimental online",
+                "Site sem vitrine de planos/preços — quem pesquisa não tem o que comparar",
+                "Concorrente captura o aluno digital antes da sua academia",
+            ],
+            "subject_ideas": [
+                "Aluno novo na região: sua academia acha ele primeiro?",
+                "Agendar aula experimental hoje: dá pra fazer pelo seu site?",
+                "{academia} sem vitrine de planos na home",
+            ],
+            "objections": [
+                {"objection": "Academia enche pelo boca a boca", "approach": "O boca a boca não alcança quem acabou de se mudar — o Google sim"},
+                {"objection": "Já estamos cheios", "approach": "Então há demanda sobrando para plano premium/personal — e captura seletiva"},
+                {"objection": "Não entendo de marketing", "approach": "A gente cuida disso — você só aprova o que foi gerado"},
+            ],
+        },
         "positive_signals": [
             {"label": "Academia ativa no Google Places", "description": "Categoria sugere operação real", "weight_hint": "high"},
             {"label": "Sem site ou site básico institucional", "description": "Baixa capacidade de captação digital de alunos", "weight_hint": "high"},
@@ -189,6 +240,23 @@ DEFAULT_TEMPLATES = [
         "service_label": "Marketing Digital para Farmácias",
         "requires_technical_report": True,
         "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Farmácia local perde pedido de receita/entrega para os apps e farmácias online",
+                "Cliente com prescrição não sabe que a farmácia entrega — nenhuma mensagem captura esse lead",
+                "Sem fidelidade digital, o cliente compra na farmácia que aparecer primeiro",
+            ],
+            "subject_ideas": [
+                "Sua farmácia entrega receita? Seus clientes sabem?",
+                "Pedido por WhatsApp: {farmácia} atende ou o app ganha?",
+                "Fidelidade digital: o concorrente fideliza seus clientes",
+            ],
+            "objections": [
+                {"objection": "Farmácia é regulada, tenho receio", "approach": "Comunicação digital de farmácia é comum e legal — só não prometer milagre"},
+                {"objection": "Já entrego pelo WhatsApp", "approach": "Entregar não basta — o lead precisa ACHAR seu WhatsApp no Google antes do app"},
+                {"objection": "Margem pequena", "approach": "Fidelidade digital aumenta frequência de compra — o ticket médio sobe"},
+            ],
+        },
         "positive_signals": [
             {"label": "Farmácia ativa no Google Places", "description": "Operação real de varejo farmacêutico", "weight_hint": "high"},
             {"label": "Sem site ou site institucional básico", "description": "Perde captação digital de clientes", "weight_hint": "high"},
@@ -261,6 +329,7 @@ def upsert_template(db, tmpl: dict) -> CampaignScoringTemplate:
         "requires_technical_report": tmpl.get("requires_technical_report", True),
         "requires_business_data": tmpl.get("requires_business_data", True),
         "extra_instructions": tmpl.get("extra_instructions"),
+        "playbook": tmpl.get("playbook", {}),
         "is_active": True,
     }
 

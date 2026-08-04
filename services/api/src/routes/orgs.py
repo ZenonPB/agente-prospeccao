@@ -69,6 +69,7 @@ def get_my_org(
             "id": str(member.organization_id),
             "name": member.organization.name if member.organization else None,
             "slug": member.organization.slug if member.organization else None,
+            "auto_send_email": bool(member.organization.auto_send_email) if member.organization else False,
         },
         "membership": {
             "role": member.role.value if member.role else None,
@@ -240,3 +241,39 @@ async def delete_org_secret(
     if not removed:
         raise HTTPException(status_code=404, detail="Secret não configurado")
     return {"key_name": normalized, "configured": False}
+
+
+class PatchOrgSettingsRequest(BaseModel):
+    auto_send_email: Optional[bool] = None
+
+
+@router.patch("/{org_id}")
+def patch_org_settings(
+    org_id: str,
+    body: PatchOrgSettingsRequest,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Atualiza configurações da organização (item 3.7).
+
+    `auto_send_email` liga/desliga o envio automático de follow-ups da cadência
+    (default: humano-no-loop). Apenas owner/admin da org.
+    """
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    if body.auto_send_email is not None:
+        org.auto_send_email = body.auto_send_email
+    db.commit()
+    db.refresh(org)
+
+    return {
+        "id": str(org.id),
+        "name": org.name,
+        "auto_send_email": bool(org.auto_send_email),
+    }

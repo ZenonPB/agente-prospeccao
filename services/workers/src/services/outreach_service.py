@@ -180,6 +180,7 @@ def build_prompt(
     lead: Dict[str, Any],
     context_service: str = "",
     context_segment: str = "",
+    playbook: Optional[Dict[str, Any]] = None,
 ) -> str:
     lines: List[str] = []
 
@@ -187,6 +188,29 @@ def build_prompt(
     lines.append(f"Serviço que vendemos: {context_service or '(não informado)'}")
     lines.append(f"Segmento prospectado: {context_segment or '(não informado)'}")
     lines.append("")
+
+    if playbook:
+        lines.append("== PLAYBOOK DA VERTICAL (hooks, assuntos e objeções reais) ==")
+        hooks = playbook.get("hooks") or []
+        if hooks:
+            lines.append("Hooks de abordagem que funcionam nesta vertical:")
+            for h in hooks:
+                lines.append(f"  - {h}")
+        subjects = playbook.get("subject_ideas") or []
+        if subjects:
+            lines.append("Ideias de assunto (subject) com bom resultado nesta vertical:")
+            for s in subjects:
+                lines.append(f"  - {s}")
+        objections = playbook.get("objections") or []
+        if objections:
+            lines.append("Objeções comuns do decisor e como endereçá-las (só para follow-ups/argumentação):")
+            for o in objections:
+                if isinstance(o, dict):
+                    lines.append(f"  - Objeção: {o.get('objection', '')} → abordagem: {o.get('approach', '')}")
+                else:
+                    lines.append(f"  - {o}")
+        lines.append("Use estes hooks/objeções como referência REAL da vertical — cite-os com naturalidade, nunca como lista.")
+        lines.append("")
 
     lines.append("== FATOS REAIS SOBRE O LEAD (use SOMENTE estes; não invente) ==")
     for f in _extract_facts_for_prompt(lead):
@@ -264,6 +288,7 @@ class OutreachService:
         lead: Dict[str, Any],
         context_service: str = "",
         context_segment: str = "",
+        playbook: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Gera subject + 4 mensagens + variação WhatsApp + rationale.
 
@@ -272,11 +297,14 @@ class OutreachService:
               evidence[], primary_need, pitch_angle, qualification_reason,
               company_record (dict), contacts[] (com primary em [0]), email.
             context_service / context_segment: contexto da campanha.
+            playbook: dict opcional com hooks/subject_ideas/objections por
+              vertical (item 3.8) — injetado no prompt para mensagens
+              variarem conforme o serviço/segmento.
 
         Returns:
             Dict normalizado ou None em caso de falha.
         """
-        prompt = build_prompt(lead, context_service, context_segment)
+        prompt = build_prompt(lead, context_service, context_segment, playbook)
         payload = {
             "model": GROQ_MODEL,
             "messages": [

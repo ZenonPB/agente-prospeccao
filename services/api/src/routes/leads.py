@@ -7,7 +7,7 @@ import os
 import sys
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
 from src.services.org_service import consultant_lead_scope, is_full_access
@@ -436,34 +436,28 @@ async def generate_messages(
     context_service = campaign.target_service if campaign else None
     context_segment = campaign.target_segment if campaign else None
 
-    contacts = (
-        db.query(Contact)
-        .filter(Contact.lead_id == lead.id)
-        .order_by(Contact.is_primary.desc())
-        .all()
+    from services.secret_service import SecretService
+    from services.template_router import get_playbook_for_campaign
+
+    keys = await SecretService.resolve_all(db, str(_org.id))
+    groq = keys.get("GROQ_API_KEY")
+
+    playbook = await get_playbook_for_campaign(
+        db,
+        target_service=context_service or "",
+        target_segment=context_segment or "",
+        explicit_template_id=str(campaign.scoring_template_id) if campaign and campaign.scoring_template_id else None,
+        api_key=groq,
     )
 
-    lead_dict = {
-        "company_name": lead.company_name,
-        "category": lead.category,
-        "city": lead.city,
-        "state": lead.state,
-        "website": lead.website,
-        "evidence": lead.evidence,
-        "primary_need": lead.primary_need,
-        "pitch_angle": lead.pitch_angle,
-        "qualification_reason": lead.qualification_reason,
-        "contacts": [_contact_to_dict(c) for c in contacts],
-        "email": lead.email,
-    }
-
-    from services.secret_service import SecretService
-    keys = await SecretService.resolve_all(db, str(_org.id))
-    result = await OutreachService(api_key=keys.get("GROQ_API_KEY")).generate_sequence(
-        lead_dict, context_service or "", context_segment or ""
+    lead_dict = _build_lead_dict(lead, db)
+    result = await OutreachService(api_key=groq).generate_sequence(
+        lead_dict, context_service or "", context_segment or "", playbook,
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
+
+    result["playbook_applied"] = bool(playbook)
 
     log_activity(
         db, lead, action=LeadActivityAction.MESSAGE_GENERATED,
@@ -588,3 +582,215 @@ def register_conversion(
         "time_to_close_days": conversion.time_to_close_days,
         "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,
     }
+
+
+def _build_lead_dict(lead: Lead, db: Session) -> dict:
+    contacts = (
+        db.query(Contact)
+        .filter(Contact.lead_id == lead.id)
+        .order_by(Contact.is_primary.desc())
+        .all()
+    )
+    return {
+        "company_name": lead.company_name,
+        "category": lead.category,
+        "city": lead.city,
+        "state": lead.state,
+        "website": lead.website,
+        "evidence": lead.evidence,
+        "primary_need": lead.primary_need,
+        "pitch_angle": lead.pitch_angle,
+        "qualification_reason": lead.qualification_reason,
+        "contacts": [_contact_to_dict(c) for c in contacts],
+        "email": lead.email,
+    }
+
+
+def _follow_up_dict(fu: FollowUp) -> dict:
+    return {
+        "id": str(fu.id),
+        "step": fu.step.value,
+        "label": fu.step.label,
+        "channel": fu.channel.value if fu.channel else None,
+        "subject": fu.subject,
+        "content": fu.content,
+        "scheduled_at": fu.scheduled_at.isoformat() if fu.scheduled_at else None,
+        "sent_at": fu.sent_at.isoformat() if fu.sent_at else None,
+        "status": fu.status.value if fu.status else None,
+    }
+
+
+@router.get("/{lead_id}/cadence")
+def get_lead_cadence(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Lista as etapas da cadência (dia 0/3/7/14) de um lead (item 3.7)."""
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    fups = (
+        db.query(FollowUp)
+        .filter(FollowUp.lead_id == lead.id)
+        .order_by(FollowUp.scheduled_at.asc())
+        .all()
+    )
+    return {
+        "lead_id": str(lead.id),
+        "opt_out": bool(lead.opt_out),
+        "organization_auto_send": bool(
+            _org.auto_send_email if _org else False
+        ),
+        "follow_ups": [_follow_up_dict(f) for f in fups],
+    }
+
+
+@router.post("/{lead_id}/cadence/start")
+async def start_lead_cadence(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Gera e agenda a cadência (dia 0/3/7/14) de um lead (item 3.7).
+
+    Gera a sequência via OutreachService (com playbook da vertical) e cria as
+    etapas em `follow_ups`. Envio efetivo depende do modo da org: humano
+    (default) ou automático (`auto_send_email`).
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+    if lead.opt_out:
+        raise HTTPException(status_code=400, detail="Lead com opt-out — não gere cadência")
+
+    campaign = (
+        db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        if lead.campaign_id
+        else None
+    )
+    context_service = campaign.target_service if campaign else None
+    context_segment = campaign.target_segment if campaign else None
+
+    from services.secret_service import SecretService
+    from services.outreach_service import OutreachService
+    from services.template_router import get_playbook_for_campaign
+
+    keys = await SecretService.resolve_all(db, str(_org.id))
+    groq = keys.get("GROQ_API_KEY")
+
+    playbook = await get_playbook_for_campaign(
+        db,
+        target_service=context_service or "",
+        target_segment=context_segment or "",
+        explicit_template_id=str(campaign.scoring_template_id) if campaign and campaign.scoring_template_id else None,
+        api_key=groq,
+    )
+
+    lead_dict = _build_lead_dict(lead, db)
+    result = await OutreachService(api_key=groq_key).generate_sequence(
+        lead_dict, context_service or "", context_segment or "", playbook,
+    )
+    if result is None:
+        raise HTTPException(status_code=502, detail="Falha ao gerar mensagens da cadência")
+
+    from src.services.cadence_service import schedule_cadence
+    follow_ups = schedule_cadence(
+        db, lead, result,
+        organization=_org,
+        user_id=str(_user.id) if _user else None,
+    )
+
+    if _org.auto_send_email:
+        from src.services.cadence_service import send_step
+        for fu in follow_ups:
+            if fu.status.value == "PENDING":
+                send_step(db, fu, user_id=str(_user.id) if _user else None)
+
+    return {
+        "lead_id": str(lead.id),
+        "playbook_applied": bool(playbook),
+        "auto_send": bool(_org.auto_send_email),
+        "follow_ups": [_follow_up_dict(f) for f in follow_ups],
+    }
+
+
+@router.post("/{lead_id}/cadence/send/{step}")
+def send_cadence_step(
+    lead_id: str,
+    step: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Envia manualmente uma etapa da cadência (humano-no-loop, item 3.7).
+
+    O consultor envia pela UI (abertura/follow-up 1/2/encerramento) quando
+    estiver pronto. O envio automático só ocorre se a org opt-in.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    try:
+        fstep = FollowUpStep(step)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Etapa inválida: {step}")
+
+    fu = db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.step == fstep,
+    ).order_by(FollowUp.created_at.desc()).first()
+    if not fu:
+        raise HTTPException(status_code=404, detail="Etapa de cadência não encontrada")
+
+    from src.services.cadence_service import send_step
+    ok = send_step(db, fu, user_id=str(_user.id) if _user else None)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Etapa não pôde ser enviada (opt-out ou sem conteúdo)")
+
+    return _follow_up_dict(fu)
+
+
+@router.post("/{lead_id}/opt-out")
+def opt_out_lead(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra opt-out LGPD de um lead: cancela cadência e impede novos envios."""
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    from src.services.cadence_service import mark_opt_out
+    mark_opt_out(db, lead)
+    return {"lead_id": str(lead.id), "opt_out": True}
