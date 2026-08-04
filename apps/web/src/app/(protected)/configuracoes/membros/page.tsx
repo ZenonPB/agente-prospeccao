@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useOrgMembership, useOrgMembers, usePatchMemberSalesRole } from '@/hooks/use-api';
+import { InvitesManager } from '@/components/configuracoes/invites-manager';
 import type { SalesRole } from '@/types';
 
 const ROLE_LABELS: Record<SalesRole, string> = {
@@ -118,6 +119,8 @@ export default function MembrosPage() {
           </p>
         </div>
       </div>
+
+      <InvitesManager />
 
       <Card>
         <CardHeader>

@@ -232,6 +232,9 @@ export const orgsApi = {
   me: () =>
     request<OrgMembership>("/api/orgs/me"),
 
+  listMyOrganizations: () =>
+    request<{ organizations: import("@/types").OrganizationListItem[] }>("/api/orgs/my-organizations"),
+
   listMembers: (orgId: string) =>
     request<{ members: OrganizationMember[] }>(`/api/orgs/${orgId}/members`),
 
@@ -418,6 +421,32 @@ export const pipelineApi = {
       `/api/campaigns/${campaign_id}/reanalyze`,
       { method: "POST", body: JSON.stringify({}) },
     ),
+};
+
+export const invitesApi = {
+  create: (orgId: string, data: { email: string; role: import("@/types").OrgRole; sales_role: import("@/types").SalesRole }) =>
+    request<import("@/types").Invite>(`/api/orgs/${orgId}/invites`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  
+  list: (orgId: string) =>
+    request<{ invites: import("@/types").Invite[] }>(`/api/orgs/${orgId}/invites`),
+  
+  accept: (token: string) =>
+    request<{
+      message: string;
+      organization: { id: string; name: string; slug: string };
+      membership: { role: import("@/types").OrgRole; sales_role: import("@/types").SalesRole };
+    }>("/api/invites/accept", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
+  
+  revoke: (orgId: string, inviteId: string) =>
+    request<{ message: string }>(`/api/orgs/${orgId}/invites/${inviteId}`, {
+      method: "DELETE",
+    }),
 };
 
 // Helper de conexão WebSocket — passa token JWT como query param para autenticação

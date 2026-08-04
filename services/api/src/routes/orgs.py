@@ -69,6 +69,35 @@ def get_my_org(
     }
 
 
+@router.get("/my-organizations")
+def list_my_organizations(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Lista todas as organizações das quais o usuário é membro.
+    
+    Usado pelo org switcher. Retorna lista com org + role + sales_role de
+    cada membership. A org ativa é determinada pelo frontend (localStorage).
+    """
+    memberships = db.query(OrganizationMember).filter(
+        OrganizationMember.user_id == user.id,
+    ).order_by(OrganizationMember.created_at.asc()).all()
+    
+    return {
+        "organizations": [
+            {
+                "id": str(m.organization_id),
+                "name": m.organization.name if m.organization else None,
+                "slug": m.organization.slug if m.organization else None,
+                "role": m.role.value if m.role else None,
+                "sales_role": m.sales_role.value if m.sales_role else None,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in memberships
+        ]
+    }
+
+
 @router.get("/{org_id}/members")
 def list_members(
     org_id: str,

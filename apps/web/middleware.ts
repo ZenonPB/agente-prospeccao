@@ -16,6 +16,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/register") ||
     pathname.startsWith("/esqueci-senha") ||
     pathname.startsWith("/resetar-senha") ||
+    pathname.startsWith("/aceitar-convite") ||
     pathname.startsWith("/api/auth")
   ) {
     if (token && pathname.startsWith("/login")) {

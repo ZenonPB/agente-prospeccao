@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, type ScoringTemplateInput } from "@/lib/api";
-import type { SalesRole } from "@/types";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, type ScoringTemplateInput } from "@/lib/api";
+import type { SalesRole, OrgRole } from "@/types";
 
 export type SegmentSuggestion = {
   segment: string;
@@ -264,5 +264,78 @@ export function useAnalyticsTimeline(period?: AnalyticsPeriod) {
 export function useExportAnalyticsPdf() {
   return useMutation({
     mutationFn: (period?: AnalyticsPeriod) => analyticsApi.exportPdf(period),
+  });
+}
+
+export function useMyOrganization() {
+  return useQuery({
+    queryKey: ["orgs", "me"],
+    queryFn: () => orgsApi.getMyOrg(),
+  });
+}
+
+export function useMyOrganizations() {
+  return useQuery({
+    queryKey: ["orgs", "list"],
+    queryFn: () => orgsApi.listMyOrganizations(),
+  });
+}
+
+export function useOrgMembers(orgId: string) {
+  return useQuery({
+    queryKey: ["orgs", orgId, "members"],
+    queryFn: () => orgsApi.listMembers(orgId),
+    enabled: !!orgId,
+  });
+}
+
+export function usePatchMemberSalesRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, userId, salesRole }: { orgId: string; userId: string; salesRole: SalesRole }) =>
+      orgsApi.patchMemberSalesRole(orgId, userId, salesRole),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["orgs", variables.orgId, "members"] });
+    },
+  });
+}
+
+export function useCreateInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, email, role, salesRole }: { orgId: string; email: string; role: OrgRole; salesRole: SalesRole }) =>
+      invitesApi.create(orgId, { email, role, sales_role: salesRole }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["invites", variables.orgId] });
+    },
+  });
+}
+
+export function useInvites(orgId: string) {
+  return useQuery({
+    queryKey: ["invites", orgId],
+    queryFn: () => invitesApi.list(orgId),
+    enabled: !!orgId,
+  });
+}
+
+export function useAcceptInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) => invitesApi.accept(token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orgs"] });
+    },
+  });
+}
+
+export function useRevokeInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, inviteId }: { orgId: string; inviteId: string }) =>
+      invitesApi.revoke(orgId, inviteId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["invites", variables.orgId] });
+    },
   });
 }
