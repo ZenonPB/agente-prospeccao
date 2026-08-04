@@ -187,6 +187,8 @@ def list_leads(
     campaign_id: Optional[str] = None,
     search: Optional[str] = None,
     min_score: Optional[int] = None,
+    assigned: Optional[str] = Query(None, pattern="^(me|none|any)$"),
+    next_action_before: Optional[str] = None,
     limit: int = Query(50, le=100),
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -213,6 +215,23 @@ def list_leads(
         query = query.filter(Lead.company_name.ilike(f"%{search}%"))
     if min_score is not None:
         query = query.filter(Lead.qualification_score >= min_score)
+    if assigned:
+        if assigned == "me":
+            query = query.filter(Lead.assigned_to_id == member.user_id)
+        elif assigned == "none":
+            query = query.filter(Lead.assigned_to_id.is_(None))
+        elif assigned == "any":
+            query = query.filter(Lead.assigned_to_id.isnot(None))
+    if next_action_before:
+        # Fila "ações de hoje": leads com próxima ação marcada para antes desta
+        # data/hora (inclui vencidos). Data simples ("YYYY-MM-DD") vira fim do dia.
+        raw = next_action_before
+        if "T" not in raw and " " not in raw:
+            raw = f"{raw}T23:59:59"
+        query = query.filter(
+            Lead.next_action_at.isnot(None),
+            Lead.next_action_at <= _parse_dt(raw),
+        )
 
     total = query.count()
     from sqlalchemy.orm import joinedload
