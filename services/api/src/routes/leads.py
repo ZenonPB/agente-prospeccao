@@ -115,6 +115,9 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
         "evidence": lead.evidence,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
+        "contacts": [
+            _contact_to_dict(c) for c in (lead.contacts or [])
+        ],
         "activities": [
             {
                 "id": str(a.id),

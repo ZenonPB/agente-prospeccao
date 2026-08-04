@@ -165,6 +165,11 @@ def _extract_facts_for_prompt(lead: Dict[str, Any]) -> List[str]:
         facts.append(f"Decisor: {prim.get('name')} ({prim.get('role_label') or ''})")
         if prim.get("email"):
             facts.append(f"Email do decisor: {prim['email']}")
+        if prim.get("linkedin_url"):
+            facts.append(
+                f"Perfil LinkedIn do decisor: {prim['linkedin_url']} "
+                "(canal alternativo de contato para o consultor usar, se preferir)"
+            )
     elif lead.get("email"):
         facts.append(f"Email genérico: {lead['email']}")
 
