@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -77,12 +78,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Criar Conta</CardTitle>
+          <CardTitle className="font-heading text-2xl font-semibold tracking-tight">
+            Criar conta
+          </CardTitle>
           <CardDescription>
-            Preencha seus dados para começar a prospectar leads
+            Comece a prospectar em menos de um minuto
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -145,12 +148,12 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             Já tem conta?{' '}
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="font-medium text-primary hover:underline">
               Faça login
             </Link>
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

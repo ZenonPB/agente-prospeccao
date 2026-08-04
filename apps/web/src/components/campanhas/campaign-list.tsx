@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useCampaigns, useUpdateCampaign, useCreateCampaign } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -124,7 +125,19 @@ export function CampaignList() {
           </CardContent>
         </Card>
       ) : campaigns.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">Nenhuma campanha encontrada</div>
+        <EmptyState
+          icon={<Megaphone className="h-5 w-5" aria-hidden="true" />}
+          title="Nenhuma campanha ainda"
+          description="Crie sua primeira campanha escolhendo o segmento e a cidade — nós coletamos as oportunidades automaticamente."
+          action={
+            <Link href="/campanhas/nova">
+              <Button className="h-10">
+                <Plus className="mr-2 h-4 w-4" />
+                Criar primeira campanha
+              </Button>
+            </Link>
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {campaigns.map((campaign) => (

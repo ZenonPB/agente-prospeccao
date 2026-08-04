@@ -15,6 +15,7 @@ import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
 import { useOrgMembership } from '@/hooks/use-api';
+import { PageHeader } from '@/components/ui/page-header';
 
 const themes = [
   {
@@ -105,12 +106,11 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Configurações</h1>
-        <p className="text-sm text-muted-foreground">
-          Gerencie suas preferências e informações da conta
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Configurações"
+        description="Gerencie suas preferências e informações da conta"
+      />
 
       {/* Perfil */}
       <Card>

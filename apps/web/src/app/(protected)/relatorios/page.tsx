@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ShieldAlert, BarChart3, Loader2 } from 'lucide-react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { useOrgMembership } from '@/hooks/use-api';
 import { useAnalyticsOverview, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
@@ -70,17 +71,11 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <BarChart3 className="h-6 w-6 text-muted-foreground" />
-            Relatórios
-          </h1>
-          <p className="text-muted-foreground">
-            Inteligência comercial da operação de prospecção · {membership?.organization?.name}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Inteligência"
+        title="Relatórios"
+        description={`Visão executiva da operação · ${membership?.organization?.name || 'sua organização'}`}
+      />
 
       <ReportControls
         period={period}

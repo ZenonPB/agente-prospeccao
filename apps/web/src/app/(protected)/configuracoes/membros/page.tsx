@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { Users, ShieldAlert, Loader2, CheckCircle2 } from 'lucide-react';
+import { ShieldAlert, Loader2, CheckCircle2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useOrgMembership, useOrgMembers, usePatchMemberSalesRole } from '@/hooks/use-api';
 import { InvitesManager } from '@/components/configuracoes/invites-manager';
+import { PageHeader } from '@/components/ui/page-header';
 import type { SalesRole } from '@/types';
 
 const ROLE_LABELS: Record<SalesRole, string> = {
@@ -111,17 +112,15 @@ export default function MembrosPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <Users className="h-6 w-6 text-muted-foreground" />
-            Equipe
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {membership?.organization?.name} · Gerencie quem acessa o quê nesta organização
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Equipe"
+        description={
+          membership?.organization?.name
+            ? `${membership.organization.name} · gerencie quem acessa o quê`
+            : 'Gerencie quem acessa o quê nesta organização'
+        }
+      />
 
       <InvitesManager />
 

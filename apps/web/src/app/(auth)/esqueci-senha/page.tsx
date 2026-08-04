@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { ArrowLeft, Mail, Loader2, CheckCircle2 } from 'lucide-react';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -43,13 +44,13 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
+      <AuthShell>
+        <Card className="border-border/60 shadow-sm">
           <CardHeader className="space-y-2 text-center">
             <div className="flex justify-center">
               <CheckCircle2 className="h-12 w-12 text-emerald-500" />
             </div>
-            <CardTitle className="text-2xl font-bold">Email enviado</CardTitle>
+            <CardTitle className="font-heading text-2xl font-semibold tracking-tight">Email enviado</CardTitle>
             <CardDescription>
               Se o email existir, você receberá um link de redefinição de senha.
               Verifique sua caixa de entrada e spam.
@@ -67,15 +68,15 @@ export default function ForgotPasswordPage() {
             </Link>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Redefinir senha</CardTitle>
+          <CardTitle className="font-heading text-2xl font-semibold tracking-tight">Redefinir senha</CardTitle>
           <CardDescription>
             Digite seu email e enviaremos um link para redefinir sua senha.
           </CardDescription>
@@ -121,6 +122,6 @@ export default function ForgotPasswordPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }
