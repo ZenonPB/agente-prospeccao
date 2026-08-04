@@ -6,6 +6,7 @@ import { FunnelChart } from '@/components/dashboard/funnel-chart';
 import { ActivityTimeline } from '@/components/dashboard/activity-timeline';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { ActiveCampaigns } from '@/components/dashboard/active-campaigns';
+import { TodayActions } from '@/components/dashboard/today-actions';
 
 export default function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export default function DashboardPage() {
 
         {/* Right Column - Activity & Actions */}
         <div className="space-y-6">
+          <TodayActions />
           <QuickActions />
           <ActivityTimeline />
         </div>
