@@ -530,9 +530,9 @@ Branch: `feat/conversion-feedback`
 > **Nota 3.6.3**: o ajuste automático de threshold por org fica como v2 — depende de
 > acumular conversões reais por faixa. A base (3.6.1/3.6.2) já expõe os dados.
 
-### Item 3.7 — Cadência de follow-up + envio ⬜
+### Item 3.7 — Cadência de follow-up + envio ✅
 
-Branch: `feat/outreach-cadence`
+Branch: `feat/outreach-cadence-playbooks`
 
 | Sub-item | O quê |
 |---|---|
@@ -542,9 +542,14 @@ Branch: `feat/outreach-cadence`
 
 **Critérios**: follow-ups agendados respeitam opt-out e LGPD; humano por padrão.
 
-### Item 3.8 — Playbooks por vertical ⬜
+> **Nota 3.7.2**: o agendamento usa um loop asyncio no lifespan do FastAPI
+> (poll `CADENCE_POLL_SECONDS`, default 60s) consultando `follow_ups` vencidos —
+> sem dependência nova (sem APScheduler). Envio efetivo via `email_service.send_email`
+> (SMTP configurado ou fallback console em dev).
 
-Branch: `feat/vertical-playbooks`
+### Item 3.8 — Playbooks por vertical ✅
+
+Branch: `feat/outreach-cadence-playbooks`
 
 | Sub-item | O quê |
 |---|---|
@@ -575,8 +580,8 @@ Branch: `feat/vertical-playbooks`
 | 14 | `feat/contact-enrichment` | 3.4 | 3.5 opcional | ✅ |
 | 15 | `feat/org-byok` | 3.5 | 1.1 | ✅ |
 | 16 | `feat/conversion-feedback` | 3.6 | 1.1 + volume | ✅ |
-| 17 | `feat/outreach-cadence` | 3.7 | 3.5 opcional | |
-| 18 | `feat/vertical-playbooks` | 3.8 | 1.3 | |
+| 17 | `feat/outreach-cadence-playbooks` | 3.7 + 3.8 | 3.5 opcional | ✅ |
+| 18 | `feat/vertical-playbooks` | 3.8 | 1.3 | → junto com 3.7 |
 
 ---
 
@@ -651,8 +656,8 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 3.4 Hunter / e-mail decisor | ✅ Entregue | `feat/contact-enrichment` (PR #34) |
 | 3.5 BYOK e cotas | ✅ Entregue | `feat/org-byok` (PR #35) |
 | 3.6 Feedback conversão → score | ✅ Entregue | `feat/conversion-feedback` (PR pendente) |
-| 3.7 Cadência + envio | ⬜ Não iniciado | humano no loop |
-| 3.8 Playbooks por vertical | ⬜ Não iniciado | hooks/objeções |
+| 3.7 Cadência + envio | ✅ Entregue | humano no loop |
+| 3.8 Playbooks por vertical | ✅ Entregue | hooks/objeções |
 
 Atualizar esta tabela a cada merge.
 

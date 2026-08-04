@@ -477,14 +477,44 @@ Branch: `feat/conversion-feedback`
 
 **Testado:** migration aplicada; PATCH status → action `LOST` gravada (rollback); conversão E2E real → revenue + taxa por faixa refletem (dados limpos depois); `npm run build` OK; eslint limpo (só warnings pré-existentes); app importa OK.
 
+### Item 3.7 — Cadência de follow-up + envio ✅
+
+Branch: `feat/outreach-cadence-playbooks`
+
+**Models (migration `72ce8b2f4cf3`):**
+- `FollowUp` (tabela `follow_ups`) — etapas da cadência dia 0/3/7/14 por lead; enums `FollowUpStep` (OPENING/FOLLOWUP_1/FOLLOWUP_2/CLOSING, com `day_offset` 0/3/7/14) e `FollowUpStatus` (PENDING/SENT/SKIPPED/CANCELLED).
+- `Organization.auto_send_email` (default false) — opt-in de envio automático.
+- `Lead.opt_out` (default false) — LGPD opt-out (cadências pendentes → SKIPPED).
+
+**Backend:**
+- `email_service.send_email(to, subject, body)` — SMTP ou fallback console (dev).
+- `cadence_service.py` — `schedule_cadence` (gera etapas dia 0/3/7/14), `send_step` (envia, registra Message + `CONTACTED` na trilha, move para CONTATADO no 1º contato), `mark_opt_out` (LGPD), `run_due` (envio automático só de orgs com opt-in, respeitando opt-out).
+- Scheduler asyncio no lifespan do `main.py` (poll `CADENCE_POLL_SECONDS`, default 60s) — sem dependência nova.
+- Rotas: `GET /leads/{id}/cadence`, `POST /leads/{id}/cadence/start`, `POST /leads/{id}/cadence/send/{step}`, `POST /leads/{id}/opt-out`; `PATCH /orgs/{org_id}` (auto_send_email) + exposto no `/orgs/me`.
+
+### Item 3.8 — Playbooks por vertical ✅
+
+Branch: `feat/outreach-cadence-playbooks`
+
+- `CampaignScoringTemplate.playbook` (JSONB) — hooks, subject_ideas, objections por vertical.
+- Seeds atualizados com playbooks reais (Sites, Petshops, Academias, Farmácias).
+- `outreach_service.build_prompt`/`generate_sequence` aceitam `playbook` e injetam no prompt.
+- `template_router.get_playbook_for_campaign` resolve o template (exact→fuzzy→LLM→genérico) e devolve o playbook; usado em `generate-messages` e `cadence/start`.
+- CRUD de templates expõe/aceita playbook; `template-selector.tsx` edita hooks/assuntos/objeções.
+
+**Frontend:**
+- Aba **Cadência** no detalhe do lead (`CadencePanel`): iniciar cadência, lista de etapas com status, enviar etapa manualmente (humano-no-loop), opt-out LGPD.
+- Configurações da org: toggle **Envio automático de follow-ups** (`OrgSendSettings`).
+- Types/hooks: `LeadCadence`, `FollowUpItem`, `useLeadCadence`, `useStartCadence`, `useSendCadenceStep`, `useOptOutLead`, `usePatchOrgSettings`.
+
+**Testado:** migration aplicada; E2E cadência (start → 4 etapas → send OPENING → SENT → opt-out cancela pendentes); scheduler `run_due` enviou follow-up vencido de org com opt-in e registrou Message; playbook resolvido (Petshops → hooks/objeções reais); `npm run build` OK; eslint limpo; app importa OK.
+
 ### Próximo passo imediato
 
-1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.7 — Cadência de follow-up + envio** (`feat/outreach-cadence`).
-   - Item 3.8 — Playbooks por vertical (`feat/vertical-playbooks`).
+1. **Fase 3 — fechar loop:** todos os itens 3.x entregues (3.1–3.8 ✅).
 2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
-   geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
-   `generate-messages` e revisar o `body_opening`.
+   geradas com o novo prompt + playbooks — abrir uma oportunidade real pelo
+   endpoint `generate-messages` e revisar o `body_opening`.
 
 ## Como rodar
 
