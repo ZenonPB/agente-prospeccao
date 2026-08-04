@@ -38,6 +38,10 @@ venv/
 # Artefatos de build/zip locais
 *.zip
 
+# Logs de runtime local (scripts/dev.sh)
+uvicorn.log
+next-dev.log
+
 # graphify outputs (nunca commitar no GitHub)
 graphify-out/
 graph.html
