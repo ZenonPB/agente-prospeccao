@@ -66,6 +66,7 @@ export default function MembrosPage() {
   const patchRole = usePatchMemberSalesRole();
 
   const [pendingId, setPendingId] = useState<string | null>(null);
+  const [successId, setSuccessId] = useState<string | null>(null);
 
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const myRole = membership?.membership?.role;
@@ -97,6 +98,8 @@ export default function MembrosPage() {
       {
         onSuccess: () => {
           toast.success('Papel de venda atualizado.');
+          setSuccessId(userId);
+          setTimeout(() => setSuccessId((prev) => (prev === userId ? null : prev)), 2000);
         },
         onError: (err) => {
           toast.error(err instanceof Error ? err.message : 'Erro ao atualizar o papel.');
@@ -168,6 +171,7 @@ export default function MembrosPage() {
                 {members.map((member) => {
                   const isMe = member.user_id === currentUserId;
                   const isPending = pendingId === member.user_id;
+                  const isSuccess = successId === member.user_id;
                   return (
                     <TableRow key={member.user_id}>
                       <TableCell>
@@ -208,8 +212,8 @@ export default function MembrosPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            {isPending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                            {!isPending && patchRole.isSuccess && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+                            {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden="true" /> : null}
+                            {!isPending && isSuccess ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" /> : null}
                           </div>
                         ) : (
                           <SalesRoleBadge role={member.sales_role} />

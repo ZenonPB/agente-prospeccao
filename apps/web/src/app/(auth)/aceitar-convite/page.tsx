@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
@@ -15,27 +15,27 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
   const { data: session, status } = useSession();
   const token = searchParams.token || '';
   const acceptInvite = useAcceptInvite();
+  const attempted = useRef(false);
 
   const [orgName, setOrgName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === 'loading') return;
-    if (!session) return;
+    if (status === 'loading' || !session || !token || attempted.current) return;
+    attempted.current = true;
 
-    if (token && !acceptInvite.isSuccess && !acceptInvite.isError && !acceptInvite.isPending) {
-      acceptInvite.mutate(token, {
-        onSuccess: (data) => {
-          setOrgName(data.organization?.name || 'Organização');
-        },
-      });
-    }
-  }, [token, session, status]);
+    acceptInvite.mutate(token, {
+      onSuccess: (data) => {
+        setOrgName(data.organization?.name || 'Organização');
+      },
+    });
+  }, [token, session, status, acceptInvite]);
 
   if (!token) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
+            <XCircle className="mx-auto h-12 w-12 text-destructive" aria-hidden="true" />
             <CardTitle className="text-2xl font-bold">Link inválido</CardTitle>
             <CardDescription>
               O link de convite não contém um token válido.
@@ -58,8 +58,8 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center gap-4 py-12">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground" aria-live="polite">
               {status === 'loading' ? 'Verificando sessão...' : 'Aceitando convite...'}
             </p>
           </CardContent>
@@ -69,21 +69,22 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
   }
 
   if (!session) {
+    const callbackUrl = encodeURIComponent(`/aceitar-convite?token=${token}`);
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-2 text-center">
-            <Building2 className="mx-auto h-12 w-12 text-primary" />
+            <Building2 className="mx-auto h-12 w-12 text-primary" aria-hidden="true" />
             <CardTitle className="text-2xl font-bold">Convite para organização</CardTitle>
             <CardDescription>
               Você precisa estar logado para aceitar este convite. Faça login ou crie uma conta com o e-mail do convite.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-center">
-            <Link href={`/login?callbackUrl=${encodeURIComponent(`/aceitar-convite?token=${token}`)}`}>
+            <Link href={`/login?callbackUrl=${callbackUrl}`}>
               <Button className="h-11 w-full">Fazer login</Button>
             </Link>
-            <Link href={`/register?callbackUrl=${encodeURIComponent(`/aceitar-convite?token=${token}`)}`}>
+            <Link href={`/register?callbackUrl=${callbackUrl}`}>
               <Button variant="outline" className="h-11 w-full">Criar conta</Button>
             </Link>
           </CardContent>
@@ -101,7 +102,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-2 text-center">
-            <XCircle className="mx-auto h-12 w-12 text-destructive" />
+            <XCircle className="mx-auto h-12 w-12 text-destructive" aria-hidden="true" />
             <CardTitle className="text-2xl font-bold">Erro no convite</CardTitle>
             <CardDescription>{errorMsg}</CardDescription>
           </CardHeader>
@@ -122,7 +123,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-2 text-center">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" />
+            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500" aria-hidden="true" />
             <CardTitle className="text-2xl font-bold">Convite aceito!</CardTitle>
             <CardDescription>
               Você agora é membro de <strong>{orgName}</strong>.

@@ -354,14 +354,20 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 - Modelo `Invite` atualizado com relationship `invited_by`
 
 **Frontend:**
-- `OrgSwitcher` component — dropdown no sidebar para trocar entre organizações (localStorage)
-- `InvitesManager` component — criar/listar/revogar convites (dialog + cards)
-- Rota `/aceitar-convite?token=...` — página pública para aceitar convites (com/sem auth)
-- Integrado em `/configuracoes/membros` — seção de convites acima da lista de membros
+- `OrgSwitcher` component — dropdown no sidebar para trocar entre organizações (localStorage com versão `org_storage_v1`)
+- `InvitesManager` component — criar/listar/revogar convites (dialog + cards + confirmação AlertDialog + validação de e-mail)
+- Rota `/aceitar-convite?token=...` — página pública para aceitar convites (com guard contra requisições duplicadas + acessibilidade aria-live)
+- Integrado em `/configuracoes/membros` — seção de convites acima da lista de membros + feedback visual per-member no PATCH role
 - API client: `orgsApi.listMyOrganizations`, `invitesApi.{create,list,accept,revoke}`
 - Hooks: `useMyOrganizations`, `useInvites`, `useCreateInvite`, `useAcceptInvite`, `useRevokeInvite`
 - Types: `OrganizationListItem`, `Invite`
-- Middleware: `/aceitar-convite` adicionado como rota pública
+- Middleware: `/aceitar-convite` adicionado como rota pública + CSP aprimorada com `frame-ancestors 'none'` e tile servers no `img-src`
+- **Revisão com Skills (`frontend-design` & `vercel-react-best-practices`)**:
+  - `OrgSwitcher`: memoização com `useMemo`/`useCallback`, versionamento de schema no localStorage, rótulos de papéis traduzidos (PT-BR), acessibilidade `aria-expanded` e `aria-label`.
+  - `InvitesManager`: `AlertDialog` para confirmação de revogação, `render` prop do Base UI, validação de e-mail antes do envio, `aria-hidden` em ícones decorativos.
+  - `MembrosPage`: feedback de alteração de papel (`isSuccess`) escopado por usuário individual.
+  - `AcceptInvitePage`: ref para prevenir mutação duplicada no React 19 / StrictMode, `aria-live="polite"` no feedback de carregamento.
+  - Instruções para agentes atualizadas em `AGENTS.md` e `docs/agents.md`.
 
 **Testado:** migration aplicada, API roda sem erros, org switcher mostra orgs, página de convites renderiza.
 

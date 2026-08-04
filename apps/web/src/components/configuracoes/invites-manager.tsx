@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMyOrganization, useInvites, useCreateInvite, useRevokeInvite } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,10 +28,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Mail, Trash2, UserPlus, Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { OrgRole, SalesRole } from "@/types";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function InvitesManager() {
   const { data: orgData } = useMyOrganization();
@@ -47,9 +59,16 @@ export function InvitesManager() {
 
   const invites = invitesData?.invites || [];
 
-  const handleCreateInvite = async () => {
+  const isValidEmail = EMAIL_REGEX.test(email);
+
+  const handleCreateInvite = useCallback(async () => {
     if (!orgId || !email) {
       toast.error("Preencha o e-mail do convidado");
+      return;
+    }
+
+    if (!isValidEmail) {
+      toast.error("Formato de e-mail inválido");
       return;
     }
 
@@ -63,18 +82,18 @@ export function InvitesManager() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao enviar convite");
     }
-  };
+  }, [orgId, email, isValidEmail, role, salesRole, createInvite]);
 
-  const handleRevoke = async (inviteId: string) => {
+  const handleRevoke = useCallback(async (inviteId: string) => {
     if (!orgId) return;
     
     try {
       await revokeInvite.mutateAsync({ orgId, inviteId });
       toast.success("Convite revogado");
-    } catch (error) {
+    } catch {
       toast.error("Erro ao revogar convite");
     }
-  };
+  }, [orgId, revokeInvite]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("pt-BR", {
@@ -116,11 +135,9 @@ export function InvitesManager() {
             </CardDescription>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Convidar Membro
-              </Button>
+            <DialogTrigger render={<Button />}>
+              <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+              Convidar Membro
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -138,7 +155,11 @@ export function InvitesManager() {
                     placeholder="usuario@exemplo.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    aria-invalid={email.length > 0 && !isValidEmail}
                   />
+                  {email.length > 0 && !isValidEmail ? (
+                    <p className="text-xs text-destructive">Formato de e-mail inválido</p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Papel Administrativo</Label>
@@ -171,7 +192,10 @@ export function InvitesManager() {
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateInvite} disabled={createInvite.isPending}>
+                <Button
+                  onClick={handleCreateInvite}
+                  disabled={createInvite.isPending || !isValidEmail}
+                >
                   {createInvite.isPending ? "Enviando..." : "Enviar Convite"}
                 </Button>
               </DialogFooter>
@@ -184,7 +208,7 @@ export function InvitesManager() {
           <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : invites.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhum convite pendente. Clique em "Convidar Membro" para começar.
+            Nenhum convite pendente. Clique em &quot;Convidar Membro&quot; para começar.
           </p>
         ) : (
           <div className="space-y-3">
@@ -194,7 +218,7 @@ export function InvitesManager() {
                 className="flex items-center justify-between rounded-lg border p-4"
               >
                 <div className="flex items-start gap-3">
-                  <Mail className="mt-1 h-5 w-5 text-muted-foreground" />
+                  <Mail className="mt-1 h-5 w-5 text-muted-foreground" aria-hidden="true" />
                   <div className="space-y-1">
                     <p className="font-medium">{invite.email}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -207,42 +231,62 @@ export function InvitesManager() {
                     <div className="flex items-center gap-2 text-xs">
                       {invite.accepted_at ? (
                         <>
-                          <Check className="h-3 w-3 text-green-600" />
+                          <Check className="h-3 w-3 text-green-600" aria-hidden="true" />
                           <span className="text-green-600">
                             Aceito em {formatDate(invite.accepted_at)}
                           </span>
                         </>
                       ) : isExpired(invite.expires_at) ? (
                         <>
-                          <Clock className="h-3 w-3 text-orange-600" />
+                          <Clock className="h-3 w-3 text-orange-600" aria-hidden="true" />
                           <span className="text-orange-600">Expirado</span>
                         </>
                       ) : (
                         <>
-                          <Clock className="h-3 w-3" />
+                          <Clock className="h-3 w-3" aria-hidden="true" />
                           <span className="text-muted-foreground">
                             Expira em {formatDate(invite.expires_at)}
                           </span>
                         </>
                       )}
                     </div>
-                    {invite.invited_by_name && (
+                    {invite.invited_by_name ? (
                       <p className="text-xs text-muted-foreground">
                         Convidado por {invite.invited_by_name}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
-                {!invite.accepted_at && !isExpired(invite.expires_at) && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRevoke(invite.id)}
-                    disabled={revokeInvite.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                )}
+                {!invite.accepted_at && !isExpired(invite.expires_at) ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={revokeInvite.isPending}
+                          aria-label={`Revogar convite de ${invite.email}`}
+                        />
+                      }
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Revogar convite?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          O convite para <strong>{invite.email}</strong> será cancelado. Essa ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleRevoke(invite.id)}>
+                          Revogar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : null}
               </div>
             ))}
           </div>

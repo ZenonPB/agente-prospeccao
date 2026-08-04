@@ -270,7 +270,7 @@ export function useExportAnalyticsPdf() {
 export function useMyOrganization() {
   return useQuery({
     queryKey: ["orgs", "me"],
-    queryFn: () => orgsApi.getMyOrg(),
+    queryFn: () => orgsApi.me(),
   });
 }
 
@@ -278,25 +278,6 @@ export function useMyOrganizations() {
   return useQuery({
     queryKey: ["orgs", "list"],
     queryFn: () => orgsApi.listMyOrganizations(),
-  });
-}
-
-export function useOrgMembers(orgId: string) {
-  return useQuery({
-    queryKey: ["orgs", orgId, "members"],
-    queryFn: () => orgsApi.listMembers(orgId),
-    enabled: !!orgId,
-  });
-}
-
-export function usePatchMemberSalesRole() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ orgId, userId, salesRole }: { orgId: string; userId: string; salesRole: SalesRole }) =>
-      orgsApi.patchMemberSalesRole(orgId, userId, salesRole),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["orgs", variables.orgId, "members"] });
-    },
   });
 }
 

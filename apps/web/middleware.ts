@@ -44,7 +44,6 @@ export async function middleware(request: NextRequest) {
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 
   if (isDev) {
-    // CSP relaxada para desenvolvimento (HMR precisa de unsafe-eval e unsafe-inline)
     const csp = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-eval' 'unsafe-inline' 'nonce-${nonce}'`,
@@ -52,22 +51,20 @@ export async function middleware(request: NextRequest) {
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
       "connect-src 'self' http://localhost:8000 ws://localhost:8000",
+      "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
     ].join("; ");
     response.headers.set("Content-Security-Policy", csp);
   } else {
-    // CSP para produção — mais restrita, sem unsafe-eval
-    // 'strict-dynamic' + 'unsafe-inline' (fallback) seguem OWASP CSP Guide.
-    // Em produção ideal, usar nonces em todos os scripts inline do Next.js
-    // via next.config.ts `experimental.strictCsp` ou middleware customizado.
     const csp = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline' 'nonce-${nonce}' 'strict-dynamic'`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https: blob:",
+      "img-src 'self' data: https://tile.openstreetmap.org https: blob:",
       "font-src 'self' data:",
       "connect-src 'self' https://*.groq.com",
+      "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
     ].join("; ");
