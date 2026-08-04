@@ -123,12 +123,15 @@ class Invite(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     email = Column(String(255), nullable=False)
     role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
+    sales_role = Column(Enum(SalesRole, name='sales_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=SalesRole.CONSULTOR)
     token = Column(String(64), unique=True, nullable=False)
+    invited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     accepted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="invites")
+    invited_by = relationship("User", foreign_keys=[invited_by_id])
 
     def __repr__(self):
         return f"<Invite(org='{self.organization_id}', email='{self.email}', accepted={self.accepted_at is not None})>"

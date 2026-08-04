@@ -5,10 +5,12 @@
 
 ## Antes de qualquer tarefa
 
-1. Ler `docs/context.md` completo
-2. Ler os arquivos indicados como obrigatórios
-3. Fazer `/add` dos arquivos relevantes para a tarefa
-4. Confirmar o entendimento da tarefa antes de escrever código
+1. Ler o grafo de conhecimento (`.ua/knowledge-graph.json`) ou usar a skill `graphify` para economizar tokens e entender a arquitetura completa do sistema.
+2. Ler `docs/context.md` completo
+3. Carregar e usar sempre a skill mais adequada para o momento (ex.: `frontend-design` e `vercel-react-best-practices` para frontend UI/UX, performance e segurança)
+4. Ler os arquivos indicados como obrigatórios
+5. Fazer `/add` dos arquivos relevantes para a tarefa
+6. Confirmar o entendimento da tarefa antes de escrever código
 
 ## O que nunca fazer
 

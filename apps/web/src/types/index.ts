@@ -98,6 +98,27 @@ export interface OrgMembership {
   };
 }
 
+export interface OrganizationListItem {
+  id: string;
+  name: string;
+  slug: string;
+  role: OrgRole;
+  sales_role: SalesRole;
+  created_at?: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  role: OrgRole;
+  sales_role: SalesRole;
+  invited_by_id: string;
+  invited_by_name?: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at?: string;
+}
+
 export interface Campaign {
   id: string;
   user_id: string;

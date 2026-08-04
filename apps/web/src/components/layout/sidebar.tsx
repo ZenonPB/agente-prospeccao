@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
 import { useOrgMembership } from '@/hooks/use-api';
+import { OrgSwitcher } from './org-switcher';
 
 const navigation = [
   { name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard },
@@ -71,6 +72,11 @@ export function Sidebar() {
               <ChevronRight className="h-5 w-5" />
             )}
           </Button>
+        </div>
+
+        {/* Org Switcher */}
+        <div className="border-b p-2">
+          <OrgSwitcher collapsed={!sidebarOpen} />
         </div>
 
         {/* Navigation */}

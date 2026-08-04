@@ -4,7 +4,12 @@ Compact guidance for OpenCode sessions working in this repo. Read alongside `doc
 
 ## Start here
 
-**Always read the knowledge graph dashboard first** (`.ua/knowledge-graph.json`) before any task — it provides the full project architecture, component relationships, and data flow in a structured format, saving significant tokens vs re-scanning the entire codebase. The dashboard visualizes all files, layers, and connections.
+**Always read the knowledge graph dashboard first** (`.ua/knowledge-graph.json`) or use the `graphify` skill/queries before any task — it provides the full project architecture, component relationships, and data flow in a structured format, saving significant tokens vs re-scanning the entire codebase.
+
+**Always use the relevant skills when working on specific tasks**:
+- `frontend-design` & `vercel-react-best-practices` — for UI/UX, React/Next.js performance, security, accessibility, and clean patterns when working on `apps/web`.
+- `graphify` — for exploring project structure and understanding overall system architecture efficiently.
+- Use `skill` tool explicitly to load specialized skills before writing code.
 
 `docs/context.md` is the canonical "live state" doc — read it first and **update it at the end of every session** (sections _Estado atual_ and _Próximo passo imediato_). Then read `docs/architecture.md` and `docs/business-rules.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes. All docs are in Portuguese.
 
