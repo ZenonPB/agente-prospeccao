@@ -25,6 +25,7 @@ from services.scoring_service import AIScoringService
 from services.enrichment_orchestrator import process_single_lead
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
+from services.cnae_discovery_service import CnaeDiscoveryService
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ async def run_pipeline(
     campaign_id: str | None = None,
     max_leads: int = 10,
     reanalyze_only: bool = False,
+    source: str = "places",
+    cnae_code: str | None = None,
+    cnpjs: list[str] | None = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Executa o pipeline completo (coleta + enriquecimento + scoring) e gera
@@ -93,6 +97,59 @@ async def run_pipeline(
         if reanalyze_only:
             yield {"type": "log", "message": "Modo reanálise: pulando coleta, reusando leads existentes", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 50}
+        elif source == "cnae":
+            yield {"type": "log", "message": "Iniciando descoberta de empresas por CNAE e Receita Federal...", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 10}
+
+            target_state = campaign.target_state if campaign else None
+            target_city = campaign.target_city if campaign else None
+            cnae_query = cnae_code or (campaign.target_segment if campaign else "CNAE")
+
+            results = await CnaeDiscoveryService.search_by_cnae(
+                cnae_code=cnae_query,
+                state=target_state,
+                city=target_city,
+                limit=max_leads,
+                cnpjs_input=cnpjs,
+            )
+
+            logger.info("Pipeline CNAE discovery collected %d results", len(results))
+            yield {"type": "log", "message": f"{len(results)} empresas localizadas via CNAE/Receita", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 30}
+
+            for item in results:
+                company_name = item.get("name")
+                cnpj_val = item.get("cnpj")
+                place_id_val = item.get("place_id") or f"cnae_{cnpj_val}"
+
+                existing_lead = db.query(Lead).filter(
+                    (Lead.organization_id == (campaign.organization_id if campaign else None)) &
+                    ((Lead.place_id == place_id_val) | (Lead.cnpj == cnpj_val))
+                ).first()
+
+                if existing_lead:
+                    continue
+
+                new_lead = Lead(
+                    organization_id=campaign.organization_id if campaign else None,
+                    place_id=place_id_val,
+                    name=company_name,
+                    company_name=company_name,
+                    cnpj=cnpj_val,
+                    website=item.get("website"),
+                    phone=item.get("phone"),
+                    address=item.get("address"),
+                    category=item.get("cnae_description") or campaign.target_segment,
+                    city=item.get("city") or target_city,
+                    state=item.get("state") or target_state,
+                    status=LeadStatus.NOVO,
+                    campaign_id=campaign.id if campaign else None,
+                )
+                db.add(new_lead)
+                collected_count += 1
+
+            db.commit()
+            yield {"type": "log", "message": f"{collected_count} novos leads por CNAE salvos", "timestamp": _ts()}
         else:
             yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 0}

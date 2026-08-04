@@ -388,11 +388,26 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 - Integrado na página de detalhe da campanha `/campanhas/[id]` com botão "Importar CSV" no topo.
 - `campaignsApi.importCsv` + hook `useImportCsv` com invalidação do cache de campanhas e leads.
 
+### Fase 3.2 — Descoberta de Empresas por CNAE / Receita ✅ (2026-08-04)
+
+**Backend:**
+- `services/workers/src/services/cnae_discovery_service.py` (novo) — `CnaeDiscoveryService`:
+  - Integração resiliente multi-provedor (BrasilAPI + Minha Receita + CNPJá Open API com rate-limit automático de 5 req/min)
+  - Normalização de CNAE e CNPJ
+  - Busca de dados cadastrais detalhados
+- `pipeline_worker.py`: suporte estendido a `source="cnae"`, permitindo coleta de leads diretamente da Receita Federal
+- `POST /api/campaigns/{id}/collect-cnae` — endpoint autenticado para disparar o job de coleta CNAE/CNPJ em background
+
+**Frontend:**
+- `CnaeDiscoveryModal` component — modal para inserção de código de CNAE (ex: `2869100`), lista de CNPJs e limite de leads
+- Integrado na página da campanha `/campanhas/[id]` com botão "Buscar por CNAE"
+- `campaignsApi.collectCnae` + hook `useCollectCnae`
+
 ### Próximo passo imediato
 
 1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.2 — Descoberta por CNAE** (`feat/cnae-discovery`).
    - **Item 3.3 — Enriquecimento adaptativo** (`feat/adaptive-enrichment`).
+   - **Item 3.4 — Hunter / e-mail de decisor** (`feat/hunter-enrichment`).
 2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening`.

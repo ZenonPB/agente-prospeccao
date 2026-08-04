@@ -226,6 +226,12 @@ export const campaignsApi = {
       body: formData,
     });
   },
+
+  collectCnae: (campaignId: string, data: { cnae_code?: string; cnpjs?: string[]; max_leads?: number }) =>
+    request<{ job_id: string; status: string; cnae_code?: string }>(`/api/campaigns/${campaignId}/collect-cnae`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export const metricsApi = {

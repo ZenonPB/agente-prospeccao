@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useCampaign, useLeads } from '@/hooks/use-api';
 import { CampaignPipeline } from '@/components/campanhas/campaign-pipeline';
 import { CsvImportModal } from '@/components/campanhas/csv-import-modal';
+import { CnaeDiscoveryModal } from '@/components/campanhas/cnae-discovery-modal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,6 +71,7 @@ export default function CampaignDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <CnaeDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} />
           <CsvImportModal campaignId={campaign.id} campaignName={campaign.name} />
           <Badge className={statusConfig[campaign.status]?.color}>
             {statusConfig[campaign.status]?.label || campaign.status}

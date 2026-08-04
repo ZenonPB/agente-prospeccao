@@ -40,6 +40,12 @@ class BriefCampaignRequest(BaseModel):
     brief: str = Field(..., min_length=3, max_length=1000)
 
 
+class CollectCnaeRequest(BaseModel):
+    cnae_code: Optional[str] = Field(None, description="Código CNAE (ex: '2869100' ou '28.69-1-00')")
+    cnpjs: Optional[List[str]] = Field(None, description="Lista de CNPJs a buscar/validar")
+    max_leads: int = Field(20, ge=1, le=100)
+
+
 class SuggestSegmentRequest(BaseModel):
     """Corpo do POST /api/campaigns/suggest-segment.
 
@@ -436,3 +442,70 @@ async def import_campaign_csv(
     )
 
     return result
+
+
+@router.post("/{campaign_id}/collect-cnae")
+async def collect_campaign_cnae(
+    campaign_id: str,
+    data: CollectCnaeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Inicia a coleta/descoberta de empresas por CNAE / Receita Federal para uma campanha."""
+    import asyncio
+    from src.pipeline_worker import run_pipeline
+    from src.routes.pipeline import active_connections
+
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    job = Job(
+        job_type=JobType.LEAD_COLLECTION,
+        status=JobStatus.PENDING,
+        campaign_id=campaign.id,
+        organization_id=_org.id,
+        payload={
+            "campaign_id": str(campaign.id),
+            "source": "cnae",
+            "cnae_code": data.cnae_code,
+            "cnpjs": data.cnpjs,
+            "max_leads": data.max_leads,
+        },
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    job_id = str(job.id)
+
+    async def _runner():
+        try:
+            async for event in run_pipeline(
+                job_id=job_id,
+                campaign_id=str(campaign.id),
+                max_leads=data.max_leads,
+                source="cnae",
+                cnae_code=data.cnae_code,
+                cnpjs=data.cnpjs,
+            ):
+                connections = active_connections.get(job_id, [])
+                dead = []
+                for ws in connections:
+                    try:
+                        await ws.send_json(event)
+                    except Exception:
+                        dead.append(ws)
+                for ws in dead:
+                    connections.remove(ws)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error("CNAE collection task error: %s", e)
+
+    asyncio.create_task(_runner())
+
+    return {"job_id": job_id, "status": "started", "cnae_code": data.cnae_code}

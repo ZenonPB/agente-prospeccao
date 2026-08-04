@@ -332,3 +332,10 @@ export function useImportCsv() {
     },
   });
 }
+
+export function useCollectCnae() {
+  return useMutation({
+    mutationFn: ({ campaignId, cnaeCode, cnpjs, maxLeads }: { campaignId: string; cnaeCode?: string; cnpjs?: string[]; maxLeads?: number }) =>
+      campaignsApi.collectCnae(campaignId, { cnae_code: cnaeCode, cnpjs, max_leads: maxLeads }),
+  });
+}
