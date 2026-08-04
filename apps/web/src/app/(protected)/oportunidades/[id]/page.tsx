@@ -385,7 +385,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                         ) : (
                           <p className="flex items-center gap-2 text-xs text-muted-foreground">
                             <LinkedInIcon className="h-4 w-4" />
-                            LinkedIn não encontrado — use "Enriquecer decisores".
+                            LinkedIn não encontrado — use &quot;Enriquecer decisores&quot;.
                           </p>
                         )}
                       </div>
@@ -396,7 +396,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 <div className="flex flex-col items-center gap-3 py-10 text-center">
                   <UserPlus className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
                   <p className="text-sm text-muted-foreground max-w-sm">
-                    Nenhum contato de decisor cadastrado ainda. Use "Enriquecer decisores" para buscar
+                    Nenhum contato de decisor cadastrado ainda. Use &quot;Enriquecer decisores&quot; para buscar
                     sócios via Receita Federal e enriquecer com e-mail e LinkedIn (busca passiva).
                   </p>
                 </div>
