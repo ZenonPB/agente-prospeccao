@@ -72,6 +72,35 @@ class MessageChannel(enum.Enum):
     WHATSAPP = "WHATSAPP"
     LINKEDIN = "LINKEDIN"
 
+class FollowUpStep(enum.Enum):
+    """Etapas da cadência de follow-up (item 3.7) — regras de business-rules.
+
+    Dia 0 (abertura) → dia 3 (follow-up 1) → dia 7 (follow-up 2) → dia 14
+    (encerramento). O `day_offset` é usado para agendar `scheduled_at`.
+    """
+    OPENING = "OPENING"
+    FOLLOWUP_1 = "FOLLOWUP_1"
+    FOLLOWUP_2 = "FOLLOWUP_2"
+    CLOSING = "CLOSING"
+
+    @property
+    def day_offset(self) -> int:
+        return {FollowUpStep.OPENING: 0, FollowUpStep.FOLLOWUP_1: 3,
+                FollowUpStep.FOLLOWUP_2: 7, FollowUpStep.CLOSING: 14}[self]
+
+    @property
+    def label(self) -> str:
+        return {FollowUpStep.OPENING: "Abertura (dia 0)",
+                FollowUpStep.FOLLOWUP_1: "Follow-up 1 (dia 3)",
+                FollowUpStep.FOLLOWUP_2: "Follow-up 2 (dia 7)",
+                FollowUpStep.CLOSING: "Encerramento (dia 14)"}[self]
+
+class FollowUpStatus(enum.Enum):
+    PENDING = "PENDING"       # agendado, aguardando envio (humano ou automático)
+    SENT = "SENT"             # enviado
+    SKIPPED = "SKIPPED"       # pulado (ex.: opt-out LGPD ou lead respondeu)
+    CANCELLED = "CANCELLED"   # cancelado (ciclo encerrado cedo)
+
 # Modelos
 class Organization(Base):
     """Workspace que agrupa usuários e isola seus dados.
@@ -84,6 +113,9 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(120), unique=True, nullable=False)
+    # Item 3.7 — envio automático de follow-ups (opt-in). Default: humano-no-loop.
+    # Só com esta flag o scheduler envia e-mails quando a cadência vence.
+    auto_send_email = Column(Boolean, default=False, nullable=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -236,6 +268,10 @@ class CampaignScoringTemplate(Base):
     requires_business_data = Column(Boolean, default=True)
     # Instruções extras, free-text, injetadas no prompt.
     extra_instructions = Column(Text)
+    # Playbook de outreach por vertical (item 3.8): hooks de abordagem,
+    # ideias de assunto e objeções do decisor — injetados no OutreachService
+    # para mensagens variarem por serviço/segmento.
+    playbook = Column(JSONB, default=dict)
     is_active = Column(Boolean, default=True)
     # Template gerado por IA sob demanda (item 1.3) — distingue de seeds manuais.
     is_generated = Column(Boolean, default=False, server_default="false")
@@ -290,8 +326,13 @@ class Lead(Base):
     assigned_at = Column(DateTime(timezone=True), nullable=True)
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
 
+    # LGPD opt-out (item 3.7): lead pediu para não receber mais mensagens.
+    # Cadências pendentes são canceladas/puladas e nenhum envio automático ocorre.
+    opt_out = Column(Boolean, default=False, nullable=False, server_default="false")
+
     enrichments = relationship("Enrichment", back_populates="lead")
     messages = relationship("Message", back_populates="lead")
+    follow_ups = relationship("FollowUp", back_populates="lead", cascade="all, delete-orphan")
     conversions = relationship("Conversion", back_populates="lead")
     activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan")
     contacts = relationship("Contact", back_populates="lead", cascade="all, delete-orphan")
@@ -342,6 +383,40 @@ class Message(Base):
 
     def __repr__(self):
         return f"<Message(id='{self.id}', lead_id='{self.lead_id}', channel='{self.channel.value}')>"
+
+class FollowUp(Base):
+    """Etapa da cadência de follow-up de um lead (item 3.7).
+
+    Sequência dia 0/3/7/14 (`FollowUpStep`): abertura + 2 follow-ups +
+    encerramento, conforme `docs/business-rules.md`. O conteúdo é a mensagem
+    gerada pelo `OutreachService` (ou editada pelo humano) pronta para envio.
+
+    - `scheduled_at` = momento em que a etapa deve ser enviada.
+    - Se a org optou por **envio automático** (`Organization.auto_send_email`),
+      o scheduler envia quando `scheduled_at` vence. Senão (humano-no-loop
+      default), o consultor envia manualmente pela UI.
+    - Leads com `opt_out` (LGPD) têm etapas pendentes marcadas como `SKIPPED`.
+    """
+    __tablename__ = "follow_ups"
+    __table_args__ = (
+        Index("ix_follow_ups_lead_id", "lead_id"),
+        Index("ix_follow_ups_scheduled_at", "scheduled_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
+    step = Column(Enum(FollowUpStep, name='follow_up_step', create_type=True), nullable=False)
+    channel = Column(Enum(MessageChannel, name='message_channel', create_type=False), default=MessageChannel.EMAIL)
+    subject = Column(String(255))
+    content = Column(Text)
+    scheduled_at = Column(DateTime(timezone=True), nullable=False)
+    sent_at = Column(DateTime(timezone=True))
+    status = Column(Enum(FollowUpStatus, name='follow_up_status', create_type=True), default=FollowUpStatus.PENDING)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    lead = relationship("Lead", back_populates="follow_ups")
+
+    def __repr__(self):
+        return f"<FollowUp(lead='{self.lead_id}', step='{self.step.value}', status='{self.status.value}')>"
 
 class ContactRole(enum.Enum):
     """Papel do decisor na empresa. Derivado da Receita Federal (sócios

@@ -11,6 +11,7 @@ from database.models import (
     Campaign,
     Enrichment,
     Message,
+    FollowUp,
     Job,
     User,
     Contact,
@@ -32,4 +33,6 @@ from database.models import (
     SalesRole,
     CampaignScoringTemplate,
     OrganizationSecret,
+    FollowUpStep,
+    FollowUpStatus,
 )
