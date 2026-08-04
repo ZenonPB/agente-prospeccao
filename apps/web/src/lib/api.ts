@@ -1,5 +1,5 @@
 import { getSession } from "next-auth/react";
-import type { Lead, Campaign, Enrichment, PitchOnePager } from "@/types";
+import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole } from "@/types";
 
@@ -47,9 +47,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   }
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((fetchOptions.headers as Record<string, string>) || {}),
   };
+
+  if (!(fetchOptions.body instanceof FormData) && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
 
   // Adiciona token de autenticação do cache ou da sessão NextAuth
   const token = await resolveToken();
@@ -214,6 +217,15 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify({ brief }),
     }),
+
+  importCsv: (campaignId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<CsvImportResult>(`/api/campaigns/${campaignId}/import`, {
+      method: "POST",
+      body: formData,
+    });
+  },
 };
 
 export const metricsApi = {

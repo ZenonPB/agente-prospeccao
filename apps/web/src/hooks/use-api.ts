@@ -320,3 +320,15 @@ export function useRevokeInvite() {
     },
   });
 }
+
+export function useImportCsv() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ campaignId, file }: { campaignId: string; file: File }) =>
+      campaignsApi.importCsv(campaignId, file),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns", variables.campaignId] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}

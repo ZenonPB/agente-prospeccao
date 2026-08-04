@@ -371,13 +371,29 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 
 **Testado:** migration aplicada, API roda sem erros, org switcher mostra orgs, página de convites renderiza.
 
+### Fase 3.1 — Importação de Leads por CSV ✅ (2026-08-04)
+
+**Backend:**
+- `services/api/src/services/csv_import_service.py` (novo) — `CsvImportService.parse_and_import()`:
+  - Suporte a delimitadores `,` e `;`
+  - Mapeamento flexível de colunas (Nome/Empresa, Site/Website, Telefone, Cidade, Estado/UF, CNPJ, Endereço, Categoria)
+  - Validação linha a linha + higienização de URLs e CNPJs
+  - Deduplicação por `(organization_id, website/cnpj/place_id)`
+  - Geração de `place_id` sintético determinístico (`csv_<hash>`)
+  - Retorna relatório estruturado (`total_rows`, `imported_count`, `duplicate_count`, `error_count`, `errors[]`)
+- `POST /api/campaigns/{id}/import` — endpoint multipart/form-data com suporte a codificações UTF-8 e Latin-1
+
+**Frontend:**
+- `CsvImportModal` component — modal interativo para seleção de arquivos .csv, exibição de regras de colunas, progresso e relatório detalhado pós-importação.
+- Integrado na página de detalhe da campanha `/campanhas/[id]` com botão "Importar CSV" no topo.
+- `campaignsApi.importCsv` + hook `useImportCsv` com invalidação do cache de campanhas e leads.
+
 ### Próximo passo imediato
 
 1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.1 — Import CSV** (`feat/csv-import`): endpoint + UI para importação de leads via CSV.
    - **Item 3.2 — Descoberta por CNAE** (`feat/cnae-discovery`).
    - **Item 3.3 — Enriquecimento adaptativo** (`feat/adaptive-enrichment`).
-3. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
+2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening`.
 

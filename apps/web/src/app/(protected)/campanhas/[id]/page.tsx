@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCampaign, useLeads } from '@/hooks/use-api';
 import { CampaignPipeline } from '@/components/campanhas/campaign-pipeline';
+import { CsvImportModal } from '@/components/campanhas/csv-import-modal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,9 +69,12 @@ export default function CampaignDetailPage() {
             </div>
           </div>
         </div>
-        <Badge className={statusConfig[campaign.status]?.color}>
-          {statusConfig[campaign.status]?.label || campaign.status}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <CsvImportModal campaignId={campaign.id} campaignName={campaign.name} />
+          <Badge className={statusConfig[campaign.status]?.color}>
+            {statusConfig[campaign.status]?.label || campaign.status}
+          </Badge>
+        </div>
       </div>
 
       <CampaignPipeline
