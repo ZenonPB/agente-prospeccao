@@ -108,12 +108,32 @@ export interface OrgMembership {
     id: string;
     name?: string;
     slug?: string;
+    auto_send_email?: boolean;
   };
   membership: {
     role: OrgRole;
     sales_role: SalesRole;
     user_id: string;
   };
+}
+
+export interface FollowUpItem {
+  id: string;
+  step: 'OPENING' | 'FOLLOWUP_1' | 'FOLLOWUP_2' | 'CLOSING';
+  label: string;
+  channel: string | null;
+  subject: string | null;
+  content: string | null;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  status: 'PENDING' | 'SENT' | 'SKIPPED' | 'CANCELLED' | null;
+}
+
+export interface LeadCadence {
+  lead_id: string;
+  opt_out: boolean;
+  organization_auto_send: boolean;
+  follow_ups: FollowUpItem[];
 }
 
 export interface OrganizationListItem {

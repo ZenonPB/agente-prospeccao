@@ -111,6 +111,7 @@ def _serialize(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
         "requires_technical_report": bool(tmpl.requires_technical_report),
         "requires_business_data": bool(tmpl.requires_business_data),
         "extra_instructions": tmpl.extra_instructions,
+        "playbook": tmpl.playbook or {},
     }
 
 
@@ -285,3 +286,27 @@ async def route_scoring_template(
         return {"template": _serialize(generic), "route": ROUTE_GENERIC,
                 "matched_label": generic.service_label}
     return {"template": None, "route": ROUTE_GENERIC, "matched_label": None}
+
+
+async def get_playbook_for_campaign(
+    db: Session,
+    target_service: str,
+    target_segment: str = "",
+    explicit_template_id: Optional[str] = None,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Resolve o template da campanha e retorna o playbook de outreach (item 3.8).
+
+    Reusa `route_scoring_template` (exact → fuzzy → LLM → genérico) para achar
+    o template mais próximo e devolve seu `playbook` (hooks/subject_ideas/
+    objections). Vazio `{}` se nada for resolvido.
+    """
+    routed = await route_scoring_template(
+        db,
+        target_service=target_service,
+        target_segment=target_segment,
+        explicit_template_id=explicit_template_id,
+        api_key=api_key,
+    )
+    tmpl = routed.get("template") or {}
+    return tmpl.get("playbook") or {}

@@ -17,6 +17,24 @@ def _is_smtp_configured() -> bool:
     return bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
 
 
+def send_email(to_email: str, subject: str, body: str) -> bool:
+    """Envia e-mail transacional genérico via SMTP (ou loga no console em dev).
+
+    Item 3.7: usado pela cadência de follow-up (humano-no-loop envia pela UI;
+    envio automático apenas quando a org ativa `auto_send_email`). Em dev, sem
+    SMTP configurado, o conteúdo é impresso no log — permitindo E2E sem rede.
+    """
+    if _is_smtp_configured():
+        return _send_smtp(to_email, subject, body)
+
+    logger.info("=== EMAIL (SMTP not configured — human-in-the-loop) ===")
+    logger.info("To: %s", to_email)
+    logger.info("Subject: %s", subject)
+    logger.info("Body: \n%s", body)
+    logger.info("=== END EMAIL ===")
+    return True
+
+
 def send_password_reset_email(to_email: str, reset_link: str, user_name: str) -> bool:
     """Send password reset email via SMTP, or log to console in dev."""
     subject = "Redefinição de senha - Agente Prospecção"

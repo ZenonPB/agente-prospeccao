@@ -10,6 +10,7 @@ import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion } from '@/hooks/use-api';
+import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -148,6 +149,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           <TabsTrigger value="evidence" className="h-9">Evidências</TabsTrigger>
           <TabsTrigger value="technical" className="h-9">Análise do site</TabsTrigger>
           <TabsTrigger value="contacts" className="h-9">Contatos</TabsTrigger>
+          <TabsTrigger value="cadence" className="h-9">Cadência</TabsTrigger>
           <TabsTrigger value="activities" className="h-9">Atividades</TabsTrigger>
           <TabsTrigger value="actions" className="h-9">Ações</TabsTrigger>
         </TabsList>
@@ -410,6 +412,10 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="cadence" className="space-y-4">
+          <CadencePanel leadId={lead.id} />
         </TabsContent>
 
         <TabsContent value="activities" className="space-y-4">

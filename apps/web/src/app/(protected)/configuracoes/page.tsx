@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
+import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
 import { useOrgMembership } from '@/hooks/use-api';
 
 const themes = [
@@ -306,6 +307,9 @@ export default function ConfiguracoesPage() {
 
       {/* Chaves de API (BYOK) */}
       <OrgSecretsCard />
+
+      {/* Envio de follow-ups (item 3.7) */}
+      <OrgSendSettings />
     </div>
   );
 }

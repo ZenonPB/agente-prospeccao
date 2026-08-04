@@ -1,0 +1,234 @@
+"""CadenceService — cadência de follow-up de um lead (item 3.7).
+
+Sequência dia 0/3/7/14 (`FollowUpStep`), conforme `docs/business-rules.md`.
+O conteúdo das etapas é gerado pelo `OutreachService` (ou fornecido no
+start) e persistido em `follow_ups`, pronto para envio.
+
+Envio:
+- **Humano-no-loop (default):** o consultor envia cada etapa pela UI
+  (`send_step`). Nenhum e-mail sai automaticamente sem ação humana.
+- **Automático (opt-in):** se a org tem `auto_send_email=True`, o scheduler
+  (`run_due`) envia quando `scheduled_at` vence, respeitando `opt_out`.
+- LGPD: leads com `opt_out` têm etapas pendentes marcadas `SKIPPED` e nunca
+  recebem envio automático.
+
+O envio efetivo vai via `email_service.send_email` (SMTP ou console em dev).
+"""
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
+
+from sqlalchemy.orm import Session
+
+from src.db.models import (
+    FollowUp,
+    FollowUpStatus,
+    FollowUpStep,
+    Lead,
+    LeadStatus,
+    Message,
+    MessageChannel,
+    Organization,
+    User,
+    LeadActivity,
+    LeadActivityAction,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def schedule_cadence(
+    db: Session,
+    lead: Lead,
+    messages: dict,
+    organization: Optional[Organization] = None,
+    user_id: Optional[str] = None,
+) -> List[FollowUp]:
+    """Cria as 4 etapas da cadência (dia 0/3/7/14) a partir das mensagens.
+
+    `messages` deve conter as chaves do OutreachService:
+    `subject`, `body_opening`, `followup_1`, `followup_2`, `closing`.
+    Etapas anteriores pendentes são canceladas (reagendamento limpo).
+    """
+    now = datetime.now(timezone.utc)
+
+    for old in db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.status == FollowUpStatus.PENDING,
+    ).all():
+        old.status = FollowUpStatus.CANCELLED
+
+    steps_content = {
+        FollowUpStep.OPENING: (messages.get("subject") or "", messages.get("body_opening") or ""),
+        FollowUpStep.FOLLOWUP_1: (messages.get("subject") or "", messages.get("followup_1") or ""),
+        FollowUpStep.FOLLOWUP_2: (messages.get("subject") or "", messages.get("followup_2") or ""),
+        FollowUpStep.CLOSING: (messages.get("subject") or "", messages.get("closing") or ""),
+    }
+
+    created: List[FollowUp] = []
+    for step, (subject, content) in steps_content.items():
+        scheduled = now + timedelta(days=step.day_offset)
+        fu = FollowUp(
+            lead_id=lead.id,
+            step=step,
+            channel=MessageChannel.EMAIL,
+            subject=subject,
+            content=content or None,
+            scheduled_at=scheduled,
+            status=FollowUpStatus.PENDING,
+        )
+        db.add(fu)
+        created.append(fu)
+
+    db.commit()
+    for fu in created:
+        db.refresh(fu)
+
+    log_cadence_event(
+        db, lead,
+        action=LeadActivityAction.MESSAGE_GENERATED,
+        user_id=user_id,
+        detail="Cadência agendada: dia 0/3/7/14",
+    )
+    db.commit()
+    return created
+
+
+def send_step(
+    db: Session,
+    follow_up: FollowUp,
+    user_id: Optional[str] = None,
+) -> bool:
+    """Envia uma etapa da cadência (humano-no-loop ou scheduler).
+
+    Marca como SENT, registra um `Message` no lead e uma atividade na trilha.
+    Respeita `opt_out` — lead que opt-out não recebe nada.
+    """
+    if follow_up.status == FollowUpStatus.SENT:
+        return True
+    if follow_up.lead and follow_up.lead.opt_out:
+        follow_up.status = FollowUpStatus.SKIPPED
+        db.commit()
+        return False
+    if not follow_up.content:
+        logger.warning("Follow-up %s do lead %s sem conteúdo — pulando",
+                       follow_up.step.value, follow_up.lead_id)
+        follow_up.status = FollowUpStatus.SKIPPED
+        db.commit()
+        return False
+
+    from src.services.email_service import send_email
+
+    lead = db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
+    to_email = _recipient_email(lead)
+    if not to_email:
+        logger.info("Lead %s sem e-mail — etapa %s pulada (sem destino)",
+                    lead.id if lead else follow_up.lead_id, follow_up.step.value)
+        follow_up.status = FollowUpStatus.SKIPPED
+        db.commit()
+        return False
+
+    ok = send_email(to_email, follow_up.subject or "", follow_up.content or "")
+    follow_up.sent_at = datetime.now(timezone.utc)
+    follow_up.status = FollowUpStatus.SENT if ok else FollowUpStatus.PENDING
+    db.commit()
+
+    if ok:
+        msg = Message(
+            lead_id=follow_up.lead_id,
+            channel=MessageChannel.EMAIL,
+            content=follow_up.content,
+            ai_generated_draft=follow_up.content,
+            sent_at=follow_up.sent_at,
+        )
+        db.add(msg)
+        log_cadence_event(
+            db, lead,
+            action=LeadActivityAction.CONTACTED,
+            user_id=user_id,
+            detail=f"Enviado: {follow_up.step.label}",
+        )
+        # Primeiro contato via cadência move o lead para CONTATADO.
+        if lead and lead.status in (
+            LeadStatus.NOVO, LeadStatus.ANALISADO,
+            LeadStatus.QUALIFICADO, LeadStatus.DESQUALIFICADO,
+        ):
+            lead.status = LeadStatus.CONTATADO
+        db.commit()
+
+    return ok
+
+
+def mark_opt_out(db: Session, lead: Lead) -> None:
+    """Registra opt-out (LGPD): cancela etapas pendentes e impede novos envios."""
+    lead.opt_out = True
+    for fu in db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.status == FollowUpStatus.PENDING,
+    ).all():
+        fu.status = FollowUpStatus.SKIPPED
+    db.commit()
+
+
+def run_due(db: Session) -> int:
+    """Envia automaticamente as etapas vencidas de orgs com `auto_send_email`.
+
+    Rodado periodicamente pelo scheduler (main.py). Respeita opt-out. Retorna
+    quantas etapas foram enviadas. Não envia nada para orgs sem opt-in.
+    """
+    from sqlalchemy import and_
+
+    now = datetime.now(timezone.utc)
+    due = (
+        db.query(FollowUp)
+        .join(Lead, FollowUp.lead_id == Lead.id)
+        .join(Organization, Lead.organization_id == Organization.id)
+        .filter(
+            and_(
+                FollowUp.status == FollowUpStatus.PENDING,
+                FollowUp.scheduled_at <= now,
+                Lead.opt_out.is_(False),
+                Organization.auto_send_email.is_(True),
+            )
+        )
+        .all()
+    )
+    sent_count = 0
+    for fu in due:
+        try:
+            if send_step(db, fu):
+                sent_count += 1
+        except Exception as e:
+            logger.error("Falha ao enviar follow-up %s do lead %s: %s",
+                         fu.step.value, fu.lead_id, e)
+    return sent_count
+
+
+def _recipient_email(lead: Optional[Lead]) -> Optional[str]:
+    if not lead:
+        return None
+    if lead.email:
+        return lead.email
+    for c in lead.contacts or []:
+        if c.email:
+            return c.email
+    return None
+
+
+def log_cadence_event(
+    db: Session,
+    lead: Optional[Lead],
+    action: LeadActivityAction,
+    user_id: Optional[str],
+    detail: str,
+) -> Optional[LeadActivity]:
+    if not lead:
+        return None
+    activity = LeadActivity(
+        lead_id=lead.id,
+        user_id=user_id,
+        action=action,
+        detail=detail,
+    )
+    db.add(activity)
+    return activity

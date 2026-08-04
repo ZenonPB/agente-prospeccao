@@ -393,3 +393,57 @@ export function useRegisterConversion() {
     },
   });
 }
+
+export function useLeadCadence(id: string) {
+  return useQuery({
+    queryKey: ["leads", id, "cadence"],
+    queryFn: () => leadsApi.getCadence(id),
+    enabled: !!id,
+  });
+}
+
+export function useStartCadence() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.startCadence(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", id, "cadence"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", id] });
+    },
+  });
+}
+
+export function useSendCadenceStep() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, step }: { id: string; step: string }) =>
+      leadsApi.sendCadenceStep(id, step),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+    },
+  });
+}
+
+export function useOptOutLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.optOutLead(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", id, "cadence"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", id] });
+    },
+  });
+}
+
+export function usePatchOrgSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, data }: { orgId: string; data: { auto_send_email?: boolean } }) =>
+      orgsApi.patchSettings(orgId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["orgs", "me"] });
+    },
+  });
+}
