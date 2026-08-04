@@ -435,10 +435,30 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 
 **Testado:** migration aplicada; helpers (domínio/slug/URL) unit-testados; busca passiva retorna perfil real (Bill Gates → `bill-gates-...`); CNPJ Petrobras → 9 sócios; fluxo completo email+linkedin com lead fake; `npm run build` OK.
 
+### Item 3.5 — BYOK e cotas por org ✅
+
+Branch: `feat/org-byok`
+
+**Workers:**
+- `OrganizationSecret` (model) + migration `f2a3b4c5d6e7` — tabela `organization_secrets` (unique `organization_id + key_name`) com `encrypted_value`.
+- `secret_service.py` — Fernet (`SECRETS_ENCRYPTION_KEY`) com fallback dev derivado do `DATABASE_URL`; `encrypt_value`/`decrypt_value`; `set_org_secret` (upsert), `delete_org_secret`, `resolve_key`/`resolve_all` (BYOK → pool global).
+- Serviços passam a aceitar `api_key` injetável: `places_service`, `scoring_service`, `outreach_service`, `campaign_brief_service`, `segment_suggestion_service`, `template_router` (`route_scoring_template`/`_classify_llm`), `template_generation_service`.
+- `settings.py`: `SECRETS_ENCRYPTION_KEY` (default vazio = dev). `.env.example` atualizado.
+
+**API:**
+- `pipeline_worker.py` — resolve chaves da org da campanha (`SecretService.resolve_all`) e injeta em Places/Scoring/Template (linhas ~157/223/229/245).
+- Rotas que chamam LLM resolvem por org: `suggest-segment`, `from-brief`, `generate-messages`.
+- Endpoints CRUD em `routes/orgs.py` (org admin only): `GET/PUT/DELETE /orgs/{org_id}/secrets/{key_name}` — valores nunca expostos (só `configured`).
+
+**Frontend:**
+- `orgsApi.listSecrets/putSecret/deleteSecret` + hooks `useOrgSecrets`/`usePutOrgSecret`/`useDeleteOrgSecret`.
+- Card **"Chaves de API da organização"** em `/configuracoes` (admin): salvar/atualizar/remover `GOOGLE_API_KEY` e `GROQ_API_KEY`; badge "Configurada"/"Pool global"; não-admin vê aviso.
+
+**Testado:** py_compile de todos os arquivos tocados; imports de rotas e serviços OK; roundtrip Fernet OK; `npm run build` OK; eslint limpo. Quota diária do pool não contabilizada (nota no roadmap 3.5.2).
+
 ### Próximo passo imediato
 
 1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.5 — BYOK e cotas por org** (`feat/org-byok`).
    - **Item 3.6 — Feedback conversão → score** (`feat/conversion-feedback`).
 2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
