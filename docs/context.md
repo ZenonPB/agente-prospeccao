@@ -109,6 +109,16 @@
 - `apps/web/src/hooks/use-api.ts` — `useGenerateMessages` (useMutation sem invalidate)
 - Modal Dialog com Tabs (E-mail, Follow-ups, WhatsApp) e botões de cópia
 
+**Reformulação UI/UX (Branch `feat/ui-ux-revamp`):**
+- **Sistemas de Design & Tipografia**: Fontes `Inter` (sans) + `Space Grotesk` (display) + `Geist Mono` (mono). Paleta de cores renovada em OKLCH com dark mode adaptativo.
+- **Componentes Globais de Layout**:
+  - `BrandMark`: Ícone de radar (sinal de oportunidade) customizado em SVG.
+  - `AuthShell`: Layout dividido para páginas de autenticação com cartão explicativo do produto.
+  - `PageHeader`: Cabeçalho padronizado com sobrancelha, título font-heading, descrição e slot de ações.
+  - `EmptyState`: Componente para listas sem itens com ícones e chamadas para ação.
+- **Páginas Refatoradas**: Dashboard, Campanhas, Oportunidades, Negociações (Kanban), Relatórios, Equipe, Configurações e Auth (Login, Register, Esqueci/Resetar Senha, Aceitar Convite).
+- **Sidebar & Header**: Navegação em grupos ("Visão", "Operação", "Inteligência", "Gestão"), indicador ativo de barra lateral, e switcher de organizações aprimorado.
+
 **Segurança / CSP:**
 - `middleware.ts` (renomeado de proxy.ts) — proteção de rotas + CSP por ambiente
   - Dev: `'unsafe-eval'` + `'unsafe-inline'` para HMR

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ProcessBanner } from '@/components/dashboard/process-banner';
 import { MetricsGrid } from '@/components/dashboard/metrics';
 import { FunnelChart } from '@/components/dashboard/funnel-chart';
 import { ActivityTimeline } from '@/components/dashboard/activity-timeline';
@@ -19,6 +20,9 @@ export default function DashboardPage() {
         title="Seu radar comercial"
         description="Acompanhe os resultados da sua prospecção em um só lugar"
       />
+
+      {/* Process Banner */}
+      <ProcessBanner />
 
       {/* Metrics */}
       <MetricsGrid onFilter={setActiveFilter} activeFilter={activeFilter} />

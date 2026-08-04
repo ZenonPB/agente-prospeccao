@@ -20,7 +20,19 @@ import { useOrgMembership } from '@/hooks/use-api';
 import { OrgSwitcher } from './org-switcher';
 import { BrandMark } from './brand-mark';
 
-const navGroups = [
+interface NavItem {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  analystOnly?: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
     label: 'Visão',
     items: [{ name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard }],

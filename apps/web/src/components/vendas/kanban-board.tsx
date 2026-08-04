@@ -198,12 +198,33 @@ export function KanbanBoard() {
 
   return (
     <div className="space-y-4">
+      {/* Resumo do Funil de Negociação */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-lg border bg-card p-3 shadow-sm">
+          <p className="text-xs font-medium text-muted-foreground">Total no Pipeline</p>
+          <p className="font-heading text-xl font-bold tracking-tight text-foreground">{totalLeads}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-3 shadow-sm">
+          <p className="text-xs font-medium text-muted-foreground">Aptos p/ Contato</p>
+          <p className="font-heading text-xl font-bold tracking-tight text-emerald-600">{columns['QUALIFICADO']?.length || 0}</p>
+        </div>
+        <div className="rounded-lg border bg-card p-3 shadow-sm">
+          <p className="text-xs font-medium text-muted-foreground">Em Abordagem</p>
+          <p className="font-heading text-xl font-bold tracking-tight text-blue-600">
+            {(columns['CONTATADO']?.length || 0) + (columns['RESPONDIDO']?.length || 0)}
+          </p>
+        </div>
+        <div className="rounded-lg border bg-card p-3 shadow-sm">
+          <p className="text-xs font-medium text-muted-foreground">Reuniões / Propostas</p>
+          <p className="font-heading text-xl font-bold tracking-tight text-amber-600">
+            {(columns['REUNIAO_MARCADA']?.length || 0) + (columns['REUNIAO_FEITA']?.length || 0) + (columns['PROPOSTA_ENVIADA']?.length || 0)}
+          </p>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {totalLeads} lead{totalLeads !== 1 ? 's' : ''} em acompanhamento
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Arraste os cartões entre as colunas para atualizar o status
+        <p className="text-sm font-medium text-muted-foreground">
+          Arraste os cartões entre as colunas para atualizar o status do funil
         </p>
       </div>
 

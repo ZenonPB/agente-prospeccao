@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Plus, MoreHorizontal, Pause, Play, Archive, Copy, PlayCircle, AlertCircle } from 'lucide-react';
+import { Plus, MoreHorizontal, Pause, Play, Archive, Copy, PlayCircle, AlertCircle, Megaphone } from 'lucide-react';
 import Link from 'next/link';
 import {
   DropdownMenu,

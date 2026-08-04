@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert, Trophy, MessageCircle, Save } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -234,6 +234,39 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           </Button>
         </div>
       </div>
+
+      {/* Highlight Card: Gancho Recomendado */}
+      {lead.pitch_angle && (
+        <Card className="border-sidebar-border bg-gradient-to-r from-sidebar/95 to-sidebar text-sidebar-foreground shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-sidebar-primary" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-sidebar-primary">
+                  Gancho de Abordagem Sugerido
+                </span>
+              </div>
+              <p className="text-sm font-medium leading-relaxed text-sidebar-foreground">
+                &ldquo;{lead.pitch_angle}&rdquo;
+              </p>
+              {lead.suggested_subject && (
+                <p className="text-xs text-sidebar-foreground/60">
+                  Assunto de e-mail recomendado: <strong className="text-sidebar-foreground">{lead.suggested_subject}</strong>
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              onClick={() => copyToClipboard(lead.pitch_angle || '', 'Gancho copiado!')}
+            >
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              Copiar Gancho
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="h-10">

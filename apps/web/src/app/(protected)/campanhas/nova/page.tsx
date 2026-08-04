@@ -14,6 +14,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { useCreateCampaign, useSuggestSegment, useCampaignFromBrief, useUpdateCampaign, type SegmentSuggestion, type CampaignBrief } from '@/hooks/use-api';
 import { TemplateSelector } from '@/components/campanhas/template-selector';
+import { PageHeader } from '@/components/ui/page-header';
 
 const steps = [
   { id: 1, title: 'Perfil da prospecção' },
@@ -194,18 +195,17 @@ export default function NovaCampanhaPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Link href="/campanhas">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="h-9 w-9">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Nova Campanha</h2>
-          <p className="text-muted-foreground">
-            Crie uma nova campanha de prospecção
-          </p>
-        </div>
+        <PageHeader
+          eyebrow="Configuração"
+          title="Nova Busca de Prospecção"
+          description="Crie uma campanha em segundos com o assistente inteligente ou passo a passo"
+        />
       </div>
 
       {/* Mode toggle */}
