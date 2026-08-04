@@ -43,6 +43,23 @@ export interface LeadActivityItem {
   created_at: string;
 }
 
+export interface ContactItem {
+  id: string;
+  name: string;
+  role?: string;
+  role_label?: string;
+  email?: string;
+  phone?: string;
+  document_cpf?: string;
+  confidence?: number;
+  linkedin_url?: string;
+  linkedin_confidence?: number;
+  is_primary?: boolean;
+  source?: string;
+  raw_data?: unknown;
+  created_at?: string;
+}
+
 export interface Lead {
   id: string;
   place_id?: string;
@@ -71,6 +88,7 @@ export interface Lead {
   assigned_to_name?: string;
   assigned_at?: string;
   activities?: LeadActivityItem[];
+  contacts?: ContactItem[];
   created_at: string;
   updated_at: string;
 }
@@ -273,6 +291,7 @@ export interface PitchOnePager {
     role?: string;
     email?: string;
     phone?: string;
+    linkedin_url?: string;
   } | null;
   site_audit?: SiteAudit | null;
 }

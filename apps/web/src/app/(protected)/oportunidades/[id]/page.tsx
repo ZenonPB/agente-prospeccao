@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2 } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useLead, useUpdateLeadStatus, useGenerateMessages } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts } from '@/hooks/use-api';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -63,6 +64,7 @@ const activityLabels: Record<string, string> = {
   RESPONDED: 'Lead respondeu',
   MEETING_SCHEDULED: 'Reunião marcada',
   CONVERTED: 'Conversão registrada',
+  CONTACT_ENRICHED: 'Decisores enriquecidos',
 };
 
 export default function LeadDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -71,6 +73,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const { data: lead, isLoading } = useLead(params.id);
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
+  const enrichContacts = useEnrichContacts();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
@@ -292,13 +295,112 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
         <TabsContent value="contacts" className="space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Contatos</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <CardTitle>Contatos de decisores</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  enrichContacts.mutate({ leadId: lead.id }, {
+                    onSuccess: () => toast.success('Decisores enriquecidos (e-mail/LinkedIn).'),
+                    onError: (err) => toast.error(err instanceof Error ? err.message : 'Erro ao enriquecer contatos.'),
+                  });
+                }}
+                disabled={enrichContacts.isPending}
+              >
+                {enrichContacts.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+                )}
+                Enriquecer decisores
+              </Button>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                A busca por contatos de decisores será disponibilizada em breve.
-              </p>
+              {lead.contacts && lead.contacts.length > 0 ? (
+                <div className="space-y-3">
+                  {lead.contacts.map((contact) => (
+                    <div key={contact.id} className="rounded-lg border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{contact.name}</p>
+                            {contact.is_primary && (
+                              <Badge variant="secondary" className="text-[10px] font-normal">Principal</Badge>
+                            )}
+                          </div>
+                          {contact.role_label && (
+                            <p className="text-xs text-muted-foreground">{contact.role_label}</p>
+                          )}
+                        </div>
+                        {contact.confidence != null && (
+                          <Badge className={contact.confidence >= 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}>
+                            Confiança {contact.confidence}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-3 space-y-2 text-sm">
+                        {contact.email && (
+                          <div className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                            <a href={`mailto:${contact.email}`} className="text-primary hover:underline">{contact.email}</a>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.email || '', 'E-mail copiado.')} aria-label="Copiar e-mail">
+                              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            </Button>
+                          </div>
+                        )}
+                        {contact.phone && (
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                            <span>{contact.phone}</span>
+                          </div>
+                        )}
+                        {contact.linkedin_url ? (
+                          <div className="flex items-center gap-2">
+                            <LinkedInIcon className="h-4 w-4 text-primary" />
+                            <a
+                              href={contact.linkedin_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline truncate max-w-[280px]"
+                            >
+                              {contact.linkedin_url}
+                            </a>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.linkedin_url || '', 'Link do LinkedIn copiado.')} aria-label="Copiar LinkedIn">
+                              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            </Button>
+                            {contact.linkedin_confidence != null && contact.linkedin_confidence < 50 ? (
+                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                                <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />
+                                Não validado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                                <ShieldCheck className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+                                Perfil validado
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <LinkedInIcon className="h-4 w-4" />
+                            LinkedIn não encontrado — use &quot;Enriquecer decisores&quot;.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-10 text-center">
+                  <UserPlus className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                  <p className="text-sm text-muted-foreground max-w-sm">
+                    Nenhum contato de decisor cadastrado ainda. Use &quot;Enriquecer decisores&quot; para buscar
+                    sócios via Receita Federal e enriquecer com e-mail e LinkedIn (busca passiva).
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

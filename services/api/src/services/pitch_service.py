@@ -193,6 +193,7 @@ def build_pitch_one_pager(
                 "role": c.role_label or (c.role.value if c.role else None),
                 "email": c.email,
                 "phone": c.phone,
+                "linkedin_url": c.linkedin_url,
             }
             break
     if not primary_contact and contacts:
@@ -202,6 +203,7 @@ def build_pitch_one_pager(
             "role": c.role_label or (c.role.value if c.role else None),
             "email": c.email,
             "phone": c.phone,
+            "linkedin_url": c.linkedin_url,
         }
 
     pos_factors = []

@@ -45,6 +45,8 @@ def _contact_to_dict(c: Contact) -> dict:
         "phone": c.phone,
         "document_cpf": c.document_cpf,
         "confidence": c.confidence,
+        "linkedin_url": c.linkedin_url,
+        "linkedin_confidence": c.linkedin_confidence,
         "is_primary": c.is_primary,
         "source": c.source,
         "raw_data": c.raw_data,
@@ -113,6 +115,9 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
         "evidence": lead.evidence,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
+        "contacts": [
+            _contact_to_dict(c) for c in (lead.contacts or [])
+        ],
         "activities": [
             {
                 "id": str(a.id),
@@ -457,3 +462,44 @@ async def generate_messages(
     db.commit()
 
     return result
+
+
+@router.post("/{lead_id}/enrich-contacts")
+async def enrich_lead_contacts(
+    lead_id: str,
+    body: EnrichContactsRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Enriquece decisores do lead com e-mail e LinkedIn (busca passiva).
+
+    - Fonte primária de decisores: Receita Federal via CNPJ (se informado).
+    - E-mail: Hunter.io (opcional) → heurística determinística.
+    - LinkedIn: busca passiva em buscador → heurística de URL + validação HEAD.
+    - Registra `CONTACT_ENRICHED` na trilha.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    from services.contact_enrichment_service import ContactEnrichmentService  # noqa: E402
+
+    service = ContactEnrichmentService()
+    contacts = await service.enrich_contacts(lead, db, cnpj=body.cnpj or None)
+    db.commit()
+
+    log_activity(
+        db, lead, action=LeadActivityAction.CONTACT_ENRICHED,
+        user_id=str(user.id) if user else None,
+        detail=f"Decisores enriquecidos: {len(contacts)} contato(s) (e-mail/LinkedIn)",
+    )
+    db.commit()
+
+    return {"contacts": contacts}

@@ -487,17 +487,17 @@ Branch: `feat/adaptive-enrichment`
 
 **Critérios**: pipeline não desperdiça chamadas; eventos por step.
 
-### Item 3.4 — Hunter / e-mail de decisor ⬜
+### Item 3.4 — Decisor: e-mail + LinkedIn ✅
 
-Branch: `feat/hunter-enrichment`
+Branch: `feat/contact-enrichment`
 
 | Sub-item | O quê |
 |---|---|
-| 3.4.1 | `contact_enrichment_service.py` (Hunter.io) — enriquecer `Contact` com e-mail + confidence |
+| 3.4.1 | `contact_enrichment_service.py` — enriquecer `Contact` com e-mail (Hunter opcional → CNPJ → heurística) + LinkedIn (busca passiva → heurística validada) |
 | 3.4.2 | Respeitar regra ≥50 p/ outreach; cotas; BYOK se habilitado |
 | 3.4.3 | **Perguntar deps/API antes de integrar** |
 
-**Critérios**: decisor com e-mail + confidence; regras respeitadas.
+**Critérios**: decisor com e-mail + LinkedIn + confidence; regras respeitadas.
 
 ### Item 3.5 — BYOK e cotas por org ⬜
 
@@ -565,7 +565,7 @@ Branch: `feat/vertical-playbooks`
 | 11 | `feat/csv-import` | 3.1 | 1.1 | quick win |
 | 12 | `feat/cnae-discovery` | 3.2 | 3.3 parcial | |
 | 13 | `feat/adaptive-enrichment` | 3.3 | 1.3 | |
-| 14 | `feat/hunter-enrichment` | 3.4 | 3.5 opcional | |
+| 14 | `feat/contact-enrichment` | 3.4 | 3.5 opcional | ✅ |
 | 15 | `feat/org-byok` | 3.5 | 1.1 | |
 | 16 | `feat/conversion-feedback` | 3.6 | 1.1 + volume | |
 | 17 | `feat/outreach-cadence` | 3.7 | 3.5 opcional | |
@@ -580,7 +580,7 @@ Branch: `feat/vertical-playbooks`
 | `weasyprint` | PDF visual rico (HTML→PDF) | backend | médio (deps de sistema no Windows) | Item 2.3 |
 | `leaflet`/`react-leaflet` | Mapa interativo | frontend | baixo | Item 2.4 |
 | `APScheduler` (ou cron) | Cadência de follow-up | backend | baixo | Item 3.7 |
-| Hunter.io (API) | E-mail de decisor | externa | baixo (cotas) | Item 3.4 |
+| Hunter.io (API) | E-mail de decisor (opcional, BYOK) | externa | baixo (cotas) | Item 3.4 |
 | BrasilAPI/CNPJá (CNAE) | Descoberta por CNAE | externa | baixo | Item 3.2 |
 | Resend (envio) | Envio automatizado (opt-in) | externa | baixo | Item 3.7 |
 

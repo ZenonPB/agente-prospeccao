@@ -22,5 +22,8 @@ class Settings(BaseSettings):
 
     GROQ_API_KEY: str = Field(..., description='Chave de API da Groq')
     GOOGLE_API_KEY: str = Field(..., description='Chave de API do Google')
+    # Opcional — Hunter.io para e-mail de decisor (BYOK futura).
+    # Sem a chave, o enriquecimento de e-mail usa fallback gratuito (CNPJ + heurística).
+    HUNTER_API_KEY: str = Field("", description='Chave opcional da API Hunter.io')
 
 settings = Settings()
