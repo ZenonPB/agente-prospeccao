@@ -16,6 +16,7 @@ import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
+import { useTheme } from 'next-themes';
 
 const themes = [
   {
@@ -39,18 +40,23 @@ const themes = [
   {
     id: 'alpha' as const,
     name: 'Alpha',
-    description: 'Tema exclusivo com identidade própria',
+    description: 'Tema AlphaMec (vermelho profundo)',
     icon: Palette,
-    preview: 'bg-zinc-900 border-emerald-700',
-    previewText: 'text-emerald-100',
-    previewAccent: 'bg-emerald-900/40',
+    preview: 'bg-[#4c0000] border-[#7c0000]',
+    previewText: 'text-white',
+    previewAccent: 'bg-[#630201]',
   },
 ];
 
 export default function ConfiguracoesPage() {
   const { data: session, update } = useSession();
   const { data: membership } = useOrgMembership();
-  const [selectedTheme, setSelectedTheme] = useState('dark');
+  const { theme, setTheme } = useTheme();
+
+  const handleThemeChange = (themeId: string) => {
+    setTheme(themeId);
+    toast.success(`Tema "${themes.find(t => t.id === themeId)?.name}" aplicado.`);
+  };
 
   const [name, setName] = useState(session?.user?.name || '');
   const [savingProfile, setSavingProfile] = useState(false);
@@ -196,14 +202,14 @@ export default function ConfiguracoesPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-3">
-            {themes.map((theme) => {
-              const Icon = theme.icon;
-              const isActive = selectedTheme === theme.id;
+            {themes.map((themeItem) => {
+              const Icon = themeItem.icon;
+              const isActive = theme === themeItem.id;
               return (
                 <button
-                  key={theme.id}
+                  key={themeItem.id}
                   type="button"
-                  onClick={() => setSelectedTheme(theme.id)}
+                  onClick={() => handleThemeChange(themeItem.id)}
                   className={`relative flex flex-col items-center gap-3 rounded-xl border-2 p-4 text-center transition-all hover:shadow-md ${
                     isActive
                       ? 'border-primary shadow-sm'
@@ -211,18 +217,18 @@ export default function ConfiguracoesPage() {
                   }`}
                 >
                   <div
-                    className={`flex h-20 w-full items-center justify-center rounded-lg border ${theme.preview} ${theme.previewText}`}
+                    className={`flex h-20 w-full items-center justify-center rounded-lg border ${themeItem.preview} ${themeItem.previewText}`}
                   >
                     <div className="flex flex-col items-center gap-1.5">
-                      <div className={`h-2 w-12 rounded ${theme.previewAccent}`} />
-                      <div className={`h-2 w-8 rounded ${theme.previewAccent}`} />
+                      <div className={`h-2 w-12 rounded ${themeItem.previewAccent}`} />
+                      <div className={`h-2 w-8 rounded ${themeItem.previewAccent}`} />
                     </div>
                   </div>
 
                   <Icon className="h-5 w-5" />
                   <div>
-                    <p className="text-sm font-medium">{theme.name}</p>
-                    <p className="text-xs text-muted-foreground">{theme.description}</p>
+                    <p className="text-sm font-medium">{themeItem.name}</p>
+                    <p className="text-xs text-muted-foreground">{themeItem.description}</p>
                   </div>
 
                   {isActive && (

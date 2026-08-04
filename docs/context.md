@@ -118,6 +118,10 @@
   - `EmptyState`: Componente para listas sem itens com ícones e chamadas para ação.
 - **Páginas Refatoradas**: Dashboard, Campanhas, Oportunidades, Negociações (Kanban), Relatórios, Equipe, Configurações e Auth (Login, Register, Esqueci/Resetar Senha, Aceitar Convite).
 - **Sidebar & Header**: Navegação em grupos ("Visão", "Operação", "Inteligência", "Gestão"), indicador ativo de barra lateral, e switcher de organizações aprimorado.
+- **Suporte a Temas Multi-Modo (Claro / Escuro / Alpha)**:
+  - `.alpha` variante adicionada em `globals.css` baseada no tema da empresa juníor AlphaMec (`#4c0000`, `#630201`, `#ffffff`, `#7c0000`, `#910001`).
+  - `ThemeProvider` estendido para aceitar `['light', 'dark', 'alpha']`.
+  - Página `/configuracoes` permite alternância em tempo real entre os 3 temas com persistência em `localStorage` (`app-theme`).
 
 **Segurança / CSP:**
 - `middleware.ts` (renomeado de proxy.ts) — proteção de rotas + CSP por ambiente
