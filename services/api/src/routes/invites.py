@@ -5,7 +5,7 @@ O convite gera um token que o convidado usa para aceitar.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import List
 
 from src.db.dependencies import get_db
@@ -38,6 +38,19 @@ class CreateInviteRequest(BaseModel):
         description="Papel de venda (CONSULTOR/ANALYST/MANAGER)"
     )
 
+    @field_validator("role", mode="before")
+    @classmethod
+    def _coerce_org_role(cls, v):
+        """Aceita tanto o valor do enum no banco (owner/admin/member) quanto o
+        nome (OWNER/ADMIN/MEMBER) — o frontend envia maiúsculo (tipo OrgRole)."""
+        if isinstance(v, str):
+            v = v.strip()
+            try:
+                return OrganizationRole(v.lower())
+            except ValueError:
+                return OrganizationRole[v.upper()]
+        return v
+
 
 class AcceptInviteRequest(BaseModel):
     token: str = Field(..., description="Token do convite")
@@ -47,7 +60,7 @@ def _invite_dict(inv: Invite) -> dict:
     return {
         "id": str(inv.id),
         "email": inv.email,
-        "role": inv.role.value if inv.role else None,
+        "role": inv.role.name if inv.role else None,
         "sales_role": inv.sales_role.value if inv.sales_role else None,
         "invited_by_id": str(inv.invited_by_id),
         "invited_by_name": inv.invited_by.name if inv.invited_by else None,
@@ -135,7 +148,7 @@ def accept_invite(
             "slug": member.organization.slug if member.organization else None,
         },
         "membership": {
-            "role": member.role.value if member.role else None,
+            "role": member.role.name if member.role else None,
             "sales_role": member.sales_role.value if member.sales_role else None,
         },
     }
