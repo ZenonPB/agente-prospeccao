@@ -95,11 +95,19 @@ export const leadsApi = {
     campaign_id?: string;
     search?: string;
     min_score?: number;
+    assigned?: string;
+    next_action_before?: string;
     limit?: number;
     offset?: number;
   }) => request<{ leads: Lead[]; total: number }>("/api/leads", { params: params as Record<string, string | number | boolean | undefined> }),
 
   get: (id: string) => request<Lead & { enrichment?: Enrichment }>(`/api/leads/${id}`),
+
+  update: (id: string, data: { notes?: string; whatsapp?: string; next_action_at?: string | null }) =>
+    request<Lead>(`/api/leads/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
 
   stats: () => request<{
     total: number;
