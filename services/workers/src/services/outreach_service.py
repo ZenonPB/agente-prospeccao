@@ -247,8 +247,8 @@ def _parse_json(content: str) -> Optional[Dict[str, Any]]:
 class OutreachService:
     """Gera sequência de cadência de outreach usando Llama 3.3 70B."""
 
-    def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GROQ_API_KEY
 
     def _create_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(

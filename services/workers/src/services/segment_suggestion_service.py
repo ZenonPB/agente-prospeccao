@@ -173,8 +173,8 @@ FALLBACKS = {
 class SegmentSuggestionService:
     """Sugere segmento/nicho de prospecção via Groq (llama-3.3-70b-versatile)."""
 
-    def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GROQ_API_KEY
 
     def _create_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(

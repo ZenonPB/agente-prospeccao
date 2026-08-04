@@ -116,8 +116,8 @@ def _normalize_response(parsed: Dict[str, Any]) -> Dict[str, Any]:
 class CampaignBriefService:
     """Interpreta um brief em PT-BR e devolve campos estruturados de campanha."""
 
-    def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GROQ_API_KEY
 
     def _create_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(

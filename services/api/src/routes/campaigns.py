@@ -165,7 +165,9 @@ def create_campaign(
 @router.post("/suggest-segment")
 async def suggest_segment(
     body: SuggestSegmentRequest,
+    db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
     """Sugere um segmento de prospecção via IA, baseado no perfil.
 
@@ -176,7 +178,9 @@ async def suggest_segment(
     nesta sessão, evitando repetição imediata. Em caso de falha da LLM,
     retorna um fallback determinístico (offline-friendly).
     """
-    service = SegmentSuggestionService()
+    from services.secret_service import SecretService
+    keys = await SecretService.resolve_all(db, str(_org.id))
+    service = SegmentSuggestionService(api_key=keys.get("GROQ_API_KEY"))
     result = await service.suggest(
         profile=body.profile,
         current_segment=body.current_segment or "",
@@ -208,10 +212,12 @@ async def create_campaign_from_brief(
     """
     # Importa o serviço dos workers (fonte única) e o router de template.
     from services.campaign_brief_service import CampaignBriefService
+    from services.secret_service import SecretService
     from services.template_router import route_scoring_template
     from src.db.models import CampaignScoringTemplate
 
-    service = CampaignBriefService()
+    keys = await SecretService.resolve_all(db, str(_org.id))
+    service = CampaignBriefService(api_key=keys.get("GROQ_API_KEY"))
     try:
         suggestion = await service.interpret(body.brief)
     except RuntimeError as e:
@@ -222,6 +228,7 @@ async def create_campaign_from_brief(
         db,
         target_service=suggestion.get("target_service") or "",
         target_segment=suggestion.get("target_segment") or "",
+        api_key=keys.get("GROQ_API_KEY"),
     )
     scoring_template_id = None
     scoring_template_label = None

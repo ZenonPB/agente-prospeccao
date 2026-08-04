@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
+import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { useOrgMembership } from '@/hooks/use-api';
 
 const themes = [
@@ -302,6 +303,9 @@ export default function ConfiguracoesPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Chaves de API (BYOK) */}
+      <OrgSecretsCard />
     </div>
   );
 }

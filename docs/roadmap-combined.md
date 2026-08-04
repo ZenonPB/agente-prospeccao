@@ -499,17 +499,21 @@ Branch: `feat/contact-enrichment`
 
 **Critérios**: decisor com e-mail + LinkedIn + confidence; regras respeitadas.
 
-### Item 3.5 — BYOK e cotas por org ⬜
+### Item 3.5 — BYOK e cotas por org ✅
 
 Branch: `feat/org-byok`
 
 | Sub-item | O quê |
 |---|---|
 | 3.5.1 | Tabela `organization_secrets` (criptografado at rest) para `GOOGLE_API_KEY`/`GROQ_API_KEY` |
-| 3.5.2 | Settings resolvem por org no worker; senão usa pool com quota diária |
+| 3.5.2 | Settings resolvem por org no worker; senão usa pool (quota diária ainda não contabilizada — ver nota) |
 | 3.5.3 | UI em Configurações da org |
 
 **Critérios**: org com BYOK não consome quota do pool (ou consome contabilizado).
+
+> **Nota 3.5.2**: a resolução por org está implementada (BYOK → pool global).
+> A *contabilização de quota diária* do pool não foi construída (não há medidor de
+> uso hoje); fica como refinamento futuro se o consumo compartilhado virar gargalo.
 
 ### Item 3.6 — Feedback conversão → score ⬜
 
@@ -638,11 +642,11 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 2.3 Exportação PDF (weasyprint) | ✅ Entregue (2026-08-02) | `feat/analytics-pdf` (PR #27); relatório completo via weasyprint, E2E validado |
 | 2.4 Frontend relatórios/kanban/mapa | ✅ Entregue (2026-08-02) | `feat/analytics-web` (PR #28); `/relatorios` (Leaflet + Recharts + export PDF), kanban assign, trilha no detalhe |
 | 2.5 Pitch one-pager + site audit | ✅ Entregue (2026-08-02) | `feat/pitch-one-pager`; `GET /api/leads/{id}/pitch`, site audit legível, aba no detalhe + exposição em PDF |
-| 3.1 Import CSV | ⬜ Não iniciado | quick win |
-| 3.2 Descoberta CNAE | ⬜ Não iniciado | fontes industriais |
-| 3.3 Enriquecimento adaptativo | ⬜ Não iniciado | steps conforme template |
-| 3.4 Hunter / e-mail decisor | ⬜ Não iniciado | cotas + confidence |
-| 3.5 BYOK e cotas | ⬜ Não iniciado | custo justo |
+| 3.1 Import CSV | ✅ Entregue | `feat/csv-import` (PR #31) |
+| 3.2 Descoberta CNAE | ✅ Entregue | `feat/cnae-discovery` (PR #32) |
+| 3.3 Enriquecimento adaptativo | ✅ Entregue | `feat/adaptive-enrichment` (PR #33) |
+| 3.4 Hunter / e-mail decisor | ✅ Entregue | `feat/contact-enrichment` (PR #34) |
+| 3.5 BYOK e cotas | ✅ Entregue | `feat/org-byok` (PR pendente) |
 | 3.6 Feedback conversão → score | ⬜ Não iniciado | aprende com resultado |
 | 3.7 Cadência + envio | ⬜ Não iniciado | humano no loop |
 | 3.8 Playbooks por vertical | ⬜ Não iniciado | hooks/objeções |

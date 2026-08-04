@@ -448,7 +448,9 @@ async def generate_messages(
         "email": lead.email,
     }
 
-    result = await OutreachService().generate_sequence(
+    from services.secret_service import SecretService
+    keys = await SecretService.resolve_all(db, str(_org.id))
+    result = await OutreachService(api_key=keys.get("GROQ_API_KEY")).generate_sequence(
         lead_dict, context_service or "", context_segment or ""
     )
     if result is None:

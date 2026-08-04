@@ -157,9 +157,9 @@ def _serialize(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
 class TemplateGenerationService:
     """Gera e persiste um template de scoring sob demanda."""
 
-    def __init__(self) -> None:
+    def __init__(self, api_key: Optional[str] = None) -> None:
         self.headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Authorization": f"Bearer {api_key or settings.GROQ_API_KEY}",
             "Content-Type": "application/json",
         }
 

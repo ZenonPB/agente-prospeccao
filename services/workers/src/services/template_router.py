@@ -129,7 +129,9 @@ def _get_cached_llm_route(key: str, labels_key: str) -> Optional[Tuple[str, str]
     return _llm_route_cache.get(f"{key}|{labels_key}")
 
 
-async def _classify_llm(query: str, labels: List[str]) -> Tuple[str, str]:
+async def _classify_llm(
+    query: str, labels: List[str], api_key: Optional[str] = None,
+) -> Tuple[str, str]:
     """Pede à LLM que escolha o melhor label existente ou GENERATE_NEW.
 
     Returns:
@@ -156,7 +158,7 @@ async def _classify_llm(query: str, labels: List[str]) -> Tuple[str, str]:
         resp = await client.post(
             GROQ_URL,
             headers={
-                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                "Authorization": f"Bearer {api_key or settings.GROQ_API_KEY}",
                 "Content-Type": "application/json",
             },
             json={
@@ -199,6 +201,7 @@ async def route_scoring_template(
     target_service: str,
     target_segment: str = "",
     explicit_template_id: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Resolve o melhor template de scoring para a campanha.
 
@@ -257,7 +260,7 @@ async def route_scoring_template(
         else:
             try:
                 route, label = await _classify_llm(
-                    f"{target_service} {target_segment}".strip(), labels
+                    f"{target_service} {target_segment}".strip(), labels, api_key,
                 )
                 _cache_llm_route(query, labels_key, (route, label))
             except Exception as e:

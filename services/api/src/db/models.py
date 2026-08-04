@@ -31,4 +31,5 @@ from database.models import (
     OrganizationRole,
     SalesRole,
     CampaignScoringTemplate,
+    OrganizationSecret,
 )

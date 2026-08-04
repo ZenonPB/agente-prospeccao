@@ -26,6 +26,7 @@ from services.enrichment_orchestrator import process_single_lead
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.cnae_discovery_service import CnaeDiscoveryService
+from services.secret_service import SecretService
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,14 @@ async def run_pipeline(
         if not query:
             query = "empresas"
 
+        # --- Resolução de chaves por organização (BYOK, item 3.5) ---
+        # Org com secret próprio usa a própria chave; senão, pool global.
+        keys = await SecretService.resolve_all(
+            db, str(campaign.organization_id) if campaign else None,
+        )
+        goog_key = keys.get("GOOGLE_API_KEY")
+        groq_key = keys.get("GROQ_API_KEY")
+
         # --- Fase 1: Coleta (pulada em reanalyze_only) ---
         collected_count = 0
         if reanalyze_only:
@@ -154,7 +163,7 @@ async def run_pipeline(
             yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 0}
 
-            places_service = GooglePlacesService()
+            places_service = GooglePlacesService(api_key=goog_key)
 
             yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
 
@@ -220,7 +229,7 @@ async def run_pipeline(
         yield {"type": "progress", "step": "analise", "percent": 50}
 
         enrichment_service = TechnicalEnrichmentService()
-        scoring_service = AIScoringService()
+        scoring_service = AIScoringService(api_key=groq_key)
 
         # Carrega template de critérios contextual da campanha (uma vez para todo o batch).
         # Router inteligente: exact → fuzzy → LLM → geração sob demanda → Genérico (itens 1.2/1.3).
@@ -231,6 +240,7 @@ async def run_pipeline(
                 target_service=campaign.target_service or "",
                 target_segment=campaign.target_segment or "",
                 explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
+                api_key=groq_key,
             )
             scoring_template = route_result.get("template")
             route_label = route_result.get("route")
@@ -242,7 +252,7 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
                 try:
-                    generation = TemplateGenerationService()
+                    generation = TemplateGenerationService(api_key=groq_key)
                     scoring_template = await generation.generate(
                         db,
                         target_service=campaign.target_service or "",

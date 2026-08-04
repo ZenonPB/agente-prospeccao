@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
+import os
+import sys
 
 from src.db.dependencies import get_db
 from src.db.models import (
@@ -10,6 +12,7 @@ from src.db.models import (
     OrganizationMember,
     OrganizationRole,
     SalesRole,
+    OrganizationSecret,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -18,6 +21,12 @@ from src.auth.dependencies import (
     require_org_admin,
     require_manager,
 )
+
+_workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
+if _workers_path not in sys.path:
+    sys.path.insert(0, _workers_path)
+from services.secret_service import SecretService, KEY_NAMES  # noqa: E402
+
 router = APIRouter(prefix="/orgs", tags=["orgs"])
 
 
@@ -153,3 +162,81 @@ def patch_member_sales_role(
     db.commit()
     db.refresh(target)
     return _member_dict(target)
+
+
+class PutSecretRequest(BaseModel):
+    value: str = Field(..., min_length=1, description="Valor da chave de API")
+
+
+@router.get("/{org_id}/secrets")
+def list_org_secrets(
+    org_id: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Lista as chaves BYOK configuradas pela organização (sem expor valores).
+
+    Item 3.5: retorna apenas quais `key_name` estão definidas, para a UI
+    marcar como "configurado" sem nunca exibir o segredo.
+    """
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    secrets = db.query(OrganizationSecret).filter(
+        OrganizationSecret.organization_id == org_id,
+    ).all()
+    configured = {s.key_name for s in secrets}
+    return {
+        "secrets": [
+            {"key_name": key, "configured": key in configured}
+            for key in KEY_NAMES
+        ]
+    }
+
+
+@router.put("/{org_id}/secrets/{key_name}")
+async def put_org_secret(
+    org_id: str,
+    key_name: str,
+    body: PutSecretRequest,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Grava (ou sobrescreve) uma chave BYOK da organização, criptografada.
+
+    A partir de então, o pipeline e as rotas resolvem essa chave para a org
+    em vez do pool global.
+    """
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    normalized = key_name.upper().strip()
+    if normalized not in KEY_NAMES:
+        raise HTTPException(status_code=400, detail=f"key_name inválido: {normalized}")
+
+    await SecretService.set_org_secret(db, org_id, normalized, body.value)
+    return {"key_name": normalized, "configured": True}
+
+
+@router.delete("/{org_id}/secrets/{key_name}")
+async def delete_org_secret(
+    org_id: str,
+    key_name: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Remove a chave BYOK da organização (volta a usar o pool global)."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    normalized = key_name.upper().strip()
+    if normalized not in KEY_NAMES:
+        raise HTTPException(status_code=400, detail=f"key_name inválido: {normalized}")
+
+    removed = await SecretService.delete_org_secret(db, org_id, normalized)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Secret não configurado")
+    return {"key_name": normalized, "configured": False}

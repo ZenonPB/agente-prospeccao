@@ -252,6 +252,11 @@ export const metricsApi = {
     }>("/api/metrics"),
 };
 
+export interface OrgSecretStatus {
+  key_name: string;
+  configured: boolean;
+}
+
 export const orgsApi = {
   me: () =>
     request<OrgMembership>("/api/orgs/me"),
@@ -266,6 +271,20 @@ export const orgsApi = {
     request<OrganizationMember>(`/api/orgs/${orgId}/members/${userId}`, {
       method: "PATCH",
       body: JSON.stringify({ sales_role: salesRole }),
+    }),
+
+  listSecrets: (orgId: string) =>
+    request<{ secrets: OrgSecretStatus[] }>(`/api/orgs/${orgId}/secrets`),
+
+  putSecret: (orgId: string, keyName: string, value: string) =>
+    request<OrgSecretStatus>(`/api/orgs/${orgId}/secrets/${keyName}`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    }),
+
+  deleteSecret: (orgId: string, keyName: string) =>
+    request<OrgSecretStatus>(`/api/orgs/${orgId}/secrets/${keyName}`, {
+      method: "DELETE",
     }),
 };
 
