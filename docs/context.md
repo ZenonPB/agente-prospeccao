@@ -403,11 +403,17 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 - Integrado na página da campanha `/campanhas/[id]` com botão "Buscar por CNAE"
 - `campaignsApi.collectCnae` + hook `useCollectCnae`
 
+### Fase 3.3 — Enriquecimento Adaptativo ✅ (2026-08-04)
+
+**Backend:**
+- `enrichment_orchestrator.py`: seleciona steps condicionalmente (`requires_technical_report` e `requires_business_data` do template) — não faz scraping/requisições HTTP em sites se o template da campanha indicar que auditoria técnica é irrelevante.
+- `pipeline_worker.py`: emissão de logs e eventos WebSocket em tempo real para cada step ("Pulpando auditoria técnica de site", "Consultando dados cadastrais/CNAE", "Score contextual").
+
 ### Próximo passo imediato
 
 1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.3 — Enriquecimento adaptativo** (`feat/adaptive-enrichment`).
    - **Item 3.4 — Hunter / e-mail de decisor** (`feat/hunter-enrichment`).
+   - **Item 3.5 — BYOK e cotas por org** (`feat/org-byok`).
 2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening`.

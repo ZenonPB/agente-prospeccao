@@ -321,12 +321,37 @@ async def run_pipeline(
             yield {"type": "log", "message": "Nenhum lead novo para analisar", "timestamp": _ts()}
         else:
             total_to_process = len(leads_to_process)
+            req_tech = scoring_template.get("requires_technical_report", True) if scoring_template else True
+            req_biz = scoring_template.get("requires_business_data", True) if scoring_template else True
+
             for i, lead in enumerate(leads_to_process):
                 yield {
                     "type": "log",
                     "message": f"Analisando: {lead.company_name}",
                     "timestamp": _ts(),
                 }
+
+                # Log granular por step de enriquecimento adaptativo
+                if not req_tech or not lead.website:
+                    reason = "template não exige relatório técnico" if not req_tech else "lead sem website registrado"
+                    yield {
+                        "type": "log",
+                        "message": f"Pulpando auditoria técnica de site para {lead.company_name} ({reason}).",
+                        "timestamp": _ts(),
+                    }
+                else:
+                    yield {
+                        "type": "log",
+                        "message": f"Auditando site ({lead.website})...",
+                        "timestamp": _ts(),
+                    }
+
+                if req_biz and (lead.cnpj or lead.company_name):
+                    yield {
+                        "type": "log",
+                        "message": f"Consultando dados cadastrais/CNAE...",
+                        "timestamp": _ts(),
+                    }
 
                 _, scoring_result = await process_single_lead(
                     lead, enrichment_service, scoring_service, db,

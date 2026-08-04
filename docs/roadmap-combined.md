@@ -475,7 +475,7 @@ Branch: `feat/cnae-discovery`
 
 **Critérios**: campanha industrial nasce de CNAE sem Places.
 
-### Item 3.3 — Enriquecimento adaptativo ⬜
+### Item 3.3 — Enriquecimento adaptativo ✅
 
 Branch: `feat/adaptive-enrichment`
 
