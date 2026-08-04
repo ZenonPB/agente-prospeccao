@@ -604,6 +604,54 @@ Pacote de melhorias de execução de vendas sobre a branch `fix/go-live-prep`:
 **Verificação:** `tsc --noEmit` limpo, `npm run lint` limpo, `npm run build` OK,
 `py_compile` do `routes/leads.py` OK. Testes pytest requerem venv (não instalado).
 
+### Bugfix — contrato `role` maiúsculo (2026-08-04)
+
+- Sintoma: usuário owner via "Apenas o dono ou administrador..." na página de
+  membros e no toggle de envio automático; não conseguia gerenciar nada.
+- Causa: o backend serializava `OrganizationRole` pelo valor do enum no banco
+  (`"owner"`/`"admin"`/`"member"`, minúsculo), mas o tipo TS `OrgRole` e todas
+  as comparações do frontend usam maiúsculo (`'OWNER'`/`'ADMIN'`). Com isso
+  `canManage` nunca era verdadeiro para o próprio dono. Criação de convite
+  também enviava `"MEMBER"` maiúsculo, rejeitado pelo Pydantic.
+- Fix: `routes/orgs.py` (`_member_dict`, `/orgs/me`, `/orgs/my-organizations`)
+  e `routes/invites.py` (`_invite_dict`, aceite) passam a serializar `role` com
+  `enum.name` (OWNER/ADMIN/MEMBER). `CreateInviteRequest.role` ganhou
+  `field_validator` que aceita maiúsculo e minúsculo. `SalesRole` já era
+  maiúsculo — inalterado. Banco continua com valores minúsculos (nada a migrar).
+- Testado via API real: `/orgs/me` → `"role":"OWNER"`; convite com `"MEMBER"` → 200.
+
+### Bugfix — colisão `normalized_domain` de redes sociais (2026-08-04)
+
+- Ao coletar campanha (ex.: crossfit em Araraquara), negócios sem site próprio
+  têm `website` = perfil social (Instagram/Facebook) e todos normalizavam para
+  `normalized_domain='instagram.com'`, violando `uq_leads_org_normalized_domain`
+  e fazendo o batch inteiro falhar (rollback, 0 leads salvos).
+- Fix: `domain_utils.normalize_domain` agora retorna `None` para domínios sociais
+  genéricos (`_SOCIAL_DOMAINS`: instagram/facebook/linkedin/x/twitter/youtube/
+  wa.me/whatsapp/linktr.ee/tiktok/behance/medium/blogspot/wixsite/business.site),
+  mantendo a dedupe por `place_id`/CNPJ e por domínio próprio. Testes
+  `test_domain_utils.py` ampliados (8 passando).
+
+### Ambiente local sem root — sessão atual (2026-08-04)
+
+Máquina de trabalho (usuário `aluno`, sem sudo/Docker) — ambiente inicializado
+de novo nesta sessão:
+
+- **Grafo do código gerado**: `graphify-out/graph.json` (1543 nós, 3676 arestas,
+  117 comunidades) via `graphify extract . --code-only && graphify cluster-only . --no-label`.
+  CLI em `/tmp/opencode/graphify-venv`. Relatório: `graphify-out/GRAPH_REPORT.md`.
+- **`scripts/setup.sh` rodado com sucesso (idempotente, sem root)**:
+  - PostgreSQL 16 embarcado (zonky) em `~/.local/agente-prospeccao` — 127.0.0.1:5432
+  - venvs `services/workers/venv` + `services/api/venv` com requirements instalados
+  - `.env` na raiz criado (JWT_SECRET gerado; chaves de API vazias)
+  - banco `agente_prospeccao` criado; `alembic upgrade head` OK (todas as migrations até `b6c7d8e9f0a1`)
+  - seed de 9 templates de scoring OK; `apps/web/.env.local` + `npm ci` OK
+- **`scripts/dev.sh start` no ar**: PostgreSQL, API (`/health` → `{"status":"ok","database":"ok"}`)
+  e Web (login em `http://localhost:3001`, 200).
+
+Pendente: preencher `GROQ_API_KEY` e `GOOGLE_API_KEY` no `.env` da raiz (e
+`HUNTER_API_KEY` opcional) e reiniciar a API para coletar/qualificar leads.
+
 ### Ambiente local sem root (2026-08-04)
 
 Máquina de trabalho sem sudo e sem Docker. Setup validado:
