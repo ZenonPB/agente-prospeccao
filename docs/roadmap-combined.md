@@ -463,13 +463,13 @@ Branch: `feat/csv-import`
 
 **Critérios**: importar lista própria; dedupe funcional; leads entram no pipeline normalmente.
 
-### Item 3.2 — Descoberta por CNAE/Receita ⬜
+### Item 3.2 — Descoberta por CNAE/Receita ✅
 
 Branch: `feat/cnae-discovery`
 
 | Sub-item | O quê |
 |---|---|
-| 3.2.1 | `cnae_discovery_service.py` — descobrir empresas por CNAE + município (BrasilAPI/CNPJá/dataset a definir) |
+| 3.2.1 | `cnae_discovery_service.py` — descobrir empresas por CNAE + município (BrasilAPI + Minha Receita + CNPJá público) |
 | 3.2.2 | Job type `LEAD_COLLECTION` com payload `source=cnae` |
 | 3.2.3 | **Perguntar deps/API antes de integrar** |
 
