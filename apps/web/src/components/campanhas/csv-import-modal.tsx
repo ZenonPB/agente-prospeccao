@@ -12,7 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { FileSpreadsheet, Upload, CheckCircle2, AlertCircle, Loader2, Info } from "lucide-react";
 import { toast } from "sonner";
 import type { CsvImportResult } from "@/types";

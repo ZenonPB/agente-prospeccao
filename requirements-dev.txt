@@ -1,0 +1,5 @@
+# Dependências de desenvolvimento/teste (item 3.5 da auditoria).
+# Instalar:  pip install -r requirements-dev.txt
+-r services/api/requirements.txt
+-r services/workers/requirements.txt
+pytest==9.1.1

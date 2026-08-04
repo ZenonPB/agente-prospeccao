@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -88,14 +88,21 @@ function LeadCardSkeleton() {
 
 export function LeadList() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('score_desc');
+
+  // Debounce (300ms) para não disparar uma query por tecla digitada (item 4.9).
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns();
   const campaigns = campaignsData?.campaigns || [];
 
   const { data, isLoading, isError, error, refetch } = useLeads({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     campaign_id: campaignFilter !== 'all' ? campaignFilter : undefined,
   });
 

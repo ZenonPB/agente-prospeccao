@@ -37,6 +37,31 @@ from database.models import Contact, ContactRole, Lead, LeadStatus  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+# Validação de sintaxe de e-mail (item 3.6) — simples e sem dependência nova.
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
+
+
+def is_valid_email_syntax(email: Optional[str]) -> bool:
+    """True se o e-mail tem sintaxe válida (sem resolver MX — sem rede)."""
+    return bool(email and _EMAIL_RE.match(email.strip()))
+
+
+# Campos sensíveis (LGPD) removidos do `raw_data` persistido de contatos.
+_SENSITIVE_RAW_KEYS = (
+    "cnpj_cpf_do_socio", "cpf", "taxId", "tax_id", "document", "document_cpf",
+    "faixa_etaria", "faixa_etária", "nationality", "nascimento", "birthdate",
+)
+
+
+def _sanitize_raw(raw: Any) -> Optional[Dict[str, Any]]:
+    """Remove campos pessoais sensíveis do payload cru antes de persistir
+    (item 4.7 — minimização LGPD: CPF/faixa etária não são necessários para
+    o fluxo de vendas)."""
+    if not isinstance(raw, dict):
+        return raw
+    return {k: v for k, v in raw.items() if k.lower() not in _SENSITIVE_RAW_KEYS}
+
+
 LINKEDIN_ALIAS_RE = re.compile(r"^([a-zA-Z0-9-]+)$", re.IGNORECASE)
 GENERIC_EMAIL_PREFIXES = ("contato", "comercial", "info", "contato@", "sac",
                           "vendas", "geral", "admin", "rh", "financeiro")
@@ -183,7 +208,7 @@ class ContactEnrichmentService:
                     confidence=c.get("confidence", 60),
                     is_primary=c.get("is_primary", False),
                     source=c.get("source") or "cnpj_receita",
-                    raw_data=c.get("raw"),
+                    raw_data=_sanitize_raw(c.get("raw")),
                 )
                 db.add(contact)
                 contacts.append(contact)
@@ -228,6 +253,13 @@ class ContactEnrichmentService:
             contact.email = heuristic_email
             if not contact.source or contact.source.startswith("cnpj"):
                 contact.source = f"{contact.source or 'cnpj_receita'}:heuristic"
+            # Item 3.6: e-mail adivinhado é marcado como não verificado — nunca
+            # deve cruzar o gate de outreach automático (confidence >= 50).
+            contact.raw_data = {
+                **(contact.raw_data or {}),
+                "email_source": "heuristic",
+                "email_verified": False,
+            }
 
     async def _email_from_hunter(
         self, client: httpx.AsyncClient, contact: Contact, lead: Lead,
@@ -246,8 +278,9 @@ class ContactEnrichmentService:
             )
             if resp.status_code == 200:
                 payload = resp.json().get("data", {})
-                if payload.get("email"):
-                    return payload["email"], "hunter", int(payload.get("confidence", 90) or 90)
+                email = payload.get("email")
+                if email and is_valid_email_syntax(email):
+                    return email, "hunter", int(payload.get("confidence", 90) or 90)
         except Exception as e:
             logger.debug("Hunter email-finder falhou para %s: %s", domain, e)
         return None, "", 0
@@ -266,7 +299,8 @@ class ContactEnrichmentService:
         if not first or not last:
             return None, 0
         # confidence baixa — padrão inferido, não confirmado.
-        return f"{first}.{last}@{domain}", 40
+        heuristic = f"{first}.{last}@{domain}"
+        return (heuristic, 40) if is_valid_email_syntax(heuristic) else (None, 0)
 
     # ------------------------------------------------------------------ #
     # LinkedIn: busca passiva → heurística + validação HEAD
@@ -399,10 +433,18 @@ class ContactEnrichmentService:
     # Confidence e serialização
     # ------------------------------------------------------------------ #
     def _recalc_confidence(self, contact: Contact) -> int:
-        """Confiança agregada: base do contato + bônus de canais confirmados."""
+        """Confiança agregada: base do contato + bônus de canais confirmados.
+
+        Item 3.6 (auditoria): e-mail heurístico (adivinhado, `email_source ==
+        "heuristic"`) NUNCA deixa a confiança cruzar o gate de outreach
+        automático (>= 50) — o agregado é limitado a 40 para o humano decidir.
+        """
         base = contact.confidence or 30
         if contact.email:
-            base = min(100, base + 10)
+            if (contact.raw_data or {}).get("email_source") == "heuristic":
+                base = min(base, 40)
+            else:
+                base = min(100, base + 10)
         if contact.linkedin_url:
             base = min(100, base + 10)
         return base

@@ -1,53 +1,64 @@
 # AGENTS.md
 
-Compact guidance for OpenCode sessions working in this repo. Read alongside `docs/` (see _Start here_).
+Compact guidance for OpenCode sessions working in this repo. Read alongside `docs/` (see _Start here_). All project docs are in Portuguese.
 
 ## Start here
 
-**Always read the knowledge graph dashboard first** (`.ua/knowledge-graph.json`) or use the `graphify` skill/queries before any task — it provides the full project architecture, component relationships, and data flow in a structured format, saving significant tokens vs re-scanning the entire codebase.
-
-**Always use the relevant skills when working on specific tasks**:
-- `frontend-design` & `vercel-react-best-practices` — for UI/UX, React/Next.js performance, security, accessibility, and clean patterns when working on `apps/web`.
-- `graphify` — for exploring project structure and understanding overall system architecture efficiently.
-- Use `skill` tool explicitly to load specialized skills before writing code.
-
-`docs/context.md` is the canonical "live state" doc — read it first and **update it at the end of every session** (sections _Estado atual_ and _Próximo passo imediato_). Then read `docs/architecture.md` and `docs/business-rules.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes. All docs are in Portuguese.
+- **Use the knowledge graph first** (`graphify-out/graph.json`, gitignored — build it with `graphify extract . --code-only && graphify cluster-only . --no-label` if missing). Query it instead of grepping files: `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "X"` (CLI installed via `python -m venv /tmp/opencode/graphify-venv && .../bin/pip install graphifyy`). Fall back to `docs/` when the graph is stale or absent.
+- `docs/context.md` is the canonical "live state" doc — read it first and **update it at the end of every session** (_Estado atual_ and _Próximo passo imediato_).
+- Then `docs/architecture.md`, `docs/business-rules.md`, and `docs/roadmap-combined.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes.
+- Load specialized skills with the `skill` tool before writing code: `frontend-design` & `vercel-react-best-practices` for `apps/web` work.
+- `apps/web/AGENTS.md` and the `CLAUDE.md` files carry package-specific rules — check them before editing that package.
 
 ## Environment & secrets
 
-- `.env` is **gitignored**; never commit `.env` / `.env.*` / API keys. **Never echo or paste secret values** into code, commits, docs, or chat output. Reference config by env var name only.
+- `.env` (repo root) is **gitignored** and shared by both Python services via a CWD-relative `env_file='../../.env'`. Never commit or echo secret values — reference config by env var name only.
+- Gotcha: the API requires `JWT_SECRET` (required field in `services/api/src/config/settings.py`), but it is **not listed in `.env.example`**. Add it to the root `.env` before starting the API.
 - Ask the user before installing new dependencies.
 
 ## Where things live
 
-- `services/workers/` — Python async lead-prospection workers (Fase 1 ✅).
-- `apps/web/` — Next.js frontend (Fase 2 🟡 em andamento).
-- `docs/` — documentação do projeto (context, architecture, business-rules, interface, decisions).
+- `services/workers/` — Python async lead-prospection workers (Google Places collection, passive website enrichment, Groq scoring). Owns the single source of truth for DB models (`src/database/models.py`) and all Alembic migrations.
+- `services/api/` — FastAPI REST API serving the web frontend (JWT auth, campaigns, leads, cadence scheduler, PDF). Re-exports worker models via `src/db/models.py` — no separate model definitions.
+- `apps/web/` — Next.js 16 + React 19 frontend (shadcn/ui on `@base-ui/react`).
+- `docs/` — project documentation (Portuguese).
 
-## Run the worker
+## Run the API
 
-Always **cd into `services/workers/` first**. This is required: `src/config/settings.py` loads `.env` via a relative `env_file='../../.env'`, and the service modules import `from config.settings import settings`, which only resolves because `src/main.py` prepends `src/` to `sys.path`.
+```bash
+cd services/api            # required: ../../.env resolves to repo root
+uvicorn main:app --reload --port 8000   # http://localhost:8000/docs
+```
+
+- venv is gitignored — create it first if missing: `python -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.
+- Starts a background cadence scheduler (poll `CADENCE_POLL_SECONDS`, default 60s) that auto-sends due follow-ups for orgs with `auto_send_email` opt-in.
+- CORS allows `http://localhost:3000` and `http://localhost:3001`.
+
+## Run the workers
+
+Must run from `services/workers/` for the same reason (relative `env_file='../../.env'`; `migrations/env.py` also imports `from src.config.settings import settings`).
 
 ```bash
 cd services/workers
-source venv/bin/activate
-python -m src.main                  # runs run_lead_enrichment_and_scoring(limit=5)
+source venv/bin/activate              # gitignored — create with `python -m venv venv` if missing
+python -m src.main                    # runs run_lead_enrichment_and_scoring(limit=5)
 ```
 
-`__main__` runs enrichment+scoring only. `run_lead_collection(query, ...)` is a separate `async` function — invoke it from a script or REPL, not via `python -m src.main`.
+- `__main__` runs enrichment+scoring only. `run_lead_collection(query, ...)` is a separate `async` function — call it from a script or REPL, not via `python -m src.main`.
+- Seed default scoring templates: `python -m src.seeds.scoring_templates` (idempotent).
 
 ## Run the frontend
 
 ```bash
 cd apps/web
-npm run dev                          # http://localhost:3001
+npm run dev                            # http://localhost:3001
 ```
 
-Requires `.env` with JWT_SECRET and `NEXT_PUBLIC_API_URL` for API to work.
+- `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000` in `src/lib/api.ts` — set it in `apps/web/.env.local` only if the API runs elsewhere.
 
 ## Database / Alembic
 
-Run alembic from `services/workers/`. `env.py` pulls the URL from `settings.DATABASE_URL`.
+Run alembic from `services/workers/` (env.py pulls the URL from `settings.DATABASE_URL`).
 
 ```bash
 cd services/workers
@@ -57,17 +68,21 @@ alembic revision --autogenerate -m "..."
 
 - Never edit existing migrations — create a new one.
 - Never drop columns in prod — mark deprecated first.
+- Docker provides Postgres + pgAdmin: `docker compose up -d` (db :5432, pgAdmin :5050). Both services expect `DATABASE_URL` from the root `.env`.
 
-Docker provides Postgres + pgAdmin: `docker compose up -d` (db on :5432, pgAdmin on :5050).
+## Tests & verification
+
+- **No test framework is configured** in either package (no pytest/jest/vitest config, no test files). Verify Python changes by running the service directly.
+- Web: `npm run lint` (eslint); typecheck with `npx tsc --noEmit`. Workers have no linter configured.
 
 ## Conventions that matter
 
 - **All async** in workers: `httpx.AsyncClient`, no `requests`, no sync service funcs.
 - **SQLAlchemy filters**: use `&` / `|`, never Python `and` / `or`.
 - **No `print`** in services — use `logging`.
-- One `XService` class per file in `src/services/`. Services **do not import each other** — orchestration happens only in `src/main.py`.
+- One `XService` class per file in `src/services/`. Cross-service imports are the exception, not the rule: `enrichment_orchestrator.py` wires `technical_enrichment_service` + `scoring_service`, and `contact_enrichment_service` lazily imports `cnpj_service`. Put new orchestration there or in `main.py`, not in sibling services.
 - All config via `src/config/settings.py` (pydantic-settings). Never read `os.environ` directly in services.
-- Frontend uses shadcn/ui (base-nova style) — uses `@base-ui/react`, not Radix. Use `render` prop instead of `asChild`.
+- Frontend uses shadcn/ui with `@base-ui/react` (not Radix) — use the `render` prop instead of `asChild`.
 
 ## Scoring / business rules
 

@@ -6,8 +6,8 @@
 
 1. `docs/architecture.md` — estrutura do sistema, stack, serviços
 2. `docs/business-rules.md` — regras de negócio, pipeline, status dos leads
-3. `docs/interface.md` — requisitos da interface web (UX, fluxos, telas)
-4. `docs/roadmap-combined.md` — **roadmap único e visão**: multi-vertical sem hardcode + inteligência comercial (BI, consultores, PDF, pitch, fontes, custos)
+3. `docs/roadmap-combined.md` — **roadmap único e visão**: multi-vertical sem hardcode + inteligência comercial (BI, consultores, PDF, pitch, fontes, custos)
+4. `docs/auditoria.md` — pendências conhecidas levantadas na vistoria geral (2026-08-04)
 
 ## Consulte antes de modificar
 
@@ -511,10 +511,63 @@ Branch: `feat/outreach-cadence-playbooks`
 
 ### Próximo passo imediato
 
-1. **Fase 3 — fechar loop:** todos os itens 3.x entregues (3.1–3.8 ✅).
-2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
-   geradas com o novo prompt + playbooks — abrir uma oportunidade real pelo
-   endpoint `generate-messages` e revisar o `body_opening`.
+**Vistoria geral concluída (2026-08-04)** — ver `docs/auditoria.md` (pendências
+completas). Prioridade para o go-live:
+
+1. **Bloqueadores** (auditoria 2.1–2.3): corrigir crash de CSV/CNAE
+   (`Lead.name/cnpj/address` ausentes), completar requirements.txt (API e
+   workers) e parar a rajada da cadência no `auto_send_email`.
+2. **Prontidão mínima**: deploy (compose + proxy/TLS + README), smoke tests,
+   backup pg_dump — antes de colocar a empresa para prospectar.
+3. **Eficácia**: kanban clicável, bounce handling, inbound STOP, gate de
+   e-mail heurístico.
+
+### Correção go-live (branch `fix/go-live-prep`, 2026-08-04)
+
+A vistoria gerou a branch `fix/go-live-prep` com correções. Entregue até aqui:
+
+- **Bloqueadores**: CSV e coleta CNAE corrigidos (colunas `leads.name/cnpj/
+  address/normalized_domain` + migration `a5b6c7d8e9f0`); requirements.txt
+  completos e pinados (API + workers, cryptography adicionado, playwright
+  removido); rajada da cadência eliminada (o scheduler `run_due` respeita
+  `scheduled_at`).
+- **E-mail**: bounce handling (`follow_ups.attempts/message_id` + tabela
+  `email_suppressions`, migration `b6c7d8e9f0a1`), threading headers,
+  remetente por org (`organizations.email_from`), e-mail heurístico não sai
+  no envio automático, sem corpo de e-mail em logs, SMTP síncrono fora do
+  event loop.
+- **Inbound (3.3)**: `POST /api/webhooks/email/inbound` detecta resposta
+  (→ `RESPONDIDO`, cancela cadência) e STOP (→ `opt_out`).
+- **API**: rate limits nos endpoints de custo, cap de CSV (10MB/10k linhas),
+  `max_leads` limitado a 200, WS com auth na 1ª mensagem (sem token na URL),
+  error-shape `detail` no frontend, `PATCH /leads/{id}` (notas/whatsapp/
+  next_action), `DELETE /leads/{id}` (LGPD), CORS/settings por env,
+  `/health` com ping no banco, N+1 reduzido (leads/campaigns), código morto
+  removido.
+- **Segurança/LGPD**: CPF mascarado + `raw_data` de contatos saneado;
+  remoção da varredura de caminhos sensíveis (só robots/sitemap).
+- **Scoring**: evidência com origem "inferência LLM" filtrada; `evidence_ref`
+  validado; leads sem site agora são pontuados (business) em vez de
+  descartados.
+- **Frontend**: kanban abre o lead, "Enviar mensagem" funcional, menu de
+  campanha operacional (pausar/duplicar/rodada/arquivar), debounce na busca,
+  CSP de prod com origem da API/WS, lint + typecheck + build limpos.
+- **Deploy/ops**: Dockerfiles (api/workers/web standalone), `docker-compose`
+  com os 4 serviços, README, `.env.example` atualizado, backup
+  `scripts/backup.sh`, pytest (27 testes) + CI (`ci.yml`), `provider_client`
+  compartilhado (5.1 parcial).
+
+Pendente de validação: rodar migrations em Postgres real, build das imagens
+Docker e o CI. Detalhes no `docs/auditoria.md`.
+
+### Limpeza de docs (2026-08-04)
+
+Removidos da pasta `docs/` por estarem finalizados/superados: `roadmap.md`
+(→ `roadmap-combined.md`), `tracking.md` (→ `context.md`), `evolution-analysis.md`,
+`product-vision.md` (→ `roadmap-combined.md`), `interface.md`.
+Docs canônicas restantes: `context.md`, `architecture.md`, `business-rules.md`,
+`roadmap-combined.md`, `decisions.md`, `coding-standards.md`, `agents.md`,
+`auditoria.md` (nova).
 
 ## Como rodar
 

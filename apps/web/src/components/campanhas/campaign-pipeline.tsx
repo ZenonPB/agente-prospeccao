@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -61,14 +61,7 @@ export function CampaignPipeline({
     }
   }, [events]);
 
-    useEffect(() => {
-    if (autoStart && !hasStarted && !isRunning) {
-      handleStart('collect');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
-
-  const handleStart = async (startMode: 'collect' | 'reanalyze' = 'collect') => {
+  const handleStart = useCallback(async (startMode: 'collect' | 'reanalyze' = 'collect') => {
     setHasStarted(true);
     setIsRunning(true);
     setMode(startMode);
@@ -124,7 +117,17 @@ export function CampaignPipeline({
       setErrorMessage(msg);
       setEvents((prev) => [...prev, { type: 'error', message: msg }]);
     }
-  };
+  }, [campaignId, startPipeline, reanalyzeCampaign]);
+
+  useEffect(() => {
+    // Auto-start intencional: navegação com ?start=true dispara a coleta uma
+    // única vez. Dispara via microtask para não sincronizar estado no effect.
+    if (autoStart && !hasStarted && !isRunning) {
+      const t = setTimeout(() => handleStart('collect'), 0);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
 
   const handleStop = () => {
     if (wsRef.current) {

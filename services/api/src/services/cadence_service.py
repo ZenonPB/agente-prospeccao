@@ -11,8 +11,13 @@ Envio:
   (`run_due`) envia quando `scheduled_at` vence, respeitando `opt_out`.
 - LGPD: leads com `opt_out` têm etapas pendentes marcadas `SKIPPED` e nunca
   recebem envio automático.
+- Bounce (item 3.2): falha transitória (4xx/rede) re-tenta até
+  `MAX_ATTEMPTS`; bounce permanente (5xx) marca a etapa `CANCELLED` e
+  suprime o endereço em `email_suppressions`.
+- Threading (item 4.1): cada follow-up referencia o `Message-ID` da etapa
+  anterior, para respostas formarem conversa.
 
-O envio efetivo vai via `email_service.send_email` (SMTP ou console em dev).
+O envio efetivo vai via `email_service.send_email` (SMTP ou dry-run em dev).
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -30,11 +35,15 @@ from src.db.models import (
     MessageChannel,
     Organization,
     User,
+    EmailSuppression,
     LeadActivity,
     LeadActivityAction,
 )
 
 logger = logging.getLogger(__name__)
+
+# Máximo de tentativas para falhas transitórias antes de cancelar a etapa.
+MAX_ATTEMPTS = 3
 
 
 def schedule_cadence(
@@ -102,7 +111,9 @@ def send_step(
     """Envia uma etapa da cadência (humano-no-loop ou scheduler).
 
     Marca como SENT, registra um `Message` no lead e uma atividade na trilha.
-    Respeita `opt_out` — lead que opt-out não recebe nada.
+    Respeita `opt_out` e a lista de supressão (bounce permanente).
+
+    Retorna True se a etapa foi enviada (ou já estava enviada).
     """
     if follow_up.status == FollowUpStatus.SENT:
         return True
@@ -120,7 +131,10 @@ def send_step(
     from src.services.email_service import send_email
 
     lead = db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
-    to_email = _recipient_email(lead)
+    # Envio automático (scheduler, sem user_id) exige e-mail verificado — um
+    # e-mail heurístico (adivinhado, item 3.6) nunca vai sozinho.
+    require_verified = user_id is None
+    to_email = _recipient_email(lead, require_verified=require_verified)
     if not to_email:
         logger.info("Lead %s sem e-mail — etapa %s pulada (sem destino)",
                     lead.id if lead else follow_up.lead_id, follow_up.step.value)
@@ -128,12 +142,36 @@ def send_step(
         db.commit()
         return False
 
-    ok = send_email(to_email, follow_up.subject or "", follow_up.content or "")
-    follow_up.sent_at = datetime.now(timezone.utc)
-    follow_up.status = FollowUpStatus.SENT if ok else FollowUpStatus.PENDING
-    db.commit()
+    # Supressão por bounce permanente: endereço já queimou — não re-tentar.
+    if db.query(EmailSuppression.id).filter(EmailSuppression.email == to_email).first():
+        logger.info("E-mail %s em supressão (bounce) — etapa %s cancelada", to_email, follow_up.step.value)
+        follow_up.status = FollowUpStatus.CANCELLED
+        db.commit()
+        return False
 
-    if ok:
+    # Remetente por org (item 4.1); threading com o Message-ID da etapa anterior.
+    org = None
+    if lead and lead.organization_id:
+        org = db.query(Organization).filter(Organization.id == lead.organization_id).first()
+    from_email = (org.email_from if org and org.email_from else None)
+    in_reply_to, references = _thread_headers(db, lead.id if lead else None, follow_up.step)
+
+    result = send_email(
+        to_email,
+        follow_up.subject or "",
+        follow_up.content or "",
+        from_email=from_email,
+        in_reply_to=in_reply_to,
+        references=references,
+    )
+
+    follow_up.attempts = (follow_up.attempts or 0) + 1
+    if result.sent:
+        follow_up.sent_at = datetime.now(timezone.utc)
+        follow_up.status = FollowUpStatus.SENT
+        follow_up.message_id = result.message_id
+        db.commit()
+
         msg = Message(
             lead_id=follow_up.lead_id,
             channel=MessageChannel.EMAIL,
@@ -155,8 +193,71 @@ def send_step(
         ):
             lead.status = LeadStatus.CONTATADO
         db.commit()
+        return True
 
-    return ok
+    # Falha: classifica em permanente (5xx → supressão + cancelamento) ou
+    # transitória (4xx/rede → re-tenta até MAX_ATTEMPTS).
+    if result.permanent:
+        logger.warning("Bounce permanente %s — etapa %s cancelada e endereço suprimido",
+                       to_email, follow_up.step.value)
+        follow_up.status = FollowUpStatus.CANCELLED
+        db.commit()
+        try:
+            db.add(EmailSuppression(email=to_email, reason=(result.error or "bounce permanente")[:255]))
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.warning("Falha ao registrar supressão de %s", to_email)
+        return False
+
+    follow_up.status = FollowUpStatus.PENDING
+    if follow_up.attempts >= MAX_ATTEMPTS:
+        logger.warning("Etapa %s do lead %s excedeu %d tentativas — cancelada",
+                       follow_up.step.value, follow_up.lead_id, MAX_ATTEMPTS)
+        follow_up.status = FollowUpStatus.CANCELLED
+    db.commit()
+    logger.info("Falha transitória no envio para %s: %s (tentativa %d/%d)",
+                to_email, result.error or "erro", follow_up.attempts, MAX_ATTEMPTS)
+    return False
+
+
+def _thread_headers(
+    db: Session,
+    lead_id: Optional[str],
+    step: FollowUpStep,
+) -> "tuple[Optional[str], Optional[List[str]]]":
+    """Busca o Message-ID da etapa anterior da cadência para threading.
+
+    Ordem: OPENING (dia 0) → FOLLOWUP_1 (3) → FOLLOWUP_2 (7) → CLOSING (14).
+    Retorna (in_reply_to, references); None se não houver etapa anterior.
+    """
+    if not lead_id or step == FollowUpStep.OPENING:
+        return None, None
+
+    order = {
+        FollowUpStep.OPENING: 0,
+        FollowUpStep.FOLLOWUP_1: 1,
+        FollowUpStep.FOLLOWUP_2: 2,
+        FollowUpStep.CLOSING: 3,
+    }
+    prev_steps = {s: o for s, o in order.items() if o < order[step]}
+    if not prev_steps:
+        return None, None
+
+    prev = (
+        db.query(FollowUp)
+        .filter(
+            FollowUp.lead_id == lead_id,
+            FollowUp.step.in_(list(prev_steps.keys())),
+            FollowUp.status == FollowUpStatus.SENT,
+            FollowUp.message_id.isnot(None),
+        )
+        .order_by(FollowUp.scheduled_at.desc())
+        .first()
+    )
+    if not prev or not prev.message_id:
+        return None, None
+    return prev.message_id, [prev.message_id]
 
 
 def mark_opt_out(db: Session, lead: Lead) -> None:
@@ -204,14 +305,19 @@ def run_due(db: Session) -> int:
     return sent_count
 
 
-def _recipient_email(lead: Optional[Lead]) -> Optional[str]:
+def _recipient_email(lead: Optional[Lead], require_verified: bool = False) -> Optional[str]:
     if not lead:
         return None
     if lead.email:
         return lead.email
     for c in lead.contacts or []:
-        if c.email:
-            return c.email
+        if not c.email:
+            continue
+        # Item 3.6: e-mail heurístico não é destinatário válido de envio
+        # automático (humano pode enviar após confirmar manualmente).
+        if require_verified and (c.raw_data or {}).get("email_source") == "heuristic":
+            continue
+        return c.email
     return None
 
 

@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle, AlertTriangle, Info, User, Building, Shield, Zap, Search, Globe } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, Info, User, Building, Search, Globe } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import { useLeadPitch } from '@/hooks/use-api';
 import type { PitchOnePager, SiteAudit, SiteAuditSection } from '@/types';

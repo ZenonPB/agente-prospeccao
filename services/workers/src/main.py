@@ -14,6 +14,7 @@ from src.services.places_service import GooglePlacesService
 from src.services.technical_enrichment_service import TechnicalEnrichmentService 
 from src.services.scoring_service import AIScoringService
 from src.services.enrichment_orchestrator import process_single_lead
+from src.services.domain_utils import normalize_domain
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,9 +22,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
+async def run_lead_collection(
+    query: str,
+    max_leads_to_collect: int = 10,
+    organization_id: Optional[str] = None,
+    campaign_id: Optional[str] = None,
+):
     """
     Executa a coleta de leads via Google Places API.
+
+    Usa o mesmo fluxo do `pipeline_worker` da API (dedupe por place_id,
+    company_name+website e normalized_domain). `organization_id` é obrigatório
+    a partir da Fase A (multi-tenant).
     """
     places_service = GooglePlacesService()
     db = SessionLocal()
@@ -40,10 +50,13 @@ async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
 
             google_place_id = item.get("place_id_candidate")
             website_url = item.get("website")
+            normalized_domain = normalize_domain(website_url)
 
             existing_lead = db.query(Lead).filter(
-                (Lead.place_id == google_place_id) |
-                ((Lead.company_name == company_name) & (Lead.website == website_url))
+                (Lead.organization_id == organization_id) &
+                ((Lead.place_id == google_place_id) |
+                 ((Lead.company_name == company_name) & (Lead.website == website_url)) |
+                 ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
             ).first()
 
             if existing_lead:
@@ -51,15 +64,19 @@ async def run_lead_collection(query: str, max_leads_to_collect: int = 10):
                 continue
 
             new_lead = Lead(
+                organization_id=organization_id,
                 place_id=google_place_id,
+                name=company_name,
                 company_name=company_name,
                 website=website_url,
+                normalized_domain=normalized_domain,
                 phone=item.get("phone"),
                 email=None,
                 category=item.get("category"),
                 city=item.get("city"),
                 state=item.get("state"),
                 country=item.get("country", "Brasil"),
+                campaign_id=campaign_id,
                 status=LeadStatus.NOVO,
             )
             db.add(new_lead)

@@ -1,9 +1,22 @@
-version: '3.8'
+# Orquestração local/on-premise (item 3.4 da auditoria).
+# Pré-requisito: `.env` na raiz (copie de `.env.example` e preencha).
+#
+# Subir tudo:        docker compose up -d --build
+# Só o banco (dev):  docker compose up -d db
+# Subir pgAdmin:     docker compose --profile dev up -d pgadmin
+#
+# Serviços:
+#   db      — PostgreSQL (dados em volume `db_data`, backups em `db_backups`)
+#   api     — FastAPI (porta 8000)
+#   web     — Next.js standalone (porta 3000, mudável via WEB_PORT)
+#   workers — enriquecimento/scoring periódico (standalone)
+#   pgadmin — só em dev (profile `dev`)
 
 services:
   db:
     image: postgres:16-alpine
     restart: always
+    env_file: .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -12,14 +25,59 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+      - db_backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    restart: always
+    env_file: .env
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
       retries: 5
+
+  workers:
+    build:
+      context: .
+      dockerfile: services/workers/Dockerfile
+    restart: always
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    restart: always
+    environment:
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
 
   pgadmin:
     image: dpage/pgadmin4
+    profiles: ["dev"]
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
@@ -28,9 +86,7 @@ services:
       - "5050:80"
     depends_on:
       - db
-    links:
-      - db:postgres
-    command: sh -c "sleep 5 && /entrypoint.sh & tail -f /dev/null" 
 
 volumes:
   db_data:
+  db_backups:

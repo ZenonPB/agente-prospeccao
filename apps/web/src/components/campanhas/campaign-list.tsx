@@ -12,8 +12,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useCampaigns } from '@/hooks/use-api';
+import { useCampaigns, useUpdateCampaign, useCreateCampaign } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 const statusConfig = {
   ACTIVE: { label: 'Em andamento', color: 'bg-emerald-100 text-emerald-700' },
@@ -55,6 +57,41 @@ function CampaignCardSkeleton() {
 export function CampaignList() {
   const { data, isLoading, isError, error } = useCampaigns();
   const campaigns = data?.campaigns || [];
+  const router = useRouter();
+  const updateCampaign = useUpdateCampaign();
+  const createCampaign = useCreateCampaign();
+
+  const setStatus = (id: string, status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED') => {
+    updateCampaign.mutate(
+      { id, data: { status } },
+      {
+        onSuccess: () => toast.success(status === 'PAUSED' ? 'Busca pausada.' : status === 'ARCHIVED' ? 'Campanha arquivada.' : 'Busca retomada.'),
+        onError: () => toast.error('Não foi possível atualizar a campanha.'),
+      }
+    );
+  };
+
+  const duplicate = (campaign: (typeof campaigns)[number]) => {
+    createCampaign.mutate(
+      {
+        name: `${campaign.name} (cópia)`,
+        analysis_profile: campaign.analysis_profile,
+        target_service: campaign.target_service,
+        target_segment: campaign.target_segment,
+        target_city: campaign.target_city,
+        target_state: campaign.target_state,
+        target_country: campaign.target_country,
+        places_query: campaign.places_query,
+      },
+      {
+        onSuccess: (created) => {
+          toast.success('Campanha duplicada. Ajuste a cidade e inicie a coleta.');
+          router.push(`/campanhas/${created.id}`);
+        },
+        onError: () => toast.error('Não foi possível duplicar a campanha.'),
+      }
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -107,11 +144,16 @@ export function CampaignList() {
                       <MoreHorizontal className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setStatus(campaign.id, campaign.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE')}>
                         {campaign.status === 'ACTIVE' ? (
                           <>
                             <Pause className="mr-2 h-4 w-4" />
                             Pausar busca
+                          </>
+                        ) : campaign.status === 'ARCHIVED' ? (
+                          <>
+                            <Play className="mr-2 h-4 w-4" />
+                            Reativar
                           </>
                         ) : (
                           <>
@@ -120,15 +162,20 @@ export function CampaignList() {
                           </>
                         )}
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => duplicate(campaign)}>
                         <Copy className="mr-2 h-4 w-4" />
-                        Duplicar para outra cidade
+                        Duplicar
                       </DropdownMenuItem>
-                      <DropdownMenuItem>Iniciar nova rodada</DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <Archive className="mr-2 h-4 w-4" />
-                        Arquivar
+                      <DropdownMenuItem onClick={() => router.push(`/campanhas/${campaign.id}?start=true`)}>
+                        <PlayCircle className="mr-2 h-4 w-4" />
+                        Iniciar nova rodada
                       </DropdownMenuItem>
+                      {campaign.status !== 'ARCHIVED' && (
+                        <DropdownMenuItem onClick={() => setStatus(campaign.id, 'ARCHIVED')}>
+                          <Archive className="mr-2 h-4 w-4" />
+                          Arquivar
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

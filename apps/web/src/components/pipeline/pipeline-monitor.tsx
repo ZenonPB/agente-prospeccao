@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Pause, RotateCcw, CheckCircle, XCircle, Loader2, Play } from 'lucide-react';
+import { Pause, Loader2, Play } from 'lucide-react';
 import { useStartPipeline } from '@/hooks/use-api';
 import { createPipelineWs } from '@/lib/api';
 
@@ -89,7 +89,7 @@ export function PipelineMonitor() {
       ws.onclose = () => {
         setIsRunning(false);
       };
-    } catch (error) {
+    } catch {
       setIsRunning(false);
       setEvents((prev) => [...prev, { type: 'error', message: 'Erro ao iniciar pipeline' }]);
     }

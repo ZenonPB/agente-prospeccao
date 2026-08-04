@@ -36,4 +36,5 @@ from database.models import (
     OrganizationSecret,
     FollowUpStep,
     FollowUpStatus,
+    EmailSuppression,
 )
