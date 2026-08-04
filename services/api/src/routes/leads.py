@@ -7,9 +7,9 @@ import os
 import sys
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
-from src.services.lead_activity_service import log_activity, log_status_change
+from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
 from src.services.org_service import consultant_lead_scope, is_full_access
 
 # Importa serviços dos workers (reaproveitando a fonte única).
@@ -264,6 +264,15 @@ def update_lead_status(
         status_from=previous,
         detail=f"{previous.value if previous else '?'} → {body.status.value}",
     )
+    # Item 3.6: grava também a action comercial correspondente (ex.: REUNIAO_MARCADA
+    # -> MEETING_SCHEDULED, PROPOSTA_ENVIADA -> PROPOSAL_SENT, PERDIDO -> LOST).
+    semantic = semantic_action_for(body.status)
+    if semantic:
+        log_activity(
+            db, lead, action=semantic, user_id=str(user.id),
+            status_to=body.status,
+            detail=body.status.value,
+        )
     db.commit()
     db.refresh(lead)
 
@@ -505,3 +514,77 @@ async def enrich_lead_contacts(
     db.commit()
 
     return {"contacts": contacts}
+
+
+class RegisterConversionRequest(BaseModel):
+    service_sold: Optional[str] = None
+    contract_value: Optional[float] = None
+    notes: Optional[str] = None
+
+
+@router.post("/{lead_id}/conversion")
+def register_conversion(
+    lead_id: str,
+    body: RegisterConversionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra a conversão (venda fechada) de um lead.
+
+    Item 3.6.1: cria um registro em `conversions` (base do dashboard
+    "taxa de acerto do score" e das métricas de receita) e grava a action
+    `CONVERTED` na trilha do lead. `time_to_close_days` é derivado de
+    `created_at` do lead.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+    if body.contract_value is not None and body.contract_value < 0:
+        raise HTTPException(status_code=400, detail="contract_value não pode ser negativo")
+
+    from datetime import datetime, timezone
+    days_to_close = None
+    if lead.created_at:
+        days_to_close = max(
+            0, (datetime.now(timezone.utc) - lead.created_at).days,
+        )
+
+    conversion = Conversion(
+        lead_id=lead.id,
+        service_sold=body.service_sold,
+        contract_value=body.contract_value,
+        notes=body.notes,
+        time_to_close_days=days_to_close,
+        user_id=user.id,
+        assigned_to_id=lead.assigned_to_id,
+    )
+    db.add(conversion)
+
+    detail_parts = ["Conversão registrada"]
+    if body.service_sold:
+        detail_parts.append(body.service_sold)
+    if body.contract_value is not None:
+        detail_parts.append(f"R$ {body.contract_value:,.2f}")
+    log_activity(
+        db, lead, action=LeadActivityAction.CONVERTED,
+        user_id=str(user.id) if user else None,
+        detail=" — ".join(detail_parts),
+    )
+    db.commit()
+    db.refresh(conversion)
+
+    return {
+        "id": str(conversion.id),
+        "lead_id": str(conversion.lead_id),
+        "service_sold": conversion.service_sold,
+        "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
+        "time_to_close_days": conversion.time_to_close_days,
+        "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,
+    }
