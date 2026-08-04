@@ -339,3 +339,14 @@ export function useCollectCnae() {
       campaignsApi.collectCnae(campaignId, { cnae_code: cnaeCode, cnpjs, max_leads: maxLeads }),
   });
 }
+
+export function useEnrichContacts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ leadId, cnpj }: { leadId: string; cnpj?: string }) =>
+      leadsApi.enrichContacts(leadId, cnpj),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
+    },
+  });
+}

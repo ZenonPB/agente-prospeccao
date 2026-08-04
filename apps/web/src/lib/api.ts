@@ -119,6 +119,12 @@ export const leadsApi = {
 
   getPitch: (id: string) =>
     request<PitchOnePager>(`/api/leads/${id}/pitch`),
+
+  enrichContacts: (id: string, cnpj?: string) =>
+    request<{ contacts: import("@/types").ContactItem[] }>(`/api/leads/${id}/enrich-contacts`, {
+      method: "POST",
+      body: JSON.stringify({ cnpj: cnpj || "" }),
+    }),
 };
 
 export const authApi = {

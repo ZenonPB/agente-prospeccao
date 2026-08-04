@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle, AlertTriangle, Info, User, Building, Shield, Zap, Search, Globe } from 'lucide-react';
+import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import { useLeadPitch } from '@/hooks/use-api';
 import type { PitchOnePager, SiteAudit, SiteAuditSection } from '@/types';
 
@@ -178,6 +179,17 @@ function PitchCard({ pitch }: { pitch: PitchOnePager }) {
                 {pitch.primary_contact.role && <p className="ml-6 text-muted-foreground">{pitch.primary_contact.role}</p>}
                 {pitch.primary_contact.email && <p className="ml-6 text-muted-foreground">{pitch.primary_contact.email}</p>}
                 {pitch.primary_contact.phone && <p className="ml-6 text-muted-foreground">{pitch.primary_contact.phone}</p>}
+                {pitch.primary_contact.linkedin_url && (
+                  <a
+                    href={pitch.primary_contact.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-6 flex items-center gap-1.5 text-primary hover:underline"
+                  >
+                    <LinkedInIcon className="h-4 w-4" />
+                    Ver perfil no LinkedIn
+                  </a>
+                )}
               </>
             ) : (
               <p className="text-muted-foreground">Nenhum contato identificado ainda.</p>
