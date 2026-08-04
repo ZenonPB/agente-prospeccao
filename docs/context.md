@@ -409,11 +409,37 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 - `enrichment_orchestrator.py`: seleciona steps condicionalmente (`requires_technical_report` e `requires_business_data` do template) — não faz scraping/requisições HTTP em sites se o template da campanha indicar que auditoria técnica é irrelevante.
 - `pipeline_worker.py`: emissão de logs e eventos WebSocket em tempo real para cada step ("Pulpando auditoria técnica de site", "Consultando dados cadastrais/CNAE", "Score contextual").
 
+### Fase 3.4 — Decisor Email + LinkedIn ✅ (2026-08-05)
+
+**Backend:**
+- `services/workers/src/services/contact_enrichment_service.py` (novo) — `ContactEnrichmentService`:
+  - Multi-provider de e-mail (ordem): **Hunter.io** (opcional, se `HUNTER_API_KEY`) → **Receita Federal via CNPJ** → **heurística determinística** (`nome.sobrenome@dominio`, confidence baixa).
+  - LinkedIn (busca passiva, 100% gratuito): DuckDuckGo HTML → fallback Bing → heurística de URL (`linkedin.com/in/primeiro-ultimo`) com validação por índice de busca (LinkedIn bloqueia bots diretos, status 999 — nunca GET direto no perfil).
+  - Rate-limit + cache em memória; **passivo** (Lei 12.737/2012 respeitada — sem probe, sem injeção).
+  - `_recalc_confidence`: base do contato + bônus por canal confirmado (email/linkedin).
+- Migration `e1f2a3b4c5d6` — `contacts.linkedin_url` + `contacts.linkedin_confidence` + enum `lead_activity_action.CONTACT_ENRICHED`.
+- `settings.py`: `HUNTER_API_KEY` opcional (default vazio = fallback gratuito).
+- `POST /api/leads/{id}/enrich-contacts` — enriquece decisores (Receita → email/LinkedIn) e registra `CONTACT_ENRICHED` na trilha.
+- `_lead_detail` agora expõe `contacts[]` (com `linkedin_url`/`linkedin_confidence`).
+- `pipeline_worker.py`: **Fase 3 automática** — leads QUALIFICADOS têm decisores enriquecidos (email/LinkedIn) com eventos WS.
+- `pitch_service.py`: `primary_contact` inclui `linkedin_url`.
+- `outreach_service.py`: fatos do prompt incluem o LinkedIn do decisor (sugere canal ao consultor, sem gerar texto InMail).
+
+**Frontend:**
+- `types`: `ContactItem` (com `linkedin_url`/`linkedin_confidence`) + `Lead.contacts[]` + `primary_contact.linkedin_url`.
+- Aba **Contatos** do detalhe do lead (antes placeholder): lista de decisores com e-mail (copiar), telefone, LinkedIn (abrir/copiar), badge de confiança e "Enriquecer decisores" (botão).
+- `LinkedInIcon` custom (lucide-react 1.x removeu ícones de marca).
+- `lead-pitch.tsx`: "Ver perfil no LinkedIn" no card de contato principal.
+- `leadsApi.enrichContacts` + hook `useEnrichContacts` (invalida `["leads", id]`).
+- Label `CONTACT_ENRICHED` na trilha de atividades.
+
+**Testado:** migration aplicada; helpers (domínio/slug/URL) unit-testados; busca passiva retorna perfil real (Bill Gates → `bill-gates-...`); CNPJ Petrobras → 9 sócios; fluxo completo email+linkedin com lead fake; `npm run build` OK.
+
 ### Próximo passo imediato
 
 1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.4 — Hunter / e-mail de decisor** (`feat/hunter-enrichment`).
    - **Item 3.5 — BYOK e cotas por org** (`feat/org-byok`).
+   - **Item 3.6 — Feedback conversão → score** (`feat/conversion-feedback`).
 2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening`.
