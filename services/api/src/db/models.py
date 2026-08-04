@@ -12,6 +12,7 @@ from database.models import (
     Enrichment,
     Message,
     FollowUp,
+    MessageChannel,
     Job,
     User,
     Contact,

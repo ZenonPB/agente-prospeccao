@@ -703,7 +703,7 @@ async def start_lead_cadence(
     )
 
     lead_dict = _build_lead_dict(lead, db)
-    result = await OutreachService(api_key=groq_key).generate_sequence(
+    result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
     )
     if result is None:
