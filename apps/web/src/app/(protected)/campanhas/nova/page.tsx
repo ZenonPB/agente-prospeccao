@@ -68,7 +68,6 @@ export default function NovaCampanhaPage() {
     segment: '',
     city: '',
     state: '',
-    radius: '10',
   });
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
@@ -647,24 +646,6 @@ export default function NovaCampanhaPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="radius">Raio de busca</Label>
-                <Select
-                  value={formData.radius}
-                  onValueChange={(value) => value && setFormData({ ...formData, radius: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 km</SelectItem>
-                    <SelectItem value="10">10 km</SelectItem>
-                    <SelectItem value="25">25 km</SelectItem>
-                    <SelectItem value="50">50 km</SelectItem>
-                    <SelectItem value="100">100 km</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           )}
 
@@ -688,10 +669,6 @@ export default function NovaCampanhaPage() {
                         ? `${formData.city}, ${formData.state}`
                         : formData.city || 'Não informado'}
                     </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Raio:</dt>
-                    <dd className="font-medium">{formData.radius} km</dd>
                   </div>
                 </dl>
               </div>
