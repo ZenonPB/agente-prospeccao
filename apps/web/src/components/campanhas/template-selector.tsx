@@ -8,10 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Trash2, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useScoringTemplates, usePatchScoringTemplate } from '@/hooks/use-api';
-import type { ScoringTemplate, ScoringTemplateInput } from '@/lib/api';
+import type { ScoringTemplate, ScoringTemplateInput, Playbook } from '@/lib/api';
 
 interface TemplateSelectorProps {
   value: string | null;
@@ -90,6 +90,48 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
     { key: 'negative_signals', title: 'Sinais negativos', hint: 'Reduzem o score quando presentes', tone: 'text-red-700' },
     { key: 'context_signals', title: 'Sinais contextuais', hint: 'Contexto extra (região, segmento)', tone: 'text-muted-foreground' },
   ];
+
+  const updatePlaybook = (patch: Partial<Playbook>) => {
+    const base = selected;
+    if (!base) return;
+    const current = draft ?? { playbook: base.playbook ?? {} };
+    setDraft({ ...current, playbook: { ...(current.playbook ?? {}), ...patch } });
+  };
+
+  const playbook: Playbook = draft?.playbook ?? selected?.playbook ?? {};
+
+  const addPlaybookItem = (key: 'hooks' | 'subject_ideas') => {
+    updatePlaybook({ [key]: [...(playbook[key] ?? []), ''] });
+  };
+
+  const updatePlaybookItem = (key: 'hooks' | 'subject_ideas', index: number, value: string) => {
+    const items = [...(playbook[key] ?? [])];
+    items[index] = value;
+    updatePlaybook({ [key]: items });
+  };
+
+  const removePlaybookItem = (key: 'hooks' | 'subject_ideas', index: number) => {
+    const items = [...(playbook[key] ?? [])];
+    items.splice(index, 1);
+    updatePlaybook({ [key]: items });
+  };
+
+  const objections = playbook.objections ?? [];
+  const updateObjection = (index: number, patch: Partial<{ objection: string; approach: string }>) => {
+    const items = [...objections];
+    items[index] = { ...items[index], ...patch };
+    updatePlaybook({ objections: items });
+  };
+
+  const addObjection = () => {
+    updatePlaybook({ objections: [...objections, { objection: '', approach: '' }] });
+  };
+
+  const removeObjection = (index: number) => {
+    const items = [...objections];
+    items.splice(index, 1);
+    updatePlaybook({ objections: items });
+  };
 
   return (
     <Card>
@@ -226,6 +268,94 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                     ))}
                   </div>
                 ))}
+
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">Playbook de outreach (item 3.8)</p>
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      mensagens desta vertical
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Hooks, assuntos e objeções reais desta vertical — injetados na geração das
+                    mensagens para variarem conforme o serviço.
+                  </p>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Hooks de abordagem</Label>
+                      <Button variant="ghost" size="sm" onClick={() => addPlaybookItem('hooks')}>
+                        <Plus className="mr-1 h-3 w-3" /> Adicionar
+                      </Button>
+                    </div>
+                    {(playbook.hooks ?? []).map((hook, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <Input
+                          className="flex-1"
+                          placeholder="Ex.: Petshop perde dono local para o e-commerce"
+                          value={hook}
+                          onChange={(e) => updatePlaybookItem('hooks', i, e.target.value)}
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => removePlaybookItem('hooks', i)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Ideias de assunto (subject)</Label>
+                      <Button variant="ghost" size="sm" onClick={() => addPlaybookItem('subject_ideas')}>
+                        <Plus className="mr-1 h-3 w-3" /> Adicionar
+                      </Button>
+                    </div>
+                    {(playbook.subject_ideas ?? []).map((subject, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <Input
+                          className="flex-1"
+                          placeholder="Ex.: Seus clientes te acham no Google?"
+                          value={subject}
+                          onChange={(e) => updatePlaybookItem('subject_ideas', i, e.target.value)}
+                        />
+                        <Button variant="ghost" size="icon" onClick={() => removePlaybookItem('subject_ideas', i)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Objeções do decisor</Label>
+                      <Button variant="ghost" size="sm" onClick={addObjection}>
+                        <Plus className="mr-1 h-3 w-3" /> Adicionar
+                      </Button>
+                    </div>
+                    {objections.map((obj, i) => (
+                      <div key={i} className="space-y-1.5 rounded-md bg-muted/40 p-2">
+                        <Input
+                          className="flex-1"
+                          placeholder="Objeção"
+                          value={obj.objection ?? ''}
+                          onChange={(e) => updateObjection(i, { objection: e.target.value })}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            className="flex-1"
+                            placeholder="Como abordar"
+                            value={obj.approach ?? ''}
+                            onChange={(e) => updateObjection(i, { approach: e.target.value })}
+                          />
+                          <Button variant="ghost" size="icon" onClick={() => removeObjection(i)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 <Button onClick={handleSave} disabled={saving || !draft}>
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

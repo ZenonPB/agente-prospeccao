@@ -1,7 +1,7 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
-import type { OrgMembership, OrganizationMember, SalesRole } from "@/types";
+import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -137,6 +137,27 @@ export const leadsApi = {
     }>(`/api/leads/${id}/conversion`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  getCadence: (id: string) =>
+    request<LeadCadence>(`/api/leads/${id}/cadence`),
+
+  startCadence: (id: string) =>
+    request<LeadCadence & { playbook_applied: boolean; auto_send: boolean }>(
+      `/api/leads/${id}/cadence/start`,
+      { method: "POST", body: JSON.stringify({}) },
+    ),
+
+  sendCadenceStep: (id: string, step: string) =>
+    request<FollowUpItem>(`/api/leads/${id}/cadence/send/${step}`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  optOutLead: (id: string) =>
+    request<{ lead_id: string; opt_out: boolean }>(`/api/leads/${id}/opt-out`, {
+      method: "POST",
+      body: JSON.stringify({}),
     }),
 };
 
@@ -299,6 +320,12 @@ export const orgsApi = {
     request<OrgSecretStatus>(`/api/orgs/${orgId}/secrets/${keyName}`, {
       method: "DELETE",
     }),
+
+  patchSettings: (orgId: string, data: { auto_send_email?: boolean }) =>
+    request<{ id: string; name: string; auto_send_email: boolean }>(
+      `/api/orgs/${orgId}`,
+      { method: "PATCH", body: JSON.stringify(data) },
+    ),
 };
 
 export interface AnalyticsOverview {
@@ -418,6 +445,12 @@ export const analyticsApi = {
   },
 };
 
+export interface Playbook {
+  hooks?: string[];
+  subject_ideas?: string[];
+  objections?: { objection?: string; approach?: string }[];
+}
+
 export interface ScoringTemplate {
   id: string;
   service_label: string;
@@ -427,6 +460,7 @@ export interface ScoringTemplate {
   requires_technical_report: boolean;
   requires_business_data: boolean;
   extra_instructions?: string;
+  playbook?: Playbook;
   is_generated: boolean;
   is_active: boolean;
   organization_id: string | null;
@@ -440,6 +474,7 @@ export interface ScoringTemplateInput {
   requires_technical_report?: boolean;
   requires_business_data?: boolean;
   extra_instructions?: string;
+  playbook?: Playbook;
   is_active?: boolean;
 }
 
