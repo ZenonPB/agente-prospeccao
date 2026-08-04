@@ -101,21 +101,45 @@ export function ScoreBandsCard({ overview }: { overview: AnalyticsOverview }) {
           <Gauge className="h-4 w-4 text-muted-foreground" />
           Score
         </CardTitle>
-        <CardDescription>Leads por faixa de pontuação</CardDescription>
+        <CardDescription>Taxa de acerto por faixa de pontuação</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2.5">
+      <CardContent className="space-y-3">
         {overview.leads_by_score_band.map((band, i) => {
           const pct = (band.count / maxCount) * 100;
+          const convPct = band.conversion_rate;
+          const convBarPct = band.count > 0 ? (band.converted / band.count) * 100 : 0;
           return (
-            <div key={band.band} className="flex items-center gap-3">
-              <span className="w-12 shrink-0 text-sm text-muted-foreground">{band.band}</span>
-              <div className="relative h-6 flex-1 overflow-hidden rounded-md bg-muted/50">
+            <div key={band.band} className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{band.band}</span>
+                <span className="font-medium tabular-nums">
+                  {band.count}
+                  <span className="mx-1.5 text-muted-foreground/60">·</span>
+                  {band.converted} convertido{band.converted === 1 ? '' : 's'}
+                  <span className="ml-1.5 rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
+                    {convPct}%
+                  </span>
+                </span>
+              </div>
+              <div className="relative h-6 overflow-hidden rounded-md bg-muted/50">
                 <div
                   className="absolute inset-y-0 left-0 rounded-md"
                   style={{ width: `${Math.max(pct, band.count > 0 ? 4 : 0)}%`, backgroundColor: BAND_COLORS[i] }}
+                  aria-hidden="true"
                 />
+                {band.converted > 0 && (
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-l-md bg-emerald-500/80"
+                    style={{ width: `${Math.max(convBarPct, 2)}%` }}
+                    aria-hidden="true"
+                  />
+                )}
               </div>
-              <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums">{band.count}</span>
+              <p className="text-[11px] text-muted-foreground">
+                {band.converted === 0
+                  ? 'Sem conversões nesta faixa'
+                  : `${convPct}% dos leads desta faixa foram convertidos`}
+              </p>
             </div>
           );
         })}

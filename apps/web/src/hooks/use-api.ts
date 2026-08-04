@@ -380,3 +380,16 @@ export function useEnrichContacts() {
     },
   });
 }
+
+export function useRegisterConversion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { service_sold?: string; contract_value?: number; notes?: string } }) =>
+      leadsApi.registerConversion(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+    },
+  });
+}

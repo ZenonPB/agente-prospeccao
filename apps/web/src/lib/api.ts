@@ -125,6 +125,19 @@ export const leadsApi = {
       method: "POST",
       body: JSON.stringify({ cnpj: cnpj || "" }),
     }),
+
+  registerConversion: (id: string, data: { service_sold?: string; contract_value?: number; notes?: string }) =>
+    request<{
+      id: string;
+      lead_id: string;
+      service_sold: string | null;
+      contract_value: number | null;
+      time_to_close_days: number | null;
+      converted_at: string;
+    }>(`/api/leads/${id}/conversion`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export const authApi = {
@@ -301,7 +314,7 @@ export interface AnalyticsOverview {
   response_rate: number;
   meeting_rate: number;
   funnel: { stage: string; count: number }[];
-  leads_by_score_band: { band: string; count: number }[];
+  leads_by_score_band: { band: string; count: number; converted: number; conversion_rate: number }[];
 }
 
 export interface AnalyticsConsultant {
