@@ -6,6 +6,8 @@ export type LeadStatus =
   | 'CONTATADO'
   | 'RESPONDIDO'
   | 'REUNIAO_MARCADA'
+  | 'REUNIAO_FEITA'
+  | 'PROPOSTA_ENVIADA'
   | 'PERDIDO';
 
 export type CampaignStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
@@ -87,6 +89,10 @@ export interface Lead {
   assigned_to_id?: string;
   assigned_to_name?: string;
   assigned_at?: string;
+  notes?: string;
+  whatsapp?: string;
+  next_action_at?: string;
+  last_contacted_at?: string;
   activities?: LeadActivityItem[];
   contacts?: ContactItem[];
   created_at: string;

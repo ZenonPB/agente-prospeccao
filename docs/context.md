@@ -522,6 +522,12 @@ completas). Prioridade para o go-live:
 3. **Eficácia**: kanban clicável, bounce handling, inbound STOP, gate de
    e-mail heurístico.
 
+**Eixo 3 entregue (2026-08-04)** — kanban NOVO/QUALIFICADO, notas + próxima ação
+no lead, painel "Ações de hoje", ações em massa + exportar CSV, WhatsApp wa.me.
+Próximos eixos sugeridos: **Eixo 1 (volume: CNAE real, CNPJ automático p/ Places,
+pontuar sem site)** e **Eixo 4 (UI/UX: master-detail no lead, dashboard central
+de comando, filtros/paginação)**.
+
 ### Correção go-live (branch `fix/go-live-prep`, 2026-08-04)
 
 A vistoria gerou a branch `fix/go-live-prep` com correções. Entregue até aqui:
@@ -568,6 +574,36 @@ Removidos da pasta `docs/` por estarem finalizados/superados: `roadmap.md`
 Docs canônicas restantes: `context.md`, `architecture.md`, `business-rules.md`,
 `roadmap-combined.md`, `decisions.md`, `coding-standards.md`, `agents.md`,
 `auditoria.md` (nova).
+
+### Eixo 3 — Fluxo de vendas "Apollo" (itens 9–12) ✅ (2026-08-04)
+
+Pacote de melhorias de execução de vendas sobre a branch `fix/go-live-prep`:
+
+- **Item 9 — Kanban com NOVO + QUALIFICADO**: `/vendas` agora tem as colunas
+  `Novos` e `Aptos para contato` antes de `Mensagem enviada`. Cards ordenados por
+  score (depois prioridade HOT>WARM>COLD) dentro de cada coluna. Badge "Sem score"
+  para NOVO; indicador "Aguardando 1º contato" em QUALIFICADO.
+- **Item 10 — Notas + próxima ação + fila de ações**:
+  - Card **Acompanhamento** no detalhe do lead (componente `FollowUpCard`):
+    WhatsApp, próxima ação (datetime-local) e notas editáveis → `PATCH /leads/{id}`
+    (backend já aceitava; UI criada). Nada de `setState` em effect (padrão child
+    com estado inicializado do lead).
+  - Painel **"Ações de hoje"** no dashboard (`today-actions.tsx`): follow-up
+    vencido/hoje (via `next_action_before`) + aptos sem dono (via `assigned=none`)
+    com botão "Atribuir a mim".
+  - Backend: `GET /api/leads` ganhou filtros `assigned` (`me|none|any`) e
+    `next_action_before` (data simples vira fim do dia).
+- **Item 11 — Ações em massa na lista de leads**: seleção por card + "selecionar
+  todos visíveis"; barra de ações com **atribuir a mim**, **atribuir para**
+  (consultores da org, MANAGER+), **mover para** (status) e **exportar CSV**
+  (client-side, BOM UTF-8 p/ Excel BR).
+- **Item 12 — WhatsApp**: helper `toWhatsAppNumber`/`whatsAppLink` em `lib/utils.ts`;
+  botão WhatsApp no kanban, no cabeçalho do lead e **"Abrir no WhatsApp"** no modal
+  de mensagem gerada (abre `wa.me` com `whatsapp_short` preenchido).
+
+**Verificação:** `tsc --noEmit` limpo, `npm run lint` limpo, `npm run build` OK,
+`py_compile` do `routes/leads.py` OK. Testes pytest requerem venv (não instalado).
+
 
 ## Como rodar
 

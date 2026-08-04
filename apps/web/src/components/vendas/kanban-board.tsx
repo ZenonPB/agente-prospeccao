@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers } from '@/hooks/use-api';
+import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
@@ -21,10 +22,12 @@ interface KanbanColumn {
 }
 
 const COLUMNS: KanbanColumn[] = [
+  { id: 'NOVO', title: 'Novos', color: 'bg-slate-500', status: ['NOVO'] },
+  { id: 'QUALIFICADO', title: 'Aptos para contato', color: 'bg-emerald-500', status: ['QUALIFICADO'] },
   { id: 'CONTATADO', title: 'Mensagem enviada', color: 'bg-blue-500', status: ['CONTATADO'] },
   { id: 'RESPONDIDO', title: 'Respondeu', color: 'bg-purple-500', status: ['RESPONDIDO'] },
   { id: 'REUNIAO_MARCADA', title: 'Reunião marcada', color: 'bg-amber-500', status: ['REUNIAO_MARCADA'] },
-  { id: 'REUNIAO_FEITA', title: 'Reunião realizada', color: 'bg-emerald-500', status: ['REUNIAO_FEITA'] },
+  { id: 'REUNIAO_FEITA', title: 'Reunião realizada', color: 'bg-teal-500', status: ['REUNIAO_FEITA'] },
   { id: 'PROPOSTA_ENVIADA', title: 'Proposta enviada', color: 'bg-pink-500', status: ['PROPOSTA_ENVIADA'] },
 ];
 
@@ -42,6 +45,18 @@ function groupLeadsByColumn(leads: LeadData[]): Record<string, LeadData[]> {
     if (colId && grouped[colId]) {
       grouped[colId].push(lead);
     }
+  });
+
+  // Dentro de cada coluna: maior score primeiro, depois prioridade (HOT > WARM > COLD).
+  const priorityRank: Record<string, number> = { HOT: 0, WARM: 1, COLD: 2 };
+  Object.values(grouped).forEach((list) => {
+    list.sort((a, b) => {
+      const scoreDiff = (b.qualification_score || 0) - (a.qualification_score || 0);
+      if (scoreDiff !== 0) return scoreDiff;
+      const pa = priorityRank[a.priority] ?? 3;
+      const pb = priorityRank[b.priority] ?? 3;
+      return pa - pb;
+    });
   });
 
   return grouped;
@@ -79,7 +94,7 @@ function KanbanColumnSkeleton() {
   );
 }
 
-const SALES_STATUSES = 'CONTATADO,RESPONDIDO,REUNIAO_MARCADA,REUNIAO_FEITA,PROPOSTA_ENVIADA';
+const SALES_STATUSES = 'NOVO,QUALIFICADO,CONTATADO,RESPONDIDO,REUNIAO_MARCADA,REUNIAO_FEITA,PROPOSTA_ENVIADA';
 
 export function KanbanBoard() {
   const router = useRouter();
@@ -247,9 +262,15 @@ export function KanbanBoard() {
                                   <GripVertical className="h-4 w-4 text-muted-foreground" />
                                   <h4 className="font-medium">{lead.company_name}</h4>
                                 </div>
-                                <Badge className="bg-emerald-100 text-emerald-700">
-                                  {lead.qualification_score}
-                                </Badge>
+                                {lead.qualification_score != null ? (
+                                  <Badge className="bg-emerald-100 text-emerald-700">
+                                    {lead.qualification_score}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                                    Sem score
+                                  </Badge>
+                                )}
                               </div>
                               <p className="mb-3 text-sm text-muted-foreground">
                                 {lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}
@@ -285,11 +306,29 @@ export function KanbanBoard() {
                                   <span>{Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  {column.id === 'QUALIFICADO' && (
+                                    <div className="flex items-center gap-1 text-emerald-600">
+                                      <AlertCircle className="h-3 w-3" />
+                                      <span>Aguardando 1º contato</span>
+                                    </div>
+                                  )}
                                   {column.id === 'CONTATADO' && (
                                     <div className="flex items-center gap-1 text-amber-600">
                                       <AlertTriangle className="h-3 w-3" />
-                                      <span>Pendente</span>
+                                      <span>Aguardando resposta</span>
                                     </div>
+                                  )}
+                                  {whatsAppLink(lead.whatsapp || lead.phone) && (
+                                    <a
+                                      href={whatsAppLink(lead.whatsapp || lead.phone) as string}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      aria-label={`Abrir WhatsApp de ${lead.company_name}`}
+                                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                    >
+                                      <MessageCircle className="h-3.5 w-3.5" />
+                                    </a>
                                   )}
                                   {!lead.assigned_to_id && (
                                     <Button

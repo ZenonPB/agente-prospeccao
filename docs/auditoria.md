@@ -19,7 +19,10 @@
 >   adotado em scoring/technical)
 > - ⏳ 3.1 (feito no frontend; revisar) · 3.4 (Dockerfiles/compose/README/CSP feitos;
 >   falta teste de build de imagem) · 3.5 (pytest + CI + backup criados; falta rodar
->   CI real) · 4.4 (falta UI de notas) · 4.9 (falta paginação nas listas)
+>   CI real) · 4.9 (falta paginação nas listas)
+> - ✅ **Eixo 3 (2026-08-04)**: 4.4 (UI de notas/próxima ação/WhatsApp no lead),
+>   kanban NOVO+QUALIFICADO, painel "Ações de hoje", ações em massa + export CSV,
+>   botão WhatsApp wa.me. Detalhes em `docs/context.md`.
 
 ---
 

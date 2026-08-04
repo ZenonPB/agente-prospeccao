@@ -17,6 +17,8 @@ export function useLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  assigned?: string;
+  next_action_before?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -133,6 +135,18 @@ export function useUpdateLeadStatus() {
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       leadsApi.updateStatus(id, status),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+export function useUpdateLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { notes?: string; whatsapp?: string; next_action_at?: string | null } }) =>
+      leadsApi.update(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
   });

@@ -5,11 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert, Trophy } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert, Trophy, MessageCircle, Save } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion } from '@/hooks/use-api';
+import { whatsAppLink } from '@/lib/utils';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
@@ -67,6 +68,88 @@ const activityLabels: Record<string, string> = {
   CONVERTED: 'Conversão registrada',
   CONTACT_ENRICHED: 'Decisores enriquecidos',
 };
+
+function FollowUpCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['data']> }) {
+  const updateLead = useUpdateLead();
+  const [draftNotes, setDraftNotes] = useState(lead.notes ?? '');
+  const [draftWhatsapp, setDraftWhatsapp] = useState(lead.whatsapp ?? '');
+  const [draftNextAction, setDraftNextAction] = useState(
+    lead.next_action_at ? lead.next_action_at.slice(0, 16) : ''
+  );
+
+  const saveFollowUp = () => {
+    updateLead.mutate(
+      {
+        id: lead.id,
+        data: {
+          notes: draftNotes,
+          whatsapp: draftWhatsapp || undefined,
+          next_action_at: draftNextAction ? new Date(draftNextAction).toISOString() : null,
+        },
+      },
+      {
+        onSuccess: () => toast.success('Acompanhamento salvo.'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Erro ao salvar acompanhamento.'),
+      }
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Acompanhamento</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="lead-whatsapp" className="text-sm font-medium">
+              WhatsApp
+            </label>
+            <Input
+              id="lead-whatsapp"
+              placeholder="(16) 99999-9999"
+              value={draftWhatsapp}
+              onChange={(e) => setDraftWhatsapp(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="lead-next-action" className="text-sm font-medium">
+              Próxima ação
+            </label>
+            <Input
+              id="lead-next-action"
+              type="datetime-local"
+              value={draftNextAction}
+              onChange={(e) => setDraftNextAction(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="lead-notes" className="text-sm font-medium">
+            Notas
+          </label>
+          <Textarea
+            id="lead-notes"
+            rows={3}
+            placeholder="Contexto da conversa, objeções, próximos passos..."
+            value={draftNotes}
+            onChange={(e) => setDraftNotes(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-end">
+          <Button size="sm" onClick={saveFollowUp} disabled={updateLead.isPending}>
+            {updateLead.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Salvar acompanhamento
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function LeadDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = use(props.params);
@@ -133,10 +216,23 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           </div>
           <p className="text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
         </div>
-        <Button className="h-10" onClick={() => setIsModalOpen(true)}>
-          <Mail className="mr-2 h-4 w-4" />
-          Enviar mensagem
-        </Button>
+        <div className="flex items-center gap-2">
+          {whatsAppLink(lead.whatsapp || lead.phone) && (
+            <a
+              href={whatsAppLink(lead.whatsapp || lead.phone) as string}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              WhatsApp
+            </a>
+          )}
+          <Button className="h-10" onClick={() => setIsModalOpen(true)}>
+            <Mail className="mr-2 h-4 w-4" />
+            Enviar mensagem
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
@@ -237,6 +333,8 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </CardContent>
             </Card>
           )}
+
+          <FollowUpCard lead={lead} />
         </TabsContent>
 
         <TabsContent value="pitch" className="space-y-4">
@@ -648,6 +746,21 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   <Textarea value={generatedMessages.whatsapp_short} readOnly rows={6} />
                   <Badge className="mt-2">Versão curta para WhatsApp Business</Badge>
                 </div>
+                {whatsAppLink(lead.whatsapp || lead.phone, generatedMessages.whatsapp_short) ? (
+                  <a
+                    href={whatsAppLink(lead.whatsapp || lead.phone, generatedMessages.whatsapp_short) as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Abrir no WhatsApp
+                  </a>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Adicione um WhatsApp no lead (aba Dados gerais) para abrir a conversa direto.
+                  </p>
+                )}
               </TabsContent>
             </Tabs>
           )}
