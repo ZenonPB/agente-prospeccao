@@ -321,6 +321,36 @@ export function useRevokeInvite() {
   });
 }
 
+export function useOrgSecrets(orgId?: string) {
+  return useQuery({
+    queryKey: ["org", orgId, "secrets"],
+    queryFn: () => orgsApi.listSecrets(orgId as string),
+    enabled: !!orgId,
+  });
+}
+
+export function usePutOrgSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, keyName, value }: { orgId: string; keyName: string; value: string }) =>
+      orgsApi.putSecret(orgId, keyName, value),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["org", variables.orgId, "secrets"] });
+    },
+  });
+}
+
+export function useDeleteOrgSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, keyName }: { orgId: string; keyName: string }) =>
+      orgsApi.deleteSecret(orgId, keyName),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["org", variables.orgId, "secrets"] });
+    },
+  });
+}
+
 export function useImportCsv() {
   const queryClient = useQueryClient();
   return useMutation({
