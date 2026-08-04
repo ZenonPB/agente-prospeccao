@@ -450,7 +450,7 @@ Branch: `feat/pitch-one-pager`
 
 > **Objetivo**: cobertura além do Places, custo justo, aprendizado com resultado.
 
-### Item 3.1 — Import CSV ⬜
+### Item 3.1 — Import CSV ✅
 
 Branch: `feat/csv-import`
 

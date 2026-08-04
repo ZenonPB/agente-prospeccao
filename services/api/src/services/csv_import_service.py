@@ -1,0 +1,179 @@
+import csv
+import io
+import hashlib
+from typing import List, Dict, Any, Optional, Tuple
+from sqlalchemy.orm import Session
+from sqlalchemy import or_
+
+from src.db.models import Lead, LeadStatus, Campaign
+
+
+HEADER_ALIASES = {
+    "name": ["name", "nome", "empresa", "company_name", "razao_social", "nome_fantasia"],
+    "website": ["website", "site", "url", "web_site", "domain", "dominio"],
+    "phone": ["phone", "telefone", "tel", "celular", "whatsapp", "phone_number"],
+    "city": ["city", "cidade", "municipio"],
+    "state": ["state", "uf", "estado"],
+    "address": ["address", "endereco", "logradouro", "rua"],
+    "cnpj": ["cnpj", "documento", "tax_id"],
+    "category": ["category", "categoria", "ramo", "segmento", "nicho"],
+}
+
+
+def normalize_header(header: str) -> str:
+    cleaned = header.strip().lower().replace(" ", "_").replace("-", "_")
+    for field, aliases in HEADER_ALIASES.items():
+        if cleaned in aliases:
+            return field
+    # Checagem secundária por contaminação / palavras contidas
+    for field, aliases in HEADER_ALIASES.items():
+        if any(alias in cleaned for alias in aliases):
+            return field
+    return cleaned
+
+
+def clean_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return None
+    url = url.strip()
+    if not url:
+        return None
+    if not (url.startswith("http://") or url.startswith("https://")):
+        url = "https://" + url
+    return url
+
+
+def clean_cnpj(cnpj: Optional[str]) -> Optional[str]:
+    if not cnpj:
+        return None
+    digits = "".join(c for c in cnpj if c.isdigit())
+    return digits if len(digits) == 14 else None
+
+
+def generate_csv_place_id(name: str, city: Optional[str], website: Optional[str], line_num: int) -> str:
+    raw = f"{name.lower().strip()}|{(city or '').lower().strip()}|{(website or '').lower().strip()}|{line_num}"
+    digest = hashlib.md5(raw.encode("utf-8")).hexdigest()[:16]
+    return f"csv_{digest}"
+
+
+class CsvImportService:
+    @staticmethod
+    def parse_and_import(
+        db: Session,
+        campaign: Campaign,
+        file_content: str,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """Parseia o conteúdo textual de um CSV e cria os leads correspondentes na campanha."""
+        # Detecta delimitador (vírgula ou ponto-e-vírgula)
+        sample = file_content[:2048]
+        delimiter = ";" if sample.count(";") > sample.count(",") else ","
+
+        reader = csv.reader(io.StringIO(file_content), delimiter=delimiter)
+        try:
+            raw_headers = next(reader)
+        except StopIteration:
+            return {
+                "total_rows": 0,
+                "imported_count": 0,
+                "duplicate_count": 0,
+                "error_count": 1,
+                "errors": [{"line": 0, "reason": "Arquivo CSV vazio ou sem cabeçalho."}],
+            }
+
+        headers = [normalize_header(h) for h in raw_headers]
+        
+        if "name" not in headers:
+            return {
+                "total_rows": 0,
+                "imported_count": 0,
+                "duplicate_count": 0,
+                "error_count": 1,
+                "errors": [{"line": 1, "reason": "Cabeçalho obrigatório 'nome' ou 'empresa' (name) não encontrado."}],
+            }
+
+        # Busca websites e CNPJs existentes na organização para deduplicação rápida
+        existing_leads = db.query(Lead.website, Lead.cnpj, Lead.place_id).filter(
+            Lead.organization_id == campaign.organization_id
+        ).all()
+
+        existing_websites = {l.website.strip().lower() for l in existing_leads if l.website}
+        existing_cnpjs = {l.cnpj for l in existing_leads if l.cnpj}
+        existing_place_ids = {l.place_id for l in existing_leads if l.place_id}
+
+        imported_leads: List[Lead] = []
+        errors: List[Dict[str, Any]] = []
+        duplicate_count = 0
+        line_num = 1
+
+        for row in reader:
+            line_num += 1
+            if not row or not any(field.strip() for field in row):
+                continue  # Pula linhas vazias
+
+            row_data = {}
+            for idx, val in enumerate(row):
+                if idx < len(headers):
+                    row_data[headers[idx]] = val.strip()
+
+            name = row_data.get("name")
+            if not name:
+                errors.append({"line": line_num, "reason": "Nome da empresa/lead ausente."})
+                continue
+
+            website = clean_url(row_data.get("website"))
+            cnpj = clean_cnpj(row_data.get("cnpj"))
+            phone = row_data.get("phone")
+            city = row_data.get("city") or campaign.target_city
+            state = row_data.get("state") or campaign.target_state
+            address = row_data.get("address")
+            category = row_data.get("category") or campaign.target_segment
+
+            # Checagem de duplicata na org por Website ou CNPJ
+            if website and website.lower() in existing_websites:
+                duplicate_count += 1
+                continue
+
+            if cnpj and cnpj in existing_cnpjs:
+                duplicate_count += 1
+                continue
+
+            place_id = generate_csv_place_id(name, city, website, line_num)
+            if place_id in existing_place_ids:
+                duplicate_count += 1
+                continue
+
+            lead = Lead(
+                organization_id=campaign.organization_id,
+                campaign_id=campaign.id,
+                place_id=place_id,
+                name=name,
+                website=website,
+                phone=phone,
+                city=city,
+                state=state,
+                address=address,
+                cnpj=cnpj,
+                category=category,
+                status=LeadStatus.NOVO,
+            )
+
+            imported_leads.append(lead)
+            existing_place_ids.add(place_id)
+            if website:
+                existing_websites.add(website.lower())
+            if cnpj:
+                existing_cnpjs.add(cnpj)
+
+        if imported_leads:
+            db.bulk_save_objects(imported_leads)
+            db.commit()
+
+        total_rows = line_num - 1
+        return {
+            "total_rows": total_rows,
+            "imported_count": len(imported_leads),
+            "duplicate_count": duplicate_count,
+            "error_count": len(errors),
+            "errors": errors[:50],  # Limita os primeiros 50 erros para não inflar payload
+        }

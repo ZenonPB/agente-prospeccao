@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from src.db.dependencies import get_db
 from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType, Organization
 from src.auth.dependencies import get_current_user, get_user_organization
+from src.services.csv_import_service import CsvImportService
 
 # Importa o serviço de sugestão de segmentos dos workers (reaproveitando a fonte única).
 _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
@@ -397,3 +398,41 @@ async def reanalyze_campaign(
     asyncio.create_task(_runner())
 
     return {"job_id": job_id, "status": "started", "leads_to_reanalyze": lead_count}
+
+
+@router.post("/{campaign_id}/import")
+async def import_campaign_csv(
+    campaign_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Importa leads para uma campanha a partir de um arquivo CSV (multipart/form-data)."""
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    if not file.filename.endswith(".csv") and file.content_type != "text/csv":
+        raise HTTPException(status_code=400, detail="Apenas arquivos .csv são suportados")
+
+    contents = await file.read()
+    try:
+        text_content = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text_content = contents.decode("latin-1")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Não foi possível decodificar a codificação do arquivo CSV (use UTF-8 ou Latin-1).")
+
+    result = CsvImportService.parse_and_import(
+        db=db,
+        campaign=campaign,
+        file_content=text_content,
+        user_id=user.id,
+    )
+
+    return result
