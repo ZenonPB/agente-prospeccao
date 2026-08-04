@@ -90,6 +90,7 @@ class Organization(Base):
     members = relationship("OrganizationMember", back_populates="organization", cascade="all, delete-orphan")
     campaigns = relationship("Campaign", back_populates="organization")
     invites = relationship("Invite", back_populates="organization", cascade="all, delete-orphan")
+    secrets = relationship("OrganizationSecret", back_populates="organization", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Organization(id='{self.id}', name='{self.name}')>"
@@ -135,6 +136,33 @@ class Invite(Base):
 
     def __repr__(self):
         return f"<Invite(org='{self.organization_id}', email='{self.email}', accepted={self.accepted_at is not None})>"
+
+
+class OrganizationSecret(Base):
+    """Chaves de API próprias da organização (BYOK — item 3.5).
+
+    Quando preenchidas, os workers usam a chave da org em vez do pool global
+    (settings), evitando consumir a quota compartilhada. O valor é criptografado
+    em repouso (Fernet) usando a `SECRETS_ENCRYPTION_KEY` do settings.
+
+    `key_name` identifica o provedor: `GOOGLE_API_KEY` ou `GROQ_API_KEY`.
+    """
+    __tablename__ = "organization_secrets"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "key_name", name="uq_org_secrets_org_key"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    key_name = Column(String(60), nullable=False)
+    # Valor criptografado (Fernet token). Nunca a chave em texto puro.
+    encrypted_value = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+
+    def __repr__(self):
+        return f"<OrganizationSecret(org='{self.organization_id}', key='{self.key_name}')>"
 
 
 class User(Base):

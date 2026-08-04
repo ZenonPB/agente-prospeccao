@@ -259,8 +259,8 @@ def extract_business_facts(
 class AIScoringService:
     """Serviço de scoring contextual e explicável via Groq (llama-3.1-8b-instant)."""
 
-    def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GROQ_API_KEY
 
     def _create_client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(

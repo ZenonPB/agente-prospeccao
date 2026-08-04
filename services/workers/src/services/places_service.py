@@ -20,8 +20,8 @@ FIELD_MASK = ",".join([
 
 
 class GooglePlacesService:
-    def __init__(self):
-        self.api_key = settings.GOOGLE_API_KEY
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key or settings.GOOGLE_API_KEY
         self.headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": self.api_key,
