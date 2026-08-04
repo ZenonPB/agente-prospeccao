@@ -515,7 +515,7 @@ Branch: `feat/org-byok`
 > A *contabilização de quota diária* do pool não foi construída (não há medidor de
 > uso hoje); fica como refinamento futuro se o consumo compartilhado virar gargalo.
 
-### Item 3.6 — Feedback conversão → score ⬜
+### Item 3.6 — Feedback conversão → score ✅
 
 Branch: `feat/conversion-feedback`
 
@@ -526,6 +526,9 @@ Branch: `feat/conversion-feedback`
 | 3.6.3 | v2: ajuste de threshold por org com base nos resultados |
 
 **Critérios**: dashboard mostra conversão por faixa; base para calibrar.
+
+> **Nota 3.6.3**: o ajuste automático de threshold por org fica como v2 — depende de
+> acumular conversões reais por faixa. A base (3.6.1/3.6.2) já expõe os dados.
 
 ### Item 3.7 — Cadência de follow-up + envio ⬜
 
@@ -570,8 +573,8 @@ Branch: `feat/vertical-playbooks`
 | 12 | `feat/cnae-discovery` | 3.2 | 3.3 parcial | |
 | 13 | `feat/adaptive-enrichment` | 3.3 | 1.3 | |
 | 14 | `feat/contact-enrichment` | 3.4 | 3.5 opcional | ✅ |
-| 15 | `feat/org-byok` | 3.5 | 1.1 | |
-| 16 | `feat/conversion-feedback` | 3.6 | 1.1 + volume | |
+| 15 | `feat/org-byok` | 3.5 | 1.1 | ✅ |
+| 16 | `feat/conversion-feedback` | 3.6 | 1.1 + volume | ✅ |
 | 17 | `feat/outreach-cadence` | 3.7 | 3.5 opcional | |
 | 18 | `feat/vertical-playbooks` | 3.8 | 1.3 | |
 
@@ -646,8 +649,8 @@ A plataforma fica **pronta para o uso pleno da empresa** quando:
 | 3.2 Descoberta CNAE | ✅ Entregue | `feat/cnae-discovery` (PR #32) |
 | 3.3 Enriquecimento adaptativo | ✅ Entregue | `feat/adaptive-enrichment` (PR #33) |
 | 3.4 Hunter / e-mail decisor | ✅ Entregue | `feat/contact-enrichment` (PR #34) |
-| 3.5 BYOK e cotas | ✅ Entregue | `feat/org-byok` (PR pendente) |
-| 3.6 Feedback conversão → score | ⬜ Não iniciado | aprende com resultado |
+| 3.5 BYOK e cotas | ✅ Entregue | `feat/org-byok` (PR #35) |
+| 3.6 Feedback conversão → score | ✅ Entregue | `feat/conversion-feedback` (PR pendente) |
 | 3.7 Cadência + envio | ⬜ Não iniciado | humano no loop |
 | 3.8 Playbooks por vertical | ⬜ Não iniciado | hooks/objeções |
 

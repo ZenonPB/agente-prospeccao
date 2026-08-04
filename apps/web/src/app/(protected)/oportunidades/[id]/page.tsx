@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert, Trophy } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion } from '@/hooks/use-api';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -63,6 +63,8 @@ const activityLabels: Record<string, string> = {
   CONTACTED: 'Contato realizado',
   RESPONDED: 'Lead respondeu',
   MEETING_SCHEDULED: 'Reunião marcada',
+  PROPOSAL_SENT: 'Proposta enviada',
+  LOST: 'Lead perdido',
   CONVERTED: 'Conversão registrada',
   CONTACT_ENRICHED: 'Decisores enriquecidos',
 };
@@ -78,6 +80,11 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<"EMAIL" | "WHATSAPP">("EMAIL");
+  const [convOpen, setConvOpen] = useState(false);
+  const [convService, setConvService] = useState('');
+  const [convValue, setConvValue] = useState('');
+  const [convNotes, setConvNotes] = useState('');
+  const registerConversion = useRegisterConversion();
 
   const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text);
@@ -490,10 +497,100 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 )}
                 Registrar contato realizado
               </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11"
+                onClick={() => setConvOpen(true)}
+              >
+                <Trophy className="mr-2 h-4 w-4 text-emerald-600" />
+                Registrar conversão
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={convOpen} onOpenChange={setConvOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Registrar conversão</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="convService" className="text-sm font-medium">
+                Serviço vendido
+              </label>
+              <Input
+                id="convService"
+                value={convService}
+                onChange={(e) => setConvService(e.target.value)}
+                placeholder="Ex.: Landing page, site institucional..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="convValue" className="text-sm font-medium">
+                Valor do contrato (R$)
+              </label>
+              <Input
+                id="convValue"
+                type="number"
+                min="0"
+                step="0.01"
+                value={convValue}
+                onChange={(e) => setConvValue(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="convNotes" className="text-sm font-medium">
+                Observações
+              </label>
+              <Textarea
+                id="convNotes"
+                value={convNotes}
+                onChange={(e) => setConvNotes(e.target.value)}
+                placeholder="Como fechou? Contexto do negócio..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                try {
+                  const value = convValue.replace(',', '.');
+                  await registerConversion.mutateAsync({
+                    id: lead.id,
+                    data: {
+                      service_sold: convService || undefined,
+                      contract_value: value ? Number(value) : undefined,
+                      notes: convNotes || undefined,
+                    },
+                  });
+                  toast.success('Conversão registrada.');
+                  setConvOpen(false);
+                  setConvService('');
+                  setConvValue('');
+                  setConvNotes('');
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Erro ao registrar conversão.');
+                }
+              }}
+              disabled={registerConversion.isPending}
+            >
+              {registerConversion.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trophy className="mr-2 h-4 w-4" />
+              )}
+              Registrar conversão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[700px]">

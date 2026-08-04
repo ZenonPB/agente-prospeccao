@@ -456,10 +456,32 @@ Branch: `feat/org-byok`
 
 **Testado:** py_compile de todos os arquivos tocados; imports de rotas e serviços OK; roundtrip Fernet OK; `npm run build` OK; eslint limpo. Quota diária do pool não contabilizada (nota no roadmap 3.5.2).
 
+### Item 3.6 — Feedback conversão → score ✅
+
+Branch: `feat/conversion-feedback`
+
+**Backend (3.6.1):**
+- Novo enum actions na trilha: `PROPOSAL_SENT` e `LOST` (migration `f3a4b5c6d7e8`, aplicada).
+- `lead_activity_service.semantic_action_for(status)` — mapeia status → action comercial (`CONTATADO`→`CONTACTED`, `RESPONDIDO`→`RESPONDED`, `REUNIAO_MARCADA`→`MEETING_SCHEDULED`, `PROPOSTA_ENVIADA`→`PROPOSAL_SENT`, `PERDIDO`→`LOST`).
+- `PATCH /api/leads/{id}/status` agora grava, além da `STATUS_CHANGED`, a action semântica do destino.
+- Novo endpoint `POST /api/leads/{id}/conversion` — cria registro em `conversions` (service_sold, contract_value, notes, time_to_close_days derivado do `created_at`) + grava `CONVERTED` na trilha.
+
+**Backend (3.6.2):**
+- `analytics_service.overview()` — `leads_by_score_band` agora cruza com `Conversion`: cada faixa traz `count`, `converted` e `conversion_rate` (taxa de acerto do score).
+
+**Frontend:**
+- `AnalyticsOverview.leads_by_score_band` type atualizado (converted + conversion_rate).
+- `ScoreBandsCard` (relatórios) exibe taxa de conversão por faixa + barra verde proporcional.
+- Aba "Próximas Ações" do lead: botão "Registrar conversão" (dialog com serviço, valor, observações) + hook `useRegisterConversion` (invalida leads/analytics/metrics).
+- Labels `PROPOSAL_SENT`/`LOST` na trilha do lead.
+
+**Testado:** migration aplicada; PATCH status → action `LOST` gravada (rollback); conversão E2E real → revenue + taxa por faixa refletem (dados limpos depois); `npm run build` OK; eslint limpo (só warnings pré-existentes); app importa OK.
+
 ### Próximo passo imediato
 
 1. **Fase 3 — Ampliar fontes e fechar o loop:**
-   - **Item 3.6 — Feedback conversão → score** (`feat/conversion-feedback`).
+   - **Item 3.7 — Cadência de follow-up + envio** (`feat/outreach-cadence`).
+   - Item 3.8 — Playbooks por vertical (`feat/vertical-playbooks`).
 2. Validar nas campanhas reais (Petshop / Farmácias) a qualidade das mensagens
    geradas com o novo prompt — abrir uma oportunidade real pelo endpoint
    `generate-messages` e revisar o `body_opening`.

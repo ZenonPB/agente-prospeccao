@@ -75,3 +75,20 @@ def log_status_change(
         status_to=status_to,
         detail=detail,
     )
+
+
+def semantic_action_for(status: LeadStatus) -> Optional[LeadActivityAction]:
+    """Mapeia um status de destino para a action comercial correspondente.
+
+    Item 3.6: além da `STATUS_CHANGED` genérica, status com significado
+    comercial gravam uma action específica na trilha — base para o dashboard
+    "taxa de acerto do score" (conversão por faixa) e para calibrar threshold.
+    Retorna `None` para status sem significado de outcome.
+    """
+    return {
+        LeadStatus.CONTATADO: LeadActivityAction.CONTACTED,
+        LeadStatus.RESPONDIDO: LeadActivityAction.RESPONDED,
+        LeadStatus.REUNIAO_MARCADA: LeadActivityAction.MEETING_SCHEDULED,
+        LeadStatus.PROPOSTA_ENVIADA: LeadActivityAction.PROPOSAL_SENT,
+        LeadStatus.PERDIDO: LeadActivityAction.LOST,
+    }.get(status)

@@ -438,7 +438,13 @@ class Conversion(Base):
 
 
 class LeadActivityAction(enum.Enum):
-    """Ações registradas na trilha do lead (Fase X1)."""
+    """Ações registradas na trilha do lead (Fase X1).
+
+    Além da `STATUS_CHANGED` genérica, o endpoint de status grava uma action
+    semântica quando o destino tem significado comercial (Item 3.6):
+    `CONTACTED`, `RESPONDED`, `MEETING_SCHEDULED`, `PROPOSAL_SENT`, `LOST`.
+    Conversão fecha o ciclo com `CONVERTED`.
+    """
     CREATED = "CREATED"
     ASSIGNED = "ASSIGNED"
     UNASSIGNED = "UNASSIGNED"
@@ -447,6 +453,8 @@ class LeadActivityAction(enum.Enum):
     CONTACTED = "CONTACTED"
     RESPONDED = "RESPONDED"
     MEETING_SCHEDULED = "MEETING_SCHEDULED"
+    PROPOSAL_SENT = "PROPOSAL_SENT"
+    LOST = "LOST"
     CONVERTED = "CONVERTED"
     CONTACT_ENRICHED = "CONTACT_ENRICHED"
 
