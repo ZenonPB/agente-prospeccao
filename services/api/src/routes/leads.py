@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 import os
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
 from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
+from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
 from src.services.org_service import consultant_lead_scope, is_full_access
 
@@ -24,6 +28,14 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 
 class UpdateLeadStatusRequest(BaseModel):
     status: LeadStatus
+
+
+class UpdateLeadRequest(BaseModel):
+    """Campos de trabalho do consultor (item 4.4 da auditoria)."""
+    notes: Optional[str] = None
+    whatsapp: Optional[str] = None
+    next_action_at: Optional[str] = None  # ISO datetime (tz-aware) ou null
+    last_contacted_at: Optional[str] = None
 
 
 class EnrichContactsRequest(BaseModel):
@@ -81,9 +93,12 @@ def _lead_summary(lead: Lead) -> dict:
     """Resumo do lead para a listagem (sem JSONB pesado)."""
     return {
         "id": str(lead.id),
+        "name": lead.name or lead.company_name,
         "company_name": lead.company_name,
+        "cnpj": lead.cnpj,
         "website": lead.website,
         "phone": lead.phone,
+        "whatsapp": lead.whatsapp,
         "email": lead.email,
         "category": lead.category,
         "city": lead.city,
@@ -111,6 +126,10 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
     """Detalhe do lead com evidence/score_factors estruturados."""
     summary = _lead_summary(lead)
     summary.update({
+        "notes": lead.notes,
+        "next_action_at": lead.next_action_at.isoformat() if lead.next_action_at else None,
+        "last_contacted_at": lead.last_contacted_at.isoformat() if lead.last_contacted_at else None,
+        "address": lead.address,
         "score_factors": lead.score_factors,
         "evidence": lead.evidence,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
@@ -196,7 +215,12 @@ def list_leads(
         query = query.filter(Lead.qualification_score >= min_score)
 
     total = query.count()
-    leads = query.order_by(Lead.qualification_score.desc()).offset(offset).limit(limit).all()
+    from sqlalchemy.orm import joinedload
+    leads = (
+        query.order_by(Lead.qualification_score.desc())
+        .options(joinedload(Lead.assigned_to))
+        .offset(offset).limit(limit).all()
+    )
 
     return {
         "total": total,
@@ -281,6 +305,92 @@ def update_lead_status(
         "company_name": lead.company_name,
         "status": lead.status.value if lead.status else None,
     }
+
+
+@router.delete("/{lead_id}")
+def delete_lead(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+    user: User = Depends(get_current_user),
+):
+    """Exclui um lead e seus dados relacionados (direito ao apagamento — LGPD).
+
+    Requer acesso total (ANALYST/MANAGER/owner/admin). Remove contactos,
+    atividades, follow-ups, mensagens, conversões, enriquecimento e registro
+    cadastral em cascata.
+    """
+    if not is_full_access(member):
+        raise HTTPException(status_code=403, detail="Somente analista/gestor pode excluir leads")
+
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+    from src.db.models import (
+        Message, FollowUp, Contact, LeadActivity, Conversion, Enrichment, CompanyRecord,
+    )
+    from sqlalchemy import delete as sa_delete
+
+    lead_uuid = lead.id
+    for model in (Message, FollowUp, Contact, LeadActivity, Conversion, Enrichment, CompanyRecord):
+        db.execute(sa_delete(model).where(model.lead_id == lead_uuid))
+
+    db.delete(lead)
+    db.commit()
+
+    logger.info("Lead %s excluído (por %s)", lead_uuid, user.email if user else "?")
+    return {"message": "Lead excluído"}
+
+
+def _parse_dt(value: Optional[str]):
+    """Converte ISO datetime (aceita sufixo 'Z') para datetime com timezone."""
+    if not value:
+        return None
+    from datetime import datetime
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"Data/hora inválida: {value}")
+
+
+@router.patch("/{lead_id}")
+def update_lead(
+    lead_id: str,
+    body: UpdateLeadRequest,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+    user: User = Depends(get_current_user),
+):
+    """Atualiza campos de trabalho do consultor: notas, WhatsApp, próxima ação,
+    último contato (item 4.4). Requer acesso ao lead (regra 2.1.3)."""
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    if body.notes is not None:
+        lead.notes = body.notes
+    if body.whatsapp is not None:
+        lead.whatsapp = body.whatsapp
+    if body.next_action_at is not None:
+        lead.next_action_at = _parse_dt(body.next_action_at)
+    if body.last_contacted_at is not None:
+        lead.last_contacted_at = _parse_dt(body.last_contacted_at)
+
+    db.commit()
+    db.refresh(lead)
+    return _lead_detail(lead, db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first())
 
 
 class AssignLeadRequest(BaseModel):
@@ -411,7 +521,9 @@ def get_lead_pitch(
 
 
 @router.post("/{lead_id}/generate-messages")
+@limiter.limit("30/minute")
 async def generate_messages(
+    request: Request,
     lead_id: str,
     body: GenerateMessagesRequest,
     db: Session = Depends(get_db),
@@ -470,7 +582,9 @@ async def generate_messages(
 
 
 @router.post("/{lead_id}/enrich-contacts")
+@limiter.limit("20/minute")
 async def enrich_lead_contacts(
+    request: Request,
     lead_id: str,
     body: EnrichContactsRequest,
     db: Session = Depends(get_db),
@@ -617,6 +731,7 @@ def _follow_up_dict(fu: FollowUp) -> dict:
         "scheduled_at": fu.scheduled_at.isoformat() if fu.scheduled_at else None,
         "sent_at": fu.sent_at.isoformat() if fu.sent_at else None,
         "status": fu.status.value if fu.status else None,
+        "attempts": fu.attempts or 0,
     }
 
 
@@ -716,11 +831,10 @@ async def start_lead_cadence(
         user_id=str(_user.id) if _user else None,
     )
 
-    if _org.auto_send_email:
-        from src.services.cadence_service import send_step
-        for fu in follow_ups:
-            if fu.status.value == "PENDING":
-                send_step(db, fu, user_id=str(_user.id) if _user else None)
+    # Item 3.7: NENHUM envio automático aqui. O scheduler (`run_due`) envia
+    # cada etapa quando `scheduled_at` vence (dia 0/3/7/14) apenas para orgs
+    # com `auto_send_email`. Enviar o ciclo inteiro de uma vez queimava a
+    # entregabilidade (bug fix/go-live 2.3).
 
     return {
         "lead_id": str(lead.id),

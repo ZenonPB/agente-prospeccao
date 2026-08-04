@@ -1,22 +1,36 @@
 import csv
 import io
 import hashlib
+import os
+import sys
 from typing import List, Dict, Any, Optional, Tuple
+
+# Garante que `services.*` dos workers resolva independente da ordem de import
+# dos routers (padrão do repo; ver routes/campaigns.py).
+_workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
+if _workers_path not in sys.path:
+    sys.path.insert(0, _workers_path)
+
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
-from src.db.models import Lead, LeadStatus, Campaign
+from src.db.models import Lead, LeadStatus, Campaign, Contact, ContactRole
+from services.domain_utils import normalize_domain
 
 
 HEADER_ALIASES = {
     "name": ["name", "nome", "empresa", "company_name", "razao_social", "nome_fantasia"],
     "website": ["website", "site", "url", "web_site", "domain", "dominio"],
-    "phone": ["phone", "telefone", "tel", "celular", "whatsapp", "phone_number"],
+    "phone": ["phone", "telefone", "tel", "celular", "phone_number"],
+    "whatsapp": ["whatsapp", "wpp", "zap", "whats"],
+    "email": ["email", "e-mail", "mail", "email_contato", "email_principal"],
     "city": ["city", "cidade", "municipio"],
     "state": ["state", "uf", "estado"],
     "address": ["address", "endereco", "logradouro", "rua"],
     "cnpj": ["cnpj", "documento", "tax_id"],
     "category": ["category", "categoria", "ramo", "segmento", "nicho"],
+    "contact_name": ["contact_name", "contato", "nome_contato", "decisor", "responsavel"],
+    "linkedin": ["linkedin", "perfil_linkedin", "linkedin_url"],
 }
 
 
@@ -50,8 +64,10 @@ def clean_cnpj(cnpj: Optional[str]) -> Optional[str]:
     return digits if len(digits) == 14 else None
 
 
-def generate_csv_place_id(name: str, city: Optional[str], website: Optional[str], line_num: int) -> str:
-    raw = f"{name.lower().strip()}|{(city or '').lower().strip()}|{(website or '').lower().strip()}|{line_num}"
+def generate_csv_place_id(name: str, city: Optional[str], website: Optional[str]) -> str:
+    """Place_id determinístico baseado em nome+cidade+domínio (não usa linha do
+    arquivo, para re-importação de arquivos reordenados gerar o mesmo id)."""
+    raw = f"{name.lower().strip()}|{(city or '').lower().strip()}|{(website or '').lower().strip()}"
     digest = hashlib.md5(raw.encode("utf-8")).hexdigest()[:16]
     return f"csv_{digest}"
 
@@ -92,12 +108,13 @@ class CsvImportService:
                 "errors": [{"line": 1, "reason": "Cabeçalho obrigatório 'nome' ou 'empresa' (name) não encontrado."}],
             }
 
-        # Busca websites e CNPJs existentes na organização para deduplicação rápida
-        existing_leads = db.query(Lead.website, Lead.cnpj, Lead.place_id).filter(
+        # Busca websites, domínios e CNPJs existentes na organização para deduplicação rápida
+        existing_leads = db.query(Lead.website, Lead.normalized_domain, Lead.cnpj, Lead.place_id).filter(
             Lead.organization_id == campaign.organization_id
         ).all()
 
         existing_websites = {l.website.strip().lower() for l in existing_leads if l.website}
+        existing_domains = {l.normalized_domain for l in existing_leads if l.normalized_domain}
         existing_cnpjs = {l.cnpj for l in existing_leads if l.cnpj}
         existing_place_ids = {l.place_id for l in existing_leads if l.place_id}
 
@@ -122,15 +139,24 @@ class CsvImportService:
                 continue
 
             website = clean_url(row_data.get("website"))
+            normalized_domain = normalize_domain(website)
             cnpj = clean_cnpj(row_data.get("cnpj"))
             phone = row_data.get("phone")
+            whatsapp = row_data.get("whatsapp") or phone
+            email = row_data.get("email")
+            contact_name = row_data.get("contact_name")
+            linkedin = row_data.get("linkedin")
             city = row_data.get("city") or campaign.target_city
             state = row_data.get("state") or campaign.target_state
             address = row_data.get("address")
             category = row_data.get("category") or campaign.target_segment
 
-            # Checagem de duplicata na org por Website ou CNPJ
+            # Checagem de duplicata na org por Website/Domínio/CNPJ
             if website and website.lower() in existing_websites:
+                duplicate_count += 1
+                continue
+
+            if normalized_domain and normalized_domain in existing_domains:
                 duplicate_count += 1
                 continue
 
@@ -138,7 +164,7 @@ class CsvImportService:
                 duplicate_count += 1
                 continue
 
-            place_id = generate_csv_place_id(name, city, website, line_num)
+            place_id = generate_csv_place_id(name, city, website)
             if place_id in existing_place_ids:
                 duplicate_count += 1
                 continue
@@ -148,8 +174,12 @@ class CsvImportService:
                 campaign_id=campaign.id,
                 place_id=place_id,
                 name=name,
+                company_name=name,
                 website=website,
+                normalized_domain=normalized_domain,
                 phone=phone,
+                whatsapp=whatsapp,
+                email=email,
                 city=city,
                 state=state,
                 address=address,
@@ -162,8 +192,25 @@ class CsvImportService:
             existing_place_ids.add(place_id)
             if website:
                 existing_websites.add(website.lower())
+            if normalized_domain:
+                existing_domains.add(normalized_domain)
             if cnpj:
                 existing_cnpjs.add(cnpj)
+
+            # Decisor opcional vindo do CSV (colunas contato/linkedin/email).
+            if contact_name:
+                contact = Contact(
+                    lead=lead,
+                    name=contact_name,
+                    role=ContactRole.OUTRO,
+                    email=email,
+                    phone=whatsapp,
+                    linkedin_url=linkedin,
+                    is_primary=True,
+                    confidence=50 if email else 30,
+                    source="csv",
+                )
+                imported_leads.append(contact)
 
         if imported_leads:
             db.bulk_save_objects(imported_leads)

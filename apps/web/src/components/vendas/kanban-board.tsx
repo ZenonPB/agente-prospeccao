@@ -2,6 +2,7 @@
 
 import { useMemo, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -81,6 +82,7 @@ function KanbanColumnSkeleton() {
 const SALES_STATUSES = 'CONTATADO,RESPONDIDO,REUNIAO_MARCADA,REUNIAO_FEITA,PROPOSTA_ENVIADA';
 
 export function KanbanBoard() {
+  const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const updateStatus = useUpdateLeadStatus();
@@ -221,7 +223,22 @@ export function KanbanBoard() {
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className={`rounded-lg border bg-card p-4 shadow-sm transition-shadow ${
+                              role="link"
+                              tabIndex={0}
+                              aria-label={`Abrir lead ${lead.company_name}`}
+                              onClick={(e) => {
+                                if (snapshot.isDragging) return;
+                                e.stopPropagation();
+                                router.push(`/oportunidades/${lead.id}`);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  router.push(`/oportunidades/${lead.id}`);
+                                }
+                              }}
+                              className={`cursor-pointer rounded-lg border bg-card p-4 shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
                                 snapshot.isDragging ? 'shadow-lg' : 'hover:shadow-md'
                               }`}
                             >

@@ -35,8 +35,6 @@ const priorityBadgeConfig: Record<string, { label: string; color: string; emoji:
   COLD: { label: 'Frio', color: 'bg-sky-100 text-sky-700', emoji: '❄️' },
 };
 
-const priorityOrder = ['HOT', 'WARM', 'COLD'];
-
 function formatPrimaryNeed(value?: string): string {
   if (!value) return 'Sem necessidade identificada';
   return primaryNeedLabels[value] || value;
@@ -80,7 +78,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState<"EMAIL" | "WHATSAPP">("EMAIL");
+  const [selectedChannel] = useState<"EMAIL" | "WHATSAPP">("EMAIL");
   const [convOpen, setConvOpen] = useState(false);
   const [convService, setConvService] = useState('');
   const [convValue, setConvValue] = useState('');
@@ -113,7 +111,6 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
   const enrichment = lead.enrichment;
   const securityIssues = enrichment?.security_issues || [];
-  const rawTech = enrichment?.raw_technical_data;
 
   return (
     <div className="space-y-6">
@@ -136,7 +133,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           </div>
           <p className="text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
         </div>
-        <Button className="h-10">
+        <Button className="h-10" onClick={() => setIsModalOpen(true)}>
           <Mail className="mr-2 h-4 w-4" />
           Enviar mensagem
         </Button>

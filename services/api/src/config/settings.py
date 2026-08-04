@@ -15,6 +15,16 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field("HS256", description='Algoritmo de assinatura JWT')
     JWT_EXPIRES_HOURS: int = Field(24, description='Horas até expiração do token JWT')
 
+    # Ambiente: 'development' (padrão) ou 'production'. Em produção, SMTP ausente
+    # não é aceito silenciosamente — envio falha em vez de "fingir" que funcionou.
+    ENVIRONMENT: str = Field("development", description="development | production")
+
+    # Cadence scheduler (item 3.7.2) — intervalo do poll de follow-ups vencidos.
+    CADENCE_POLL_SECONDS: int = Field(60, description='Segundos entre verificações de follow-ups vencidos')
+
+    # Origins permitidas no CORS (vírgula-separado). Deploy: incluir o domínio do frontend.
+    CORS_ORIGINS: str = Field("http://localhost:3000,http://localhost:3001", description='Origins CORS separadas por vírgula')
+
     # Password reset
     RESET_TOKEN_EXPIRY_HOURS: int = Field(2, description='Horas até expiração do token de reset de senha')
     APP_BASE_URL: str = Field("http://localhost:3001", description='URL base da aplicação para links de reset')
@@ -26,5 +36,9 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = Field("", description='Senha SMTP')
     SMTP_FROM_EMAIL: str = Field("noreply@agente-prospeccao.com", description='E-mail remetente')
     SMTP_FROM_NAME: str = Field("Agente Prospecção", description='Nome do remetente')
+
+    # Inbound email (item 3.3) — segredo compartilhado com o provedor de
+    # inbound (Postmark/SendGrid). Vazio = webhook desativado (404).
+    EMAIL_WEBHOOK_SECRET: str = Field("", description='Segredo do webhook de inbound (resposta/STOP)')
 
 settings = Settings()

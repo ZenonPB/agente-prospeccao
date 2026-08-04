@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
 import {
@@ -20,6 +19,43 @@ interface FunnelItem {
   name: string;
   value: number;
   color: string;
+}
+
+// Item 4.10: tipos explícitos para o click do BarChart e o tooltip (sem `any`).
+interface FunnelClickPayload {
+  activePayload?: Array<{ payload?: { name?: string } }>;
+}
+
+interface TooltipDatum {
+  name?: string;
+  value?: number;
+}
+
+interface FunnelTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload?: TooltipDatum }>;
+  funnelData: FunnelItem[];
+}
+
+function FunnelTooltip({ active, payload, funnelData }: FunnelTooltipProps) {
+  if (!active || !payload || !payload.length) return null;
+  const datum = payload[0].payload;
+  const idx = funnelData.findIndex((d) => d.name === datum?.name);
+  const prevValue = idx > 0 ? funnelData[idx - 1].value : null;
+  const dropoff = prevValue != null && datum?.value != null ? Math.round((1 - datum.value / prevValue) * 100) : null;
+
+  return (
+    <div className="rounded-lg border bg-background p-3 shadow-lg">
+      <p className="font-medium text-foreground">{datum?.name}</p>
+      <p className="text-sm text-foreground">{(datum?.value ?? 0).toLocaleString('pt-BR')} leads</p>
+      {dropoff !== null && (
+        <p className="text-xs text-muted-foreground">
+          Queda de {dropoff}% vs etapa anterior
+        </p>
+      )}
+      <p className="mt-1 text-xs text-muted-foreground">Clique para filtrar</p>
+    </div>
+  );
 }
 
 const STAGE_COLORS: Record<string, string> = {
@@ -72,7 +108,6 @@ function FunnelSkeleton() {
 }
 
 export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const { data: metrics, isLoading, isError, error } = useMetrics();
 
   if (isError) {
@@ -102,34 +137,14 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
       }))
     : [];
 
-  const handleClick = (data: any) => {
-    if (data && data.activePayload && data.activePayload.length > 0) {
-      const clickedName = data.activePayload[0].payload.name;
-      if (onFilter) {
+  const handleClick = (data: unknown) => {
+    const clickPayload = data as FunnelClickPayload | null;
+    if (clickPayload && clickPayload.activePayload && clickPayload.activePayload.length > 0) {
+      const clickedName = clickPayload.activePayload[0].payload?.name;
+      if (clickedName && onFilter) {
         onFilter(activeFilter === clickedName ? null : clickedName);
       }
     }
-  };
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload || !payload.length) return null;
-    const data = payload[0].payload;
-    const idx = funnelData.findIndex(d => d.name === data.name);
-    const prevValue = idx > 0 ? funnelData[idx - 1].value : null;
-    const dropoff = prevValue ? Math.round((1 - data.value / prevValue) * 100) : null;
-
-    return (
-      <div className="rounded-lg border bg-background p-3 shadow-lg">
-        <p className="font-medium text-foreground">{data.name}</p>
-        <p className="text-sm text-foreground">{data.value.toLocaleString('pt-BR')} leads</p>
-        {dropoff !== null && (
-          <p className="text-xs text-muted-foreground">
-            Queda de {dropoff}% vs etapa anterior
-          </p>
-        )}
-        <p className="mt-1 text-xs text-muted-foreground">Clique para filtrar</p>
-      </div>
-    );
   };
 
   return (
@@ -175,12 +190,10 @@ export function FunnelChart({ onFilter, activeFilter }: FunnelChartProps) {
                   tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                   stroke="hsl(var(--muted-foreground))"
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<FunnelTooltip funnelData={funnelData} />} />
                 <Bar
                   dataKey="value"
                   radius={[0, 4, 4, 0]}
-                  onMouseEnter={(_, index) => setHoveredIndex(index)}
-                  onMouseLeave={() => setHoveredIndex(null)}
                 >
                   {funnelData.map((entry, index) => (
                     <Cell

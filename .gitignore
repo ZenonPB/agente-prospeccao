@@ -29,6 +29,9 @@ venv/
 # Knowledge graph (gerado pelo /understand)
 .ua/
 
+# Config de sessão do OpenCode
+.opencode/
+
 # macOS
 .DS_Store
 

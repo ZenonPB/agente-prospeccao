@@ -80,4 +80,4 @@ A partir de 2026-07-09, todo o código usa:
 
 ## Issues Conhecidas (resolvidas)
 
-Todas as 11 issues da revisão de segurança foram corrigidas. Ver `docs/roadmap.md` seção "Segurança & Qualidade de Código — Status ✅ Resolvido".
+Todas as 11 issues da revisão de segurança foram corrigidas (2026-07-09). A lista completa com status está no histórico do `docs/context.md`.

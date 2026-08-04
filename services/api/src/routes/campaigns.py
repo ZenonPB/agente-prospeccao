@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from src.db.dependencies import get_db
 from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType, Organization
 from src.auth.dependencies import get_current_user, get_user_organization
+from src.middleware.rate_limit import limiter
 from src.services.csv_import_service import CsvImportService
 
 # Importa o serviço de sugestão de segmentos dos workers (reaproveitando a fonte única).
@@ -70,6 +71,7 @@ class PatchCampaignRequest(BaseModel):
     analysis_profile: Optional[str] = Field(None, pattern="^(web_presence|business_opportunity)$")
     places_query: Optional[str] = Field(None, max_length=255)
     scoring_template_id: Optional[str] = Field(None)
+    status: Optional[str] = Field(None, pattern="^(ACTIVE|PAUSED|COMPLETED|ARCHIVED)$")
 
 
 @router.get("")
@@ -89,13 +91,22 @@ def list_campaigns(
     total = query.count()
     campaigns = query.order_by(Campaign.created_at.desc()).offset(offset).limit(limit).all()
 
+    # N+1 fix (item 5.4): agrega lead_count + avg_score de todos os leads das
+    # campanhas da página numa única query GROUP BY.
+    campaign_ids = [c.id for c in campaigns]
+    stats = {}
+    if campaign_ids:
+        rows = (
+            db.query(Lead.campaign_id, func.count(Lead.id), func.avg(Lead.qualification_score))
+            .filter(Lead.campaign_id.in_(campaign_ids))
+            .group_by(Lead.campaign_id)
+            .all()
+        )
+        stats = {str(row[0]): (row[1], float(row[2] or 0)) for row in rows}
+
     result = []
     for campaign in campaigns:
-        lead_count = db.query(Lead).filter(Lead.campaign_id == campaign.id).count()
-        avg_score = 0
-        if lead_count > 0:
-            avg_score = db.query(func.avg(Lead.qualification_score)).filter(Lead.campaign_id == campaign.id).scalar() or 0
-
+        lead_count, avg_score = stats.get(str(campaign.id), (0, 0.0))
         result.append({
             "id": str(campaign.id),
             "name": campaign.name,
@@ -108,7 +119,7 @@ def list_campaigns(
             "status": campaign.status.value if campaign.status else None,
             "places_query": campaign.places_query,
             "lead_count": lead_count,
-            "avg_score": round(float(avg_score), 1),
+            "avg_score": round(avg_score, 1),
             "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
             "updated_at": campaign.updated_at.isoformat() if campaign.updated_at else None,
         })
@@ -163,7 +174,9 @@ def create_campaign(
 
 
 @router.post("/suggest-segment")
+@limiter.limit("20/minute")
 async def suggest_segment(
+    request: Request,
     body: SuggestSegmentRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
@@ -192,7 +205,9 @@ async def suggest_segment(
 
 
 @router.post("/from-brief")
+@limiter.limit("20/minute")
 async def create_campaign_from_brief(
+    request: Request,
     body: BriefCampaignRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
@@ -331,6 +346,14 @@ def patch_campaign(
     if "analysis_profile" in updates:
         campaign.analysis_profile = updates["analysis_profile"]
 
+    # Item 3.1 (auditoria): pausar/retomar/arquivar pelo menu da campanha.
+    if updates.get("status") is not None:
+        from src.db.models import CampaignStatus
+        try:
+            campaign.status = CampaignStatus(updates["status"])
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Status de campanha inválido")
+
     db.commit()
     db.refresh(campaign)
     return {
@@ -341,7 +364,9 @@ def patch_campaign(
 
 
 @router.post("/{campaign_id}/reanalyze")
+@limiter.limit("10/minute")
 async def reanalyze_campaign(
+    request: Request,
     campaign_id: str,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
@@ -413,15 +438,26 @@ async def reanalyze_campaign(
     return {"job_id": job_id, "status": "started", "leads_to_reanalyze": lead_count}
 
 
+# Limites de segurança do upload (item 4.5): 10 MB e 10.000 linhas.
+MAX_CSV_BYTES = 10 * 1024 * 1024
+MAX_CSV_ROWS = 10_000
+
+
 @router.post("/{campaign_id}/import")
-async def import_campaign_csv(
+@limiter.limit("10/minute")
+def import_campaign_csv(
+    request: Request,
     campaign_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
-    """Importa leads para uma campanha a partir de um arquivo CSV (multipart/form-data)."""
+    """Importa leads para uma campanha a partir de um arquivo CSV (multipart/form-data).
+
+    `def` síncrono (roda no threadpool do FastAPI) porque o parse + bulk_save
+    são bloqueantes. Upload limitado a 10 MB / 10.000 linhas.
+    """
     campaign = db.query(Campaign).filter(
         Campaign.id == campaign_id,
         Campaign.organization_id == _org.id,
@@ -432,7 +468,10 @@ async def import_campaign_csv(
     if not file.filename.endswith(".csv") and file.content_type != "text/csv":
         raise HTTPException(status_code=400, detail="Apenas arquivos .csv são suportados")
 
-    contents = await file.read()
+    contents = file.file.read(MAX_CSV_BYTES + 1)
+    if len(contents) > MAX_CSV_BYTES:
+        raise HTTPException(status_code=413, detail=f"Arquivo maior que {MAX_CSV_BYTES // (1024 * 1024)} MB")
+
     try:
         text_content = contents.decode("utf-8")
     except UnicodeDecodeError:
@@ -440,6 +479,9 @@ async def import_campaign_csv(
             text_content = contents.decode("latin-1")
         except Exception:
             raise HTTPException(status_code=400, detail="Não foi possível decodificar a codificação do arquivo CSV (use UTF-8 ou Latin-1).")
+
+    if text_content.count("\n") > MAX_CSV_ROWS:
+        raise HTTPException(status_code=413, detail=f"Arquivo com mais de {MAX_CSV_ROWS} linhas")
 
     result = CsvImportService.parse_and_import(
         db=db,
@@ -452,7 +494,9 @@ async def import_campaign_csv(
 
 
 @router.post("/{campaign_id}/collect-cnae")
+@limiter.limit("10/minute")
 async def collect_campaign_cnae(
+    request: Request,
     campaign_id: str,
     data: CollectCnaeRequest,
     db: Session = Depends(get_db),

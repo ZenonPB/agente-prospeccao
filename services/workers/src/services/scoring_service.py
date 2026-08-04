@@ -28,9 +28,6 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-import httpx
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -262,15 +259,6 @@ class AIScoringService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY
 
-    def _create_client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            timeout=60.0,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-
     # ---------- normalização da resposta ----------
 
     def _normalize_response(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
@@ -299,31 +287,23 @@ class AIScoringService:
         score_factors = parsed.get("score_factors") or []
         if not isinstance(score_factors, list):
             score_factors = []
-        clean_factors = []
-        for f in score_factors:
-            if not isinstance(f, dict):
-                continue
-            impact = str(f.get("impact") or "").strip()
-            if impact not in ("+", "-"):
-                impact = "+"
-            weight = str(f.get("weight") or "medium").lower()
-            if weight not in ("high", "medium", "low"):
-                weight = "medium"
-            clean_factors.append({
-                "label": str(f.get("label") or "")[:120],
-                "impact": impact,
-                "weight": weight,
-                "rationale": str(f.get("rationale") or ""),
-                "evidence_ref": str(f.get("evidence_ref") or "")[:120],
-            })
-        parsed["score_factors"] = clean_factors
 
         evidence = parsed.get("evidence") or []
         if not isinstance(evidence, list):
             evidence = []
+
+        # Item 4.6 (auditoria): evidência com origem "inferência LLM" não é
+        # fact — não deve chegar ao outreach como "facto" (risco de citar
+        # alucinação em e-mail frio). Mantém apenas o que é fundamentado em
+        # relatório técnico, dados cadastrais ou contexto da campanha.
+        GROUNDED_SOURCES = ("relatório técnico", "relatório tecnico",
+                            "dados cadastrais", "contexto da campanha")
         clean_evidence = []
         for e in evidence:
             if not isinstance(e, dict):
+                continue
+            source = str(e.get("source") or "").lower().strip()
+            if "inferência" in source or "inferencia" in source:
                 continue
             sev = str(e.get("severity") or "INFO").upper()
             if sev not in ("CRITICO", "ALTO", "MEDIO", "BAIXO", "INFO"):
@@ -337,64 +317,46 @@ class AIScoringService:
             })
         parsed["evidence"] = clean_evidence
 
+        # Valida evidence_ref dos fatores: só mantém fatores que apontam para
+        # uma evidência que permaneceu (evita referência quebrada na UI).
+        kept_titles = {e["title"] for e in clean_evidence if e["title"]}
+        clean_factors = []
+        for f in score_factors:
+            if not isinstance(f, dict):
+                continue
+            ref = str(f.get("evidence_ref") or "").strip()
+            if not ref or ref not in kept_titles:
+                continue
+            impact = str(f.get("impact") or "").strip()
+            if impact not in ("+", "-"):
+                impact = "+"
+            weight = str(f.get("weight") or "medium").lower()
+            if weight not in ("high", "medium", "low"):
+                weight = "medium"
+            clean_factors.append({
+                "label": str(f.get("label") or "")[:120],
+                "impact": impact,
+                "weight": weight,
+                "rationale": str(f.get("rationale") or ""),
+                "evidence_ref": ref[:120],
+            })
+        parsed["score_factors"] = clean_factors
+
         return parsed
-
-    def _parse_response(self, content: str) -> Optional[Dict[str, Any]]:
-        if not content:
-            logger.warning("Resposta vazia do Groq.")
-            return None
-
-        text = content.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
-
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError as e:
-            logger.error("Falha ao decodificar JSON do Groq: %s", e)
-            return None
 
     # ---------- chamada ao modelo ----------
 
     async def _call_groq(self, user_prompt: str) -> Optional[Dict[str, Any]]:
-        payload = {
-            "model": GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            async with self._create_client() as client:
-                response = await client.post(GROQ_URL, json=payload)
-        except httpx.RequestError as e:
-            logger.error("Erro de rede ao chamar Groq: %s", e)
-            return None
+        from services.provider_client import groq_json_chat
 
-        if response.status_code != 200:
-            logger.error("Groq respondeu HTTP %s: %s", response.status_code, response.text[:500])
-            return None
-
-        try:
-            data = response.json()
-        except json.JSONDecodeError as e:
-            logger.error("Resposta do Groq não é JSON: %s", e)
-            return None
-
-        choices = data.get("choices") or []
-        if not choices:
-            logger.error("Resposta do Groq sem choices: %s", data)
-            return None
-
-        content = choices[0].get("message", {}).get("content", "")
-        parsed = self._parse_response(content)
+        parsed = await groq_json_chat(
+            api_key=self.api_key or "",
+            model=GROQ_MODEL,
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            url=GROQ_URL,
+            temperature=0.2,
+        )
         if parsed is None:
             return None
         return self._normalize_response(parsed)

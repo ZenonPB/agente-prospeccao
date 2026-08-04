@@ -30,7 +30,6 @@ interface EvidenceCardProps {
 }
 
 export function EvidenceCard({
-  score,
   priority,
   priorityReasoning,
   executiveSummary,

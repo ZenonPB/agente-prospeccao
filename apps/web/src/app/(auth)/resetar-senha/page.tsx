@@ -1,7 +1,6 @@
 'use client';
 
 import { use, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +12,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function ResetPasswordPage(props: { searchParams: Promise<{ token?: string }> }) {
   const searchParams = use(props.searchParams);
-  const router = useRouter();
   const token = searchParams.token || '';
 
   const [password, setPassword] = useState('');

@@ -27,6 +27,7 @@ from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.cnae_discovery_service import CnaeDiscoveryService
 from services.secret_service import SecretService
+from services.domain_utils import normalize_domain
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +131,14 @@ async def run_pipeline(
                 company_name = item.get("name")
                 cnpj_val = item.get("cnpj")
                 place_id_val = item.get("place_id") or f"cnae_{cnpj_val}"
+                website_val = item.get("website")
+                normalized_domain = normalize_domain(website_val)
 
                 existing_lead = db.query(Lead).filter(
                     (Lead.organization_id == (campaign.organization_id if campaign else None)) &
-                    ((Lead.place_id == place_id_val) | (Lead.cnpj == cnpj_val))
+                    ((Lead.place_id == place_id_val) |
+                     (Lead.cnpj == cnpj_val) |
+                     ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
                 ).first()
 
                 if existing_lead:
@@ -145,7 +150,8 @@ async def run_pipeline(
                     name=company_name,
                     company_name=company_name,
                     cnpj=cnpj_val,
-                    website=item.get("website"),
+                    website=website_val,
+                    normalized_domain=normalized_domain,
                     phone=item.get("phone"),
                     address=item.get("address"),
                     category=item.get("cnae_description") or campaign.target_segment,
@@ -180,11 +186,13 @@ async def run_pipeline(
 
                 google_place_id = item.get("place_id_candidate")
                 website_url = item.get("website")
+                normalized_domain = normalize_domain(website_url)
 
                 existing_lead = db.query(Lead).filter(
                     (Lead.organization_id == (campaign.organization_id if campaign else None)) &
                     ((Lead.place_id == google_place_id) |
-                     ((Lead.company_name == company_name) & (Lead.website == website_url)))
+                     ((Lead.company_name == company_name) & (Lead.website == website_url)) |
+                     ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
                 ).first()
 
                 if existing_lead:
@@ -193,8 +201,10 @@ async def run_pipeline(
                 new_lead = Lead(
                     organization_id=campaign.organization_id if campaign else None,
                     place_id=google_place_id,
+                    name=company_name,
                     company_name=company_name,
                     website=website_url,
+                    normalized_domain=normalized_domain,
                     phone=item.get("phone"),
                     email=None,
                     category=item.get("category"),

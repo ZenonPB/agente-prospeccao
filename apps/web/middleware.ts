@@ -43,6 +43,20 @@ export async function middleware(request: NextRequest) {
   const isDev = process.env.NODE_ENV === "development";
   const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
 
+  // A API pode viver em outro domínio (deploy separado). O connect-src precisa
+  // autorizar a origem da API + o WebSocket correspondente (item 4.9).
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  let apiOrigin = "http://localhost:8000";
+  let apiWsOrigin = "ws://localhost:8000";
+  try {
+    const parsed = new URL(apiUrl);
+    apiOrigin = parsed.origin;
+    apiWsOrigin = `${parsed.protocol === "https:" ? "wss" : "ws"}://${parsed.host}`;
+  } catch {
+    // mantém os defaults se NEXT_PUBLIC_API_URL estiver malformado
+  }
+  const connectSrc = ["'self'", apiOrigin, apiWsOrigin];
+
   if (isDev) {
     const csp = [
       "default-src 'self'",
@@ -50,7 +64,7 @@ export async function middleware(request: NextRequest) {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' http://localhost:8000 ws://localhost:8000",
+      `connect-src ${connectSrc.join(" ")}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -63,7 +77,7 @@ export async function middleware(request: NextRequest) {
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://tile.openstreetmap.org https: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.groq.com",
+      `connect-src ${connectSrc.join(" ")}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

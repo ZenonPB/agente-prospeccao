@@ -116,6 +116,9 @@ class Organization(Base):
     # Item 3.7 — envio automático de follow-ups (opt-in). Default: humano-no-loop.
     # Só com esta flag o scheduler envia e-mails quando a cadência vence.
     auto_send_email = Column(Boolean, default=False, nullable=False, server_default="false")
+    # Item 4.1 — remetente próprio da org (ex.: vendas@empresa.com.br). Se vazio,
+    # usa o remetente global do settings (SMTP_FROM_EMAIL).
+    email_from = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -290,18 +293,31 @@ class Lead(Base):
     __tablename__ = "leads"
     __table_args__ = (
         UniqueConstraint("organization_id", "place_id", name="uq_leads_org_place_id"),
+        UniqueConstraint("organization_id", "cnpj", name="uq_leads_org_cnpj"),
+        UniqueConstraint("organization_id", "normalized_domain", name="uq_leads_org_normalized_domain"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     place_id = Column(String(255), unique=False, nullable=True)
+    # `name` é o nome fantasia/estabelecimento (fonte CSV/CNAE); `company_name`
+    # é a razão social/denominação (fonte Places). CSV/CNAE preenchem ambos.
+    name = Column(String(255))
     company_name = Column(String(255), nullable=False)
+    cnpj = Column(String(14))
+    address = Column(String(500))
     website = Column(String(255))
+    normalized_domain = Column(String(255))
     phone = Column(String(50))
+    whatsapp = Column(String(50))
     email = Column(String(255)) 
     category = Column(String(100)) 
     city = Column(String(100), nullable=False)
     state = Column(String(100))
     country = Column(String(100))
+    # Campos de trabalho do consultor (item 4.4 da auditoria).
+    notes = Column(Text)
+    next_action_at = Column(DateTime(timezone=True))
+    last_contacted_at = Column(DateTime(timezone=True))
     status = Column(Enum(LeadStatus, name='lead_status', create_type=True), default=LeadStatus.NOVO)
 
     qualification_score = Column(Integer, default=0) 
@@ -411,12 +427,32 @@ class FollowUp(Base):
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     sent_at = Column(DateTime(timezone=True))
     status = Column(Enum(FollowUpStatus, name='follow_up_status', create_type=True), default=FollowUpStatus.PENDING)
+    # Item 3.2 — contagem de tentativas (transitórias) e Message-ID do último
+    # envio (para threading dos follow-ups seguintes).
+    attempts = Column(Integer, default=0, nullable=False, server_default="0")
+    message_id = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="follow_ups")
 
     def __repr__(self):
         return f"<FollowUp(lead='{self.lead_id}', step='{self.step.value}', status='{self.status.value}')>"
+
+
+class EmailSuppression(Base):
+    """Endereços de e-mail com bounce permanente (5xx). Item 3.2 da auditoria.
+
+    Um endereço que queimou uma vez não é re-tentado em nenhuma cadência até
+    ser removido manualmente — protege a reputação do domínio remetente.
+    """
+    __tablename__ = "email_suppressions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False, unique=True)
+    reason = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<EmailSuppression(email='{self.email}')>"
 
 class ContactRole(enum.Enum):
     """Papel do decisor na empresa. Derivado da Receita Federal (sócios

@@ -59,6 +59,17 @@ def is_valid_cnpj(cnpj: str) -> bool:
     return len(digits) == 14 and digits.isdigit()
 
 
+def mask_cpf(cpf: Optional[str]) -> Optional[str]:
+    """Mascara CPF para persistência (item 4.7/LGPD): minimização de dados
+    pessoais — guardamos só os 3 primeiros e 2 últimos dígitos."""
+    if not cpf:
+        return None
+    digits = "".join(c for c in cpf if c.isdigit())
+    if len(digits) != 11:
+        return None
+    return f"{digits[:3]}.***.***-{digits[9:]}"
+
+
 def _map_qualification_to_role(qual: str) -> str:
     """Mapeia a `qualificacao_socio` (texto livre da Receita) para o enum
     ContactRole usado no nosso modelo. Heurística simples — strings
@@ -99,9 +110,8 @@ def _parse_brasilapi(payload: Dict[str, Any]) -> Dict[str, Any]:
             "name": name,
             "role_enum": role_enum,
             "role_label": qual or role_enum,
-            "document_cpf": (s.get("cnpj_cpf_do_socio") or "").strip() or None,
+            "document_cpf": mask_cpf(s.get("cnpj_cpf_do_socio") or "") or None,
             "data_entrada": s.get("data_entrada_sociedade"),
-            "faixa_etaria": s.get("faixa_etaria"),
             "is_primary": False,
             "confidence": _calculate_confidence(role_enum, has_email=False),
             "source": "cnpj_receita:brasilapi",
@@ -186,7 +196,7 @@ def _parse_cnpja(payload: Dict[str, Any]) -> Dict[str, Any]:
             "name": name,
             "role_enum": role_enum,
             "role_label": qual or role_enum,
-            "document_cpf": (person.get("taxId") or "").strip() or None,
+            "document_cpf": mask_cpf((person.get("taxId") or "").strip()) or None,
             "is_primary": False,
             "confidence": _calculate_confidence(role_enum, has_email=False),
             "source": "cnpj_receita:cnpja",

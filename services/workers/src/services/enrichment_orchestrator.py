@@ -1,7 +1,9 @@
 """Orquestrador de enriquecimento + scoring contextual e explicável.
 
 Responsabilidades:
-- Carregar template de critérios da campanha (se houver) e/ou fallback 'Genérico'.
+- Carregar template de critérios da campanha (feito pelo `template_router`
+  chamado no pipeline — exact/fuzzy/LLM/generação; este módulo NÃO resolve
+  template, apenas consome o dict já serializado).
 - Decidir perfil (web_presence vs business_opportunity) com base no template
   (requires_technical_report) — sobrepõe ao analysis_profile da campanha quando
   o template disser que site é irrelevante.
@@ -13,7 +15,6 @@ Responsabilidades:
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 
 from database.models import (
@@ -22,73 +23,11 @@ from database.models import (
     LeadPriority,
     Enrichment,
     AnalysisProfile,
-    CampaignScoringTemplate,
 )
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
 
 logger = logging.getLogger(__name__)
-
-
-def load_scoring_template(
-    db: Session,
-    explicit_template_id: Optional[str],
-    target_service: str,
-    target_segment: str = "",
-) -> Optional[Dict[str, Any]]:
-    """Carrega o template de critérios contextual da campanha.
-
-    Ordem de precedência:
-    1. template explicitamente associado à campanha (campaign.scoring_template_id)
-    2. match por `service_label` (case-insensitive) em target_service
-    3. match por `service_label` em target_segment (fallback comum para campanhas
-       onde o usuário preencheu só o segmento, ex.: 'Petshop', 'Academias')
-    4. fallback para o template 'Genérico' ativo
-    5. None se nada for encontrado (a LLM infere os critérios)
-
-    Sempre retorna a primeira ocorrência com is_active=True.
-    """
-    if explicit_template_id:
-        tmpl = db.query(CampaignScoringTemplate).filter(
-            CampaignScoringTemplate.id == explicit_template_id,
-            CampaignScoringTemplate.is_active.is_(True),
-        ).first()
-        if tmpl:
-            return _template_to_dict(tmpl)
-
-    if target_service:
-        tmpl = db.query(CampaignScoringTemplate).filter(
-            sqlfunc.lower(CampaignScoringTemplate.service_label) == target_service.lower().strip(),
-            CampaignScoringTemplate.is_active.is_(True),
-        ).first()
-        if tmpl:
-            return _template_to_dict(tmpl)
-
-    if target_segment:
-        tmpl = db.query(CampaignScoringTemplate).filter(
-            sqlfunc.lower(CampaignScoringTemplate.service_label) == target_segment.lower().strip(),
-            CampaignScoringTemplate.is_active.is_(True),
-        ).first()
-        if tmpl:
-            return _template_to_dict(tmpl)
-
-    tmpl = db.query(CampaignScoringTemplate).filter(
-        sqlfunc.lower(CampaignScoringTemplate.service_label) == "genérico",
-        CampaignScoringTemplate.is_active.is_(True),
-    ).first()
-    return _template_to_dict(tmpl) if tmpl else None
-
-
-def _template_to_dict(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
-    return {
-        "service_label": tmpl.service_label,
-        "positive_signals": tmpl.positive_signals or [],
-        "negative_signals": tmpl.negative_signals or [],
-        "context_signals": tmpl.context_signals or [],
-        "requires_technical_report": bool(tmpl.requires_technical_report),
-        "requires_business_data": bool(tmpl.requires_business_data),
-        "extra_instructions": tmpl.extra_instructions,
-    }
 
 
 async def process_single_lead(
@@ -104,12 +43,11 @@ async def process_single_lead(
 ) -> Tuple[Optional[Enrichment], Optional[Dict[str, Any]]]:
     """Processa um lead — enriquecimento + scoring contextual explicável.
 
-    - scoring_template: dict (não ORM) já serializado por load_scoring_template().
+    - scoring_template: dict (não ORM) já serializado pelo `template_router`.
       O orchestrator caller é responsável por carregá-lo uma vez por campanha
       e repassar ao batch.
-    - allow_business_fallback: quando True, lead sem website em campanha
-      WEB_PRESENCE não é desqualificado imediatamente — faz scoring business
-      ao invés. Útil para modo reanalyze de leads legados.
+    - allow_business_fallback: mantido para compatibilidade de assinatura —
+      hoje o scoring business roda sempre para lead sem site (item 4.2).
     """
     enrichment: Optional[Enrichment] = None
     scoring_data: Optional[Dict[str, Any]] = None
@@ -162,18 +100,16 @@ async def process_single_lead(
         )
     else:
         # Perfil business_opportunity (ou template alinhou para skipar técnico).
+        #
+        # Item 4.2 (auditoria): lead sem site em campanha WEB_PRESENCE NÃO é
+        # desqualificado sem score — para quem vende sites, empresa sem site é
+        # público-alvo. Faz scoring business (categoria/cidade/estado + sinais
+        # do template). O LLM decide o fito.
         if not lead.website and analysis_profile == AnalysisProfile.WEB_PRESENCE:
-            if allow_business_fallback:
-                # Modo reanalise: mantém lead vivo e faz scoring business.
-                logger.info(
-                    "Lead '%s' sem website (web_presence) — usando fallback business.",
-                    lead.company_name,
-                )
-            else:
-                lead.status = LeadStatus.DESQUALIFICADO
-                logger.info("Lead '%s' sem website (web_presence). Status: DESQUALIFICADO",
-                            lead.company_name)
-                return None, None
+            logger.info(
+                "Lead '%s' sem website (web_presence) — scoring business (item 4.2).",
+                lead.company_name,
+            )
 
         scoring_data = await scoring_service.score_business_lead(
             company_name=lead.company_name,

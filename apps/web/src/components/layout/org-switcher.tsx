@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Check, ChevronsUpDown, Building2 } from "lucide-react";
 import { useMyOrganizations } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
@@ -54,21 +54,12 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
 
   const organizations = useMemo(() => orgsData?.organizations || [], [orgsData]);
 
-  useEffect(() => {
-    if (!organizations.length) return;
-    const stored = readStoredOrgId();
-    const validIds = new Set(organizations.map((o) => o.id));
-    if (stored && validIds.has(stored)) {
-      setActiveOrgId(stored);
-    } else {
-      const firstId = organizations[0].id;
-      setActiveOrgId(firstId);
-      localStorage.setItem(ORG_STORAGE_KEY, firstId);
-    }
-  }, [organizations]);
-
+  // Item 4.10: sem setState em effect — a org ativa é derivada em render.
+  // Se o id persistido não estiver entre as orgs carregadas (ou ainda não
+  // houver orgs), cai na primeira org. A persistência em localStorage só
+  // acontece quando o usuário escolhe explicitamente (handleSelectOrg).
   const activeOrg = useMemo(
-    () => organizations.find((org) => org.id === activeOrgId),
+    () => organizations.find((org) => org.id === activeOrgId) ?? organizations[0],
     [organizations, activeOrgId],
   );
 

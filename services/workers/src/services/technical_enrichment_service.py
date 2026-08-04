@@ -1,6 +1,5 @@
 import httpx
 import ssl
-import certifi
 import re
 import json
 import logging
@@ -13,23 +12,19 @@ logger = logging.getLogger(__name__)
 
 class TechnicalEnrichmentService:
     def __init__(self):
-        self.common_sensitive_paths = [
+        # Item 4.8 (auditoria): NÃO sondar caminhos de segredos (.env, .git,
+        # wp-config.php, /admin/...) — isso é varredura ativa e contradiz a
+        # postura 100% passiva (Lei 12.737/2012). Mantemos apenas arquivos que
+        # qualquer visitante público acessa (SEO standard).
+        self.common_public_paths = [
             "/robots.txt",
             "/sitemap.xml",
-            "/.git/config",
-            "/.env",
-            "/wp-config.php",
-            "/admin/",
-            "/login/",
         ]
     
     def _create_client(self) -> httpx.AsyncClient:
-        """Cria um novo AsyncClient para cada operação."""
-        return httpx.AsyncClient(
-            verify=certifi.where(), 
-            follow_redirects=True,
-            timeout=10
-        )
+        """Cria um novo AsyncClient para cada operação (defaults compartilhados)."""
+        from services.provider_client import create_http_client
+        return create_http_client(timeout=10)
 
     async def _check_ssl(self, url: str) -> Dict[str, Any]:
         """Verifica o status SSL/HTTPS de uma URL."""
@@ -265,11 +260,15 @@ class TechnicalEnrichmentService:
             "rating": rating,
         }
 
-    async def _check_sensitive_paths(self, base_url: str) -> List[str]:
-        """Verifica a exposição de arquivos ou diretórios sensíveis."""
+    async def _check_public_paths(self, base_url: str) -> List[str]:
+        """Verifica a existência de arquivos públicos de SEO (robots/sitemap).
+
+        100% passivo — são os arquivos que qualquer visitante acessa. Não
+        sonda segredos/caminhos internos (item 4.8 / Lei 12.737/2012).
+        """
         exposed_paths = []
         async with self._create_client() as client:
-            for path in self.common_sensitive_paths:
+            for path in self.common_public_paths:
                 full_url = f"{base_url.rstrip('/')}{path}"
                 try:
                     resp = await client.head(full_url, timeout=5, follow_redirects=True)
@@ -348,11 +347,11 @@ class TechnicalEnrichmentService:
             for issue in report["seo"].get("issues", []):
                 report["warnings"].append(f"SEO/LGPD: {issue}")
 
-            # Checagem de Caminhos Sensíveis
-            report["exposed_paths"] = await self._check_sensitive_paths(website_url)
+            # Checagem de arquivos públicos de SEO (robots/sitemap) — item 4.8:
+            # sem varredura de caminhos sensíveis (.env, .git, admin/).
+            report["exposed_paths"] = await self._check_public_paths(website_url)
             if report["exposed_paths"]:
-                report["errors"].append(f"Arquivos/diretórios sensíveis publicamente acessíveis: {', '.join(report['exposed_paths'])}")
-                report["overall_status"] = "PROBLEMA"
+                report["warnings"].append(f"Arquivos públicos presentes: {', '.join(report['exposed_paths'])}")
 
         except Exception as e:
             report["errors"].append(f"Erro inesperado durante o enriquecimento: {e}")

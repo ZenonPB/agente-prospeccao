@@ -66,8 +66,20 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Erro desconhecido" }));
-    throw new Error(error.message || `Erro ${response.status}: ${response.statusText}`);
+    const body = await response.json().catch(() => null);
+    // FastAPI devolve {detail: "..."} (ou lista de erros de validação).
+    let message: string;
+    if (body && typeof body.detail === "string") {
+      message = body.detail;
+    } else if (Array.isArray(body?.detail) && body.detail.length > 0) {
+      const first = body.detail[0];
+      message = typeof first === "object" && first.msg ? first.msg : JSON.stringify(first);
+    } else if (body && typeof body.message === "string") {
+      message = body.message;
+    } else {
+      message = body?.detail || `Erro ${response.status}: ${response.statusText}`;
+    }
+    throw new Error(message);
   }
 
   if (responseType === "blob") {
@@ -203,6 +215,7 @@ export const campaignsApi = {
     target_country?: string;
     places_query?: string;
     scoring_template_id?: string | null;
+    status?: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
   }) =>
     request<{ id: string; name: string; scoring_template_id: string | null }>(`/api/campaigns/${id}`, {
       method: "PATCH",
@@ -540,10 +553,14 @@ export const invitesApi = {
     }),
 };
 
-// Helper de conexão WebSocket — passa token JWT como query param para autenticação
+// Helper de conexão WebSocket — token JWT enviado na PRIMEIRA mensagem
+// (nunca na URL, para não vazar em logs de proxy/acesso). Item 3.8.
 export function createPipelineWs(jobId: string): WebSocket {
   const token = getCachedToken();
   const baseUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;
-  const wsUrl = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
-  return new WebSocket(wsUrl);
+  const ws = new WebSocket(baseUrl);
+  ws.addEventListener("open", () => {
+    ws.send(JSON.stringify({ type: "auth", token }));
+  });
+  return ws;
 }

@@ -1,6 +1,7 @@
 """Router de template de scoring contextual (Fase 1.2).
 
-Melhora o `load_scoring_template` do enrichment_orchestrator: quando o match
+Substitui o antigo `load_scoring_template` do enrichment_orchestrator (que
+foi removido como código morto — item 5.5 da auditoria): quando o match
 exato (case-insensitive) falha — caso comum para verticais novas — decide
 entre:
 

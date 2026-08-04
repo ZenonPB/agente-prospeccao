@@ -4,14 +4,15 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, Request, status, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.db.dependencies import get_db
 from src.db.models import Job, JobStatus, JobType, Campaign, User, Organization
 from src.auth.dependencies import get_current_user, get_user_organization
 from src.auth.security import decode_access_token
+from src.middleware.rate_limit import limiter
 from src.pipeline_worker import run_pipeline
 from src.services.org_service import user_organization
 
@@ -22,17 +23,22 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 # Conexões WebSocket ativas: job_id -> lista de websockets
 active_connections: Dict[str, list[WebSocket]] = {}
 
+# Tempo (segundos) para o client enviar a mensagem de autenticação no WS.
+WS_AUTH_TIMEOUT_SECONDS = 15
+
 
 class StartPipelineRequest(BaseModel):
     query: str | None = None
     campaign_id: str | None = None
-    max_leads: int = 10
+    max_leads: int = Field(10, ge=1, le=200)
     reanalyze_only: bool = False
 
 
 @router.post("/start")
+@limiter.limit("20/minute")
 async def start_pipeline(
-    request: StartPipelineRequest,
+    request: Request,
+    body: StartPipelineRequest,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
@@ -46,25 +52,25 @@ async def start_pipeline(
     Se `reanalyze_only=True`, pula a coleta e reanalisa TODOS os leads da
     campanha usando o scoring contextual novo (útil para leads analizados
     pelo pipeline legado específico de web).
+
+    Rate-limited (item 4.5): 20/min por IP; `max_leads` limitado a 200.
     """
-    if not request.query and not request.campaign_id:
-        from fastapi import HTTPException
+    if not body.query and not body.campaign_id:
         raise HTTPException(
             status_code=422,
             detail="Forneça 'campaign_id' ou 'query' para iniciar o pipeline"
         )
 
-    if request.reanalyze_only and not request.campaign_id:
-        from fastapi import HTTPException
+    if body.reanalyze_only and not body.campaign_id:
         raise HTTPException(
             status_code=422,
             detail="Reanálise requer 'campaign_id'"
         )
 
     campaign = None
-    if request.campaign_id:
+    if body.campaign_id:
         campaign = db.query(Campaign).filter(
-            Campaign.id == request.campaign_id,
+            Campaign.id == body.campaign_id,
             Campaign.organization_id == _org.id,
         ).first()
         if not campaign:
@@ -79,10 +85,10 @@ async def start_pipeline(
         organization_id=_org.id,
         campaign_id=str(campaign.id) if campaign else None,
         payload={
-            "query": request.query,
-            "campaign_id": request.campaign_id,
-            "max_leads": request.max_leads,
-            "reanalyze_only": request.reanalyze_only,
+            "query": body.query,
+            "campaign_id": body.campaign_id,
+            "max_leads": body.max_leads,
+            "reanalyze_only": body.reanalyze_only,
         },
     )
     db.add(job)
@@ -93,8 +99,8 @@ async def start_pipeline(
 
     # Inicia pipeline em background
     asyncio.create_task(_run_pipeline_task(
-        job_id, request.query, request.campaign_id, request.max_leads,
-        request.reanalyze_only,
+        job_id, body.query, body.campaign_id, body.max_leads,
+        body.reanalyze_only,
     ))
 
     return {"job_id": job_id, "status": "started"}
@@ -135,16 +141,34 @@ async def _run_pipeline_task(
 async def websocket_pipeline(
     websocket: WebSocket,
     job_id: str,
-    token: Optional[str] = Query(None),
 ):
     """Endpoint WebSocket para atualizações do pipeline em tempo real.
 
-    Requer token JWT válido como query parameter `token`.
-    Fecha conexão com código 4001 se token ausente ou inválido.
-    Fecha com 403 se o job não pertencer à organização do usuário.
+    Autenticação: o client envia `{"type": "auth", "token": "..."}` como
+    PRIMEIRA mensagem (o token NÃO vai na query string — evita vazamento em
+    logs de proxy). Fecha com 4001 se ausente/inválido; 403 se o job não
+    pertencer à organização do usuário.
     """
-    if not token:
-        await websocket.close(code=4001, reason="Token de autenticação não fornecido")
+    await websocket.accept()
+
+    token = None
+    try:
+        auth_msg = await asyncio.wait_for(
+            websocket.receive_text(), timeout=WS_AUTH_TIMEOUT_SECONDS
+        )
+        try:
+            data = json.loads(auth_msg)
+        except json.JSONDecodeError:
+            await websocket.close(code=4001, reason="Mensagem de autenticação inválida")
+            return
+        if data.get("type") != "auth" or not data.get("token"):
+            await websocket.close(code=4001, reason="Token de autenticação não fornecido")
+            return
+        token = data["token"]
+    except asyncio.TimeoutError:
+        await websocket.close(code=4001, reason="Timeout de autenticação")
+        return
+    except WebSocketDisconnect:
         return
 
     payload = decode_access_token(token)
@@ -170,8 +194,6 @@ async def websocket_pipeline(
             return
     finally:
         db.close()
-
-    await websocket.accept()
 
     # Registra conexão
     if job_id not in active_connections:
