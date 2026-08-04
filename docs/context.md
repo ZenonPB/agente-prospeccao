@@ -341,11 +341,33 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
   - `leadsApi.getPitch` e hook `useLeadPitch`
   - Interfaces `PitchOnePager`, `SiteAudit`, `SiteAuditSection` em `types/index.ts`
 
+### Fase A4/A5 — Org switcher + sistema de convites ✅ (2026-08-04)
+
+**Backend:**
+- `src/services/invite_service.py` (novo) — `create_invite`, `accept_invite`, `list_pending_invites`, `revoke_invite`
+- `POST /api/orgs/{id}/invites` — cria convite (owner/admin only), gera token único com expiração 7 dias
+- `GET /api/orgs/{id}/invites` — lista convites pendentes (owner/admin only)
+- `POST /api/invites/accept` — aceita convite por token (valida e-mail do usuário autenticado)
+- `DELETE /api/orgs/{id}/invites/{id}` — revoga convite pendente
+- `GET /api/orgs/my-organizations` — lista todas as organizações do usuário (para org switcher)
+- Migration `c3d4e5f6a7b8c` — adiciona `invited_by_id` (FK users) e `sales_role` (enum) à tabela `invites`
+- Modelo `Invite` atualizado com relationship `invited_by`
+
+**Frontend:**
+- `OrgSwitcher` component — dropdown no sidebar para trocar entre organizações (localStorage)
+- `InvitesManager` component — criar/listar/revogar convites (dialog + cards)
+- Rota `/aceitar-convite?token=...` — página pública para aceitar convites (com/sem auth)
+- Integrado em `/configuracoes/membros` — seção de convites acima da lista de membros
+- API client: `orgsApi.listMyOrganizations`, `invitesApi.{create,list,accept,revoke}`
+- Hooks: `useMyOrganizations`, `useInvites`, `useCreateInvite`, `useAcceptInvite`, `useRevokeInvite`
+- Types: `OrganizationListItem`, `Invite`
+- Middleware: `/aceitar-convite` adicionado como rota pública
+
+**Testado:** migration aplicada, API roda sem erros, org switcher mostra orgs, página de convites renderiza.
+
 ### Próximo passo imediato
 
-1. **Fase A4/A5 pendentes:** org switcher no frontend + endpoint de convites
-   (`POST /api/orgs/{id}/invites`, `POST /api/invites/accept`).
-2. **Fase 3 — Ampliar fontes e fechar o loop:**
+1. **Fase 3 — Ampliar fontes e fechar o loop:**
    - **Item 3.1 — Import CSV** (`feat/csv-import`): endpoint + UI para importação de leads via CSV.
    - **Item 3.2 — Descoberta por CNAE** (`feat/cnae-discovery`).
    - **Item 3.3 — Enriquecimento adaptativo** (`feat/adaptive-enrichment`).
