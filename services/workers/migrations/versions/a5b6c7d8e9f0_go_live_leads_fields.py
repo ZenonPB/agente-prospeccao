@@ -60,7 +60,7 @@ def upgrade() -> None:
         FROM (
             SELECT DISTINCT ON (organization_id, domain) id, organization_id, domain
             FROM (
-                SELECT id, organization_id,
+                SELECT id, organization_id, created_at,
                        lower(
                            regexp_replace(
                                regexp_replace(

@@ -604,6 +604,24 @@ Pacote de melhorias de execução de vendas sobre a branch `fix/go-live-prep`:
 **Verificação:** `tsc --noEmit` limpo, `npm run lint` limpo, `npm run build` OK,
 `py_compile` do `routes/leads.py` OK. Testes pytest requerem venv (não instalado).
 
+### Ambiente local sem root (2026-08-04)
+
+Máquina de trabalho sem sudo e sem Docker. Setup validado:
+
+- **PostgreSQL 16 embarcado**: binários zonky (Maven Central,
+  `io.zonky.test.postgres:embedded-postgres-binaries-linux-amd64:16.14.0`)
+  extraídos em `~/.local/agente-prospeccao/` (`bin/`, `pgdata/`, `pg.log`).
+  `initdb` com auth `trust`, porta 5432, só `127.0.0.1`. Sem `psql` (os
+  binários zonky não trazem clientes — usar o Python/psycopg2).
+- **`.env` na raiz** criado (gitignored): `DATABASE_URL`, `JWT_SECRET` gerado,
+  placeholders vazios para `GROQ_API_KEY`/`GOOGLE_API_KEY`/`HUNTER_API_KEY`.
+- **venvs**: `services/workers/venv` e `services/api/venv` (deps instaladas).
+- **Migrations + seed**: `alembic upgrade head` OK (após correção da migration
+  `a5b6c7d8e9f0` — ver `docs/auditoria.md`); seed de 9 templates OK.
+- **Web**: `.env.local` com `NEXTAUTH_SECRET` (NextAuth JWT).
+- **`scripts/dev.sh`**: `start|stop|status` para Postgres + API + Web.
+- Usuário inicial criado: `admin@agente-prospeccao.com` (trocar a senha).
+
 
 ## Como rodar
 

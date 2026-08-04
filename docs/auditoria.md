@@ -23,6 +23,13 @@
 > - ✅ **Eixo 3 (2026-08-04)**: 4.4 (UI de notas/próxima ação/WhatsApp no lead),
 >   kanban NOVO+QUALIFICADO, painel "Ações de hoje", ações em massa + export CSV,
 >   botão WhatsApp wa.me. Detalhes em `docs/context.md`.
+>
+> - ✅ **Migrations validadas em Postgres real (2026-08-04)**: ao subir o ambiente
+>   sem root, a migration `a5b6c7d8e9f0` (go-live 4.3, backfill de
+>   `normalized_domain`) falhava com `UndefinedColumn: created_at` (coluna fora
+>   do subselect do `DISTINCT ON`). Corrigida in-place (adicionar `created_at` ao
+>   select interno) — nunca tinha sido aplicada em banco real. `alembic upgrade
+>   head` e o seed de 9 templates agora rodam de ponta a ponta.
 
 ---
 
