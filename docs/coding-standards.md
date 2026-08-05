@@ -28,7 +28,9 @@
 - Um arquivo por serviço em `src/services/`
 - Classe nomeada `XService` (ex: `AIScoringService`)
 - Método principal claramente nomeado (ex: `score_lead`, `enrich_website`)
-- Serviços não importam outros serviços — orquestração só no `main.py`
+- Serviços não importam outros serviços — orquestração em `enrichment_orchestrator.py`
+  (que liga `technical_enrichment_service` + `scoring_service`) ou em `main.py`;
+  import cruzado entre serviços é a exceção, não a regra
 - Retornar `None` em caso de falha, nunca lançar exceção para o caller
 
 ## Variáveis de Ambiente

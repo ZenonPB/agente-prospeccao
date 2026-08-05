@@ -108,6 +108,6 @@ docker compose exec db pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
 ## Docs
 
 Toda a documentação está em `docs/` (português). Leia na ordem:
-`context.md` (estado atual) → `architecture.md` → `business-rules.md` →
-`roadmap-combined.md`. Pendências conhecidas e checklist de entrega:
-`auditoria.md`.
+`context.md` (estado atual) → `architecture.md` → `business-rules.md`.
+Consulte `decisions.md` antes de mudanças e `coding-standards.md`/`agents.md`
+para convenções de código e dos agentes.

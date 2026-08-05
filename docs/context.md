@@ -4,10 +4,8 @@
 
 ## Leitura obrigatória antes de qualquer tarefa
 
-1. `docs/architecture.md` — estrutura do sistema, stack, serviços
+1. `docs/architecture.md` — estrutura do sistema, stack, serviços, modelo de dados
 2. `docs/business-rules.md` — regras de negócio, pipeline, status dos leads
-3. `docs/roadmap-combined.md` — **roadmap único e visão**: multi-vertical sem hardcode + inteligência comercial (BI, consultores, PDF, pitch, fontes, custos)
-4. `docs/auditoria.md` — pendências conhecidas levantadas na vistoria geral (2026-08-04)
 
 ## Consulte antes de modificar
 
@@ -545,12 +543,12 @@ Branch: `feat/outreach-cadence-playbooks`
 
 ### Próximo passo imediato
 
-**Vistoria geral concluída (2026-08-04)** — ver `docs/auditoria.md` (pendências
-completas). Prioridade para o go-live:
+**Vistoria geral concluída (2026-08-04)** — pendências mapeadas e corrigidas na
+branch `fix/go-live-prep` (abaixo). Prioridade para o go-live:
 
-1. **Bloqueadores** (auditoria 2.1–2.3): corrigir crash de CSV/CNAE
-   (`Lead.name/cnpj/address` ausentes), completar requirements.txt (API e
-   workers) e parar a rajada da cadência no `auto_send_email`.
+1. **Bloqueadores**: corrigir crash de CSV/CNAE (`Lead.name/cnpj/address`
+   ausentes), completar requirements.txt (API e workers) e parar a rajada da
+   cadência no `auto_send_email`.
 2. **Prontidão mínima**: deploy (compose + proxy/TLS + README), smoke tests,
    backup pg_dump — antes de colocar a empresa para prospectar.
 3. **Eficácia**: kanban clicável, bounce handling, inbound STOP, gate de
@@ -598,16 +596,18 @@ A vistoria gerou a branch `fix/go-live-prep` com correções. Entregue até aqui
   compartilhado (5.1 parcial).
 
 Pendente de validação: rodar migrations em Postgres real, build das imagens
-Docker e o CI. Detalhes no `docs/auditoria.md`.
+Docker e o CI.
 
 ### Limpeza de docs (2026-08-04)
 
 Removidos da pasta `docs/` por estarem finalizados/superados: `roadmap.md`
 (→ `roadmap-combined.md`), `tracking.md` (→ `context.md`), `evolution-analysis.md`,
 `product-vision.md` (→ `roadmap-combined.md`), `interface.md`.
-Docs canônicas restantes: `context.md`, `architecture.md`, `business-rules.md`,
-`roadmap-combined.md`, `decisions.md`, `coding-standards.md`, `agents.md`,
-`auditoria.md` (nova).
+Em `2026-08-04` também foram removidos (todos os itens entregues): `roadmap-combined.md`
+(roadmap totalmente ✅) e `auditoria.md` (vistoria go-live); o vistoria está
+resumido acima em "Próximo passo imediato".
+Canônicas atuais: `context.md`, `architecture.md`, `business-rules.md`,
+`decisions.md`, `coding-standards.md`, `agents.md`.
 
 ### Eixo 3 — Fluxo de vendas "Apollo" (itens 9–12) ✅ (2026-08-04)
 
@@ -698,11 +698,28 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 - **`.env` na raiz** criado (gitignored): `DATABASE_URL`, `JWT_SECRET` gerado,
   placeholders vazios para `GROQ_API_KEY`/`GOOGLE_API_KEY`/`HUNTER_API_KEY`.
 - **venvs**: `services/workers/venv` e `services/api/venv` (deps instaladas).
-- **Migrations + seed**: `alembic upgrade head` OK (após correção da migration
-  `a5b6c7d8e9f0` — ver `docs/auditoria.md`); seed de 9 templates OK.
+- **Migrations + seed**: `alembic upgrade head` OK (após corrigir in-place o
+  backfill de `normalized_domain` da migration `a5b6c7d8e9f0` — ver seção
+  "Ambiente local sem root" abaixo); seed de 9 templates OK.
 - **Web**: `.env.local` com `NEXTAUTH_SECRET` (NextAuth JWT).
 - **`scripts/dev.sh`**: `start|stop|status` para Postgres + API + Web.
 - Usuário inicial criado: `admin@agente-prospeccao.com` (trocar a senha).
+
+### Sessão atual — grafo + limpeza de docs (2026-08-04)
+
+- **Grafo atualizado**: `graphify extract . --code-only && graphify cluster-only .`
+  → `graphify-out/graph.json` (1562 nós, 3813 arestas, 109 comunidades; backup
+  do grafo anterior em `graphify-out/backups/2026-08-04/`).
+- **Docs removidas**: `CLAUDE.MD` (apontava para `docs/roadmap.md` deletado e
+  estado da Fase 1), `docs/roadmap-combined.md` (100% entregue) e
+  `docs/auditoria.md` (vistoria go-live já aplicada). Referências a elas foram
+  removidas de `context.md` e `README.md`.
+- **`docs/architecture.md` reescrita** para o estado atual (orgs/papéis, BI+PDF,
+  CSV/CNAE, cadência+inbound, BYOK, WS com auth, endpointos reais).
+- **`docs/agents.md`**: caminho do grafo corrigido para `graphify-out/graph.json`
+  (era `.ua/knowledge-graph.json`); removido `/add` (convenção Claude).
+- **`docs/coding-standards.md`**: orquestração corrigida — exceção documentada
+  em `enrichment_orchestrator.py` (antes dizia "só no main.py").
 
 
 ## Como rodar

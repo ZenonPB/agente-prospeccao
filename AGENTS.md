@@ -6,7 +6,7 @@ Compact guidance for OpenCode sessions working in this repo. Read alongside `doc
 
 - **Use the knowledge graph first** (`graphify-out/graph.json`, gitignored — build it with `graphify extract . --code-only && graphify cluster-only . --no-label` if missing). Query it instead of grepping files: `graphify query "<question>"`, `graphify path "A" "B"`, `graphify explain "X"` (CLI installed via `python -m venv /tmp/opencode/graphify-venv && .../bin/pip install graphifyy`). Fall back to `docs/` when the graph is stale or absent.
 - `docs/context.md` is the canonical "live state" doc — read it first and **update it at the end of every session** (_Estado atual_ and _Próximo passo imediato_).
-- Then `docs/architecture.md`, `docs/business-rules.md`, and `docs/roadmap-combined.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes.
+- Then `docs/architecture.md` and `docs/business-rules.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes.
 - Load specialized skills with the `skill` tool before writing code: `frontend-design` & `vercel-react-best-practices` for `apps/web` work.
 - `apps/web/AGENTS.md` and the `CLAUDE.md` files carry package-specific rules — check them before editing that package.
 
