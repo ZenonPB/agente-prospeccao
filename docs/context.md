@@ -120,8 +120,17 @@
 - **Sidebar & Header**: Navegação em grupos ("Visão", "Operação", "Inteligência", "Gestão"), indicador ativo de barra lateral, e switcher de organizações aprimorado.
 - **Suporte a Temas Multi-Modo (Claro / Escuro / Alpha)**:
   - `.alpha` variante adicionada em `globals.css` baseada no tema da empresa juníor AlphaMec (`#4c0000`, `#630201`, `#ffffff`, `#7c0000`, `#910001`).
+  - Tema Alpha refinado para paleta harmônica (dark com vermelho profundo elegantente).
   - `ThemeProvider` estendido para aceitar `['light', 'dark', 'alpha']`.
   - Página `/configuracoes` permite alternância em tempo real entre os 3 temas com persistência em `localStorage` (`app-theme`).
+
+**Bugfixes de qualidade de dados e UI (2026-08-04):**
+- **Limite de coleta**: `campaign-pipeline.tsx` agora busca até **50 leads** por coleta (era 10).
+- **Mensagens de outreach**: botão "Gerar/Enviar mensagem" no detalhe do lead agora dispara a geração por IA ao abrir o modal (antes ficava vazio até clicar em gerar). Adicionado estado de loading.
+- **Perfis falsos (Instagram/LinkedIn)**: `contact_enrichment_service.py` agora NUNCA salva URL de LinkedIn não confirmada passivamente (removido fallback de confiança 45); `places_service.py` trata website que aponte para rede social (`is_social_domain`) como "sem site próprio" — evita análise técnica errada / score 0 / falso "tem site".
+- **Crash em Evidências**: `evidence-card.tsx` agora tolera `scoreFactors === null` (mostra estado vazio em vez de quebrar).
+- **Pitch genérico**: instruções do `pitch_angle`/`suggested_subject` no prompt de scoring reforçadas para exigirem ganchos FACTUAIS e específicos (nunca genéricos).
+- **Estimativa de leads**: texto hardcoded "45-60 leads" removido do wizard de campanha (substituído por orientação sobre o fluxo).
 
 **Segurança / CSP:**
 - `middleware.ts` (renomeado de proxy.ts) — proteção de rotas + CSP por ambiente

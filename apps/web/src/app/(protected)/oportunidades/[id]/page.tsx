@@ -173,6 +173,19 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
     toast.success(message);
   };
 
+  const handleOpenMessagesModal = async () => {
+    if (!lead) return;
+    setIsModalOpen(true);
+    if (!generatedMessages) {
+      try {
+        const msgs = await generateMessagesMutation.mutateAsync({ id: lead.id });
+        setGeneratedMessages(msgs);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Falha ao gerar mensagens com IA.');
+      }
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -228,9 +241,13 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               WhatsApp
             </a>
           )}
-          <Button className="h-10" onClick={() => setIsModalOpen(true)}>
-            <Mail className="mr-2 h-4 w-4" />
-            Enviar mensagem
+          <Button className="h-10" onClick={handleOpenMessagesModal} disabled={generateMessagesMutation.isPending}>
+            {generateMessagesMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Mail className="mr-2 h-4 w-4" />
+            )}
+            Gerar/Enviar mensagem
           </Button>
         </div>
       </div>
@@ -731,7 +748,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           <DialogHeader>
             <DialogTitle>Mensagem gerada para {lead.company_name}</DialogTitle>
           </DialogHeader>
-          {generatedMessages && (
+          {generateMessagesMutation.isPending ? (
+            <div className="flex flex-col items-center justify-center py-12 space-y-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">
+                Gerando sequência personalizada de outreach com IA...
+              </p>
+            </div>
+          ) : generatedMessages ? (
             <Tabs defaultValue="email" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="email">E-mail</TabsTrigger>
@@ -796,6 +820,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 )}
               </TabsContent>
             </Tabs>
+          ) : (
+            <div className="text-center py-6">
+              <p className="text-sm text-muted-foreground mb-4">Nenhuma mensagem gerada ainda.</p>
+              <Button onClick={handleOpenMessagesModal} disabled={generateMessagesMutation.isPending}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Gerar Mensagem com IA
+              </Button>
+            </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>Fechar</Button>

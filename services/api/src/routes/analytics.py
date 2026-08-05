@@ -122,7 +122,7 @@ def export_pdf(
     except RuntimeError as exc:
         raise HTTPException(
             status_code=503,
-            detail=str(exc),
+            detail=f"{exc}",
         ) from exc
 
     filename = f"relatorio-prospeccao-{from_date or 'inicio'}-{to_date or 'hoje'}.pdf"

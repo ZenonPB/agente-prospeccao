@@ -13,6 +13,7 @@ import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-m
 import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline-card';
 import { ReportControls, downloadBlob } from '@/components/relatorios/report-controls';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
+import { toast } from 'sonner';
 
 export default function RelatoriosPage() {
   const { data: membership, isLoading: loadingMembership } = useOrgMembership();
@@ -40,7 +41,11 @@ export default function RelatoriosPage() {
       const t = period.to || 'hoje';
       downloadBlob(blob, `relatorio-prospeccao-${f}-${t}.pdf`);
     } catch (err) {
-      console.error(err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Falha ao gerar o PDF. O runtime de renderização pode estar indisponível no servidor.';
+      toast.error(msg);
     }
   };
 

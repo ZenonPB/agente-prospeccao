@@ -426,8 +426,8 @@ class ContactEnrichmentService:
             except Exception:
                 self._linkedin_validated[cache_key] = False
 
-        # 2) Rate-limit/nenhuma evidência → retorna não validada com confidence baixa
-        return first_candidate, 45
+        # 2) Rate-limit/nenhuma evidência → NUNCA assume perfil se não foi confirmado passivamente
+        return None, 0
 
     # ------------------------------------------------------------------ #
     # Confidence e serialização

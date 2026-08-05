@@ -36,11 +36,32 @@ export function EvidenceCard({
   scoreFactors = [],
   evidence = [],
 }: EvidenceCardProps) {
-  const positives = scoreFactors.filter((f) => f.impact === '+');
-  const negatives = scoreFactors.filter((f) => f.impact === '-');
-  const sortedEvidence = [...evidence].sort(
+  // Garante que scoreFactors seja sempre um array válido
+  const validScoreFactors = Array.isArray(scoreFactors) ? scoreFactors : [];
+  const validEvidence = Array.isArray(evidence) ? evidence : [];
+  
+  const positives = validScoreFactors.filter((f) => f.impact === '+');
+  const negatives = validScoreFactors.filter((f) => f.impact === '-');
+  const sortedEvidence = [...validEvidence].sort(
     (a, b) => severityOrder.indexOf(a.severity) - severityOrder.indexOf(b.severity)
   );
+
+  // Se não há dados de scoring, mostra mensagem apropriada
+  if (validScoreFactors.length === 0 && validEvidence.length === 0 && !executiveSummary) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Análise e Evidências</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Este lead ainda não foi analisado ou não possui dados suficientes para scoring.
+            Execute o pipeline de coleta e enriquecimento para gerar a análise completa.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>

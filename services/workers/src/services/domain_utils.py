@@ -48,3 +48,14 @@ def normalize_domain(url: str | None) -> str | None:
     if domain in _SOCIAL_DOMAINS:
         return None
     return domain or None
+
+
+def is_social_domain(url: str | None) -> bool:
+    """Indica se a URL aponta para uma rede social/perfil genérico (sem site próprio)."""
+    if not url:
+        return False
+    domain = url.strip().lower()
+    domain = _SCHEME_RE.sub("", domain)
+    domain = _WWW_RE.sub("", domain)
+    domain = domain.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    return domain in _SOCIAL_DOMAINS

@@ -3,6 +3,7 @@ import httpx
 import re
 from typing import List, Dict, Optional
 from config.settings import settings
+from services.domain_utils import is_social_domain
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,15 @@ class GooglePlacesService:
         address = place.get("formattedAddress")
         address_info = self._parse_address(address)
 
+        # Se o website da empresa for uma rede social (sem site próprio),
+        # tratamos como SEM site — evita clonar perfil social falso, evitar
+        # análise técnica errada (score 0) e o lead não marca "tem site".
+        website = place.get("websiteUri")
+        website = website if website and not is_social_domain(website) else None
+
         return {
             "name": name,
-            "website": place.get("websiteUri"),
+            "website": website,
             "phone": place.get("nationalPhoneNumber"),
             "category": place.get("primaryTypeDisplayName", {}).get("text"),
             "full_address": address,

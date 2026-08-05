@@ -673,11 +673,10 @@ export default function NovaCampanhaPage() {
                 </dl>
               </div>
                   <div className="rounded-lg bg-muted p-4 text-sm">
-                    <p className="font-medium">Estimativa de leads disponíveis</p>
+                    <p className="font-medium">Próximos passos</p>
                     <p className="text-muted-foreground">
-                      Baseado em buscas similares, estimamos aproximadamente{' '}
-                      <span className="font-medium text-foreground">45-60 leads</span>{' '}
-                      nesta região para o segmento selecionado.
+                      Ao criar a campanha, o sistema iniciará a busca por empresas que correspondem ao segmento selecionado.
+                      Os leads encontrados serão automaticamente analisados e qualificados pela IA.
                     </p>
                   </div>
 
