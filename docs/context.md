@@ -760,6 +760,13 @@ o acesso a `http://localhost:3001` dava 500 ("Internal Server Error").
    (`next/dist/server/app-render/work-async-storage.external.js` — MODULE_NOT_FOUND).
    - Fix: `apps/web/next.config.ts` ganhou `turbopack: { root: __dirname }`; órfão
      `~/package-lock.json` removido; cache `.next/` limpo.
+   - CUIDADO: o órfão `~/package-lock.json` é reaparecia/estava lá com mtime antigo
+     — o `rm` inicial não chegou a rodar (timeout). Reconfirmado e removido.
+   - O cache persistente do Turbopack servia chunks corrompidos mesmo após
+     `stop/start`; `web_start` agora remove `~/.../apps/web/.next` antes de subir
+     (compilação sempre limpa). `turbopackFileSystemCacheForDev` existe no tipo TS
+     mas a validação do Next 16.2.10 NÃO a reconhece (warning "Invalid next.config")
+     — então não é usada; o `rm -rf .next` no start cobre.
    - API (separado): `SMTP_PORT=` (vazio) no `.env` sobrescrevia o default 587 e
      quebrava o pydantic no boot — setado para `587`.
 

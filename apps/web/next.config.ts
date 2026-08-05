@@ -5,7 +5,9 @@ const nextConfig: NextConfig = {
   // com server.js mínimo — não depende de node_modules no runtime.
   output: "standalone",
   reactStrictMode: true,
-  turbopack: { root: __dirname },
+  turbopack: {
+    root: __dirname,
+  },
 };
 
 export default nextConfig;
