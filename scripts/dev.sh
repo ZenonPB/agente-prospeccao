@@ -31,8 +31,12 @@ api_is_up() {
   [ -n "$(pgrep -f "uvicorn main:app.*$API_PORT" 2>/dev/null || true)" ]
 }
 
+port_pids() {
+  ss -ltnp 2>/dev/null | grep ":${1} " | grep -oP 'pid=\K[0-9]+' | sort -u || true
+}
+
 web_is_up() {
-  [ -n "$(pgrep -f "next.*dev" 2>/dev/null || true)" ]
+  [ -n "$(port_pids "$WEB_PORT")" ]
 }
 
 pg_start() {
@@ -42,6 +46,19 @@ pg_start() {
     "$PG_BIN/pg_ctl" -D "$PGDATA" -l "$PG_LOG" -o "-p 5432 -k /tmp -c listen_addresses=127.0.0.1" start
     echo "PostgreSQL iniciado (127.0.0.1:5432)."
   fi
+}
+
+# Espera uma porta TCP estar escutando (timeout em segundos, default 30).
+wait_for_up() {
+  local port="$1" label="$2" seconds="${WAIT_TIMEOUT:-30}" i
+  for i in $(seq 1 "$seconds"); do
+    if [ -n "$(port_pids "$port")" ]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "AVISO: $label não abriu a porta $port em ${seconds}s — verifique $3" >&2
+  return 1
 }
 
 api_start() {
@@ -60,7 +77,8 @@ web_start() {
     return
   fi
   cd "$REPO_ROOT/apps/web"
-  nohup npm run dev > "$WEB_LOG" 2>&1 &
+  setsid nohup npm run dev > "$WEB_LOG" 2>&1 < /dev/null &
+  disown 2>/dev/null || true
   echo "Web iniciando em http://localhost:$WEB_PORT (log: $WEB_LOG)"
 }
 
@@ -78,7 +96,14 @@ api_stop() {
 }
 
 web_stop() {
-  pkill -f "next.*dev" 2>/dev/null && echo "Web parada." || echo "Web não está rodando."
+  local pids
+  pids="$(port_pids "$WEB_PORT")"
+  if [ -n "$pids" ]; then
+    kill $pids 2>/dev/null || true
+    echo "Web parada."
+  else
+    echo "Web não está rodando."
+  fi
 }
 
 status() {
@@ -91,7 +116,9 @@ case "${1:-start}" in
   start)
     pg_start
     api_start
+    wait_for_up "$API_PORT" "API" "$API_LOG"
     web_start
+    wait_for_up "$WEB_PORT" "Web" "$WEB_LOG" || true
     echo
     status
     ;;

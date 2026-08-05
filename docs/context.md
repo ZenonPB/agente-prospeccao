@@ -747,6 +747,34 @@ Branch `feat/email-verification`. Fase 0 — entregabilidade:
 - ⚠️ Catch-all não implementado (probe SMTP é não-passivo — decisão de produto).
 
 
+### Bugfix — Web caía / 500 após `dev.sh stop && start` (2026-08-05)
+
+Sintoma: após `stop && start`, o web mostrava `rodando` e em seguida `PARADA`, e
+o acesso a `http://localhost:3001` dava 500 ("Internal Server Error").
+
+**Duas causas distintas corrigidas:**
+
+1. **Root errado do Turbopack** (500 ao carregar): um `package-lock.json` órfão em
+   `~/` fazia o Next 16 inferir o workspace root como `/home/aluno` em vez de
+   `apps/web`, quebrando a resolução de módulos do `next/*`
+   (`next/dist/server/app-render/work-async-storage.external.js` — MODULE_NOT_FOUND).
+   - Fix: `apps/web/next.config.ts` ganhou `turbopack: { root: __dirname }`; órfão
+     `~/package-lock.json` removido; cache `.next/` limpo.
+   - API (separado): `SMTP_PORT=` (vazio) no `.env` sobrescrevia o default 587 e
+     quebrava o pydantic no boot — setado para `587`.
+
+2. **`dev.sh` não reconhecia/derrubava o web** (web "PARADA" sem motivo): o
+   processo real do Next se chama `next-server (v1...)`, que NÃO casa com o
+   padrão `next.*dev` usado em `web_is_up`/`web_stop` (pgrep/pkill). Após um
+   `stop`, um `next-server` órfão ficava segurando a porta 3001, e o `start`
+   reportava "Web já está rodando" sem subir nada.
+   - Fix em `scripts/dev.sh`: detecção/parada passam a ser **por porta** via um
+     novo helper `port_pids()` (`ss -ltnp`), e `web_start` usa `setsid` para
+     desprender o processo. `api_is_up`/`web_is_up`/`status`/`stop` consistentes.
+
+Estado após a correção: Postgres, API (200 em `/docs`) e Web (200 → `/login`)
+subindo e estáveis via `scripts/dev.sh start`.
+
 ## Como rodar
 
 **Workers (backend):**
