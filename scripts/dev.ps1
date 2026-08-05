@@ -6,21 +6,28 @@
 
 param(
     [Parameter(Position=0)]
-    [ValidateSet('start', 'stop', 'status', 'restart')]
     [string]$Action = 'start'
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Continue'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 
-$API_PORT = if ($env:API_PORT) { $env:API_PORT } else { '8000' }
-$WEB_PORT = if ($env:WEB_PORT) { $env:WEB_PORT } else { '3001' }
+$API_PORT = '8000'
+$WEB_PORT = '3001'
+
+if ($env:API_PORT) {
+    $API_PORT = $env:API_PORT
+}
+if ($env:WEB_PORT) {
+    $WEB_PORT = $env:WEB_PORT
+}
 
 function Test-PostgresRunning {
     try {
-        $result = docker ps --filter "name=agente-prospeccao-db" --filter "status=running" --quiet
-        return -not [string]::IsNullOrEmpty($result)
-    } catch {
+        $result = docker ps --filter "name=agente-prospeccao-db" --filter "status=running" --quiet 2>$null
+        return ![string]::IsNullOrEmpty($result)
+    }
+    catch {
         return $false
     }
 }
@@ -29,7 +36,8 @@ function Test-ApiRunning {
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:$API_PORT/health" -Method Get -TimeoutSec 2 -ErrorAction SilentlyContinue
         return $response.StatusCode -eq 200
-    } catch {
+    }
+    catch {
         return $false
     }
 }
@@ -38,90 +46,83 @@ function Test-WebRunning {
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:$WEB_PORT" -Method Get -TimeoutSec 2 -ErrorAction SilentlyContinue
         return $response.StatusCode -eq 200
-    } catch {
+    }
+    catch {
         return $false
     }
 }
 
 function Start-Postgres {
     if (Test-PostgresRunning) {
-        Write-Host "✓ PostgreSQL já está rodando" -ForegroundColor Green
+        Write-Host "[OK] PostgreSQL já está rodando" -ForegroundColor Green
         return
     }
     
-    Write-Host "Iniciando PostgreSQL (Docker)..." -ForegroundColor Cyan
-    Push-Location $RepoRoot
-    try {
-        docker-compose up -d db
-        Start-Sleep -Seconds 3
-        if (Test-PostgresRunning) {
-            Write-Host "✓ PostgreSQL iniciado (localhost:5432)" -ForegroundColor Green
-        } else {
-            Write-Host "⚠ PostgreSQL não respondeu. Verifique 'docker-compose logs db'" -ForegroundColor Yellow
-        }
-    } finally {
-        Pop-Location
+    Write-Host "Iniciando PostgreSQL via Docker..." -ForegroundColor Cyan
+    Set-Location $RepoRoot
+    docker-compose up -d db
+    Start-Sleep -Seconds 3
+    
+    if (Test-PostgresRunning) {
+        Write-Host "[OK] PostgreSQL iniciado (localhost:5432)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[AVISO] PostgreSQL não respondeu. Execute: docker-compose logs db" -ForegroundColor Yellow
     }
 }
 
 function Start-Api {
     if (Test-ApiRunning) {
-        Write-Host "✓ API já está rodando" -ForegroundColor Green
+        Write-Host "[OK] API já está rodando" -ForegroundColor Green
         return
     }
     
     Write-Host "Iniciando API FastAPI..." -ForegroundColor Cyan
     $apiPath = Join-Path $RepoRoot "services\api"
-    Push-Location $apiPath
-    try {
-        # Verifica se venv existe
-        if (-not (Test-Path "venv\Scripts\activate.ps1")) {
-            Write-Host "⚠ venv não encontrado. Criando..." -ForegroundColor Yellow
-            python -m venv venv
-            .\venv\Scripts\pip install -r requirements.txt
-        }
-        
-        # Inicia API em background
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$apiPath'; .\venv\Scripts\activate; uvicorn main:app --host 0.0.0.0 --port $API_PORT" -WindowStyle Normal
-        Start-Sleep -Seconds 3
-        
-        if (Test-ApiRunning) {
-            Write-Host "✓ API iniciada em http://localhost:$API_PORT/docs" -ForegroundColor Green
-        } else {
-            Write-Host "⚠ API não respondeu. Verifique o terminal da API" -ForegroundColor Yellow
-        }
-    } finally {
-        Pop-Location
+    
+    if (!(Test-Path "$apiPath\venv")) {
+        Write-Host "Criando venv para API..." -ForegroundColor Yellow
+        Set-Location $apiPath
+        python -m venv venv
+        & "$apiPath\venv\Scripts\pip.exe" install -r requirements.txt
+    }
+    
+    $startCmd = "Set-Location '$apiPath'; & '$apiPath\venv\Scripts\activate.ps1'; uvicorn main:app --host 0.0.0.0 --port $API_PORT"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", $startCmd
+    Start-Sleep -Seconds 3
+    
+    if (Test-ApiRunning) {
+        Write-Host "[OK] API iniciada em http://localhost:$API_PORT/docs" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[AVISO] API não respondeu. Verifique o terminal da API" -ForegroundColor Yellow
     }
 }
 
 function Start-Web {
     if (Test-WebRunning) {
-        Write-Host "✓ Web já está rodando" -ForegroundColor Green
+        Write-Host "[OK] Web já está rodando" -ForegroundColor Green
         return
     }
     
     Write-Host "Iniciando Web (Next.js)..." -ForegroundColor Cyan
     $webPath = Join-Path $RepoRoot "apps\web"
-    Push-Location $webPath
-    try {
-        # Verifica se node_modules existe
-        if (-not (Test-Path "node_modules")) {
-            Write-Host "⚠ node_modules não encontrado. Instalando dependências..." -ForegroundColor Yellow
-            npm install
-        }
-        
-        # Inicia Web em background
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$webPath'; npm run dev" -WindowStyle Normal
-        Start-Sleep -Seconds 5
-        
-        if (Test-WebRunning) {
-            Write-Host "✓ Web iniciada em http://localhost:$WEB_PORT" -ForegroundColor Green
-        } else {
-            Write-Host "⚠ Web não respondeu. Verifique o terminal da Web" -ForegroundColor Yellow
-        }
-    } finally {
-        Pop-Location
+    
+    if (!(Test-Path "$webPath\node_modules")) {
+        Write-Host "Instalando dependências do Web..." -ForegroundColor Yellow
+        Set-Location $webPath
+        npm install
+    }
+    
+    $startCmd = "Set-Location '$webPath'; npm run dev"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", $startCmd
+    Start-Sleep -Seconds 5
+    
+    if (Test-WebRunning) {
+        Write-Host "[OK] Web iniciada em http://localhost:$WEB_PORT" -ForegroundColor Green
+    }
+    else {
+        Write-Host "[AVISO] Web não respondeu. Verifique o terminal da Web" -ForegroundColor Yellow
     }
 }
 
@@ -129,48 +130,49 @@ function Stop-Services {
     Write-Host "Parando serviços..." -ForegroundColor Cyan
     
     # Para Web (Node/Next)
-    $webProcesses = Get-Process -Name node -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*agente-prospeccao*" }
+    $webProcesses = Get-Process -Name node -ErrorAction SilentlyContinue
     if ($webProcesses) {
-        $webProcesses | Stop-Process -Force
-        Write-Host "✓ Web parada" -ForegroundColor Green
+        $webProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+        Write-Host "[OK] Web parada" -ForegroundColor Green
     }
     
     # Para API (Python/uvicorn)
-    $apiProcesses = Get-Process -Name python -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*uvicorn*" }
+    $apiProcesses = Get-Process -Name python -ErrorAction SilentlyContinue
     if ($apiProcesses) {
-        $apiProcesses | Stop-Process -Force
-        Write-Host "✓ API parada" -ForegroundColor Green
+        $apiProcesses | Stop-Process -Force -ErrorAction SilentlyContinue
+        Write-Host "[OK] API parada" -ForegroundColor Green
     }
     
     # Para PostgreSQL (Docker)
-    Push-Location $RepoRoot
-    try {
-        docker-compose stop db
-        Write-Host "✓ PostgreSQL parado" -ForegroundColor Green
-    } finally {
-        Pop-Location
-    }
+    Set-Location $RepoRoot
+    docker-compose stop db 2>$null
+    Write-Host "[OK] PostgreSQL parado" -ForegroundColor Green
 }
 
 function Show-Status {
-    Write-Host "`n=== Status dos Serviços ===" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "=== Status dos Servicos ===" -ForegroundColor Cyan
+    Write-Host ""
     
     if (Test-PostgresRunning) {
-        Write-Host "PostgreSQL:  ✓ Rodando (localhost:5432)" -ForegroundColor Green
-    } else {
-        Write-Host "PostgreSQL:  ✗ Parado" -ForegroundColor Red
+        Write-Host "PostgreSQL:  [OK] Rodando (localhost:5432)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "PostgreSQL:  [X] Parado" -ForegroundColor Red
     }
     
     if (Test-ApiRunning) {
-        Write-Host "API:         ✓ Rodando (http://localhost:$API_PORT)" -ForegroundColor Green
-    } else {
-        Write-Host "API:         ✗ Parada" -ForegroundColor Red
+        Write-Host "API:         [OK] Rodando (http://localhost:$API_PORT)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "API:         [X] Parada" -ForegroundColor Red
     }
     
     if (Test-WebRunning) {
-        Write-Host "Web:         ✓ Rodando (http://localhost:$WEB_PORT)" -ForegroundColor Green
-    } else {
-        Write-Host "Web:         ✗ Parada" -ForegroundColor Red
+        Write-Host "Web:         [OK] Rodando (http://localhost:$WEB_PORT)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "Web:         [X] Parada" -ForegroundColor Red
     }
     
     Write-Host ""
@@ -179,18 +181,22 @@ function Show-Status {
 # Executa ação solicitada
 switch ($Action) {
     'start' {
-        Write-Host "`n=== Iniciando Agente Prospecção ===" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "=== Iniciando Agente Prospeccao ===" -ForegroundColor Cyan
+        Write-Host ""
         Start-Postgres
         Start-Sleep -Seconds 2
         Start-Api
         Start-Sleep -Seconds 2
         Start-Web
-        Write-Host ""
         Show-Status
-        Write-Host "Pressione Ctrl+C nas janelas abertas para parar os serviços" -ForegroundColor Yellow
+        Write-Host "Pressione Ctrl+C nas janelas abertas para parar os servicos" -ForegroundColor Yellow
+        Write-Host ""
     }
     'stop' {
-        Write-Host "`n=== Parando Agente Prospecção ===" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "=== Parando Agente Prospeccao ===" -ForegroundColor Cyan
+        Write-Host ""
         Stop-Services
         Write-Host ""
     }
@@ -198,7 +204,9 @@ switch ($Action) {
         Show-Status
     }
     'restart' {
-        Write-Host "`n=== Reiniciando Agente Prospecção ===" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "=== Reiniciando Agente Prospeccao ===" -ForegroundColor Cyan
+        Write-Host ""
         Stop-Services
         Start-Sleep -Seconds 3
         Start-Postgres
@@ -206,7 +214,11 @@ switch ($Action) {
         Start-Api
         Start-Sleep -Seconds 2
         Start-Web
-        Write-Host ""
         Show-Status
+    }
+    default {
+        Write-Host ""
+        Write-Host "Uso: .\scripts\dev.ps1 {start|stop|status|restart}" -ForegroundColor Yellow
+        Write-Host ""
     }
 }
