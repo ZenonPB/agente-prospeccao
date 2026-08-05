@@ -57,6 +57,8 @@ def _contact_to_dict(c: Contact) -> dict:
         "phone": c.phone,
         "document_cpf": c.document_cpf,
         "confidence": c.confidence,
+        "email_verified": getattr(c, "email_verified", False),
+        "email_verified_at": c.email_verified_at.isoformat() if getattr(c, "email_verified_at", None) else None,
         "linkedin_url": c.linkedin_url,
         "linkedin_confidence": c.linkedin_confidence,
         "is_primary": c.is_primary,

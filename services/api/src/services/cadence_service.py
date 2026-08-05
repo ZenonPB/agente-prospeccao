@@ -313,9 +313,10 @@ def _recipient_email(lead: Optional[Lead], require_verified: bool = False) -> Op
     for c in lead.contacts or []:
         if not c.email:
             continue
-        # Item 3.6: e-mail heurístico não é destinatário válido de envio
-        # automático (humano pode enviar após confirmar manualmente).
-        if require_verified and (c.raw_data or {}).get("email_source") == "heuristic":
+        # Roadmap 4.1: envio automático (scheduler) exige e-mail com
+        # entregabilidade passiva confirmada (`email_verified`). E-mail
+        # heurístico/não verificado só sai por ação humana explícita.
+        if require_verified and not getattr(c, "email_verified", False):
             continue
         return c.email
     return None

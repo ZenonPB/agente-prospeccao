@@ -481,6 +481,11 @@ class Contact(Base):
     phone = Column(String(50))
     document_cpf = Column(String(20))
     confidence = Column(Integer, default=0)
+    # Roadmap 4.1 — verificação passiva de entregabilidade do e-mail (MX + blocklist).
+    # `email_verified=True` só após MX presente; e-mail heurístico/descartável
+    # ou sem MX fica False e nunca cruza o gate de envio automático.
+    email_verified = Column(Boolean, nullable=False, server_default="false", default=False)
+    email_verified_at = Column(DateTime(timezone=True))
     # Fase 3.4 — canal LinkedIn do decisor (busca passiva + validação HEAD).
     linkedin_url = Column(String(255))
     linkedin_confidence = Column(Integer, default=0)

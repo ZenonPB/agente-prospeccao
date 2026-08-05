@@ -54,6 +54,8 @@ export interface ContactItem {
   phone?: string;
   document_cpf?: string;
   confidence?: number;
+  email_verified?: boolean;
+  email_verified_at?: string;
   linkedin_url?: string;
   linkedin_confidence?: number;
   is_primary?: boolean;
