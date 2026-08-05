@@ -502,6 +502,17 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.email || '', 'E-mail copiado.')} aria-label="Copiar e-mail">
                               <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                             </Button>
+                            {contact.email_verified ? (
+                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                                <ShieldCheck className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+                                E-mail verificado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                                <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />
+                                Não verificado
+                              </Badge>
+                            )}
                           </div>
                         )}
                         {contact.phone && (

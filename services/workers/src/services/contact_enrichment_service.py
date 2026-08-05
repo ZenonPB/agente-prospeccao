@@ -27,6 +27,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -163,6 +164,8 @@ class ContactEnrichmentService:
         async with self._create_client() as client:
             for contact in existing[:max_contacts]:
                 await self._enrich_email(client, contact, lead)
+                if contact.email:
+                    await self._verify_email(client, contact)
                 await self._enrich_linkedin(client, contact, lead)
                 contact.confidence = self._recalc_confidence(contact)
                 results.append(self._contact_to_dict(contact))
@@ -260,6 +263,41 @@ class ContactEnrichmentService:
                 "email_source": "heuristic",
                 "email_verified": False,
             }
+
+    async def _verify_email(
+        self, client: httpx.AsyncClient, contact: Contact,
+    ) -> None:
+        """Verifica a entregabilidade passiva do e-mail (roadmap 4.1).
+
+        - E-mail **heurístico** (adivinhado) NUNCA é marcado verificado: mesmo
+          que o domínio tenha MX, o padrão `nome.sobrenome@dominio` não foi
+          confirmado — exige validação humana (evita bounce em massa).
+        - Demais fontes (Hunter/CNPJ/site): marca `email_verified=True` só se
+          o domínio tiver MX e não for descartável (fail-closed).
+        - Guarda `email_mx`/`email_verify_reason` em `raw_data` para auditoria.
+        """
+        from services.email_verification_service import EmailVerificationService
+
+        contact.raw_data = contact.raw_data or {}
+        is_heuristic = contact.raw_data.get("email_source") == "heuristic"
+        if is_heuristic:
+            # Adivinhado: não comprova a caixa — mantém email_verified False.
+            if not hasattr(contact, "email_verified"):
+                return
+            contact.email_verified = False
+            return
+
+        if not hasattr(contact, "email_verified"):
+            return
+        result = await EmailVerificationService().verify_email(contact.email, client=client)
+        contact.raw_data = {
+            **contact.raw_data,
+            "email_mx": result.get("mx"),
+            "email_verify_reason": result.get("reason"),
+        }
+        if result.get("verified"):
+            contact.email_verified = True
+            contact.email_verified_at = datetime.now(timezone.utc)
 
     async def _email_from_hunter(
         self, client: httpx.AsyncClient, contact: Contact, lead: Lead,
@@ -459,6 +497,8 @@ class ContactEnrichmentService:
             "phone": c.phone,
             "document_cpf": c.document_cpf,
             "confidence": c.confidence,
+            "email_verified": c.email_verified if hasattr(c, "email_verified") else False,
+            "email_verified_at": c.email_verified_at.isoformat() if hasattr(c, "email_verified_at") and c.email_verified_at else None,
             "linkedin_url": c.linkedin_url,
             "linkedin_confidence": c.linkedin_confidence,
             "is_primary": c.is_primary,

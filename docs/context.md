@@ -6,6 +6,8 @@
 
 1. `docs/architecture.md` — estrutura do sistema, stack, serviços, modelo de dados
 2. `docs/business-rules.md` — regras de negócio, pipeline, status dos leads
+3. `docs/roadmap-vendas.md` — **mapa e norte de evolução** para uso comercial da EJ
+   (entregabilidade, WhatsApp, dados, gestão/BI, LGPD, confiabilidade, multi-org)
 
 ## Consulte antes de modificar
 
@@ -720,6 +722,29 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
   (era `.ua/knowledge-graph.json`); removido `/add` (convenção Claude).
 - **`docs/coding-standards.md`**: orquestração corrigida — exceção documentada
   em `enrichment_orchestrator.py` (antes dizia "só no main.py").
+- **`docs/roadmap-vendas.md` (novo)**: mapa-norte de evolução para a EJ —
+  diagnóstico do multi-org/papéis (gaps: criar/renomear org, onboarding de
+  convidado sem conta, remover/transferir membro, metas/forecast) + backlog
+  completo de entregabilidade, WhatsApp, dados, gestão, LGPD e confiabilidade.
+  Regra preservada: **CONSULTOR mantém autonomia de criar/gerenciar campanhas**.
+
+### Entregável 1 — Verificação de e-mail (roadmap-vendas 4.1) ✅ (2026-08-04)
+
+Branch `feat/email-verification`. Fase 0 — entregabilidade:
+- `EmailVerificationService` (`services/workers/src/services/email_verification_service.py`):
+  sintaxe + blocklist de domínios descartáveis + **MX via Cloudflare DoH**
+  (sem dependência nova); fail-closed.
+- Migration `c7d8e9f0a1b2`: `contacts.email_verified` (default false) +
+  `contacts.email_verified_at`.
+- `contact_enrichment_service` roda a verificação após o e-mail; **heurístico
+  nunca é marcado verificado** (padrão não comprovado). Badge "E-mail
+  verificado"/"Não verificado" na aba Contatos (`email_verified`/
+  `email_verified_at` expostos em `_contact_to_dict` da API e workers).
+- `cadence_service:_recipient_email`: envio **automático** exige
+  `email_verified=True` (fail-closed para dados legados sem o campo).
+- Verificado: `py_compile` OK; `tsc --noEmit` limpo; smoke test real (MX
+  gmail → verificado; domínio inexistente/descartável/sintaxe → não verificado).
+- ⚠️ Catch-all não implementado (probe SMTP é não-passivo — decisão de produto).
 
 
 ## Como rodar
