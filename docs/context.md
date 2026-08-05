@@ -132,6 +132,17 @@
 - **Pitch genérico**: instruções do `pitch_angle`/`suggested_subject` no prompt de scoring reforçadas para exigirem ganchos FACTUAIS e específicos (nunca genéricos).
 - **Estimativa de leads**: texto hardcoded "45-60 leads" removido do wizard de campanha (substituído por orientação sobre o fluxo).
 
+**Coleta incremental + PDF no Windows (2026-08-04):**
+- **Coleta de leads NOVOS por rodada**:
+  - `places_service.search_places(query, max_results, exclude_place_ids=None)` agora aceita um conjunto de `place_id`s já coletados e os filtra ANTES de paginar — cada rodada traz leads realmente inéditos, sem gastar páginas da API com já conhecidos.
+  - `pipeline_worker.py` consulta os `place_id`s já salvos da organização e repassa ao `search_places`. Mantém a dedup por `place_id`/`company_name+website`/`normalized_domain` como rede de segurança.
+  - Teto de 6 páginas (`max_pages`) por rodada para não estourar custo da API quando quase tudo já foi coletado.
+  - Padrão do botão de coleta: **20 leads por rodada** (`campaign-pipeline.tsx`).
+- **PDF funcionando no Windows**:
+  - Causa do erro 500: dois runtimes GTK na máquina — `GTK3-Runtime Win64` (Pango 1.50, com `pango_context_set_round_glyph_positions`) e `Gtk-Runtime` (Pango 1.43, sem o símbolo exigido pelo WeasyPrint 61+). O Windows carregava a Pango antiga → `AttributeError` → 503/erro de fetch no export.
+  - Fix: `pdf_report_service._setup_windows_gtk()` agora adiciona TODOS os diretórios GTK válidos via `os.add_dll_directory` e precede `GTK3-Runtime Win64\bin` no `PATH` do processo (precedência da versão nova).
+  - Testado: `_setup_windows_gtk()` + WeasyPrint renderiza PDF (3736+ bytes).
+
 **Segurança / CSP:**
 - `middleware.ts` (renomeado de proxy.ts) — proteção de rotas + CSP por ambiente
   - Dev: `'unsafe-eval'` + `'unsafe-inline'` para HMR

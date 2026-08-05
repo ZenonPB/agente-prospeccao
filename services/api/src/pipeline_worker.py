@@ -171,9 +171,25 @@ async def run_pipeline(
 
             places_service = GooglePlacesService(api_key=goog_key)
 
+            # Coleta incremental: place_ids já salvos na organização são
+            # excluídos ANTES da paginação, para que cada rodada traga leads
+            # realmente novos (e não gaste páginas da API com já coletados).
+            org_id = campaign.organization_id if campaign else None
+            existing_ids = [
+                row[0] for row in db.query(Lead.place_id)
+                .filter(Lead.organization_id == org_id)
+                .all()
+                if row[0]
+            ]
+            existing_ids_set = set(existing_ids)
+
             yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
 
-            results = await places_service.search_places(query, max_results=max_leads)
+            results = await places_service.search_places(
+                query,
+                max_results=max_leads,
+                exclude_place_ids=existing_ids_set,
+            )
 
             logger.info("Pipeline collected %d results", len(results))
             yield {"type": "log", "message": f"{len(results)} estabelecimentos encontrados", "timestamp": _ts()}
