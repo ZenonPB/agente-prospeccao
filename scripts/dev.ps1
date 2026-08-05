@@ -24,8 +24,8 @@ if ($env:WEB_PORT) {
 
 function Test-PostgresRunning {
     try {
-        $result = docker ps --filter "name=agente-prospeccao-db" --filter "status=running" --quiet 2>$null
-        return ![string]::IsNullOrEmpty($result)
+        $service = Get-Service -Name "*postgres*" -ErrorAction SilentlyContinue
+        return $service -and $service.Status -eq 'Running'
     }
     catch {
         return $false
@@ -54,20 +54,19 @@ function Test-WebRunning {
 
 function Start-Postgres {
     if (Test-PostgresRunning) {
-        Write-Host "[OK] PostgreSQL já está rodando" -ForegroundColor Green
+        Write-Host "[OK] PostgreSQL ja esta rodando (Servico do Windows)" -ForegroundColor Green
         return
     }
     
-    Write-Host "Iniciando PostgreSQL via Docker..." -ForegroundColor Cyan
-    Set-Location $RepoRoot
-    docker-compose up -d db
-    Start-Sleep -Seconds 3
+    Write-Host "Iniciando Servico do PostgreSQL..." -ForegroundColor Cyan
+    Start-Service -Name "postgresql-x64-16" -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 2
     
     if (Test-PostgresRunning) {
         Write-Host "[OK] PostgreSQL iniciado (localhost:5432)" -ForegroundColor Green
     }
     else {
-        Write-Host "[AVISO] PostgreSQL não respondeu. Execute: docker-compose logs db" -ForegroundColor Yellow
+        Write-Host "[AVISO] PostgreSQL nao respondeu. Verifique os Servicos do Windows" -ForegroundColor Yellow
     }
 }
 
@@ -143,10 +142,8 @@ function Stop-Services {
         Write-Host "[OK] API parada" -ForegroundColor Green
     }
     
-    # Para PostgreSQL (Docker)
-    Set-Location $RepoRoot
-    docker-compose stop db 2>$null
-    Write-Host "[OK] PostgreSQL parado" -ForegroundColor Green
+    # Para PostgreSQL (opcional)
+    Write-Host "[INFO] Mantendo PostgreSQL rodando (Servico do Windows)" -ForegroundColor Gray
 }
 
 function Show-Status {
