@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { ShieldAlert, BarChart3, Loader2 } from 'lucide-react';
+import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { PageHeader } from '@/components/ui/page-header';
 import { useOrgMembership } from '@/hooks/use-api';
 import { useAnalyticsOverview, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
@@ -12,6 +13,7 @@ import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-m
 import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline-card';
 import { ReportControls, downloadBlob } from '@/components/relatorios/report-controls';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
+import { toast } from 'sonner';
 
 export default function RelatoriosPage() {
   const { data: membership, isLoading: loadingMembership } = useOrgMembership();
@@ -39,7 +41,11 @@ export default function RelatoriosPage() {
       const t = period.to || 'hoje';
       downloadBlob(blob, `relatorio-prospeccao-${f}-${t}.pdf`);
     } catch (err) {
-      console.error(err);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Falha ao gerar o PDF. O runtime de renderização pode estar indisponível no servidor.';
+      toast.error(msg);
     }
   };
 
@@ -70,17 +76,11 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <BarChart3 className="h-6 w-6 text-muted-foreground" />
-            Relatórios
-          </h1>
-          <p className="text-muted-foreground">
-            Inteligência comercial da operação de prospecção · {membership?.organization?.name}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Inteligência"
+        title="Relatórios"
+        description={`Visão executiva da operação · ${membership?.organization?.name || 'sua organização'}`}
+      />
 
       <ReportControls
         period={period}

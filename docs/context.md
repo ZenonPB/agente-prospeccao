@@ -109,6 +109,40 @@
 - `apps/web/src/hooks/use-api.ts` — `useGenerateMessages` (useMutation sem invalidate)
 - Modal Dialog com Tabs (E-mail, Follow-ups, WhatsApp) e botões de cópia
 
+**Reformulação UI/UX (Branch `feat/ui-ux-revamp`):**
+- **Sistemas de Design & Tipografia**: Fontes `Inter` (sans) + `Space Grotesk` (display) + `Geist Mono` (mono). Paleta de cores renovada em OKLCH com dark mode adaptativo.
+- **Componentes Globais de Layout**:
+  - `BrandMark`: Ícone de radar (sinal de oportunidade) customizado em SVG.
+  - `AuthShell`: Layout dividido para páginas de autenticação com cartão explicativo do produto.
+  - `PageHeader`: Cabeçalho padronizado com sobrancelha, título font-heading, descrição e slot de ações.
+  - `EmptyState`: Componente para listas sem itens com ícones e chamadas para ação.
+- **Páginas Refatoradas**: Dashboard, Campanhas, Oportunidades, Negociações (Kanban), Relatórios, Equipe, Configurações e Auth (Login, Register, Esqueci/Resetar Senha, Aceitar Convite).
+- **Sidebar & Header**: Navegação em grupos ("Visão", "Operação", "Inteligência", "Gestão"), indicador ativo de barra lateral, e switcher de organizações aprimorado.
+- **Suporte a Temas Multi-Modo (Claro / Escuro / Alpha)**:
+  - `.alpha` variante adicionada em `globals.css` baseada no tema da empresa juníor AlphaMec (`#4c0000`, `#630201`, `#ffffff`, `#7c0000`, `#910001`).
+  - Tema Alpha refinado para paleta harmônica (dark com vermelho profundo elegantente).
+  - `ThemeProvider` estendido para aceitar `['light', 'dark', 'alpha']`.
+  - Página `/configuracoes` permite alternância em tempo real entre os 3 temas com persistência em `localStorage` (`app-theme`).
+
+**Bugfixes de qualidade de dados e UI (2026-08-04):**
+- **Limite de coleta**: `campaign-pipeline.tsx` agora busca até **50 leads** por coleta (era 10).
+- **Mensagens de outreach**: botão "Gerar/Enviar mensagem" no detalhe do lead agora dispara a geração por IA ao abrir o modal (antes ficava vazio até clicar em gerar). Adicionado estado de loading.
+- **Perfis falsos (Instagram/LinkedIn)**: `contact_enrichment_service.py` agora NUNCA salva URL de LinkedIn não confirmada passivamente (removido fallback de confiança 45); `places_service.py` trata website que aponte para rede social (`is_social_domain`) como "sem site próprio" — evita análise técnica errada / score 0 / falso "tem site".
+- **Crash em Evidências**: `evidence-card.tsx` agora tolera `scoreFactors === null` (mostra estado vazio em vez de quebrar).
+- **Pitch genérico**: instruções do `pitch_angle`/`suggested_subject` no prompt de scoring reforçadas para exigirem ganchos FACTUAIS e específicos (nunca genéricos).
+- **Estimativa de leads**: texto hardcoded "45-60 leads" removido do wizard de campanha (substituído por orientação sobre o fluxo).
+
+**Coleta incremental + PDF no Windows (2026-08-04):**
+- **Coleta de leads NOVOS por rodada**:
+  - `places_service.search_places(query, max_results, exclude_place_ids=None)` agora aceita um conjunto de `place_id`s já coletados e os filtra ANTES de paginar — cada rodada traz leads realmente inéditos, sem gastar páginas da API com já conhecidos.
+  - `pipeline_worker.py` consulta os `place_id`s já salvos da organização e repassa ao `search_places`. Mantém a dedup por `place_id`/`company_name+website`/`normalized_domain` como rede de segurança.
+  - Teto de 6 páginas (`max_pages`) por rodada para não estourar custo da API quando quase tudo já foi coletado.
+  - Padrão do botão de coleta: **20 leads por rodada** (`campaign-pipeline.tsx`).
+- **PDF funcionando no Windows**:
+  - Causa do erro 500: dois runtimes GTK na máquina — `GTK3-Runtime Win64` (Pango 1.50, com `pango_context_set_round_glyph_positions`) e `Gtk-Runtime` (Pango 1.43, sem o símbolo exigido pelo WeasyPrint 61+). O Windows carregava a Pango antiga → `AttributeError` → 503/erro de fetch no export.
+  - Fix: `pdf_report_service._setup_windows_gtk()` agora adiciona TODOS os diretórios GTK válidos via `os.add_dll_directory` e precede `GTK3-Runtime Win64\bin` no `PATH` do processo (precedência da versão nova).
+  - Testado: `_setup_windows_gtk()` + WeasyPrint renderiza PDF (3736+ bytes).
+
 **Segurança / CSP:**
 - `middleware.ts` (renomeado de proxy.ts) — proteção de rotas + CSP por ambiente
   - Dev: `'unsafe-eval'` + `'unsafe-inline'` para HMR
@@ -603,6 +637,54 @@ Pacote de melhorias de execução de vendas sobre a branch `fix/go-live-prep`:
 
 **Verificação:** `tsc --noEmit` limpo, `npm run lint` limpo, `npm run build` OK,
 `py_compile` do `routes/leads.py` OK. Testes pytest requerem venv (não instalado).
+
+### Bugfix — contrato `role` maiúsculo (2026-08-04)
+
+- Sintoma: usuário owner via "Apenas o dono ou administrador..." na página de
+  membros e no toggle de envio automático; não conseguia gerenciar nada.
+- Causa: o backend serializava `OrganizationRole` pelo valor do enum no banco
+  (`"owner"`/`"admin"`/`"member"`, minúsculo), mas o tipo TS `OrgRole` e todas
+  as comparações do frontend usam maiúsculo (`'OWNER'`/`'ADMIN'`). Com isso
+  `canManage` nunca era verdadeiro para o próprio dono. Criação de convite
+  também enviava `"MEMBER"` maiúsculo, rejeitado pelo Pydantic.
+- Fix: `routes/orgs.py` (`_member_dict`, `/orgs/me`, `/orgs/my-organizations`)
+  e `routes/invites.py` (`_invite_dict`, aceite) passam a serializar `role` com
+  `enum.name` (OWNER/ADMIN/MEMBER). `CreateInviteRequest.role` ganhou
+  `field_validator` que aceita maiúsculo e minúsculo. `SalesRole` já era
+  maiúsculo — inalterado. Banco continua com valores minúsculos (nada a migrar).
+- Testado via API real: `/orgs/me` → `"role":"OWNER"`; convite com `"MEMBER"` → 200.
+
+### Bugfix — colisão `normalized_domain` de redes sociais (2026-08-04)
+
+- Ao coletar campanha (ex.: crossfit em Araraquara), negócios sem site próprio
+  têm `website` = perfil social (Instagram/Facebook) e todos normalizavam para
+  `normalized_domain='instagram.com'`, violando `uq_leads_org_normalized_domain`
+  e fazendo o batch inteiro falhar (rollback, 0 leads salvos).
+- Fix: `domain_utils.normalize_domain` agora retorna `None` para domínios sociais
+  genéricos (`_SOCIAL_DOMAINS`: instagram/facebook/linkedin/x/twitter/youtube/
+  wa.me/whatsapp/linktr.ee/tiktok/behance/medium/blogspot/wixsite/business.site),
+  mantendo a dedupe por `place_id`/CNPJ e por domínio próprio. Testes
+  `test_domain_utils.py` ampliados (8 passando).
+
+### Ambiente local sem root — sessão atual (2026-08-04)
+
+Máquina de trabalho (usuário `aluno`, sem sudo/Docker) — ambiente inicializado
+de novo nesta sessão:
+
+- **Grafo do código gerado**: `graphify-out/graph.json` (1543 nós, 3676 arestas,
+  117 comunidades) via `graphify extract . --code-only && graphify cluster-only . --no-label`.
+  CLI em `/tmp/opencode/graphify-venv`. Relatório: `graphify-out/GRAPH_REPORT.md`.
+- **`scripts/setup.sh` rodado com sucesso (idempotente, sem root)**:
+  - PostgreSQL 16 embarcado (zonky) em `~/.local/agente-prospeccao` — 127.0.0.1:5432
+  - venvs `services/workers/venv` + `services/api/venv` com requirements instalados
+  - `.env` na raiz criado (JWT_SECRET gerado; chaves de API vazias)
+  - banco `agente_prospeccao` criado; `alembic upgrade head` OK (todas as migrations até `b6c7d8e9f0a1`)
+  - seed de 9 templates de scoring OK; `apps/web/.env.local` + `npm ci` OK
+- **`scripts/dev.sh start` no ar**: PostgreSQL, API (`/health` → `{"status":"ok","database":"ok"}`)
+  e Web (login em `http://localhost:3001`, 200).
+
+Pendente: preencher `GROQ_API_KEY` e `GOOGLE_API_KEY` no `.env` da raiz (e
+`HUNTER_API_KEY` opcional) e reiniciar a API para coletar/qualificar leads.
 
 ### Ambiente local sem root (2026-08-04)
 

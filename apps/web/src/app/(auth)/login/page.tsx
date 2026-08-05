@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,12 +49,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="border-border/60 shadow-sm">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Agente Prospecção</CardTitle>
+          <CardTitle className="font-heading text-2xl font-semibold tracking-tight">
+            Entrar
+          </CardTitle>
           <CardDescription>
-            Encontre e qualifique leads automaticamente
+            Acesse seu radar de oportunidades
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -106,12 +109,12 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground">
             Não tem conta?{' '}
-            <Link href="/register" className="text-primary hover:underline">
-              Cadastre-se
+            <Link href="/register" className="font-medium text-primary hover:underline">
+              Cadastre-se grátis
             </Link>
           </p>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

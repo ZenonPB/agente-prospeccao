@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertCircle, RefreshCw, CheckCheck, X, Download, UserPlus, User } from 'lucide-react';
+import { Search, AlertCircle, RefreshCw, CheckCheck, X, Download, UserPlus, User, Target } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import {
@@ -15,6 +15,7 @@ import {
 } from '@/hooks/use-api';
 import type { Lead } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
@@ -147,6 +148,32 @@ export function LeadList() {
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('score_desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [presetFilter, setPresetFilter] = useState<'all' | 'hot' | 'qualified' | 'my_leads'>('all');
+  const [minScoreFilter, setMinScoreFilter] = useState<number | undefined>(undefined);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [myLeadsOnly, setMyLeadsOnly] = useState<boolean>(false);
+
+  // Quick preset handler
+  const handlePreset = (preset: 'all' | 'hot' | 'qualified' | 'my_leads') => {
+    setPresetFilter(preset);
+    if (preset === 'hot') {
+      setMinScoreFilter(80);
+      setStatusFilter(undefined);
+      setMyLeadsOnly(false);
+    } else if (preset === 'qualified') {
+      setMinScoreFilter(60);
+      setStatusFilter('QUALIFICADO');
+      setMyLeadsOnly(false);
+    } else if (preset === 'my_leads') {
+      setMinScoreFilter(undefined);
+      setStatusFilter(undefined);
+      setMyLeadsOnly(true);
+    } else {
+      setMinScoreFilter(undefined);
+      setStatusFilter(undefined);
+      setMyLeadsOnly(false);
+    }
+  };
 
   // Debounce (300ms) para não disparar uma query por tecla digitada (item 4.9).
   useEffect(() => {
@@ -160,6 +187,9 @@ export function LeadList() {
   const { data, isLoading, isError, error, refetch } = useLeads({
     search: debouncedSearch || undefined,
     campaign_id: campaignFilter !== 'all' ? campaignFilter : undefined,
+    min_score: minScoreFilter,
+    status: statusFilter,
+    assigned: myLeadsOnly && currentUserId ? currentUserId : undefined,
   });
 
   const leads = data?.leads || [];
@@ -235,6 +265,47 @@ export function LeadList() {
 
   return (
     <div className="space-y-4">
+      {/* Presets Rápidos */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+          Filtros Rápidos:
+        </span>
+        <Button
+          variant={presetFilter === 'all' ? 'default' : 'outline'}
+          size="sm"
+          className="h-8 rounded-full text-xs font-medium"
+          onClick={() => handlePreset('all')}
+        >
+          Todos os leads
+        </Button>
+        <Button
+          variant={presetFilter === 'hot' ? 'default' : 'outline'}
+          size="sm"
+          className="h-8 rounded-full text-xs font-medium"
+          onClick={() => handlePreset('hot')}
+        >
+          🔥 Leads Quentes (80+)
+        </Button>
+        <Button
+          variant={presetFilter === 'qualified' ? 'default' : 'outline'}
+          size="sm"
+          className="h-8 rounded-full text-xs font-medium"
+          onClick={() => handlePreset('qualified')}
+        >
+          ✅ Aptos para Contato
+        </Button>
+        {currentUserId && (
+          <Button
+            variant={presetFilter === 'my_leads' ? 'default' : 'outline'}
+            size="sm"
+            className="h-8 rounded-full text-xs font-medium"
+            onClick={() => handlePreset('my_leads')}
+          >
+            👤 Meus Leads
+          </Button>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 sm:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -359,7 +430,11 @@ export function LeadList() {
           </CardContent>
         </Card>
       ) : sortedLeads.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">Nenhum lead encontrado</div>
+        <EmptyState
+          icon={<Target className="h-5 w-5" aria-hidden="true" />}
+          title="Nenhum lead encontrado"
+          description="Nenhuma oportunidade atende aos filtros selecionados. Tente ajustar a busca ou os status."
+        />
       ) : (
         <>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

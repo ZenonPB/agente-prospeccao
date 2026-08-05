@@ -75,9 +75,9 @@ export function CampaignPipeline({
       const result =
         startMode === 'reanalyze'
           ? await reanalyzeCampaign.mutateAsync(campaignId)
-          : await startPipeline.mutateAsync({
+: await startPipeline.mutateAsync({
               campaign_id: campaignId,
-              max_leads: 10,
+              max_leads: 20,
             });
 
       const ws = createPipelineWs(result.job_id);

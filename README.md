@@ -40,29 +40,19 @@ docs/              — documentação em português (context, architecture, audi
 
 ## Rodando em desenvolvimento
 
-### Opção A — Setup automático sem root (máquina sem sudo/Docker)
+### Opção A — Windows (PowerShell)
 
-Ideal para o PC da empresa. Baixa um PostgreSQL embarcado (binários zonky,
-só do usuário, em `~/.local/agente-prospeccao`), cria venvs, `.env` com
-`JWT_SECRET` gerado, banco, migrations, seed e o `.env.local` do NextAuth:
+Execute o script `scripts/dev.ps1` no PowerShell:
 
-```bash
-scripts/setup.sh      # idempotente — pode rodar de novo sem medo
-scripts/dev.sh start  # sobe Postgres + API (:8000) + Web (:3001)
+```powershell
+.\scripts\dev.ps1 start    # Sobe PostgreSQL (Docker), API (:8000) e Web (:3001)
+.\scripts\dev.ps1 status   # Verifica se tudo está rodando
+.\scripts\dev.ps1 stop     # Para todos os serviços
 ```
 
-Acesse `http://localhost:3001` e **crie sua conta em `/register`**. Depois
-preencha `GROQ_API_KEY` e `GOOGLE_API_KEY` no `.env` da raiz e reinicie:
-`scripts/dev.sh stop && scripts/dev.sh start`.
+Os arquivos `.env` (raiz do projeto) e `apps/web/.env.local` já foram configurados automaticamente com as suas chaves de API (`GROQ_API_KEY`, `GOOGLE_API_KEY`, `HUNTER_API_KEY`).
 
-| Comando | O que faz |
-|---|---|
-| `scripts/setup.sh` | Configuração completa do zero (uma vez por máquina) |
-| `scripts/dev.sh start` | Sobe Postgres + API + Web |
-| `scripts/dev.sh status` | Mostra o que está rodando |
-| `scripts/dev.sh stop` | Para tudo |
-
-### Opção B — Manual (Postgres instalado ou Docker)
+### Opção B — Linux/macOS (Script Bash)
 
 1. Configure o ambiente:
    ```bash

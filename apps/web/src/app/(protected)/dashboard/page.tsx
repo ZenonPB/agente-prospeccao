@@ -1,24 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import { ProcessBanner } from '@/components/dashboard/process-banner';
 import { MetricsGrid } from '@/components/dashboard/metrics';
 import { FunnelChart } from '@/components/dashboard/funnel-chart';
 import { ActivityTimeline } from '@/components/dashboard/activity-timeline';
 import { QuickActions } from '@/components/dashboard/quick-actions';
 import { ActiveCampaigns } from '@/components/dashboard/active-campaigns';
 import { TodayActions } from '@/components/dashboard/today-actions';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default function DashboardPage() {
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Visão Geral</h2>
-        <p className="text-muted-foreground">
-          Acompanhe os resultados da sua prospecção
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Visão Geral"
+        title="Seu radar comercial"
+        description="Acompanhe os resultados da sua prospecção em um só lugar"
+      />
+
+      {/* Process Banner */}
+      <ProcessBanner />
 
       {/* Metrics */}
       <MetricsGrid onFilter={setActiveFilter} activeFilter={activeFilter} />

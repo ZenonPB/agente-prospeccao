@@ -55,8 +55,8 @@ Retorne um JSON com EXATAMENTE esta estrutura:
   "priority": "HOT" | "WARM" | "COLD",
   "priority_reasoning": "<1-3 frases em pt-BR justificando a prioridade. Não use simplesmente a faixa do score — explique o que torna o lead hot/warm/cold (urgência, fito, sinais de compra, etc.)>",
   "executive_summary": "<2-4 frases em pt-BR com o resumo consultor comercial: principal oportunidade + principal risco + recomendação de abordagem>",
-  "pitch_angle": "<1-2 frases: gancho principal de abordagem, baseado nas evidências e no serviço que queremos vender>",
-  "suggested_subject": "<sugestão de assunto de e-mail de prospecção personalizada>",
+  "pitch_angle": "<1-2 frases: gancho DIRETO e FACTUAL de abordagem, COM PROVA. NUNCA genérico ('empresa precisa de site moderno') e NUNCA elogio vazio ('parabéns pelo trabalho'). CITE UMA evidência objetiva da lista em evidence[] (ex.: 'o site não tem CTA de matrícula na homepage — alunos não conseguem se cadastrar pelo celular'). Para lead SEM site, cite a ausência de presença digital como barreira a negócios. É o que o vendedor dirá na primeira frase do contato>",
+  "suggested_subject": "<sugestão de assunto de e-mail de prospecção específica e intrigante, citando a dor observada — NUNCA genérico como 'Proposta de parceria'; ex.: 'Site sem CTA de matrícula — alunos perdidos na homepage'>",
   "score_factors": [
     {
       "label": "<nome curto do fator>",

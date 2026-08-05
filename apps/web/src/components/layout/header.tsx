@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { Bell, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,45 +15,46 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/stores/useAppStore';
+import { BrandMark } from './brand-mark';
 
 export function Header() {
   const { data: session } = useSession();
   const { toggleSidebar } = useAppStore();
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:px-6">
-      {/* Left side - Mobile menu button */}
-      <div className="flex items-center gap-4">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 lg:px-6">
+      {/* Left side */}
+      <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
           className="h-10 w-10 lg:hidden"
+          aria-label="Abrir menu"
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <h1 className="text-lg font-semibold hidden sm:block">Agente Prospecção</h1>
+        <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
+          <BrandMark className="h-6 w-6 text-primary" />
+          <span className="text-[15px] font-semibold tracking-tight">Prospecção</span>
+        </Link>
       </div>
 
-      {/* Right side - notifications and user menu */}
+      {/* Right side — user menu */}
       <div className="flex items-center gap-2">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-10 w-10">
-          <Bell className="h-5 w-5" />
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[11px] font-medium text-destruct-foreground">
-            3
-          </span>
-        </Button>
-
-        {/* User Menu */}
         <DropdownMenu>
-          <DropdownMenuTrigger render={<Button variant="ghost" className="relative h-10 w-10 rounded-full" />}>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" className="relative h-10 items-center gap-2 rounded-full pr-2" />}
+          >
             <Avatar className="h-8 w-8">
               <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />
               <AvatarFallback>
                 {session?.user?.name?.split(' ').map((n) => n[0]).join('').toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
+            <span className="hidden max-w-40 truncate text-sm font-medium sm:block">
+              {session?.user?.name}
+            </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuGroup>

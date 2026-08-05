@@ -40,7 +40,10 @@ def _member_dict(m: OrganizationMember) -> dict:
         "user_id": str(m.user_id),
         "name": m.user.name if m.user else None,
         "email": m.user.email if m.user else None,
-        "role": m.role.value if m.role else None,
+        # `.name` do enum (OWNER/ADMIN/MEMBER) — contrato da API é maiúsculo,
+        # igual ao tipo `OrgRole` no frontend. O valor do enum no banco
+        # continua minúsculo ("owner"/"admin"/"member").
+        "role": m.role.name if m.role else None,
         "sales_role": m.sales_role.value if m.sales_role else None,
         "created_at": m.created_at.isoformat() if m.created_at else None,
     }
@@ -72,7 +75,7 @@ def get_my_org(
             "auto_send_email": bool(member.organization.auto_send_email) if member.organization else False,
         },
         "membership": {
-            "role": member.role.value if member.role else None,
+            "role": member.role.name if member.role else None,
             "sales_role": member.sales_role.value if member.sales_role else None,
             "user_id": str(member.user_id),
         },
@@ -99,7 +102,7 @@ def list_my_organizations(
                 "id": str(m.organization_id),
                 "name": m.organization.name if m.organization else None,
                 "slug": m.organization.slug if m.organization else None,
-                "role": m.role.value if m.role else None,
+                "role": m.role.name if m.role else None,
                 "sales_role": m.sales_role.value if m.sales_role else None,
                 "created_at": m.created_at.isoformat() if m.created_at else None,
             }

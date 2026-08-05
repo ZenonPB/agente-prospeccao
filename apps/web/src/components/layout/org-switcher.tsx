@@ -79,7 +79,7 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
 
   if (organizations.length === 1 && !collapsed) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 px-3 py-2 text-sm text-sidebar-foreground/70">
         <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="truncate">{activeOrg?.name || "Minha Organização"}</span>
       </div>
@@ -91,12 +91,12 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
+            variant="ghost"
             role="combobox"
             aria-expanded={open}
             aria-label={`Organização ativa: ${activeOrg?.name || "Selecione"}`}
             className={cn(
-              "w-full justify-between",
+              "w-full justify-between border border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
               collapsed && "w-10 p-0 justify-center"
             )}
           />

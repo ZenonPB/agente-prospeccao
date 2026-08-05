@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { AuthShell } from '@/components/auth/auth-shell';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -60,10 +61,10 @@ export default function ResetPasswordPage(props: { searchParams: Promise<{ token
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
+      <AuthShell>
+        <Card className="w-full border-border/60 shadow-sm">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Link inválido</CardTitle>
+            <CardTitle className="font-heading text-2xl font-semibold tracking-tight">Link inválido</CardTitle>
             <CardDescription>
               O link de redefinição de senha não contém um token válido.
             </CardDescription>
@@ -76,19 +77,19 @@ export default function ResetPasswordPage(props: { searchParams: Promise<{ token
             </Link>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     );
   }
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md">
+      <AuthShell>
+        <Card className="w-full border-border/60 shadow-sm">
           <CardHeader className="space-y-2 text-center">
             <div className="flex justify-center">
               <CheckCircle2 className="h-12 w-12 text-emerald-500" />
             </div>
-            <CardTitle className="text-2xl font-bold">Senha redefinida</CardTitle>
+            <CardTitle className="font-heading text-2xl font-semibold tracking-tight">Senha redefinida</CardTitle>
             <CardDescription>
               Sua senha foi alterada com sucesso.
             </CardDescription>
@@ -101,15 +102,15 @@ export default function ResetPasswordPage(props: { searchParams: Promise<{ token
             </Link>
           </CardContent>
         </Card>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <AuthShell>
+      <Card className="w-full border-border/60 shadow-sm">
         <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl font-bold">Nova senha</CardTitle>
+          <CardTitle className="font-heading text-2xl font-semibold tracking-tight">Nova senha</CardTitle>
           <CardDescription>
             Digite sua nova senha.
           </CardDescription>
@@ -168,6 +169,6 @@ export default function ResetPasswordPage(props: { searchParams: Promise<{ token
           </form>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   );
 }

@@ -1,14 +1,14 @@
 import { LeadList } from '@/components/oportunidades/lead-list';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default function OportunidadesPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Oportunidades</h2>
-        <p className="text-muted-foreground">
-          Leads com potencial para contato
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Operação"
+        title="Oportunidades"
+        description="Leads qualificados e prontos para contato"
+      />
 
       <LeadList />
     </div>

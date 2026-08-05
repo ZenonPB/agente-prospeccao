@@ -3,6 +3,7 @@ import httpx
 import re
 from typing import List, Dict, Optional
 from config.settings import settings
+from services.domain_utils import is_social_domain
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,15 @@ class GooglePlacesService:
         address = place.get("formattedAddress")
         address_info = self._parse_address(address)
 
+        # Se o website da empresa for uma rede social (sem site próprio),
+        # tratamos como SEM site — evita clonar perfil social falso, evitar
+        # análise técnica errada (score 0) e o lead não marca "tem site".
+        website = place.get("websiteUri")
+        website = website if website and not is_social_domain(website) else None
+
         return {
             "name": name,
-            "website": place.get("websiteUri"),
+            "website": website,
             "phone": place.get("nationalPhoneNumber"),
             "category": place.get("primaryTypeDisplayName", {}).get("text"),
             "full_address": address,
@@ -86,7 +93,12 @@ class GooglePlacesService:
 
         return result
 
-    async def search_places(self, query: str, max_results: int = 10) -> List[Dict]:
+    async def search_places(
+        self,
+        query: str,
+        max_results: int = 10,
+        exclude_place_ids: Optional[set] = None,
+    ) -> List[Dict]:
         """
         Busca estabelecimentos na Places API (nova) usando texto livre.
 
@@ -95,23 +107,34 @@ class GooglePlacesService:
         o custo por requisição. Itera pelas páginas de resultado usando
         `nextPageToken` até atingir `max_results` ou esgotar os resultados.
 
+        Se `exclude_place_ids` for fornecido, os lugares cujo `place_id`
+        já constam nesse conjunto são ignorados (antes de serem contados
+        contra `max_results`) — usado para coleta incremental em campanhas
+        que já possuem leads salvos, sem gastar páginas da API com
+        resultados já conhecidos.
+
         Args:
             query: Texto de busca, ex: "Restaurantes em Campinas, SP".
-            max_results: Número máximo de leads a retornar.
+            max_results: Número máximo de leads novos a retornar.
+            exclude_place_ids: Conjunto de place_ids já coletados a ignorar.
 
         Returns:
             Lista de dicionários no formato de lead prontos para persistência.
         """
-        leads = []
+        leads: List[Dict] = []
+        excluded = exclude_place_ids or set()
         page_token = None
+        pages = 0
+        max_pages = 6  # teto para não estourar custo da API quando quase tudo já existe
 
         logger.info("Buscando na Places API: '%s'", query)
 
         async with httpx.AsyncClient(timeout=30) as client:
-            while len(leads) < max_results:
+            while len(leads) < max_results and pages < max_pages:
+                pages += 1
                 payload: Dict = {
                     "textQuery": query,
-                    "pageSize": min(20, max_results - len(leads)),  # máximo permitido pela API é 20
+                    "pageSize": 20,  # máximo permitido pela API por página
                     "languageCode": "pt-BR",
                 }
                 if page_token:
@@ -126,9 +149,15 @@ class GooglePlacesService:
                     break
 
                 for place in places:
+                    place_id = place.get("id")
+                    # Filtra já coletados ANTES de gastar a vaga em max_results.
+                    if place_id and place_id in excluded:
+                        continue
                     lead = self._parse_lead(place)
                     if lead:
                         leads.append(lead)
+                        if lead.get("place_id_candidate"):
+                            excluded.add(lead["place_id_candidate"])
                         logger.info("%s | site: %s | tel: %s", lead['name'], lead['website'] or 'N/A', lead['phone'] or 'N/A')
 
                 page_token = data.get("nextPageToken")

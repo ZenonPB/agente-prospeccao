@@ -38,14 +38,31 @@ _HTML_CACHE_TTL = 300  # segundos
 
 
 def _setup_windows_gtk() -> None:
-    """Adiciona o diretório do runtime GTK ao DLL search path (Windows)."""
+    """Adiciona o(s) diretório(s) do runtime GTK ao DLL search path (Windows).
+
+    Adiciona TODOS os diretórios GTK encontrados (não apenas o primeiro) e
+    garante que o diretório de versão mais recente (GTK3-Runtime Win64) tenha
+    precedência no DLL search path. Dois runtimes podem coexistir na mesma
+    máquina (ex.: um antigo `Gtk-Runtime` com Pango 1.43, que NÃO possui
+    `pango_context_set_round_glyph_positions` exigido pelo WeasyPrint 61+, e o
+    `GTK3-Runtime Win64` com Pango >=1.50 que possui). Se a versão antiga for
+    carregada primeiro, o WeasyPrint quebra com AttributeError.
+    """
     if os.name != "nt" or not hasattr(os, "add_dll_directory"):
         return
+    # Precede o diretório preferido no PATH do processo para garantir que o
+    # Windows resolva as DLLs da versão nova antes de qualquer outra.
+    preferred = _GTK_BIN_DIRS[0]
+    if os.path.isdir(preferred):
+        try:
+            os.environ["PATH"] = preferred + os.pathsep + os.environ.get("PATH", "")
+        except Exception:
+            pass
+    # Adiciona todos os diretórios válidos ao DLL search path.
     for directory in _GTK_BIN_DIRS:
         if os.path.isdir(directory):
             try:
                 os.add_dll_directory(directory)
-                return
             except OSError:
                 continue
 

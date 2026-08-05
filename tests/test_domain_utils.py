@@ -26,3 +26,18 @@ def test_none_e_vazio():
     assert normalize_domain(None) is None
     assert normalize_domain("") is None
     assert normalize_domain("   ") is None
+
+
+def test_dominio_social_retorna_none():
+    # Redes sociais NÃO são site da empresa; retornar o domínio faria vários
+    # leads distintos colidirem em (organization_id, normalized_domain).
+    assert normalize_domain("https://www.instagram.com/thribocrossfit") is None
+    assert normalize_domain("https://facebook.com/BlackfishCross") is None
+    assert normalize_domain("https://www.linkedin.com/company/box-koru") is None
+    assert normalize_domain("wa.me/5516999757387") is None
+    assert normalize_domain("linktr.ee/elitecross") is None
+
+
+def test_dominio_proprio_continua_normalizado():
+    assert normalize_domain("https://www.thribo.com.br/") == "thribo.com.br"
+    assert normalize_domain("https://boxkoru.com.br/sobre") == "boxkoru.com.br"
