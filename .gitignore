@@ -46,3 +46,6 @@ next-dev.log
 graphify-out/
 graph.html
 graph.svg
+
+# Planilha de vendas Alphamec (dados reais de clientes — nunca versionar)
+docs/planilha_alphamec_atual.xlsx
