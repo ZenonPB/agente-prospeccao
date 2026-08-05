@@ -775,6 +775,23 @@ o acesso a `http://localhost:3001` dava 500 ("Internal Server Error").
 Estado após a correção: Postgres, API (200 em `/docs`) e Web (200 → `/login`)
 subindo e estáveis via `scripts/dev.sh start`.
 
+### Bugfix — JWT_SESSION_ERROR "decryption operation failed" ao criar conta (2026-08-05)
+
+Sintoma: após criar a conta e o auto-login, o redirect para `/dashboard`
+falhava com `[next-auth][error][JWT_SESSION_ERROR] "decryption operation
+failed"` em `ProtectedLayout` (RSC).
+
+Causa: `apps/web/.env.local` não tinha `NEXTAUTH_SECRET` (o log mostrava
+`[next-auth][warn][NO_SECRET]`). Sem secret fixo, o NextAuth gera um aleatório
+**em memória por processo** — o cookie do login é criptografado no route handler
+e, no render seguinte, o RSC usa outro secret → falha na descriptografia.
+
+Fix: `NEXTAUTH_SECRET` estável adicionado ao `apps/web/.env.local` (gitignored,
+gerado com `openssl rand -base64 32`). Documentado em `/.env.example` (seção
+Web, rastreado) para não regredir. Requer restart do
+web para ler o env; cookie antigo (do secret perdido) fica inválido e o login
+precisa ser refeito.
+
 ## Como rodar
 
 **Workers (backend):**
