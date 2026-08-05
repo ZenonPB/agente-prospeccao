@@ -795,9 +795,22 @@ e, no render seguinte, o RSC usa outro secret → falha na descriptografia.
 
 Fix: `NEXTAUTH_SECRET` estável adicionado ao `apps/web/.env.local` (gitignored,
 gerado com `openssl rand -base64 32`). Documentado em `/.env.example` (seção
-Web, rastreado) para não regredir. Requer restart do
-web para ler o env; cookie antigo (do secret perdido) fica inválido e o login
-precisa ser refeito.
+Web, rastreado) para não regredir. Requer restart do web para ler o env; cookie
+antigo (do secret perdido) fica inválido e o login precisa ser refeito.
+
+### Novo roadmap — leads/scoring/funil (2026-08-05)
+
+Criado `docs/roadmap-leads.md` (mapa-norte): documenta as **soluções propostas**
+para 4 problemas de qualificação (template invertido, pitch "matrícula" copiado
+do exemplo do prompt, domínios de ferramenta/marketplace tratados como site
+próprio, lead sem site nunca pontuado em campanha web) e a **análise da planilha
+Alphamec** (`docs/planilha_alphamec_atual.xlsx`) + plano de adaptá-la ao sistema.
+
+**Decisões registradas**: não reanalisar dados atuais (teste); `canva`/
+`api.whatsapp.com`/marketplaces = "sem site próprio"; **pontuar leads sem site**
+em campanhas `WEB_PRESENCE` (muda regra "sem site fica NOVO"). Funil interno
+`RD/ORÇAMENTO/RP` e `CONTRATO FINAL` (APROVADO/REPROVADO/EM ANÁLISE) e módulo de
+pós-venda ficam como fases futuras (C.3 do roadmap).
 
 ## Como rodar
 
