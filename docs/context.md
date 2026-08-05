@@ -760,6 +760,13 @@ o acesso a `http://localhost:3001` dava 500 ("Internal Server Error").
    (`next/dist/server/app-render/work-async-storage.external.js` — MODULE_NOT_FOUND).
    - Fix: `apps/web/next.config.ts` ganhou `turbopack: { root: __dirname }`; órfão
      `~/package-lock.json` removido; cache `.next/` limpo.
+   - CUIDADO: o órfão `~/package-lock.json` é reaparecia/estava lá com mtime antigo
+     — o `rm` inicial não chegou a rodar (timeout). Reconfirmado e removido.
+   - O cache persistente do Turbopack servia chunks corrompidos mesmo após
+     `stop/start`; `web_start` agora remove `~/.../apps/web/.next` antes de subir
+     (compilação sempre limpa). `turbopackFileSystemCacheForDev` existe no tipo TS
+     mas a validação do Next 16.2.10 NÃO a reconhece (warning "Invalid next.config")
+     — então não é usada; o `rm -rf .next` no start cobre.
    - API (separado): `SMTP_PORT=` (vazio) no `.env` sobrescrevia o default 587 e
      quebrava o pydantic no boot — setado para `587`.
 
@@ -774,6 +781,23 @@ o acesso a `http://localhost:3001` dava 500 ("Internal Server Error").
 
 Estado após a correção: Postgres, API (200 em `/docs`) e Web (200 → `/login`)
 subindo e estáveis via `scripts/dev.sh start`.
+
+### Bugfix — JWT_SESSION_ERROR "decryption operation failed" ao criar conta (2026-08-05)
+
+Sintoma: após criar a conta e o auto-login, o redirect para `/dashboard`
+falhava com `[next-auth][error][JWT_SESSION_ERROR] "decryption operation
+failed"` em `ProtectedLayout` (RSC).
+
+Causa: `apps/web/.env.local` não tinha `NEXTAUTH_SECRET` (o log mostrava
+`[next-auth][warn][NO_SECRET]`). Sem secret fixo, o NextAuth gera um aleatório
+**em memória por processo** — o cookie do login é criptografado no route handler
+e, no render seguinte, o RSC usa outro secret → falha na descriptografia.
+
+Fix: `NEXTAUTH_SECRET` estável adicionado ao `apps/web/.env.local` (gitignored,
+gerado com `openssl rand -base64 32`). Documentado em `/.env.example` (seção
+Web, rastreado) para não regredir. Requer restart do
+web para ler o env; cookie antigo (do secret perdido) fica inválido e o login
+precisa ser refeito.
 
 ## Como rodar
 

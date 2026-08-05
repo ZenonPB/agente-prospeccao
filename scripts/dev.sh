@@ -77,6 +77,9 @@ web_start() {
     return
   fi
   cd "$REPO_ROOT/apps/web"
+  # Cache persistente do Turbopack já serviu chunks corrompidos (500
+  # MODULE_NOT_FOUND em internals de next/*). Sempre subir com compilação limpa.
+  rm -rf .next
   setsid nohup npm run dev > "$WEB_LOG" 2>&1 < /dev/null &
   disown 2>/dev/null || true
   echo "Web iniciando em http://localhost:$WEB_PORT (log: $WEB_LOG)"
