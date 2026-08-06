@@ -14,8 +14,9 @@ Envio:
 - Bounce (item 3.2): falha transitória (4xx/rede) re-tenta até
   `MAX_ATTEMPTS`; bounce permanente (5xx) marca a etapa `CANCELLED` e
   suprime o endereço em `email_suppressions`.
-- Threading (item 4.1): cada follow-up referencia o `Message-ID` da etapa
-  anterior, para respostas formarem conversa.
+- Threading (item 4.1/4.4): cada follow-up referencia o `Message-ID` da etapa
+  anterior e a **cadeia completa** de `Message-ID`s em `References`, para as
+  respostas formarem conversa (o que os clients de e-mail exigem).
 
 O envio efetivo vai via `email_service.send_email` (SMTP ou dry-run em dev).
 """
@@ -226,10 +227,14 @@ def _thread_headers(
     lead_id: Optional[str],
     step: FollowUpStep,
 ) -> "tuple[Optional[str], Optional[List[str]]]":
-    """Busca o Message-ID da etapa anterior da cadência para threading.
+    """Busca os Message-IDs das etapas anteriores para threading completo.
 
     Ordem: OPENING (dia 0) → FOLLOWUP_1 (3) → FOLLOWUP_2 (7) → CLOSING (14).
-    Retorna (in_reply_to, references); None se não houver etapa anterior.
+    Retorna (in_reply_to, references):
+    - in_reply_to = Message-ID da etapa mais recente já enviada;
+    - references  = **toda a cadeia** de Message-IDs anteriores (em ordem),
+      que é o que o Gmail/exchange exigem para agrupar a conversa (4.4).
+    Retorna (None, None) se não houver etapa anterior enviada.
     """
     if not lead_id or step == FollowUpStep.OPENING:
         return None, None
@@ -244,20 +249,21 @@ def _thread_headers(
     if not prev_steps:
         return None, None
 
-    prev = (
-        db.query(FollowUp)
+    chain = (
+        db.query(FollowUp.message_id)
         .filter(
             FollowUp.lead_id == lead_id,
             FollowUp.step.in_(list(prev_steps.keys())),
             FollowUp.status == FollowUpStatus.SENT,
             FollowUp.message_id.isnot(None),
         )
-        .order_by(FollowUp.scheduled_at.desc())
-        .first()
+        .order_by(FollowUp.scheduled_at.asc())
+        .all()
     )
-    if not prev or not prev.message_id:
+    refs = [row[0] for row in chain]
+    if not refs:
         return None, None
-    return prev.message_id, [prev.message_id]
+    return refs[-1], refs
 
 
 def mark_opt_out(db: Session, lead: Lead) -> None:
