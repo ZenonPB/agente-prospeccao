@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -744,7 +744,18 @@ def _build_lead_dict(lead: Lead, db: Session) -> dict:
     }
 
 
-def _follow_up_dict(fu: FollowUp) -> dict:
+def _follow_up_dict(fu: FollowUp, db: Session) -> dict:
+    # Tracking 4.2: abertura/clique vêm do `Message` ligado pelo token.
+    opened_at = clicked_at = None
+    if fu.tracking_token:
+        msg = (
+            db.query(Message)
+            .filter(Message.tracking_token == fu.tracking_token)
+            .first()
+        )
+        if msg:
+            opened_at = msg.opened_at
+            clicked_at = msg.clicked_at
     return {
         "id": str(fu.id),
         "step": fu.step.value,
@@ -756,6 +767,8 @@ def _follow_up_dict(fu: FollowUp) -> dict:
         "sent_at": fu.sent_at.isoformat() if fu.sent_at else None,
         "status": fu.status.value if fu.status else None,
         "attempts": fu.attempts or 0,
+        "opened_at": opened_at.isoformat() if opened_at else None,
+        "clicked_at": clicked_at.isoformat() if clicked_at else None,
     }
 
 
@@ -789,7 +802,7 @@ def get_lead_cadence(
         "organization_auto_send": bool(
             _org.auto_send_email if _org else False
         ),
-        "follow_ups": [_follow_up_dict(f) for f in fups],
+        "follow_ups": [_follow_up_dict(f, db) for f in fups],
     }
 
 
@@ -864,7 +877,7 @@ async def start_lead_cadence(
         "lead_id": str(lead.id),
         "playbook_applied": bool(playbook),
         "auto_send": bool(_org.auto_send_email),
-        "follow_ups": [_follow_up_dict(f) for f in follow_ups],
+        "follow_ups": [_follow_up_dict(f, db) for f in follow_ups],
     }
 
 
@@ -908,7 +921,7 @@ def send_cadence_step(
     if not ok:
         raise HTTPException(status_code=400, detail="Etapa não pôde ser enviada (opt-out ou sem conteúdo)")
 
-    return _follow_up_dict(fu)
+    return _follow_up_dict(fu, db)
 
 
 @router.post("/{lead_id}/opt-out")

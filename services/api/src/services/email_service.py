@@ -10,7 +10,9 @@ Changes from the audit (fix/go-live-prep):
 - Nunca loga o corpo (PII) — só destinatário e assunto.
 - Em `production` sem SMTP configurado, envio falha (não "finge" que enviou).
 """
+import html
 import logging
+import re
 import smtplib
 import socket
 import uuid
@@ -21,10 +23,13 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr, formatdate, make_msgid
 from typing import List, Optional
+from urllib.parse import quote
 
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+_URL_RE = re.compile(r"https?://[^\s<>\"'\\)]+")
 
 
 @dataclass
@@ -57,6 +62,33 @@ def _message_id_from(result: Optional[str], hostname: str = "agente-prospeccao.c
     return make_msgid(domain=hostname)
 
 
+def _build_html_tracked(body: str, base_url: str, token: str) -> str:
+    """Constrói a parte HTML do e-mail com links rastreados e pixel de abertura."""
+    redirect = "{base}/c/{tok}?url={url}"
+    def _rewrite(match: "re.Match[str]") -> str:
+        original = match.group(0)
+        dst = redirect.format(base=base_url.rstrip("/"), tok=token, url=quote(original, safe=""))
+        return f'<a href="{html.escape(dst, quote=True)}">{html.escape(original)}</a>'
+
+    escaped = html.escape(body, quote=False)
+    tracked = _URL_RE.sub(_rewrite, escaped)
+    paragraphs = "\n".join(f"<p>{p}</p>" for p in tracked.splitlines() or [""])
+    pixel = (
+        f'<img src="{base_url.rstrip("/")}/t/{html.escape(token)}" '
+        'width="1" height="1" alt="" style="display:none"/>'
+    )
+    return (
+        "<!DOCTYPE html><html><body "
+        'style="font-family:sans-serif;line-height:1.5;color:#222">'
+        f"\n{paragraphs}\n{pixel}\n</body></html>"
+    )
+
+
+def _html_enabled() -> str:
+    """Base de tracking configurada ou '' (desativado)."""
+    return settings.TRACKING_BASE_URL.strip()
+
+
 def send_email(
     to_email: str,
     subject: str,
@@ -66,6 +98,7 @@ def send_email(
     in_reply_to: Optional[str] = None,
     references: Optional[List[str]] = None,
     message_id: Optional[str] = None,
+    tracking_token: Optional[str] = None,
 ) -> EmailSendResult:
     """Envia e-mail transacional via SMTP.
 
@@ -73,6 +106,9 @@ def send_email(
     por org (item 4.1 da auditoria).
     `in_reply_to`/`references`: headers de threading — follow-ups apontam para
     o Message-ID da etapa anterior da cadência.
+    `tracking_token`: se a base de tracking estiver configurada
+    (settings.TRACKING_BASE_URL), injeta pixel de abertura e links rastreados
+    (4.2). Sem base, o envio sai só em texto (tracking desativado).
     """
     from_email = from_email or settings.SMTP_FROM_EMAIL
     from_name = from_name or settings.SMTP_FROM_NAME
@@ -90,6 +126,7 @@ def send_email(
         to_email, subject, body,
         from_email=from_email, from_name=from_name,
         in_reply_to=in_reply_to, references=references, message_id=message_id,
+        tracking_token=tracking_token,
     )
 
 
@@ -150,6 +187,7 @@ def _send_smtp(
     in_reply_to: Optional[str] = None,
     references: Optional[List[str]] = None,
     message_id: Optional[str] = None,
+    tracking_token: Optional[str] = None,
 ) -> EmailSendResult:
     """Send email via SMTP, with threading headers and bounce classification."""
     mid = _message_id_from(message_id)
@@ -167,6 +205,12 @@ def _send_smtp(
             refs.append(in_reply_to)
         msg["References"] = " ".join(refs)
     msg.attach(MIMEText(body, "plain", "utf-8"))
+
+    # Tracking 4.2: com token e base pública configurada, anexa a parte HTML
+    # (pixel de abertura + links rastreados). Sem isso, só texto (compat).
+    tracking_base = _html_enabled()
+    if tracking_token and tracking_base:
+        msg.attach(MIMEText(_build_html_tracked(body, tracking_base, tracking_token), "html", "utf-8"))
 
     try:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:

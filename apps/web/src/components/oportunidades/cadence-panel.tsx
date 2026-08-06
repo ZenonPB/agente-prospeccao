@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarClock, Send, Play, Ban, Loader2, ShieldAlert } from "lucide-react";
+import { CalendarClock, Send, Play, Ban, Loader2, ShieldAlert, Eye, MousePointerClick } from "lucide-react";
 import { toast } from "sonner";
 import {
   useLeadCadence,
@@ -134,6 +134,20 @@ export function CadencePanel({ leadId }: { leadId: string }) {
                         Agendado {formatDate(fu.scheduled_at)}
                         {isSent && fu.sent_at ? ` · enviado ${formatDate(fu.sent_at)}` : ""}
                       </p>
+                      {isSent && (fu.opened_at || fu.clicked_at) && (
+                        <div className="mt-1 flex items-center gap-2 text-xs">
+                          {fu.opened_at && (
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <Eye className="h-3 w-3" /> abriu
+                            </span>
+                          )}
+                          {fu.clicked_at && (
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                              <MousePointerClick className="h-3 w-3" /> clicou
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Badge variant={badge.variant}>{badge.label}</Badge>

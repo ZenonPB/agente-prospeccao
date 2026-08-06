@@ -399,7 +399,11 @@ class Message(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     responded_at = Column(DateTime(timezone=True))
     is_response = Column(Boolean, default=False) 
-    
+    # Tracking de abertura/clique (roadmap-vendas 4.2) — pixel + redirect.
+    tracking_token = Column(String(64), unique=True, nullable=True)
+    opened_at = Column(DateTime(timezone=True))
+    clicked_at = Column(DateTime(timezone=True))
+
     lead = relationship("Lead", back_populates="messages")
 
     def __repr__(self):
@@ -436,6 +440,9 @@ class FollowUp(Base):
     # envio (para threading dos follow-ups seguintes).
     attempts = Column(Integer, default=0, nullable=False, server_default="0")
     message_id = Column(String(255))
+    # Token de tracking (4.2): liga a etapa à `messages.tracking_token` para
+    # expor abertura/clique no painel de cadência.
+    tracking_token = Column(String(64))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="follow_ups")
