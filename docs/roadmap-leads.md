@@ -383,3 +383,53 @@ A etapa final deste roadmap — para abandonarmos a planilha.
   cada sessão que toque este tema.
 - Este documento é complemento de `docs/roadmap-vendas.md` (visão de produto),
   com foco **executável** em leads/scoring/funil.
+
+---
+
+# Parte E — Status de implementação (2026-08-05)
+
+Branch: `fix/roadmap-leads-scoring`. Todas as soluções do roadmap foram
+aplicadas. Os quatro problemas de qualificação (P1–P4) estão **corrigidos**.
+
+## Implementado
+
+- ✅ **S1 (P1) — regra de inversão para serviços digitais**: adicionada ao
+  `SYSTEM_PROMPT` de `template_generation_service.py`. Novos templates gerados
+  por IA já nascem com `positive` = comprador (sem site/Instagram/Canva) e
+  `negative` = presença madura.
+- ✅ **S2 (P2) — prompt sem exemplos copiáveis**: removidos do
+  `RESPONSE_SCHEMA_HINT` de `scoring_service.py` os exemplos reais
+  (`pitch_angle`/`suggested_subject` "matrícula/alunos") e adicionada regra
+  **anti-copy** + gancho obrigatório para lead sem site no `SYSTEM_PROMPT`.
+- ✅ **S3 (P3) — domínios de ferramenta/marketplace = "sem site próprio"**:
+  `domain_utils.py` passa a tratar `canva.com`/`canva.link`, `api.whatsapp.com`
+  (via **subdomínio de raiz social**) e marketplaces (`instadelivery.com.br`,
+  iFood, etc.) como sem site próprio, tanto em `normalize_domain` quanto em
+  `is_social_domain`. `places_service` (coleta) e `csv_import_service` já usam
+  essas funções, então novas coletas classificam corretamente.
+- ✅ **S4 (P4) — pontuar leads sem site**: removido o filtro
+  `Lead.website.isnot(None)` do `pipeline_worker.py` (campanhas `WEB_PRESENCE`)
+  e de `main.py`/`run_lead_enrichment_and_scoring`. O orquestrador roteia lead
+  sem site para o scoring business (item 4.2).
+- ✅ **S5 — resolvida via reset do banco**: o template `is_generated=True`
+  corrompido da campanha de teste (`Desenvolvimento Web para Clínicas de
+  Psicologia`, com "Presença Online" como positive signal) foi eliminado. O banco
+  foi **resetado por completo** e reaplicado `alembic upgrade head` +
+  `python -m src.seeds.scoring_templates` (9 templates). O seed "Desenvolvimento
+  de Sites" já usa lógica correta (ausência = positivo, presença madura =
+  negativo). **Nenhum dado foi reanalisado** (decisão registrada mantida).
+
+## Verificação
+
+- **B.6 — smoke teste**: (a) confeitaria sem site (Canva) → `85 HOT`, pitch
+  "não tem site próprio... pedidos dependem do Instagram"; (b) clínica com site
+  moderno → `40 COLD` para campanha de site; (c) nenhum pitch contém
+  "matrícula/alunos".
+- **Testes determinísticos** de `domain_utils`: `api.whatsapp.com`,
+  `canva.link`, `canva.com`, `instadelivery.com.br` → `normalize_domain=None` /
+  `is_social_domain=True`; sites reais continuam normalizados.
+
+## Commits
+
+- `43d874c` — fix(scoring): apply roadmap-leads S1-S4 (inversion rule,
+  anti-copy prompt, no-site scoring).
