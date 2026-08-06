@@ -440,13 +440,14 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | # | Item | Pilar | Prio | Esforço | Custo | Depende de | Status |
 |---|---|---|---|---|---|---|---|
 | 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
+| 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
 | 4.2 | Rastreamento de abertura/clique (pixel + redirect) | Entregabilidade | P0 | M | gratuito | — | ⬜ |
 | 4.3 | Warmup, throttling e remetente dedicado | Entregabilidade | P0 | M | gratuito | 4.1 | ⬜ |
-| 4.4 | Threading completo dos follow-ups | Entregabilidade | P0 | S | gratuito | — | ⬜ |
+| 4.4 | Threading completo dos follow-ups | Entregabilidade | P0 | S | gratuito | — | ✅ Entregue 2026-08-05 |
 | 3.3.1 | Criar/renomear organização | Multi-org | P0 | S | gratuito | — | ⬜ |
 | 3.3.2 | Onboarding por convite (cadastro no aceite) | Multi-org | P0 | M | gratuito | 3.3.1 | ⬜ |
 | 4.5 | WhatsApp: validação + 1 clique + trilha | WhatsApp | P1 | M | baixo | 4.7 | ⬜ |
-| 4.6 | Rating/reviews do Google no scoring | Dados | P1 | S | gratuito | — | ⬜ |
+| 4.6 | Rating/reviews do Google no scoring | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-05 |
 | 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ⬜ |
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ⬜ |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ⬜ |
