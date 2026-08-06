@@ -105,8 +105,7 @@ async def run_lead_enrichment_and_scoring(limit: int = 5):
 
     try:
         leads_to_enrich = db.query(Lead).filter(
-            Lead.status == LeadStatus.NOVO,
-            Lead.website.isnot(None)
+            Lead.status == LeadStatus.NOVO
         ).limit(limit).all()
 
         if not leads_to_enrich:

@@ -545,6 +545,11 @@ Branch: `feat/outreach-cadence-playbooks`
 
 ### Próximo passo imediato
 
+> **Atualizado 2026-08-05**: roadmap-leads implementado (P1–P4 corrigidos,
+> branch `fix/roadmap-leads-scoring`, commit `43d874c`) e banco resetado + reseed
+> (9 templates). Detalhes na seção "Roadmap-leads implementado" abaixo e em
+> `docs/roadmap-leads.md` (Parte E).
+
 **Vistoria geral concluída (2026-08-04)** — pendências mapeadas e corrigidas na
 branch `fix/go-live-prep` (abaixo). Prioridade para o go-live:
 
@@ -811,6 +816,34 @@ Alphamec** (`docs/planilha_alphamec_atual.xlsx`) + plano de adaptá-la ao sistem
 em campanhas `WEB_PRESENCE` (muda regra "sem site fica NOVO"). Funil interno
 `RD/ORÇAMENTO/RP` e `CONTRATO FINAL` (APROVADO/REPROVADO/EM ANÁLISE) e módulo de
 pós-venda ficam como fases futuras (C.3 do roadmap).
+
+### Roadmap-leads implementado — P1–P4 corrigidos (2026-08-05)
+
+Branch `fix/roadmap-leads-scoring`. As 4 soluções do roadmap foram aplicadas no
+código (parte A–C de `docs/roadmap-leads.md` → marcadas Implementado):
+
+- **S1 (P1)** `template_generation_service.py`: regra de inversão p/ serviços
+  digitais no `SYSTEM_PROMPT` (presença ausente/fraca = comprador; madura = negativo).
+- **S2 (P2)** `scoring_service.py`: removidos exemplos copiáveis do schema
+  (`pitch_angle`/`suggested_subject` "matrícula/alunos") + regra anti-copy e gancho
+  obrigatório p/ lead sem site.
+- **S3 (P3)** `domain_utils.py`: `canva.com`/`canva.link`, `api.whatsapp.com`
+  (**subdomínio de raiz social**) e marketplaces (`instadelivery.com.br`, iFood,
+  etc.) ∈ "sem site próprio" em `normalize_domain`/`is_social_domain`. Coleta
+  (`places_service`) e CSV já herdam da correção.
+- **S4 (P4)** `pipeline_worker.py` e `main.py`: removido o filtro
+  `Lead.website.isnot(None)` — leads sem site em campanha web agora são pontuados
+  pelo caminho business do orquestrador.
+- **S5** resolvida por **reset total do banco** (dado de testes): `DROP schema
+  public` → `alembic upgrade head` → `python -m src.seeds.scoring_templates`.
+  Template `is_generated` corrompido eliminado; seed "Desenvolvimento de Sites"
+  já correto. Nenhum dado reanalisado.
+
+**Verificação**: smoke teste B.6 — confeitaria sem site (Canva) `85 HOT` com
+pitch "não tem site próprio... Instagram"; clínica com site moderno `40 COLD`
+(para campanha de site); nenhum pitch com "matrícula/alunos". `domain_utils`
+checado para `api.whatsapp.com`/`canva`/`instadelivery` → sem site próprio.
+Commits: `43d874c` (fix scoring S1-S4) + docs nesta sessão.
 
 ## Como rodar
 

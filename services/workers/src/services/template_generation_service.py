@@ -38,7 +38,16 @@ SYSTEM_PROMPT = (
     "alguém quer vender. Os sinais devem ser concretos, observáveis a partir "
     "de dados públicos (site, dados cadastrais CNPJ, categoria, porte, "
     "segmento) e relevantes PARA ESTE serviço específico — não genéricos. "
-    "Responda SOMENTE com JSON puro, sem markdown, sem bloco de código."
+    "Responda SOMENTE com JSON puro, sem markdown, sem bloco de código. "
+    "REGRA DE INVERSÃO PARA SERVIÇOS DIGITAIS: se o serviço a vender É digital "
+    "(sites, landing pages, SEO, e-commerce, marketing digital, aplicativos), a "
+    "qualidade da presença digital atual do prospect é um sinal de oportunidade "
+    "INVERTIDO: presença ausente, fraca ou desatualizada AUMENTA o score (é o "
+    "comprador); presença madura/moderna DIMINUI. Nesse caso, positive_signals "
+    "devem descrever o que torna o prospect comprador (ex.: sem site próprio; "
+    "usa apenas Instagram/Canva/WhatsApp; site antigo sem CTA), e "
+    "negative_signals o que indica que ele já possui presença madura (ex.: site "
+    "moderno, e-commerce integrado, SEO sólido)."
 )
 
 SCHEMA_HINT = """
