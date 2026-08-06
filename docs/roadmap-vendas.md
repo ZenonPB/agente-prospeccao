@@ -441,7 +441,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 |---|---|---|---|---|---|---|---|
 | 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
 | 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
-| 4.2 | Rastreamento de abertura/clique (pixel + redirect) | Entregabilidade | P0 | M | gratuito | — | ⬜ |
+| 4.2 | Rastreamento de abertura/clique (pixel + redirect) | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-05 |
 | 4.3 | Warmup, throttling e remetente dedicado | Entregabilidade | P0 | M | gratuito | 4.1 | ⬜ |
 | 4.4 | Threading completo dos follow-ups | Entregabilidade | P0 | S | gratuito | — | ✅ Entregue 2026-08-05 |
 | 3.3.1 | Criar/renomear organização | Multi-org | P0 | S | gratuito | — | ⬜ |

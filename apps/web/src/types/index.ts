@@ -135,6 +135,8 @@ export interface FollowUpItem {
   scheduled_at: string | null;
   sent_at: string | null;
   status: 'PENDING' | 'SENT' | 'SKIPPED' | 'CANCELLED' | null;
+  opened_at?: string | null;
+  clicked_at?: string | null;
 }
 
 export interface LeadCadence {

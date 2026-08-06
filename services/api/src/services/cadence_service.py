@@ -21,6 +21,7 @@ Envio:
 O envio efetivo vai via `email_service.send_email` (SMTP ou dry-run em dev).
 """
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -157,6 +158,11 @@ def send_step(
     from_email = (org.email_from if org and org.email_from else None)
     in_reply_to, references = _thread_headers(db, lead.id if lead else None, follow_up.step)
 
+    # Tracking 4.2: token único da etapa (pixel/redirect); criado antes do envio.
+    if not follow_up.tracking_token:
+        follow_up.tracking_token = uuid.uuid4().hex
+        db.flush()
+
     result = send_email(
         to_email,
         follow_up.subject or "",
@@ -164,6 +170,7 @@ def send_step(
         from_email=from_email,
         in_reply_to=in_reply_to,
         references=references,
+        tracking_token=follow_up.tracking_token,
     )
 
     follow_up.attempts = (follow_up.attempts or 0) + 1
@@ -179,6 +186,7 @@ def send_step(
             content=follow_up.content,
             ai_generated_draft=follow_up.content,
             sent_at=follow_up.sent_at,
+            tracking_token=follow_up.tracking_token,
         )
         db.add(msg)
         log_cadence_event(

@@ -41,4 +41,9 @@ class Settings(BaseSettings):
     # inbound (Postmark/SendGrid). Vazio = webhook desativado (404).
     EMAIL_WEBHOOK_SECRET: str = Field("", description='Segredo do webhook de inbound (resposta/STOP)')
 
+    # Tracking de abertura/clique (4.2) — base pública da API que o cliente de
+    # e-mail do destinatário acessa (ex.: https://api.alphamec.com.br). Vazio =
+    # tracking desativado (não injeta pixel/redirect nos envios).
+    TRACKING_BASE_URL: str = Field("", description='URL pública da API para pixel/redirect de tracking')
+
 settings = Settings()

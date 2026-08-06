@@ -592,6 +592,29 @@ prontas p/ merge (PR #49/#50):
 **Verificado**: `py_compile` dos tocados OK; smokes dos dois (threading 6,
 rating 4) OK.
 
+### Tracking de abertura/clique (roadmap-vendas 4.2, branch `feat/email-tracking`, 2026-08-05)
+
+Sinal mais quente de cold outreach (quem leu/clicou), antes inexistente.
+
+- **Modelos/migração `e2f3a4b5c6d7`**: `messages.tracking_token` (unique),
+  `messages.opened_at`, `messages.clicked_at`; `follow_ups.tracking_token`.
+- **Rotas públicas** (`routes/tracking.py`, registradas sem `/api` — o cliente
+  de e-mail acessa): `GET /t/{token}` → pixel 1×1 grava `opened_at` (token
+  desconhecido não quebra o e-mail); `GET /c/{token}?url=` grava `clicked_at` e
+  redireciona (302); valida http(s).
+- **Injeção** (`email_service`): `send_email` ganhou `tracking_token`; quando
+  `settings.TRACKING_BASE_URL` está configurada, anexa a parte **HTML** com
+  pixel + links reescritos para o redirect (texto puro intacto). Sem base → só
+  texto (tracking off em dev).
+- **Cadência** (`cadence_service.send_step`): gera `tracking_token` por etapa e
+  persiste no `FollowUp`; o `Message` criado carrega o mesmo token.
+- **API**: `GET /leads/{id}/cadence` expõe `opened_at`/`clicked_at` por etapa.
+- **Frontend**: badge "abriu"/"clicou" no `CadencePanel` (detalhe do lead);
+  `FollowUpItem` ganhou os campos. `tsc --noEmit` e eslint limpos.
+- Testes `tests/test_email_tracking.py` (5) OK.
+
+> Deploy: definir `TRACKING_BASE_URL` (domínio público da API) para ativar.
+
 **Vistoria geral concluída (2026-08-04)** — pendências mapeadas e corrigidas na
 branch `fix/go-live-prep` (abaixo). Prioridade para o go-live:
 
