@@ -545,10 +545,20 @@ Branch: `feat/outreach-cadence-playbooks`
 
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-05**: roadmap-leads implementado (P1–P4 corrigidos,
-> branch `fix/roadmap-leads-scoring`, commit `43d874c`) e banco resetado + reseed
-> (9 templates). Detalhes na seção "Roadmap-leads implementado" abaixo e em
-> `docs/roadmap-leads.md` (Parte E).
+> **Atualizado 2026-08-05 (fim de sessão)** — onde paramos:
+>
+> 1. **Mergeados no `main`**: roadmap-leads S1–S5 (PR #47), gaps residuais CSV+S5
+>    script (PR #48), threading 4.4 (PR #49), rating/reviews 4.6 (PR #50) e
+>    **rastreamento de abertura/clique 4.2 (PR #51)** — com a migration
+>    `e2f3a4b5c6d7`. Detalhes do 4.2 na seção "Tracking de abertura/clique" abaixo.
+> 2. **Amanhã — próximo item**: **4.3 Warmup/throttling + remetente dedicado**
+>    (limite diário por remetente/org no `run_due`, espalhamento horário, painel
+>    "envios hoje X/limite Y"). Depois dele: **funil de negociação** p/ largar a
+>    planilha (roadmap-leads Parte C.3) e onboarding multi-org (3.3.1/3.3.2).
+>
+> Ações pendentes: rodar `alembic upgrade head` para aplicar `e2f3a4b5c6d7`
+> (e `d8e9f0a2b3c4` se ainda não) e definir `TRACKING_BASE_URL` no `.env` da API
+> para ativar o pixel/redirect.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 
