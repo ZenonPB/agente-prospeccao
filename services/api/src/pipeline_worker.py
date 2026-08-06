@@ -344,8 +344,9 @@ async def run_pipeline(
             db.flush()
         else:
             leads_query = leads_query.filter(Lead.status == LeadStatus.NOVO)
-            if is_web_presence:
-                leads_query = leads_query.filter(Lead.website.isnot(None))
+            # roadmap-leads P4/S4: em campanhas web, leads SEM site são o público-alvo
+            # (compradores de site) — NÃO filtrar por website. O orquestrador roteia
+            # lead sem site para o scoring business (enrichment_orchestrator item 4.2).
             if campaign:
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
             else:
