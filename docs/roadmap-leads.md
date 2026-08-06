@@ -433,3 +433,23 @@ aplicadas. Os quatro problemas de qualificação (P1–P4) estão **corrigidos**
 
 - `43d874c` — fix(scoring): apply roadmap-leads S1-S4 (inversion rule,
   anti-copy prompt, no-site scoring).
+- `fa59c36` — merge do PR #47 em `main` (S1–S4 no branch principal).
+
+## Gaps residuais fechados (2026-08-05, branch `fix/lead-scoring-residuals`)
+
+Após o merge, dois pontos do roadmap ainda não estavam cobertos no `main`:
+
+- **B.3 no caminho CSV**: `csv_import_service` só usava `normalize_domain` (dedupe) e
+  gravava `website` como veio — lead via CSV com `canva.link`/`api.whatsapp.com`/
+  `instadelivery.com.br` era tratado como "tem site" (P3 reincidia). Novo helper
+  `normalize_import_website()` anula via `is_social_domain` (espelha `places_service`).
+  Coberto por `test_normalize_import_website_*` em `tests/test_csv_import.py`.
+- **S5 sem reset do banco**: script `services/workers/src/scripts/fix_generated_web_templates.py`
+  (idempotente; dry-run por padrão, aplicar com `--apply`) detecta templates
+  `is_generated=True` com "presença online/site próprio" como sinal positivo (assinatura
+  pré-S1), realinha as campanhas ao seed global "Desenvolvimento de Sites" e exclui o
+  template corrompido — sem alterar leads. Para a operação real, reavaliar com
+  `POST /api/campaigns/{id}/reanalyze`. Testes em `tests/test_fix_web_templates.py`.
+
+**Verificação**: smoke determinístico (CSV + domínios S3) e detecção do script OK;
+`py_compile` dos arquivos tocados OK.

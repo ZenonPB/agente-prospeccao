@@ -550,6 +550,28 @@ Branch: `feat/outreach-cadence-playbooks`
 > (9 templates). Detalhes na seção "Roadmap-leads implementado" abaixo e em
 > `docs/roadmap-leads.md` (Parte E).
 
+### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
+
+Após o merge do PR #47 (S1–S4 no `main`), fechados os dois gaps que ainda
+atrapalhavam prospecção:
+
+- **CSV import tratava Canva/WhatsApp/marketplace como "tem site"**: `csv_import_service`
+  usava só `normalize_domain` (dedupe) e gravava `website` no lead — lead via CSV com
+  `canva.link`/`api.whatsapp.com` era enriquecido tecnicamente e a LLM inventava dor de
+  site (P3 reincidindo). Fix: novo helper `normalize_import_website()` (anula via
+  `is_social_domain`, mesmo comportamento de `places_service`); `website=None` → o lead
+  vira "sem site" e é pontuado pelo caminho business em campanhas web (P4).
+- **S5 sem depender de reset do banco**: novo script one-off
+  `src/scripts/fix_generated_web_templates.py` (idempotente, dry-run por padrão) que
+  detecta templates `is_generated=True` ainda com "presença online/site próprio" como
+  sinal positivo (assinatura pré-S1), desvincula as campanhas e as realinha ao seed
+  global "Desenvolvimento de Sites", e exclui o template corrompido — sem tocar em
+  leads. Para a operação real: `POST /api/campaigns/{id}/reanalyze` nos leads impactados.
+
+**Verificado**: smoke determinístico (CSV + S3 domains) e detecção do script OK;
+`py_compile` limpo; novos testes `test_normalize_import_website_*` e
+`tests/test_fix_web_templates.py`.
+
 **Vistoria geral concluída (2026-08-04)** — pendências mapeadas e corrigidas na
 branch `fix/go-live-prep` (abaixo). Prioridade para o go-live:
 
