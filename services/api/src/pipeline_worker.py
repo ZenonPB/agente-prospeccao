@@ -227,6 +227,10 @@ async def run_pipeline(
                     city=item.get("city"),
                     state=item.get("state"),
                     country=item.get("country", "Brasil"),
+                    # Reputação no Google (roadmap-vendas 4.6) — sinal de scoring.
+                    google_rating=item.get("rating"),
+                    google_rating_count=item.get("rating_count"),
+                    google_maps_uri=item.get("maps_uri"),
                     campaign_id=campaign.id if campaign else None,
                     status=LeadStatus.NOVO,
                 )

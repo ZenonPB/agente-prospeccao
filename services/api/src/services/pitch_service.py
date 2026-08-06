@@ -163,6 +163,9 @@ def build_pitch_one_pager(
         "website": lead.website,
         "phone": lead.phone,
         "email": lead.email,
+        "google_rating": lead.google_rating,
+        "google_rating_count": lead.google_rating_count,
+        "google_maps_uri": lead.google_maps_uri,
     }
     if company_record:
         identity.update({

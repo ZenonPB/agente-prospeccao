@@ -245,6 +245,8 @@ def extract_business_facts(
     state: str,
     website: Optional[str],
     segment_hint: str,
+    google_rating: Optional[float] = None,
+    google_rating_count: Optional[int] = None,
 ) -> List[str]:
     facts: List[str] = []
     facts.append(f"Empresa: {company_name}")
@@ -256,6 +258,11 @@ def extract_business_facts(
         facts.append(f"Website URL: {website}")
     if segment_hint:
         facts.append(f"Segmento declarado na campanha: {segment_hint}")
+    # Reputação no Google (roadmap-vendas 4.6) — dor observável: negócio
+    # mal avaliado = oportunidade (interpretação do template decide o sinal).
+    if google_rating is not None:
+        count = f" com {int(google_rating_count)} avaliações" if google_rating_count else ""
+        facts.append(f"Reputação Google: {google_rating:.1f}★{count}")
     return facts
 
 
@@ -380,6 +387,8 @@ class AIScoringService:
         city: str = "",
         state: str = "",
         website: Optional[str] = None,
+        google_rating: Optional[float] = None,
+        google_rating_count: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Scoring contextual de um lead com site (web_presence).
 
@@ -409,6 +418,8 @@ class AIScoringService:
             state=state,
             website=website,
             segment_hint=target_segment,
+            google_rating=google_rating,
+            google_rating_count=google_rating_count,
         )
         prompt = build_prompt(
             target_service=target_service,
@@ -429,6 +440,8 @@ class AIScoringService:
         target_service: str = "",
         target_segment: str = "",
         template: Optional[Dict[str, Any]] = None,
+        google_rating: Optional[float] = None,
+        google_rating_count: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Scoring contextual de um lead sem análise técnica (business_opportunity).
 
@@ -443,6 +456,8 @@ class AIScoringService:
             state=state,
             website=website,
             segment_hint=target_segment,
+            google_rating=google_rating,
+            google_rating_count=google_rating_count,
         )
         prompt = build_prompt(
             target_service=target_service,

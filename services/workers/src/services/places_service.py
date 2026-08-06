@@ -17,6 +17,11 @@ FIELD_MASK = ",".join([
     "places.nationalPhoneNumber",
     "places.formattedAddress",
     "places.primaryTypeDisplayName",
+    # Reputação online (roadmap-vendas 4.6): nota e nº de avaliações viram
+    # evidência de scoring (negócio mal avaliado = oportunidade p/ serviços).
+    "places.rating",
+    "places.userRatingCount",
+    "places.googleMapsUri",
 ])
 
 
@@ -66,6 +71,9 @@ class GooglePlacesService:
             "city": address_info["city"],
             "state": address_info["state"],
             "place_id_candidate": place.get("id"),
+            "rating": place.get("rating"),
+            "rating_count": place.get("userRatingCount"),
+            "maps_uri": place.get("googleMapsUri"),
         }
 
     def _parse_address(self, full_address: Optional[str]) -> Dict[str, Optional[str]]:

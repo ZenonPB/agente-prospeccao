@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, UniqueConstraint, Index
+from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -314,6 +314,11 @@ class Lead(Base):
     city = Column(String(100), nullable=False)
     state = Column(String(100))
     country = Column(String(100))
+    # Reputação no Google (roadmap-vendas 4.6) — sinal de oportunidade para
+    # serviços: nota baixa + nº de avaliações expõem a dor mais óbvia de um lead.
+    google_rating = Column(Float)
+    google_rating_count = Column(Integer)
+    google_maps_uri = Column(String(255))
     # Campos de trabalho do consultor (item 4.4 da auditoria).
     notes = Column(Text)
     next_action_at = Column(DateTime(timezone=True))
