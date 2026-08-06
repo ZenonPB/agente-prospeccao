@@ -8,6 +8,7 @@ from src.services.csv_import_service import (
     clean_cnpj,
     generate_csv_place_id,
     normalize_header,
+    normalize_import_website,
 )
 
 
@@ -40,3 +41,18 @@ def test_normalize_header_aliases():
     assert normalize_header("documento") == "cnpj"
     assert normalize_header("linkedin") == "linkedin"
     assert normalize_header("coluna desconhecida") == "coluna_desconhecida"
+
+
+def test_normalize_import_website_mantem_site_proprio():
+    assert normalize_import_website("firma.com.br") == "https://firma.com.br"
+    assert normalize_import_website("https://www.boxkoru.com.br/sobre") == "https://www.boxkoru.com.br/sobre"
+    assert normalize_import_website(None) is None
+
+
+def test_normalize_import_website_anula_sem_site_proprio():
+    # Ferramenta (Canva/WhatsApp), rede social e marketplace = "sem site próprio"
+    # (roadmap-leads S3 no caminho CSV) — o lead não deve ser tratado como "tem site".
+    assert normalize_import_website("canva.link/artigo") is None
+    assert normalize_import_website("https://api.whatsapp.com/send?phone=55") is None
+    assert normalize_import_website("https://www.instagram.com/loja") is None
+    assert normalize_import_website("https://instadelivery.com.br/perfil") is None

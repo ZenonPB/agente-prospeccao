@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from src.db.models import Lead, LeadStatus, Campaign, Contact, ContactRole
-from services.domain_utils import normalize_domain
+from services.domain_utils import normalize_domain, is_social_domain
 
 
 HEADER_ALIASES = {
@@ -55,6 +55,21 @@ def clean_url(url: Optional[str]) -> Optional[str]:
     if not (url.startswith("http://") or url.startswith("https://")):
         url = "https://" + url
     return url
+
+
+def normalize_import_website(url: Optional[str]) -> Optional[str]:
+    """Limpa a URL e a anula se apontar para rede social/ferramenta/marketplace.
+
+    roadmap-leads S3 (caminho CSV): site que aponta p/ rede social (Instagram),
+    ferramenta (Canva/WhatsApp) ou marketplace NÃO é site próprio. Anular mantém
+    o lead como "sem site" (score business em campanhas web) e evita
+    enriquecimento técnico errado (P3) — mesmo comportamento de
+    places_service.search_places (coleta).
+    """
+    website = clean_url(url)
+    if is_social_domain(website):
+        return None
+    return website
 
 
 def clean_cnpj(cnpj: Optional[str]) -> Optional[str]:
@@ -138,7 +153,7 @@ class CsvImportService:
                 errors.append({"line": line_num, "reason": "Nome da empresa/lead ausente."})
                 continue
 
-            website = clean_url(row_data.get("website"))
+            website = normalize_import_website(row_data.get("website"))
             normalized_domain = normalize_domain(website)
             cnpj = clean_cnpj(row_data.get("cnpj"))
             phone = row_data.get("phone")
