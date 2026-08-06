@@ -97,6 +97,8 @@ async def process_single_lead(
             city=lead.city or "",
             state=lead.state or "",
             website=lead.website,
+            google_rating=lead.google_rating,
+            google_rating_count=lead.google_rating_count,
         )
     else:
         # Perfil business_opportunity (ou template alinhou para skipar técnico).
@@ -120,6 +122,8 @@ async def process_single_lead(
             target_service=campaign_target_service,
             target_segment=campaign_target_segment,
             template=scoring_template,
+            google_rating=lead.google_rating,
+            google_rating_count=lead.google_rating_count,
         )
 
     _persist_scoring(lead, scoring_data, enrichment)

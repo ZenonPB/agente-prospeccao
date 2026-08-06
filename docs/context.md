@@ -572,6 +572,26 @@ atrapalhavam prospecção:
 `py_compile` limpo; novos testes `test_normalize_import_website_*` e
 `tests/test_fix_web_templates.py`.
 
+### Quick wins do roadmap-vendas (2026-08-05) — 4.4 e 4.6
+
+Close dos itens P0 (4.4) e P1 (4.6) de `docs/roadmap-vendas.md`, em branches
+prontas p/ merge (PR #49/#50):
+
+- **4.4 Threading completo** (`fix/threading-chain`): `_thread_headers` em
+  `cadence_service.py` passa a acumular **toda a cadeia** de Message-IDs das
+  etapas anteriores em `References` (ordem cronológica) e `In-Reply-To` = mais
+  recente (antes: só o último). Exigência do Gmail/exchange para agrupar
+  conversa. Teste `tests/test_cadence_threading.py` (db fake).
+- **4.6 Rating/reviews no scoring** (`feat/places-rating-scoring`):
+  `places_service` coleta `rating`/`userRatingCount`/`googleMapsUri`;
+  `leads.google_rating`/`google_rating_count`/`google_maps_uri` (migration
+  `d8e9f0a2b3c4`) persistidos na coleta; `extract_business_facts` vira
+  evidência "Reputação Google: X.Y★ com N avaliações" no scoring; exposto no
+  pitch one-pager e no summary do lead. Teste `tests/test_places_rating.py`.
+
+**Verificado**: `py_compile` dos tocados OK; smokes dos dois (threading 6,
+rating 4) OK.
+
 **Vistoria geral concluída (2026-08-04)** — pendências mapeadas e corrigidas na
 branch `fix/go-live-prep` (abaixo). Prioridade para o go-live:
 

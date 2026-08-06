@@ -76,6 +76,9 @@ async def run_lead_collection(
                 city=item.get("city"),
                 state=item.get("state"),
                 country=item.get("country", "Brasil"),
+                google_rating=item.get("rating"),
+                google_rating_count=item.get("rating_count"),
+                google_maps_uri=item.get("maps_uri"),
                 campaign_id=campaign_id,
                 status=LeadStatus.NOVO,
             )
