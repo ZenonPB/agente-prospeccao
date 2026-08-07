@@ -14,6 +14,7 @@ import { authApi } from '@/lib/api';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
+import { OrgNameCard } from '@/components/configuracoes/org-name-card';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTheme } from 'next-themes';
@@ -310,6 +311,9 @@ export default function ConfiguracoesPage() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Organização (nome — 3.3.1) */}
+      <OrgNameCard />
 
       {/* Chaves de API (BYOK) */}
       <OrgSecretsCard />

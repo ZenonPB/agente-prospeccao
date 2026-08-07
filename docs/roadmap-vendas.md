@@ -131,7 +131,7 @@ Validado no código:
 
 ### 3.3 Gaps do modelo atual (o que falta para a EJ)
 
-#### 3.3.1 Criar e renomear organização — não existe ⬜ (P0)
+#### 3.3.1 Criar e renomear organização — não existe ✅ (P0)
 
 **Problema:** só existe a org pessoal do registro (`create_personal_organization`);
 o `PATCH /orgs/{id}` só altera `auto_send_email`. Não dá para criar um workspace
@@ -142,13 +142,17 @@ dedicado "AlphaMec" nem renomear o existente.
   (nome, slug único, opcionalmente `email_from`). No frontend, botão
   "Criar organização" no org switcher/Configurações.
 - `PATCH /api/orgs/{id}/name` (owner/admin) — renomear.
-- Fluxo de onboarding EJ: diretor registra → **cria org "AlphaMec"** → convida
+- Fluxo de onboarding EJ: diretor registra → **cria org "AlphaMek"** → convida
   analistas/consultores (§3.3.2).
 
-**Aceite:** usuário consegue criar org "AlphaMec" via UI; diretor é OWNER;
+**Aceite:** usuário consegue criar org "AlphaMek" via UI; diretor é OWNER;
 org aparece no switcher; nome editável.
 
-#### 3.3.2 Onboarding por convite para quem ainda não tem conta ⬜ (P0)
+**Status — Entregue (2026-08-06, `feat/org-onboarding`):** `POST /orgs` (cria com
+OWNER + sales_role MANAGER); `PATCH /orgs/{id}/name` (owner/admin); UI no
+`OrgSwitcher` ("Criar organização") e card em `/configuracoes` (renomear).
+
+#### 3.3.2 Onboarding por convite para quem ainda não tem conta ✅ (P0)
 
 **Problema:** `accept_invite` exige **usuário autenticado** com o e-mail do
 convite (`get_current_user`). Um membro novo da EJ precisa primeiro se registrar
@@ -163,6 +167,12 @@ e só depois aceitar o token — fricção real para embarcar a equipe inteira.
   token + dados de registro.
 
 **Aceite:** convidado novo faz 1 cadastro e já cai dentro da org AlphaMec.
+
+**Status — Entregue (2026-08-06, `feat/org-onboarding`):**
+- `GET /invites/check?token=` (público) informa email, org, se há conta;
+- `POST /invites/accept-register` cria a conta + aceita o convite em 1 passo e
+  devolve um JWT para auto-login;
+- página `/aceitar-convite` decide login (conta existe) vs cadastro (não existe).
 
 #### 3.3.3 Remoção de membro / saída da org / transferência de ownership ⬜ (P1)
 
@@ -452,8 +462,8 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.2 | Rastreamento de abertura/clique (pixel + redirect) | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-05 |
 | 4.3 | Warmup, throttling e remetente dedicado | Entregabilidade | P0 | M | gratuito | 4.1 | ✅ Entregue 2026-08-06 |
 | 4.4 | Threading completo dos follow-ups | Entregabilidade | P0 | S | gratuito | — | ✅ Entregue 2026-08-05 |
-| 3.3.1 | Criar/renomear organização | Multi-org | P0 | S | gratuito | — | ⬜ |
-| 3.3.2 | Onboarding por convite (cadastro no aceite) | Multi-org | P0 | M | gratuito | 3.3.1 | ⬜ |
+| 3.3.1 | Criar/renomear organização | Multi-org | P0 | S | gratuito | — | ✅ Entregue 2026-08-06 |
+| 3.3.2 | Onboarding por convite (cadastro no aceite) | Multi-org | P0 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-06 |
 | 4.5 | WhatsApp: validação + 1 clique + trilha | WhatsApp | P1 | M | baixo | 4.7 | ⬜ |
 | 4.6 | Rating/reviews do Google no scoring | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-05 |
 | 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ⬜ |

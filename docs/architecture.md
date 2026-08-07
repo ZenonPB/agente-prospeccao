@@ -105,9 +105,13 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 |--------|------|-----------|
 | GET | `/orgs/my-organizations` | Orgs do usuário (switcher) |
 | GET | `/orgs/me` | Org ativa + papel |
+| POST | `/orgs` | Cria organização (3.3.1): usuário vira OWNER + MANAGER |
+| PATCH | `/orgs/{org_id}/name` | Renomeia org (owner/admin) |
 | GET | `/orgs/{id}/members` · PATCH `/orgs/{id}/members/{user_id}` | Membros e `sales_role` (owner/admin) |
 | GET/POST | `/orgs/{id}/invites` · `DELETE /orgs/{id}/invites/{id}` | Convites (owner/admin) |
-| POST | `/invites/accept` | Aceita convite por token |
+| POST | `/invites/accept` | Aceita convite por token (autenticado) |
+| GET | `/invites/check` | Resolve convite por token (público): email, org, se há conta (3.3.2) |
+| POST | `/invites/accept-register` | Cadastra conta e aceita convite em 1 passo (3.3.2) |
 | GET/PUT/DELETE | `/orgs/{org_id}/secrets/{key_name}` | BYOK (org admin) — só expõe `configured` |
 | PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end` |
 

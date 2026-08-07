@@ -3,10 +3,11 @@
 Fase A4/A5: owner/admin convidam usuários para sua organização por e-mail.
 O convite gera um token que o convidado usa para aceitar.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import List
+from datetime import datetime, timezone
 
 from src.db.dependencies import get_db
 from src.db.models import (
@@ -22,6 +23,7 @@ from src.auth.dependencies import (
     get_user_organization,
     require_org_admin,
 )
+from src.auth.security import hash_password, create_access_token
 from src.services import invite_service
 
 router = APIRouter(tags=["invites"])
@@ -54,6 +56,17 @@ class CreateInviteRequest(BaseModel):
 
 class AcceptInviteRequest(BaseModel):
     token: str = Field(..., description="Token do convite")
+
+
+class AcceptRegisterRequest(BaseModel):
+    """Cadastro + aceite no mesmo fluxo (roadmap-vendas 3.3.2).
+
+    Para quem ainda não tem conta: cria o usuário com o e-mail do convite e já
+    o adiciona à organização em um único passo.
+    """
+    token: str = Field(..., description="Token do convite")
+    name: str = Field(..., min_length=2, max_length=255)
+    password: str = Field(..., min_length=8, max_length=128)
 
 
 def _invite_dict(inv: Invite) -> dict:
@@ -177,3 +190,91 @@ def revoke_invite(
     invite_service.revoke_invite(db, invite.id)
     
     return {"message": "Convite revogado com sucesso"}
+
+
+@router.get("/invites/check")
+def check_invite(
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Resolve um convite por token (público, sem auth) para a página de aceite.
+
+    Informa o e-mail do convite, a organização e se já existe conta — o
+    frontend decide entre login ou cadastro no próprio aceite (3.3.2).
+    """
+    invite = db.query(Invite).filter(Invite.token == token).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
+
+    existing = db.query(User).filter(User.email == invite.email).first()
+    expired = invite.expires_at < datetime.now(timezone.utc)
+    return {
+        "email": invite.email,
+        "organization": {
+            "id": str(invite.organization_id),
+            "name": invite.organization.name if invite.organization else None,
+            "slug": invite.organization.slug if invite.organization else None,
+        },
+        "has_account": existing is not None,
+        "accepted": invite.accepted_at is not None,
+        "expired": expired,
+    }
+
+
+@router.post("/invites/accept-register")
+def accept_register(
+    body: AcceptRegisterRequest,
+    db: Session = Depends(get_db),
+):
+    """Cadastra o convidado + aceita o convite em um único passo (3.3.2).
+
+    Válido apenas quando o e-mail do convite ainda não tem conta. Cria o
+    usuário (sem workspace pessoal — ele cai direto na org do convite) e já
+    retorna um token JWT para auto-login.
+    """
+    invite = db.query(Invite).filter(Invite.token == body.token).first()
+    if not invite:
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
+    if invite.accepted_at:
+        raise HTTPException(status_code=400, detail="Convite já foi aceito")
+    if invite.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Convite expirado")
+
+    existing = db.query(User).filter(User.email == invite.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Já existe uma conta com este e-mail. Faça login e aceite o convite.",
+        )
+
+    user = User(
+        name=body.name,
+        email=invite.email,
+        password_hash=hash_password(body.password),
+        role="SALES",
+    )
+    db.add(user)
+    db.flush()
+
+    member = invite_service.accept_invite(db, body.token, user)
+    token = create_access_token({"sub": str(user.id), "email": user.email})
+
+    return {
+        "message": "Conta criada e convite aceito com sucesso",
+        "user": {
+            "id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+        },
+        "token": token,
+        "organization": {
+            "id": str(member.organization_id),
+            "name": member.organization.name if member.organization else None,
+            "slug": member.organization.slug if member.organization else None,
+        },
+        "membership": {
+            "role": member.role.name if member.role else None,
+            "sales_role": member.sales_role.value if member.sales_role else None,
+        },
+    }
