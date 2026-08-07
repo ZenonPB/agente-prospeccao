@@ -342,8 +342,23 @@ export const orgsApi = {
       method: "DELETE",
     }),
 
-  patchSettings: (orgId: string, data: { auto_send_email?: boolean }) =>
-    request<{ id: string; name: string; auto_send_email: boolean }>(
+  patchSettings: (orgId: string, data: {
+    auto_send_email?: boolean;
+    daily_email_limit?: number;
+    send_window_start?: string;
+    send_window_end?: string;
+    email_from?: string;
+  }) =>
+    request<{
+      id: string;
+      name: string;
+      auto_send_email: boolean;
+      daily_email_limit: number;
+      send_window_start: string;
+      send_window_end: string;
+      email_from?: string | null;
+      sends_today: number;
+    }>(
       `/api/orgs/${orgId}`,
       { method: "PATCH", body: JSON.stringify(data) },
     ),

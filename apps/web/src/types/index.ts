@@ -117,6 +117,12 @@ export interface OrgMembership {
     name?: string;
     slug?: string;
     auto_send_email?: boolean;
+    // Item 4.3 — throttling & remetente dedicado.
+    daily_email_limit?: number;
+    send_window_start?: string;
+    send_window_end?: string;
+    sends_today?: number;
+    email_from?: string;
   };
   membership: {
     role: OrgRole;
