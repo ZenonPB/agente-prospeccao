@@ -27,12 +27,23 @@ if _workers_path not in sys.path:
     sys.path.insert(0, _workers_path)
 from services.secret_service import SecretService, KEY_NAMES  # noqa: E402
 from src.services.cadence_service import sends_today  # noqa: E402
+from src.services.org_service import create_organization  # noqa: E402
 
 router = APIRouter(prefix="/orgs", tags=["orgs"])
 
 
 class PatchMemberSalesRoleRequest(BaseModel):
     sales_role: SalesRole = Field(...)
+
+
+class CreateOrgRequest(BaseModel):
+    """Cria um novo workspace (roadmap-vendas 3.3.1)."""
+    name: str = Field(..., min_length=2, max_length=255)
+    email_from: Optional[str] = Field(None, max_length=255)
+
+
+class RenameOrgRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=255)
 
 
 def _member_dict(m: OrganizationMember) -> dict:
@@ -90,13 +101,37 @@ def get_my_org(
     }
 
 
+@router.post("")
+def create_org(
+    body: CreateOrgRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Cria uma nova organização (roadmap-vendas 3.3.1).
+
+    O usuário logado vira OWNER (sales_role MANAGER). Slugs são derivados do
+    nome e tornados únicos automaticamente.
+    """
+    org = create_organization(db, name=body.name, owner_user=user, email_from=body.email_from)
+    db.commit()
+    db.refresh(org)
+    return {
+        "id": str(org.id),
+        "name": org.name,
+        "slug": org.slug,
+        "email_from": org.email_from,
+        "role": "OWNER",
+        "sales_role": "MANAGER",
+    }
+
+
 @router.get("/my-organizations")
 def list_my_organizations(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Lista todas as organizações das quais o usuário é membro.
-    
+
     Usado pelo org switcher. Retorna lista com org + role + sales_role de
     cada membership. A org ativa é determinada pelo frontend (localStorage).
     """
@@ -321,4 +356,30 @@ def patch_org_settings(
         "send_window_end": org.send_window_end,
         "email_from": org.email_from,
         "sends_today": sends_today(db, org.id)[0],
+    }
+
+
+@router.patch("/{org_id}/name")
+def rename_org(
+    org_id: str,
+    body: RenameOrgRequest,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Renomeia a organização (roadmap-vendas 3.3.1, owner/admin)."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    org = db.query(Organization).filter(Organization.id == org_id).first()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    org.name = body.name.strip()
+    db.commit()
+    db.refresh(org)
+    return {
+        "id": str(org.id),
+        "name": org.name,
+        "slug": org.slug,
     }

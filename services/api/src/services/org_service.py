@@ -97,6 +97,37 @@ def create_personal_organization(db: Session, user: User) -> Organization:
     return org
 
 
+def create_organization(
+    db: Session,
+    name: str,
+    owner_user: User,
+    email_from: str | None = None,
+) -> Organization:
+    """Cria uma organização com o usuário como OWNER (roadmap-vendas 3.3.1).
+
+    Usado para criar workspaces dedicados (ex.: "AlphaMek") além do pessoal do
+    registro. O owner recebe `sales_role=MANAGER` (acesso total de leitura/BI)
+    além do papel administrativo OWNER. Não faz commit (o caller decide).
+    """
+    org = Organization(
+        id=uuid.uuid4(),
+        name=name.strip(),
+        slug=unique_slug(db, slugify(name)),
+        email_from=email_from or None,
+    )
+    db.add(org)
+    db.flush()
+    db.add(OrganizationMember(
+        organization_id=org.id,
+        user_id=owner_user.id,
+        role=OrganizationRole.OWNER,
+        sales_role=SalesRole.MANAGER,
+    ))
+    db.flush()
+    logger.info("Organização manual criada por user %s: %s", owner_user.id, org.slug)
+    return org
+
+
 def user_organization(db: Session, user: User) -> Organization | None:
     """Retorna a organização do usuário (primeira membership)."""
     member = db.query(OrganizationMember).filter(
