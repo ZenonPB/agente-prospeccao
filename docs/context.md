@@ -568,18 +568,39 @@ Branch `feat/cadence-warmup-throttle` (P0 do roadmap-vendas 4.3):
 `d8e9f0a2b3c4` (rating) e `e2f3a4b5c6d7` (tracking); `TRACKING_BASE_URL`
 definido no `.env` (ativa o pixel/redirect).
 
+### Item C.3 — Funil de negociação + resultado de contrato ✅ (2026-08-06)
+
+Branch `feat/negotiation-funnel` (roadmap-leads Parte C.3 — largar a planilha):
+
+- **Modelos/migration `f5a6b7c8d9e0`** (aplicada): `Lead.negotiation_stage`
+  (enum `RD/ORCAMENTO/RP`) + `Lead.contract_outcome`
+  (`APROVADO/REPROVADO/EM_ANALISE`) + `Lead.outcome_date`. Re-exportados na API.
+- **`PATCH /leads/{id}/negotiation`** — registra/limpa estágio e resultado,
+  **somente** quando o lead está em `RESPONDIDO/REUNIAO_MARCADA/REUNIAO_FEITA/
+  PROPOSTA_ENVIADA` (400 caso contrário); grava a action `NEGOTIATION_UPDATED`
+  na trilha. Conversão (`POST /conversion`) marca `contract_outcome=APROVADO`.
+- **Exposição**: campos novos no resumo/detalhe do lead (`_lead_summary`).
+- **Analytics**: `overview` ganha `negotiation_distribution` e
+  `contracts_by_outcome` (BI p/ diretoria).
+- **Frontend**: controle **Negociação** na aba Próximas Ações do lead
+  (`NegotiationControl` — selects de estágio/resultado + salvar); badge de
+  estágio/resultado nos cards do kanban; card **Negociação** nos Relatórios
+  (estágio RD/Orçamento/RP + resultado de contrato). `tsc`/lint/build limpos.
+- **Testes**: `tests/test_negotiation_enums.py` (4) — suíte em **70 passed**.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-06 (fim de sessão)** — onde paramos:
 >
-> 1. **Item 4.3 (Warmup/throttling + remetente dedicado) entregue** na branch
->    `feat/cadence-warmup-throttle`; pré-requisitos resolvidos (migrations
->    `d8e9f0a2b3c4` + `e2f3a4b5c6d7` aplicadas; `TRACKING_BASE_URL` no `.env`).
->    Próximo: **funil de negociação** p/ largar a planilha Alphamec
->    (roadmap-leads Parte C.3: estágios `RD/ORÇAMENTO/RP` + resultado
->    `APROVADO/REPROVADO/EM_ANÁLISE` + dashboard por consultor) e depois
->    **onboarding multi-org** (3.3.1 criar/renomear org, 3.3.2 aceite com cadastro).
-> 2. Ações pendentes: mergear a branch (PR manual pelo dono), rodar `graphify
+> 1. **Item 4.3 (Warmup/throttling)** e **funil de negociação (roadmap-leads
+>    C.3)** entregues nas branches `feat/cadence-warmup-throttle` e
+>    `feat/negotiation-funnel` (esta, baseada na anterior). Migrations até
+>    `f5a6b7c8d9e0` aplicadas; `pytest` instalado na venv da API (70 testes).
+>    Próximo: **onboarding multi-org** (3.3.1 criar/renomear org — e aí 3.3.2
+>    aceite de convite com cadastro p/ quem ainda não tem conta). Depois:
+>    **pós-venda** (roadmap-leads C.3, campos `DATA CONTATO PÓS-VENDA`/
+>    `PÓS VENDA POR`).
+> 2. Ações pendentes: mergear as branches (PR manual pelo dono), `graphify
 >    update .`, e quando a operação for real, ativar tracking com a URL pública.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
