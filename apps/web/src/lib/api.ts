@@ -331,6 +331,18 @@ export const orgsApi = {
   me: () =>
     request<OrgMembership>("/api/orgs/me"),
 
+  createOrganization: (name: string, emailFrom?: string) =>
+    request<{ id: string; slug: string; role: import("@/types").OrgRole; sales_role: import("@/types").SalesRole; email_from?: string | null; }>(
+      "/api/orgs",
+      { method: "POST", body: JSON.stringify({ name, email_from: emailFrom || undefined }) },
+    ),
+
+  renameOrganization: (orgId: string, name: string) =>
+    request<{ id: string; name: string; slug: string }>(`/api/orgs/${orgId}/name`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+
   listMyOrganizations: () =>
     request<{ organizations: import("@/types").OrganizationListItem[] }>("/api/orgs/my-organizations"),
 
@@ -585,6 +597,27 @@ export const invitesApi = {
     }>("/api/invites/accept", {
       method: "POST",
       body: JSON.stringify({ token }),
+    }),
+
+  check: (token: string) =>
+    request<{
+      email: string;
+      organization: { id: string; name: string | null; slug: string | null };
+      has_account: boolean;
+      accepted: boolean;
+      expired: boolean;
+    }>(`/api/invites/check?${new URLSearchParams({ token })}`),
+
+  acceptRegister: (token: string, name: string, password: string) =>
+    request<{
+      message: string;
+      user: { id: string; name: string; email: string; role: string };
+      token: string;
+      organization: { id: string; name: string; slug: string };
+      membership: { role: import("@/types").OrgRole; sales_role: import("@/types").SalesRole };
+    }>("/api/invites/accept-register", {
+      method: "POST",
+      body: JSON.stringify({ token, name, password }),
     }),
   
   revoke: (orgId: string, inviteId: string) =>

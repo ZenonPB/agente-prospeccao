@@ -1,9 +1,20 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Check, ChevronsUpDown, Building2 } from "lucide-react";
-import { useMyOrganizations } from "@/hooks/use-api";
+import { Check, ChevronsUpDown, Building2, Plus, Loader2 } from "lucide-react";
+import { useMyOrganizations, useCreateOrganization } from "@/hooks/use-api";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Command,
   CommandEmpty,
@@ -49,7 +60,10 @@ function readStoredOrgId(): string | null {
 export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
   const router = useRouter();
   const { data: orgsData, isLoading } = useMyOrganizations();
+  const createOrg = useCreateOrganization();
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
   const [activeOrgId, setActiveOrgId] = useState<string | null>(() => readStoredOrgId());
 
   const organizations = useMemo(() => orgsData?.organizations || [], [orgsData]);
@@ -73,6 +87,19 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
     [router],
   );
 
+  const handleCreateOrg = async () => {
+    if (!name.trim()) return;
+    try {
+      const created = await createOrg.mutateAsync({ name: name.trim() });
+      setCreateOpen(false);
+      setName("");
+      handleSelectOrg(created.id);
+      toast.success("Organização criada.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao criar organização.");
+    }
+  };
+
   if (isLoading || !organizations.length) {
     return null;
   }
@@ -82,12 +109,22 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
       <div className="flex items-center gap-2 px-3 py-2 text-sm text-sidebar-foreground/70">
         <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
         <span className="truncate">{activeOrg?.name || "Minha Organização"}</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto h-6 w-6"
+          onClick={() => setCreateOpen(true)}
+          aria-label="Criar organização"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+        </Button>
       </div>
     );
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <Button
@@ -139,11 +176,54 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
                   </div>
                 </CommandItem>
               ))}
+              <CommandItem
+                value="__create__"
+                onSelect={() => {
+                  setCreateOpen(true);
+                }}
+                className="border-t border-border/60 text-muted-foreground"
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Criar organização
+              </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
+
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>Criar organização</DialogTitle>
+          <DialogDescription>
+            Crie um workspace dedicado (ex.: o da empresa). Você vira proprietário.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="new-org-name">Nome</Label>
+          <Input
+            id="new-org-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Ex.: AlphaMec"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleCreateOrg();
+            }}
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setCreateOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleCreateOrg} disabled={createOrg.isPending || !name.trim()}>
+            {createOrg.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Criar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

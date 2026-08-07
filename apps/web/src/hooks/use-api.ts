@@ -324,6 +324,50 @@ export function useAcceptInvite() {
   });
 }
 
+export function useCheckInvite(token: string) {
+  return useQuery({
+    queryKey: ["invites", "check", token],
+    queryFn: () => invitesApi.check(token),
+    enabled: !!token,
+    retry: false,
+  });
+}
+
+export function useAcceptRegister() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ token, name, password }: { token: string; name: string; password: string }) =>
+      invitesApi.acceptRegister(token, name, password),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orgs"] });
+    },
+  });
+}
+
+export function useCreateOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ name, emailFrom }: { name: string; emailFrom?: string }) =>
+      orgsApi.createOrganization(name, emailFrom),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orgs", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["org", "me"] });
+    },
+  });
+}
+
+export function useRenameOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, name }: { orgId: string; name: string }) =>
+      orgsApi.renameOrganization(orgId, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orgs", "list"] });
+      queryClient.invalidateQueries({ queryKey: ["org", "me"] });
+    },
+  });
+}
+
 export function useRevokeInvite() {
   const queryClient = useQueryClient();
   return useMutation({
