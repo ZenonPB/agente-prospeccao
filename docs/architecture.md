@@ -109,7 +109,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | GET/POST | `/orgs/{id}/invites` · `DELETE /orgs/{id}/invites/{id}` | Convites (owner/admin) |
 | POST | `/invites/accept` | Aceita convite por token |
 | GET/PUT/DELETE | `/orgs/{org_id}/secrets/{key_name}` | BYOK (org admin) — só expõe `configured` |
-| PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from` |
+| PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end` |
 
 ### Campanhas
 | Método | Rota | Descrição |
@@ -204,8 +204,10 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
 - **campaign_scoring_templates** — sinais (positive/negative/context JSONB),
   flags `requires_technical_report`/`requires_business_data`,
   `extra_instructions`, `playbook`, `is_generated`, `organization_id`.
-- **organizations / organization_members / invites** — multi-tenant; papéis
-  `owner/admin/member`; `sales_role` (`CONSULTOR/ANALYST/MANAGER`) por membro/org.
+- **organizations** — `name`, `slug`, `auto_send_email`, `email_from`,
+  `daily_email_limit` e `send_window_start/end` (item 4.3: teto diário e janela
+  de espalhamento do envio automático); `organization_members` ganha
+  `email_from` (remetente dedicado por consultor).
 - **organization_secrets** — BYOK, `encrypted_value` (Fernet).
 - **contacts / company_record** — decisores, e-mails, LinkedIn, confidence; cadastro.
 - **enrichments** — dados técnicos do site (SSL, CMS, load_time_ms, `raw_technical_data`).
@@ -219,7 +221,9 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
 - **Scheduler de cadência** (lifespan do FastAPI): loop asyncio
   (`CADENCE_POLL_SECONDS`, default 60s) que roda `run_due` (regra no evento loop,
   `asyncio.to_thread` para SMTP) — envia follow-ups vencidos **somente** de orgs
-  com `auto_send_email`, respeitando `scheduled_at` e `opt_out`.
+  com `auto_send_email`, respeitando `scheduled_at`, `opt_out` e o **throttling**
+  (item 4.3: `daily_email_limit`, `send_window_start/end`, teto por hora).
+  Etapas que não couberem no orçamento do dia/hora **ficam `PENDING`** (postergadas).
 - **Pipeline em background**: endpoints `POST /pipeline/start`, `collect-cnae`
   criam um `Job` e disparam `pipeline_worker` com streaming via WebSocket.
 - Trabalho síncrono (SMTP, import CSV) roda fora do event loop (`asyncio.to_thread`).
@@ -230,6 +234,7 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
   (compartilhado entre workers e API). Variáveis principais: `DATABASE_URL`,
   `JWT_SECRET`, `CORS_ORIGINS`, `GROQ_API_KEY`, `GOOGLE_API_KEY`,
   `HUNTER_API_KEY`, `SECRETS_ENCRYPTION_KEY`, `EMAIL_WEBHOOK_SECRET`,
+  `TRACKING_BASE_URL` (4.2), `DAILY_EMAIL_LIMIT` (4.3),
   `CADENCE_POLL_SECONDS`, `ENVIRONMENT`.
 - Chaves por org (BYOK) em `organization_secrets`, cifradas com Fernet
   (`secret_service`); serviço resolvem `BYOK → pool global`. Valores nunca expostos

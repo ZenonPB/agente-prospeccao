@@ -246,7 +246,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 - **Aceite:** após uma rodada de envio, o consultor vê quais leads abriram e em
   quais links clicaram; pode priorizar follow-up por isso.
 
-#### 4.3 Warmup, throttling e remetente dedicado ⬜ (M, gratuito)
+#### 4.3 Warmup, throttling e remetente dedicado ✅ (M, gratuito)
 
 - **Hoje:** `run_due` envia todos os vencidos de uma vez por poll de 60s; SMTP
   usa `from_email` da org (`organizations.email_from`).
@@ -260,8 +260,16 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     tier gratuito ou custo irrisório e já cuidam de DKIM).
   - **Personalização de remetente por consultor** (cada consultor envia do
     próprio e-mail da org) para preservar reputação individual.
-- **Aceite:** painel mostra "envios hoje X/limite Y"; cadência nunca dispara a
-  rajada; guia de setup de domínio no README.
+- **Status — Entregue (2026-08-06, `feat/cadence-warmup-throttle`):**
+  - `organizations.daily_email_limit` (default 40) + `send_window_start/end`
+    (default 09:00–17:00) e `organization_members.email_from` (remetente por
+    consultor) — migration `f4a5b6c7d8e9`.
+  - `cadence_service.run_due` respeita teto diário, janela (fuso do servidor) e
+    teto por hora; etapas excedentes ficam `PENDING` (postergadas, nunca falham).
+  - Remetente em ordem: consultor → org → global.
+  - Painel em `/configuracoes` (owner/admin): badge "Envios hoje X/limite Y",
+    limite diário, janela e remetente da org.
+  - Guia de aquecimento no `README.md`.
 
 #### 4.4 Correção do threading de follow-ups ⬜ (S, gratuito)
 
@@ -442,7 +450,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
 | 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
 | 4.2 | Rastreamento de abertura/clique (pixel + redirect) | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-05 |
-| 4.3 | Warmup, throttling e remetente dedicado | Entregabilidade | P0 | M | gratuito | 4.1 | ⬜ |
+| 4.3 | Warmup, throttling e remetente dedicado | Entregabilidade | P0 | M | gratuito | 4.1 | ✅ Entregue 2026-08-06 |
 | 4.4 | Threading completo dos follow-ups | Entregabilidade | P0 | S | gratuito | — | ✅ Entregue 2026-08-05 |
 | 3.3.1 | Criar/renomear organização | Multi-org | P0 | S | gratuito | — | ⬜ |
 | 3.3.2 | Onboarding por convite (cadastro no aceite) | Multi-org | P0 | M | gratuito | 3.3.1 | ⬜ |
