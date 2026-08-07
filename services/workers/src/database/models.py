@@ -119,6 +119,13 @@ class Organization(Base):
     # Item 4.1 — remetente próprio da org (ex.: vendas@empresa.com.br). Se vazio,
     # usa o remetente global do settings (SMTP_FROM_EMAIL).
     email_from = Column(String(255))
+    # Item 4.3 — throttling de envio automático: teto diário de e-mails da org
+    # (warmup/warm). O scheduler `run_due` nunca ultrapassa este limite no dia.
+    daily_email_limit = Column(Integer, default=40, nullable=False, server_default="40")
+    # Item 4.3 — janela de espalhamento dos envios automáticos (HH:MM, ex. "09:00"
+    # e "17:00"). Fora da janela, o scheduler posterga as etapas (fica PENDING).
+    send_window_start = Column(String(5), default="09:00", nullable=False, server_default="09:00")
+    send_window_end = Column(String(5), default="17:00", nullable=False, server_default="17:00")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -143,6 +150,10 @@ class OrganizationMember(Base):
     role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
     # Papel de venda por organização (item 2.1): CONSULTOR/ANALYST/MANAGER.
     sales_role = Column(Enum(SalesRole, name='sales_role', create_type=True, values_callable=lambda e: [m.value for m in e]), default=SalesRole.CONSULTOR)
+    # Item 4.3 — remetente dedicado por consultor (ex.: rapha@alphamec.com.br).
+    # Preserva a reputação individual de cada vendedor no envio automático.
+    # Se vazio, usa `organizations.email_from`; se este for vazio, o global.
+    email_from = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="members")

@@ -21,12 +21,16 @@ Envio:
 O envio efetivo vai via `email_service.send_email` (SMTP ou dry-run em dev).
 """
 import logging
+import math
 import uuid
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from src.config.settings import settings
 from src.db.models import (
     FollowUp,
     FollowUpStatus,
@@ -36,6 +40,7 @@ from src.db.models import (
     Message,
     MessageChannel,
     Organization,
+    OrganizationMember,
     User,
     EmailSuppression,
     LeadActivity,
@@ -151,11 +156,12 @@ def send_step(
         db.commit()
         return False
 
-    # Remetente por org (item 4.1); threading com o Message-ID da etapa anterior.
+    # Remetente (item 4.3): por consultor → org → global. O consultor que
+    # "dono" do lead envia do próprio e-mail da org, preservando a reputação.
     org = None
     if lead and lead.organization_id:
         org = db.query(Organization).filter(Organization.id == lead.organization_id).first()
-    from_email = (org.email_from if org and org.email_from else None)
+    from_email = _resolve_from_email(db, lead, org)
     in_reply_to, references = _thread_headers(db, lead.id if lead else None, follow_up.step)
 
     # Tracking 4.2: token único da etapa (pixel/redirect); criado antes do envio.
@@ -285,15 +291,103 @@ def mark_opt_out(db: Session, lead: Lead) -> None:
     db.commit()
 
 
-def run_due(db: Session) -> int:
+def _resolve_from_email(db: Session, lead: Optional[Lead], org: Optional[Organization]) -> Optional[str]:
+    """Resolve o remetente de um envio (item 4.3), em ordem de precedência:
+
+    1. `OrganizationMember.email_from` do consultor que é dono do lead
+       (remetente dedicado — preserva a reputação individual do vendedor);
+    2. `Organization.email_from` (remetente da org);
+    3. `None` → a `email_service` usa o global (`SMTP_FROM_EMAIL`).
+    """
+    if lead and lead.assigned_to_id and lead.organization_id:
+        member = db.query(OrganizationMember).filter(
+            OrganizationMember.organization_id == lead.organization_id,
+            OrganizationMember.user_id == lead.assigned_to_id,
+        ).first()
+        if member and member.email_from:
+            return member.email_from
+    if org and org.email_from:
+        return org.email_from
+    return None
+
+
+def _parse_hhmm(value: Optional[str], default_minutes: int) -> int:
+    """Converte "HH:MM" em minutos desde 00:00. Valor inválido → default."""
+    try:
+        h, m = value.split(":")
+        return int(h) * 60 + int(m)
+    except (AttributeError, TypeError, ValueError):
+        return default_minutes
+
+
+def _window_state(org: Optional[Organization], now_local: datetime) -> Tuple[bool, int]:
+    """Avalia a janela de espalhamento da org e deriva o teto por hora.
+
+    A janela (`send_window_start`/`send_window_end`, HH:MM) é interpretada no
+    fuso **local do servidor**. Fora da janela → retorna `(False, 0)`, e o
+    `run_due` posterga os envios (as etapas ficam PENDING até a próxima poll).
+
+    O teto por hora é `ceil(limite_diário * 60 / minutos_da_janela)` — espalha
+    os envios ao longo do dia em vez de disparar tudo de uma vez. Janela
+    invertida/inválida vira dia inteiro (sem restrição horária).
+    """
+    limit = _org_daily_limit(org)
+    start = _parse_hhmm(org.send_window_start if org else None, 9 * 60)
+    end = _parse_hhmm(org.send_window_end if org else None, 17 * 60)
+    minutes = end - start
+    if minutes <= 0:
+        # Janela inválida/invertida → sem restrição de horário, teto diário só.
+        return True, max(1, math.ceil(limit / 24.0))
+
+    now_minutes = now_local.hour * 60 + now_local.minute
+    within = start <= now_minutes < end
+    hourly_cap = max(1, math.ceil(limit * 60 / minutes))
+    return within, hourly_cap
+
+
+def _org_daily_limit(org: Optional[Organization]) -> int:
+    """Teto diário da org; fallback para o default global do settings."""
+    if org and org.daily_email_limit and org.daily_email_limit > 0:
+        return org.daily_email_limit
+    return settings.DAILY_EMAIL_LIMIT
+
+
+def sends_today(db: Session, org_id, now_local: Optional[datetime] = None) -> Tuple[int, int]:
+    """Conta envios da org hoje (local) e na hora atual (para o teto horário).
+
+    Conta `Message` criados pela cadência (com `sent_at` em UTC) cujo lead
+    pertence à org. Retorna `(total_hoje, enviados_na_hora)`.
+    """
+    now_local = now_local or datetime.now().astimezone()
+    day_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    hour_start = now_local.replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    base = (
+        db.query(func.count(Message.id))
+        .join(Lead, Message.lead_id == Lead.id)
+        .filter(Lead.organization_id == org_id)
+    )
+    today = base.filter(Message.sent_at >= day_start).scalar() or 0
+    hour = base.filter(Message.sent_at >= hour_start).scalar() or 0
+    return int(today), int(hour)
+
+
+def run_due(db: Session) -> Tuple[int, int]:
     """Envia automaticamente as etapas vencidas de orgs com `auto_send_email`.
 
-    Rodado periodicamente pelo scheduler (main.py). Respeita opt-out. Retorna
-    quantas etapas foram enviadas. Não envia nada para orgs sem opt-in.
+    Rodado periodicamente pelo scheduler (main.py). Respeita:
+    - opt-out e `email_verified` (via `send_step`);
+    - **throttling (item 4.3)**: teto diário por org (`daily_email_limit`),
+      janela de espalhamento (`send_window_start/end`) e teto por hora;
+    - etapas que não couberem no orçamento do dia/hora **permanecem PENDING**
+      (são postergadas para a próxima poll — nunca marcadas como falha).
+
+    Retorna `(enviadas, postergadas)`.
     """
     from sqlalchemy import and_
 
-    now = datetime.now(timezone.utc)
+    now_utc = datetime.now(timezone.utc)
+    now_local = datetime.now().astimezone()
     due = (
         db.query(FollowUp)
         .join(Lead, FollowUp.lead_id == Lead.id)
@@ -301,22 +395,52 @@ def run_due(db: Session) -> int:
         .filter(
             and_(
                 FollowUp.status == FollowUpStatus.PENDING,
-                FollowUp.scheduled_at <= now,
+                FollowUp.scheduled_at <= now_utc,
                 Lead.opt_out.is_(False),
                 Organization.auto_send_email.is_(True),
             )
         )
+        .order_by(FollowUp.scheduled_at.asc())
         .all()
     )
-    sent_count = 0
+
+    by_org: "OrderedDict[str, List[FollowUp]]" = OrderedDict()
     for fu in due:
-        try:
-            if send_step(db, fu):
-                sent_count += 1
-        except Exception as e:
-            logger.error("Falha ao enviar follow-up %s do lead %s: %s",
-                         fu.step.value, fu.lead_id, e)
-    return sent_count
+        org_id = fu.lead.organization_id if fu.lead else None
+        if org_id:
+            by_org.setdefault(str(org_id), []).append(fu)
+
+    sent_count = 0
+    deferred = 0
+    for org_id, follow_ups in by_org.items():
+        org = db.query(Organization).filter(Organization.id == org_id).first()
+        if not org:
+            continue
+        limit = _org_daily_limit(org)
+        sent_today, sent_hour = org_sends_today(db, org_id, now_local)
+        within_window, hourly_cap = _window_state(org, now_local)
+        budget = limit - sent_today
+        sent_in_org = 0
+
+        for fu in follow_ups:
+            # Tetos diário e horário; fora da janela → posterga.
+            if sent_in_org >= budget:
+                deferred += 1
+                continue
+            if not within_window:
+                deferred += 1
+                continue
+            if (sent_hour + sent_in_org) >= hourly_cap:
+                deferred += 1
+                continue
+            try:
+                if send_step(db, fu):
+                    sent_count += 1
+                    sent_in_org += 1
+            except Exception as e:
+                logger.error("Falha ao enviar follow-up %s do lead %s: %s",
+                             fu.step.value, fu.lead_id, e)
+    return sent_count, deferred
 
 
 def _recipient_email(lead: Optional[Lead], require_verified: bool = False) -> Optional[str]:
