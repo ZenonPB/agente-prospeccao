@@ -174,6 +174,17 @@ export const leadsApi = {
       body: JSON.stringify(data),
     }),
 
+  registerPostSale: (id: string, data: { channel: "WHATSAPP" | "EMAIL"; subject?: string; content?: string }) =>
+    request<{
+      id: string;
+      post_sale_contacted_at: string | null;
+      post_sale_channel: string | null;
+      status: string | null;
+    }>(`/api/leads/${id}/post-sale`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   getCadence: (id: string) =>
     request<LeadCadence>(`/api/leads/${id}/cadence`),
 

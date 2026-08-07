@@ -507,6 +507,18 @@ export function usePatchNegotiation() {
   });
 }
 
+export function useRegisterPostSale() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { channel: "WHATSAPP" | "EMAIL"; subject?: string; content?: string } }) =>
+      leadsApi.registerPostSale(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence"] });
+    },
+  });
+}
+
 export function usePatchOrgSettings() {
   const queryClient = useQueryClient();
   return useMutation({

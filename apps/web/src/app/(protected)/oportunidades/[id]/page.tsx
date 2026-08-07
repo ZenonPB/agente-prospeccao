@@ -15,6 +15,7 @@ import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
 import { NegotiationControl } from '@/components/oportunidades/negotiation-control';
+import { PostSaleControl } from '@/components/oportunidades/post-sale-control';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -682,6 +683,9 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   initialStage={lead.negotiation_stage}
                   initialOutcome={lead.contract_outcome}
                 />
+              )}
+              {(lead.contract_outcome === 'APROVADO' || lead.post_sale_contacted_at) && (
+                <PostSaleControl key={`pos-${lead.id}`} leadId={lead.id} />
               )}
             </CardContent>
           </Card>
