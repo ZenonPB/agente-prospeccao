@@ -80,3 +80,16 @@ jobs:
           GOOGLE_API_KEY: test
           SECRETS_ENCRYPTION_KEY: ""
         run: alembic upgrade head
+      - name: Seed templates (smoke)
+        working-directory: services/workers
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+          PGADMIN_EMAIL: admin@test.local
+          PGADMIN_PASSWORD: admin
+          GROQ_API_KEY: test
+          GOOGLE_API_KEY: test
+          SECRETS_ENCRYPTION_KEY: ""
+        run: python -m src.seeds.scoring_templates
