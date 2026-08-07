@@ -543,22 +543,44 @@ Branch: `feat/outreach-cadence-playbooks`
 
 **Testado:** migration aplicada; E2E cadência (start → 4 etapas → send OPENING → SENT → opt-out cancela pendentes); scheduler `run_due` enviou follow-up vencido de org com opt-in e registrou Message; playbook resolvido (Petshops → hooks/objeções reais); `npm run build` OK; eslint limpo; app importa OK.
 
+### Item 4.3 — Warmup/throttling + remetente dedicado ✅ (2026-08-06)
+
+Branch `feat/cadence-warmup-throttle` (P0 do roadmap-vendas 4.3):
+
+- **Modelos/migration `f4a5b6c7d8e9`** (aplicada): `organizations.daily_email_limit`
+  (default 40) + `send_window_start/end` (default 09:00–17:00);
+  `organization_members.email_from` (remetente dedicado por consultor).
+- **`cadence_service`**: `run_due` agora respeita **teto diário por org**,
+  **janela de espalhamento** (fuso do servidor) e **teto por hora**
+  (`ceil(limite*60/janela)`); etapas excedentes ficam `PENDING` (postergadas,
+  nunca falham). `sends_today()` conta `Message` de hoje por org. `_resolve_from_email`
+  prioriza: consultor dedicado → org → global.
+- **Rotas**: `GET /orgs/me` e `PATCH /orgs/{id}` expõem/aceitam os novos campos +
+  `sends_today`.
+- **settings.py**: `DAILY_EMAIL_LIMIT` (default 40).
+- **Frontend**: `/configuracoes` (owner/admin) — badge "Envios hoje X/limite Y"
+  com barra de progresso, campos de limite diário, janela e remetente da org.
+  `tsc --noEmit` + `lint` + `build` limpos.
+- **Testes**: `tests/test_cadence_throttle.py` (12 checagens: limite, janela,
+  teto por hora, remetente dedicado).
+
+**Pré-requisitos cumpridos nesta sessão:** `alembic upgrade head` aplicou
+`d8e9f0a2b3c4` (rating) e `e2f3a4b5c6d7` (tracking); `TRACKING_BASE_URL`
+definido no `.env` (ativa o pixel/redirect).
+
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-05 (fim de sessão)** — onde paramos:
+> **Atualizado 2026-08-06 (fim de sessão)** — onde paramos:
 >
-> 1. **Mergeados no `main`**: roadmap-leads S1–S5 (PR #47), gaps residuais CSV+S5
->    script (PR #48), threading 4.4 (PR #49), rating/reviews 4.6 (PR #50) e
->    **rastreamento de abertura/clique 4.2 (PR #51)** — com a migration
->    `e2f3a4b5c6d7`. Detalhes do 4.2 na seção "Tracking de abertura/clique" abaixo.
-> 2. **Amanhã — próximo item**: **4.3 Warmup/throttling + remetente dedicado**
->    (limite diário por remetente/org no `run_due`, espalhamento horário, painel
->    "envios hoje X/limite Y"). Depois dele: **funil de negociação** p/ largar a
->    planilha (roadmap-leads Parte C.3) e onboarding multi-org (3.3.1/3.3.2).
->
-> Ações pendentes: rodar `alembic upgrade head` para aplicar `e2f3a4b5c6d7`
-> (e `d8e9f0a2b3c4` se ainda não) e definir `TRACKING_BASE_URL` no `.env` da API
-> para ativar o pixel/redirect.
+> 1. **Item 4.3 (Warmup/throttling + remetente dedicado) entregue** na branch
+>    `feat/cadence-warmup-throttle`; pré-requisitos resolvidos (migrations
+>    `d8e9f0a2b3c4` + `e2f3a4b5c6d7` aplicadas; `TRACKING_BASE_URL` no `.env`).
+>    Próximo: **funil de negociação** p/ largar a planilha Alphamec
+>    (roadmap-leads Parte C.3: estágios `RD/ORÇAMENTO/RP` + resultado
+>    `APROVADO/REPROVADO/EM_ANÁLISE` + dashboard por consultor) e depois
+>    **onboarding multi-org** (3.3.1 criar/renomear org, 3.3.2 aceite com cadastro).
+> 2. Ações pendentes: mergear a branch (PR manual pelo dono), rodar `graphify
+>    update .`, e quando a operação for real, ativar tracking com a URL pública.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

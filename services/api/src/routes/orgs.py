@@ -26,6 +26,7 @@ _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", 
 if _workers_path not in sys.path:
     sys.path.insert(0, _workers_path)
 from services.secret_service import SecretService, KEY_NAMES  # noqa: E402
+from src.services.cadence_service import sends_today  # noqa: E402
 
 router = APIRouter(prefix="/orgs", tags=["orgs"])
 
@@ -73,6 +74,13 @@ def get_my_org(
             "name": member.organization.name if member.organization else None,
             "slug": member.organization.slug if member.organization else None,
             "auto_send_email": bool(member.organization.auto_send_email) if member.organization else False,
+            # Item 4.3 — throttling & remetente dedicado: expõe o teto diário,
+            # a janela de espalhamento e quantos envios já foram hoje.
+            "daily_email_limit": member.organization.daily_email_limit if member.organization else None,
+            "send_window_start": member.organization.send_window_start if member.organization else None,
+            "send_window_end": member.organization.send_window_end if member.organization else None,
+            "sends_today": sends_today(db, member.organization_id)[0] if member.organization else 0,
+            "email_from": member.organization.email_from if member.organization else None,
         },
         "membership": {
             "role": member.role.name if member.role else None,
@@ -248,6 +256,23 @@ async def delete_org_secret(
 
 class PatchOrgSettingsRequest(BaseModel):
     auto_send_email: Optional[bool] = None
+    # Item 4.3 — throttling: teto diário e janela de espalhamento (HH:MM).
+    daily_email_limit: Optional[int] = None
+    send_window_start: Optional[str] = None
+    send_window_end: Optional[str] = None
+    email_from: Optional[str] = None
+
+
+def _validate_hhmm(value: Optional[str]) -> None:
+    """Valida formato "HH:MM" (00:00–23:59). None passa sem validação."""
+    import re
+    if value is None:
+        return
+    if not re.fullmatch(r"\d{2}:\d{2}", value):
+        raise HTTPException(status_code=400, detail=f"valor de janela inválido: '{value}' (use HH:MM)")
+    h, m = value.split(":")
+    if not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+        raise HTTPException(status_code=400, detail=f"valor de janela fora do intervalo: '{value}' (use HH:MM)")
 
 
 @router.patch("/{org_id}")
@@ -272,6 +297,18 @@ def patch_org_settings(
 
     if body.auto_send_email is not None:
         org.auto_send_email = body.auto_send_email
+    if body.daily_email_limit is not None:
+        if body.daily_email_limit < 1 or body.daily_email_limit > 500:
+            raise HTTPException(status_code=400, detail="daily_email_limit deve estar entre 1 e 500")
+        org.daily_email_limit = body.daily_email_limit
+    if body.send_window_start is not None:
+        _validate_hhmm(body.send_window_start)
+        org.send_window_start = body.send_window_start
+    if body.send_window_end is not None:
+        _validate_hhmm(body.send_window_end)
+        org.send_window_end = body.send_window_end
+    if body.email_from is not None:
+        org.email_from = body.email_from or None
     db.commit()
     db.refresh(org)
 
@@ -279,4 +316,9 @@ def patch_org_settings(
         "id": str(org.id),
         "name": org.name,
         "auto_send_email": bool(org.auto_send_email),
+        "daily_email_limit": org.daily_email_limit,
+        "send_window_start": org.send_window_start,
+        "send_window_end": org.send_window_end,
+        "email_from": org.email_from,
+        "sends_today": sends_today(db, org.id)[0],
     }

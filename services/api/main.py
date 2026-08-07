@@ -41,9 +41,12 @@ async def _cadence_scheduler_loop():
             try:
                 from src.services.cadence_service import run_due
                 # SMTP é síncrono — roda fora do event loop (item 5.3).
-                sent = await asyncio.to_thread(run_due, db)
-                if sent:
-                    logger.info("Cadence scheduler: %d follow-up(s) enviado(s)", sent)
+                sent, deferred = await asyncio.to_thread(run_due, db)
+                if sent or deferred:
+                    logger.info(
+                        "Cadence scheduler: %d enviado(s), %d postergado(s) por throttling",
+                        sent, deferred,
+                    )
             finally:
                 db.close()
         except Exception as e:

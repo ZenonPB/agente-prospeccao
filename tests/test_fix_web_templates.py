@@ -5,7 +5,9 @@ completo roda contra o banco via `python -m src.scripts.fix_generated_web_templa
 """
 from types import SimpleNamespace
 
-from src.scripts.fix_generated_web_templates import _has_presence_positive
+# O pacote `scripts` do workers resolve como top-level (WORKERS_SRC no
+# conftest). `src.scripts` colidiria com o pacote `src` da API.
+from scripts.fix_generated_web_templates import _has_presence_positive
 
 
 def test_detecta_presenca_online_como_positivo():

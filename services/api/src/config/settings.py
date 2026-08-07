@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Cadence scheduler (item 3.7.2) — intervalo do poll de follow-ups vencidos.
     CADENCE_POLL_SECONDS: int = Field(60, description='Segundos entre verificações de follow-ups vencidos')
 
+    # Item 4.3 — throttling: teto diário de envios automáticos por org quando a
+    # org não define o próprio `daily_email_limit`. A janela de espalhamento
+    # também é configurável por org (`send_window_start/end`, HH:MM no fuso do
+    # servidor); este é apenas o fallback de teto diário.
+    DAILY_EMAIL_LIMIT: int = Field(40, description='Teto diário default de envios automáticos por org')
+
     # Origins permitidas no CORS (vírgula-separado). Deploy: incluir o domínio do frontend.
     CORS_ORIGINS: str = Field("http://localhost:3000,http://localhost:3001", description='Origins CORS separadas por vírgula')
 

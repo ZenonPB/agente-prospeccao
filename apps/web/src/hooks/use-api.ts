@@ -453,7 +453,13 @@ export function useOptOutLead() {
 export function usePatchOrgSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ orgId, data }: { orgId: string; data: { auto_send_email?: boolean } }) =>
+    mutationFn: ({ orgId, data }: { orgId: string; data: {
+      auto_send_email?: boolean;
+      daily_email_limit?: number;
+      send_window_start?: string;
+      send_window_end?: string;
+      email_from?: string;
+    } }) =>
       orgsApi.patchSettings(orgId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["org", "me"] });
