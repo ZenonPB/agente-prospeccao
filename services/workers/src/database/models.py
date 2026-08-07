@@ -21,6 +21,22 @@ class LeadStatus(enum.Enum):
     PROPOSTA_ENVIADA = "PROPOSTA_ENVIADA"
     PERDIDO = "PERDIDO"
 
+class NegotiationStage(enum.Enum):
+    """Funil interno de negociação da planilha (roadmap-parts C.3).
+
+    RD (reunião de demonstração) → ORÇAMENTO → RP (reunião de proposta).
+    Etapas comerciais entre o lead responder e o fechamento.
+    """
+    RD = "RD"
+    ORCAMENTO = "ORCAMENTO"
+    RP = "RP"
+
+class ContractOutcome(enum.Enum):
+    """Resultado do contrato final (planilha: APROVADO/REPROVADO/EM_ANÁLISE)."""
+    APROVADO = "APROVADO"
+    REPROVADO = "REPROVADO"
+    EM_ANALISE = "EM_ANALISE"
+
 class CampaignStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
@@ -334,6 +350,12 @@ class Lead(Base):
     notes = Column(Text)
     next_action_at = Column(DateTime(timezone=True))
     last_contacted_at = Column(DateTime(timezone=True))
+    # Funil interno de negociação (roadmap-parts C.3 — largar a planilha):
+    # `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
+    # (APROVADO/REPROVADO/EM_ANÁLISE) + `outcome_date` (quando foi marcado).
+    negotiation_stage = Column(Enum(NegotiationStage, name='negotiation_stage', create_type=True), nullable=True)
+    contract_outcome = Column(Enum(ContractOutcome, name='contract_outcome', create_type=True), nullable=True)
+    outcome_date = Column(DateTime(timezone=True), nullable=True)
     status = Column(Enum(LeadStatus, name='lead_status', create_type=True), default=LeadStatus.NOVO)
 
     qualification_score = Column(Integer, default=0) 
@@ -596,6 +618,7 @@ class LeadActivityAction(enum.Enum):
     LOST = "LOST"
     CONVERTED = "CONVERTED"
     CONTACT_ENRICHED = "CONTACT_ENRICHED"
+    NEGOTIATION_UPDATED = "NEGOTIATION_UPDATED"
 
 
 class LeadActivity(Base):

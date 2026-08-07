@@ -450,6 +450,19 @@ export function useOptOutLead() {
   });
 }
 
+export function usePatchNegotiation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: {
+      negotiation_stage?: import("@/types").NegotiationStage | null;
+      contract_outcome?: import("@/types").ContractOutcome | null;
+    } }) => leadsApi.patchNegotiation(id, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+    },
+  });
+}
+
 export function usePatchOrgSettings() {
   const queryClient = useQueryClient();
   return useMutation({

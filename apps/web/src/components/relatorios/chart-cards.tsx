@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Percent, Gauge } from 'lucide-react';
+import { AlertCircle, Percent, Gauge, Handshake } from 'lucide-react';
 import type { AnalyticsOverview } from '@/lib/api';
 
 const STAGE_LABELS: Record<string, string> = {
@@ -143,6 +143,77 @@ export function ScoreBandsCard({ overview }: { overview: AnalyticsOverview }) {
             </div>
           );
         })}
+      </CardContent>
+    </Card>
+  );
+}
+
+const NEG_STAGE_LABELS_CARD: Record<string, string> = {
+  RD: 'RD — Demonstração',
+  ORCAMENTO: 'Orçamento',
+  RP: 'RP — Proposta',
+};
+
+const OUTCOME_META: Record<string, { label: string; color: string }> = {
+  APROVADO: { label: 'Aprovado', color: '#22c55e' },
+  REPROVADO: { label: 'Reprovado', color: '#ef4444' },
+  EM_ANALISE: { label: 'Em análise', color: '#f59e0b' },
+};
+
+export function NegotiationCard({ overview }: { overview: AnalyticsOverview }) {
+  const stageMax = Math.max(1, ...overview.negotiation_distribution.map((s) => s.count));
+  const outcomeMax = Math.max(1, ...overview.contracts_by_outcome.map((o) => o.count));
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Handshake className="h-4 w-4 text-muted-foreground" />
+          Negociação
+        </CardTitle>
+        <CardDescription>
+          Funil interno e resultado final dos contratos
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Estágio (RD/Orçamento/RP)</p>
+          {overview.negotiation_distribution.map((s) => {
+            const pct = (s.count / stageMax) * 100;
+            return (
+              <div key={s.stage} className="flex items-center gap-3">
+                <span className="w-32 shrink-0 truncate text-sm text-muted-foreground">
+                  {NEG_STAGE_LABELS_CARD[s.stage] || s.stage}
+                </span>
+                <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-muted/50">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-md bg-violet-400"
+                    style={{ width: `${Math.max(pct, s.count > 0 ? 4 : 0)}%` }}
+                  />
+                </div>
+                <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums">{s.count}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Resultado do contrato</p>
+          {overview.contracts_by_outcome.map((o) => {
+            const meta = OUTCOME_META[o.outcome] || { label: o.outcome, color: '#64748b' };
+            const pct = (o.count / outcomeMax) * 100;
+            return (
+              <div key={o.outcome} className="flex items-center gap-3">
+                <span className="w-32 shrink-0 truncate text-sm text-muted-foreground">{meta.label}</span>
+                <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-muted/50">
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-md"
+                    style={{ width: `${Math.max(pct, o.count > 0 ? 4 : 0)}%`, backgroundColor: meta.color }}
+                  />
+                </div>
+                <span className="w-10 shrink-0 text-right text-sm font-medium tabular-nums">{o.count}</span>
+              </div>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

@@ -64,6 +64,10 @@ export interface ContactItem {
   created_at?: string;
 }
 
+// Funil interno de negociação (roadmap-leads C.3 — largar a planilha).
+export type NegotiationStage = 'RD' | 'ORCAMENTO' | 'RP';
+export type ContractOutcome = 'APROVADO' | 'REPROVADO' | 'EM_ANALISE';
+
 export interface Lead {
   id: string;
   place_id?: string;
@@ -95,6 +99,9 @@ export interface Lead {
   whatsapp?: string;
   next_action_at?: string;
   last_contacted_at?: string;
+  negotiation_stage?: NegotiationStage | null;
+  contract_outcome?: ContractOutcome | null;
+  outcome_date?: string | null;
   activities?: LeadActivityItem[];
   contacts?: ContactItem[];
   created_at: string;

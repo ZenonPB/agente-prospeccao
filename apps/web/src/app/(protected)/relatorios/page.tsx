@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { useOrgMembership } from '@/hooks/use-api';
 import { useAnalyticsOverview, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
-import { FunnelCard, RatesCard, ScoreBandsCard, ChartCardSkeleton, ChartCardError } from '@/components/relatorios/chart-cards';
+import { FunnelCard, RatesCard, ScoreBandsCard, NegotiationCard, ChartCardSkeleton, ChartCardError } from '@/components/relatorios/chart-cards';
 import { ConsultantsCard, CampaignsCard, TopLeadsCard, ListCardSkeleton } from '@/components/relatorios/list-cards';
 import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-map';
 import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline-card';
@@ -108,6 +108,7 @@ export default function RelatoriosPage() {
                 <>
                   <RatesCard overview={overviewQ.data} />
                   <ScoreBandsCard overview={overviewQ.data} />
+                  <NegotiationCard overview={overviewQ.data} />
                 </>
               )}
               {consultantsQ.data && <ConsultantsCard consultants={consultantsQ.data.consultants} />}

@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -24,6 +24,15 @@ from services.outreach_service import OutreachService  # noqa: E402
 from src.services.pitch_service import build_pitch_one_pager, build_site_audit  # noqa: E402
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+# Status em que faz sentido registrar o funil interno de negociação
+# (RD/ORÇAMENTO/RP) — a fase comercial entre responder e fechar (C.3).
+NEGOTIATION_STATUSES = {
+    LeadStatus.RESPONDIDO,
+    LeadStatus.REUNIAO_MARCADA,
+    LeadStatus.REUNIAO_FEITA,
+    LeadStatus.PROPOSTA_ENVIADA,
+}
 
 
 class UpdateLeadStatusRequest(BaseModel):
@@ -124,6 +133,9 @@ def _lead_summary(lead: Lead) -> dict:
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
         "created_at": lead.created_at.isoformat() if lead.created_at else None,
         "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
+        "negotiation_stage": lead.negotiation_stage.value if lead.negotiation_stage else None,
+        "contract_outcome": lead.contract_outcome.value if lead.contract_outcome else None,
+        "outcome_date": lead.outcome_date.isoformat() if lead.outcome_date else None,
     }
 
 
@@ -654,6 +666,17 @@ class RegisterConversionRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class UpdateNegotiationRequest(BaseModel):
+    """Funil interno de negociação (roadmap-leads C.3 — largar a planilha).
+
+    `negotiation_stage`: RD | ORÇAMENTO | RP (progride da demonstração à
+    proposta); `contract_outcome`: APROVADO | REPROVADO | EM_ANALISE. `null`
+    limpa o campo.
+    """
+    negotiation_stage: Optional[NegotiationStage] = None
+    contract_outcome: Optional[ContractOutcome] = None
+
+
 @router.post("/{lead_id}/conversion")
 def register_conversion(
     lead_id: str,
@@ -699,6 +722,10 @@ def register_conversion(
     )
     db.add(conversion)
 
+    # Contrato fechado ⇒ resultado final APROVADO (roadmap-leads C.3).
+    lead.contract_outcome = ContractOutcome.APROVADO
+    lead.outcome_date = conversion.converted_at or datetime.now(timezone.utc)
+
     detail_parts = ["Conversão registrada"]
     if body.service_sold:
         detail_parts.append(body.service_sold)
@@ -719,6 +746,68 @@ def register_conversion(
         "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
         "time_to_close_days": conversion.time_to_close_days,
         "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,
+    }
+
+
+@router.patch("/{lead_id}/negotiation")
+def update_negotiation(
+    lead_id: str,
+    body: UpdateNegotiationRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra o funil interno de negociação (roadmap-leads C.3).
+
+    Só faz sentido quando o lead está na fase comercial (RESPONDIDO em diante
+    até PROPOSTA_ENVIADA). `negotiation_stage` e `contract_outcome` podem ser
+    alterados/limpados aqui; `outcome_date` grava o momento da última marcação.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+    if lead.status not in NEGOTIATION_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=("Negociação só pode ser registrada em "
+                    "RESPONDIDO/REUNIAO_MARCADA/REUNIAO_FEITA/PROPOSTA_ENVIADA"),
+        )
+
+    from datetime import datetime, timezone
+    changed = False
+    if body.negotiation_stage is not None:
+        lead.negotiation_stage = body.negotiation_stage
+        changed = True
+    if body.contract_outcome is not None:
+        lead.contract_outcome = body.contract_outcome
+        changed = True
+    if changed:
+        lead.outcome_date = datetime.now(timezone.utc)
+        parts = []
+        if lead.negotiation_stage:
+            parts.append(f"Etapa: {lead.negotiation_stage.value}")
+        if lead.contract_outcome:
+            parts.append(f"Contrato: {lead.contract_outcome.value}")
+        log_activity(
+            db, lead, action=LeadActivityAction.NEGOTIATION_UPDATED,
+            user_id=str(user.id) if user else None,
+            detail="Negociação atualizada — " + "; ".join(parts) if parts else "Negociação atualizada",
+        )
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "id": str(lead.id),
+        "negotiation_stage": lead.negotiation_stage.value if lead.negotiation_stage else None,
+        "contract_outcome": lead.contract_outcome.value if lead.contract_outcome else None,
+        "outcome_date": lead.outcome_date.isoformat() if lead.outcome_date else None,
+        "status": lead.status.value if lead.status else None,
     }
 
 

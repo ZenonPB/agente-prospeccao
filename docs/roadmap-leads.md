@@ -319,16 +319,18 @@ A etapa final deste roadmap — para abandonarmos a planilha.
 | I `RESPONDEU?`                            | `Message.responded_at`/`is_response`; `Lead.status=RESPONDIDO` | ✅ existe |
 | J `CARGO`                                 | `Contact.role`                                        | ✅ existe         |
 | K `Observações lead`                      | `Lead.notes`                                          | ✅ existe         |
-| L `Status` (RD/ORÇAMENTO/RP)              | funil atual (`REUNIAO_MARCADA`, `PROPOSTA_ENVIADA`) — **novos estágios de negociação propostos** | 🔶 novo |
-| M `DATA status`                           | `lead_activities` (STATUS_CHANGED) / `updated_at`     | ✅ existe         |
-| N `CONTRATO FINAL` (APROVADO/REPROVADO)   | `Conversion` + **campo resultado** (ganho/perda/em análise) | 🔶 novo campo |
+| L `Status` (RD/ORÇAMENTO/RP)              | `Lead.negotiation_stage` (enum `RD/ORCAMENTO/RP`) + `PATCH /leads/{id}/negotiation` | ✅ implementado (2026-08-06) |
+| M `DATA status`                           | `lead_activities` (STATUS_CHANGED) / `Lead.outcome_date` | ✅ existe |
+| N `CONTRATO FINAL` (APROVADO/REPROVADO)   | `Lead.contract_outcome` (enum `APROVADO/REPROVADO/EM_ANALISE`); conversão marca `APROVADO` | ✅ implementado (2026-08-06) |
 | O `ANOTAÇÕES`                             | `Lead.notes` (junto de K)                             | ✅/🔶            |
 | P/Q/R/S pós-venda                         | **módulo pós-venda (não existe ainda no sistema)**    | 🔶 novo módulo    |
 
 > Detalhe importante: `RD` (reunião de demonstração), `ORÇAMENTO` e `RP`
 > (reunião de proposta) são estágios do funil **interno** da Alphamec que
 > acontecem entre "respondeu" e "fechou" — não têm 1:1 com o funil atual do
-> sistema. Precisam virar um "estágio de negociação" no Lead/Conversion.
+> sistema. Foram mapeados para `Lead.negotiation_stage`, gravados quando o
+> lead está em `RESPONDIDO/REUNIAO_MARCADA/REUNIAO_FEITA/PROPOSTA_ENVIADA`
+> (branch `feat/negotiation-funnel`, migration `f5a6b7c8d9e0`).
 
 ### Entregáveis planejados
 
@@ -369,8 +371,9 @@ A etapa final deste roadmap — para abandonarmos a planilha.
 - ✅ **canva, WhatsApp (`api.whatsapp.com`), marketplaces = "sem site próprio"**.
 - ✅ **Pontuar leads sem site** em campanhas `WEB_PRESENCE` — são o alvo em venda
   de site.
-- 🔶 **Funil de negociação (`RD/ORÇAMENTO/RP`) e resultado de contrato**
-  (`APROVADO/REPROVADO/EM ANÁLISE`) a serem mapeados como novos estágios/campos.
+- ✅ **Funil de negociação (`RD/ORÇAMENTO/RP`) e resultado de contrato**
+  (`APROVADO/REPROVADO/EM ANÁLISE`) implementados como `Lead.negotiation_stage`
+  e `Lead.contract_outcome` (2026-08-06).
 - 🔶 **Módulo de pós-venda** a criar (`DATA CONTATO PÓS-VENDA`, `PÓS VENDA POR`).
 
 ---

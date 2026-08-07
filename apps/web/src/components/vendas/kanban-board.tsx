@@ -31,6 +31,12 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'PROPOSTA_ENVIADA', title: 'Proposta enviada', color: 'bg-pink-500', status: ['PROPOSTA_ENVIADA'] },
 ];
 
+const NEG_STAGE_LABELS: Record<string, string> = {
+  RD: 'RD',
+  ORCAMENTO: 'Orçamento',
+  RP: 'RP',
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeadData = Record<string, any>;
 
@@ -293,6 +299,29 @@ export function KanbanBoard() {
                                   </Badge>
                                 )}
                               </div>
+                              {(lead.negotiation_stage || lead.contract_outcome) && (
+                                <div className="mb-2 flex flex-wrap gap-1.5">
+                                  {lead.negotiation_stage && (
+                                    <Badge variant="outline" className="bg-violet-50 text-violet-700 text-xs">
+                                      {NEG_STAGE_LABELS[lead.negotiation_stage] ?? lead.negotiation_stage}
+                                    </Badge>
+                                  )}
+                                  {lead.contract_outcome && (
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        lead.contract_outcome === 'APROVADO'
+                                          ? 'bg-emerald-50 text-emerald-700 text-xs'
+                                          : lead.contract_outcome === 'REPROVADO'
+                                            ? 'bg-red-50 text-red-700 text-xs'
+                                            : 'bg-amber-50 text-amber-700 text-xs'
+                                      }
+                                    >
+                                      {lead.contract_outcome === 'EM_ANALISE' ? 'Em análise' : lead.contract_outcome}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
                               <p className="mb-3 text-sm text-muted-foreground">
                                 {lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}
                               </p>

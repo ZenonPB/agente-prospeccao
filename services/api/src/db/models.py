@@ -37,4 +37,6 @@ from database.models import (
     FollowUpStep,
     FollowUpStatus,
     EmailSuppression,
+    NegotiationStage,
+    ContractOutcome,
 )
