@@ -39,4 +39,5 @@ from database.models import (
     EmailSuppression,
     NegotiationStage,
     ContractOutcome,
+    PostSaleChannel,
 )

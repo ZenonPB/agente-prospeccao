@@ -323,7 +323,7 @@ A etapa final deste roadmap — para abandonarmos a planilha.
 | M `DATA status`                           | `lead_activities` (STATUS_CHANGED) / `Lead.outcome_date` | ✅ existe |
 | N `CONTRATO FINAL` (APROVADO/REPROVADO)   | `Lead.contract_outcome` (enum `APROVADO/REPROVADO/EM_ANALISE`); conversão marca `APROVADO` | ✅ implementado (2026-08-06) |
 | O `ANOTAÇÕES`                             | `Lead.notes` (junto de K)                             | ✅/🔶            |
-| P/Q/R/S pós-venda                         | **módulo pós-venda (não existe ainda no sistema)**    | 🔶 novo módulo    |
+| P/Q/R/S pós-venda                         | `Lead.post_sale_contacted_at`/`post_sale_channel` + lembrete `FollowUp.POST_SALE` (motor da cadência) | ✅ implementado (2026-08-06) |
 
 > Detalhe importante: `RD` (reunião de demonstração), `ORÇAMENTO` e `RP`
 > (reunião de proposta) são estágios do funil **interno** da Alphamec que
@@ -345,6 +345,12 @@ A etapa final deste roadmap — para abandonarmos a planilha.
    pessoa, trilha de atividades, filtros por status/data/campanha.
 3. **Pós-venda automatizado**: follow-up de pós-cliente usando o mesmo motor do
    scheduler de cadência (follow_ups) + registro do canal.
+
+> **Pós-venda (entregue 2026-08-06, `feat/post-sale`):** `POST /leads/{id}/post-sale`
+> registra a data + canal do 1º contato pós-cliente (P/R da planilha) e, se houver
+> conteúdo, agenda um lembrete `FollowUp.POST_SALE` que roda pelo mesmo motor da
+> cadência (`run_due`/`send_step`, human-no-loop ou com `auto_send_email`). O
+> FollowUp só é criado se houver texto — lembrete sem conteúdo seria auto-skipado.
 
 ---
 
@@ -374,7 +380,8 @@ A etapa final deste roadmap — para abandonarmos a planilha.
 - ✅ **Funil de negociação (`RD/ORÇAMENTO/RP`) e resultado de contrato**
   (`APROVADO/REPROVADO/EM ANÁLISE`) implementados como `Lead.negotiation_stage`
   e `Lead.contract_outcome` (2026-08-06).
-- 🔶 **Módulo de pós-venda** a criar (`DATA CONTATO PÓS-VENDA`, `PÓS VENDA POR`).
+- ✅ **Pós-venda** implementado: `Lead.post_sale_contacted_at` + `post_sale_channel`
+  e lembrete `FollowUp.POST_SALE` via motor da cadência (2026-08-06).
 
 ---
 

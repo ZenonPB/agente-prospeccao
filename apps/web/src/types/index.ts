@@ -102,6 +102,8 @@ export interface Lead {
   negotiation_stage?: NegotiationStage | null;
   contract_outcome?: ContractOutcome | null;
   outcome_date?: string | null;
+  post_sale_contacted_at?: string | null;
+  post_sale_channel?: 'WHATSAPP' | 'EMAIL' | null;
   activities?: LeadActivityItem[];
   contacts?: ContactItem[];
   created_at: string;

@@ -133,6 +133,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | PATCH | `/leads/{id}` | `whatsapp`, `notes`, `next_action_at` |
 | PATCH | `/leads/{id}/status` · PATCH `/leads/{id}/assign` | Status (trilha) e atribuição |
 | PATCH | `/leads/{id}/negotiation` | Funil interno de negociação (`RD/ORÇAMENTO/RP`) + resultado de contrato (`APROVADO/REPROVADO/EM_ANALISE`) — gate em RESPONDIDO→PROPOSTA_ENVIADA |
+| POST | `/leads/{id}/post-sale` | Pós-venda: canal + data do 1º contato pós-cliente e lembrete `FollowUp.POST_SALE` (motor da cadência) |
 | POST | `/leads/{id}/generate-messages` | Sequência de outreach (Groq 70B) |
 | POST | `/leads/{id}/conversion` | Registra conversão (serviço/valor/notas) |
 | POST | `/leads/{id}/enrich-contacts` | Enriquece decisores (Receita→email/LinkedIn) |
@@ -204,6 +205,7 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
   `whatsapp`, `notes`, `next_action_at`, `last_contacted_at`, campaign FK,
   `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
   (APROVADO/REPROVADO/EM_ANALISE) + `outcome_date` (funil interno C.3),
+  `post_sale_contacted_at` + `post_sale_channel` (WHATSAPP/EMAIL — pós-venda C.3),
   timestamps. Uniques por org: `(organization_id, place_id)`,
   `(organization_id, cnpj)`, `(organization_id, normalized_domain)`.
 - **campaigns** — `organization_id`, `name`, `target_service/segment/city/state/country`,

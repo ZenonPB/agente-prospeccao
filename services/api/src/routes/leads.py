@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -136,6 +136,8 @@ def _lead_summary(lead: Lead) -> dict:
         "negotiation_stage": lead.negotiation_stage.value if lead.negotiation_stage else None,
         "contract_outcome": lead.contract_outcome.value if lead.contract_outcome else None,
         "outcome_date": lead.outcome_date.isoformat() if lead.outcome_date else None,
+        "post_sale_contacted_at": lead.post_sale_contacted_at.isoformat() if lead.post_sale_contacted_at else None,
+        "post_sale_channel": lead.post_sale_channel.value if lead.post_sale_channel else None,
     }
 
 
@@ -677,6 +679,19 @@ class UpdateNegotiationRequest(BaseModel):
     contract_outcome: Optional[ContractOutcome] = None
 
 
+class RegisterPostSaleRequest(BaseModel):
+    """Pós-venda (roadmap-leads C.3): canal do 1º contato pós-cliente e lembrete.
+
+    `channel` é o canal do contato (WhatsApp/E-mail). `subject`/`content`, se
+    informados, criam um lembrete de acompanhamento pós-cliente que roda pelo
+    mesmo motor da cadência (`FollowUp.step=POST_SALE`), enviável manualmente ou
+    (com `auto_send_email` da org) pelo scheduler quando vence.
+    """
+    channel: PostSaleChannel = PostSaleChannel.EMAIL
+    subject: Optional[str] = Field(None, max_length=255)
+    content: Optional[str] = None
+
+
 @router.post("/{lead_id}/conversion")
 def register_conversion(
     lead_id: str,
@@ -807,6 +822,67 @@ def update_negotiation(
         "negotiation_stage": lead.negotiation_stage.value if lead.negotiation_stage else None,
         "contract_outcome": lead.contract_outcome.value if lead.contract_outcome else None,
         "outcome_date": lead.outcome_date.isoformat() if lead.outcome_date else None,
+        "status": lead.status.value if lead.status else None,
+    }
+
+
+@router.post("/{lead_id}/post-sale")
+def register_post_sale(
+    lead_id: str,
+    body: RegisterPostSaleRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra o 1º contato de pós-venda (roadmap-leads C.3).
+
+    Só faz sentido para leads já convertidos (há `Conversion`). Grava a data e o
+    canal, registra a action `POST_SALE` na trilha e agenda um lembrete de
+    acompanhamento pós-cliente reutilizando o motor da cadência (FollowUp).
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    has_conversion = db.query(Conversion.id).filter(Conversion.lead_id == lead.id).first()
+    if not has_conversion:
+        raise HTTPException(status_code=400, detail="Pós-venda só para leads convertidos")
+
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    lead.post_sale_contacted_at = now
+    lead.post_sale_channel = body.channel
+    log_activity(
+        db, lead, action=LeadActivityAction.POST_SALE,
+        user_id=str(user.id) if user else None,
+        detail=f"Pós-venda registrado — {body.channel.value}",
+    )
+
+    # Lembrete pós-cliente (mesmo motor da cadência), somente se houver
+    # conteúdo — um lembrete sem texto seria auto-skipado pela `send_step`.
+    if body.content:
+        db.add(FollowUp(
+            lead_id=lead.id,
+            step=FollowUpStep.POST_SALE,
+            channel=body.channel,
+            subject=body.subject,
+            content=body.content,
+            scheduled_at=now + timedelta(days=FollowUpStep.POST_SALE.day_offset),
+            status=FollowUpStatus.PENDING,
+        ))
+
+    db.commit()
+    db.refresh(lead)
+    return {
+        "id": str(lead.id),
+        "post_sale_contacted_at": lead.post_sale_contacted_at.isoformat() if lead.post_sale_contacted_at else None,
+        "post_sale_channel": lead.post_sale_channel.value if lead.post_sale_channel else None,
         "status": lead.status.value if lead.status else None,
     }
 

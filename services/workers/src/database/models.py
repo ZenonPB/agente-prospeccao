@@ -37,6 +37,11 @@ class ContractOutcome(enum.Enum):
     REPROVADO = "REPROVADO"
     EM_ANALISE = "EM_ANALISE"
 
+class PostSaleChannel(enum.Enum):
+    """Canal do pós-venda (planilha Alphamec: WhatsApp/E-mail)."""
+    WHATSAPP = "WHATSAPP"
+    EMAIL = "EMAIL"
+
 class CampaignStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
@@ -98,18 +103,23 @@ class FollowUpStep(enum.Enum):
     FOLLOWUP_1 = "FOLLOWUP_1"
     FOLLOWUP_2 = "FOLLOWUP_2"
     CLOSING = "CLOSING"
+    # Pós-venda (roadmap-leads C.3): acompanhamento pós-cliente usando o mesmo
+    # motor da cadência (scheduler `run_due` + `send_step`).
+    POST_SALE = "POST_SALE"
 
     @property
     def day_offset(self) -> int:
         return {FollowUpStep.OPENING: 0, FollowUpStep.FOLLOWUP_1: 3,
-                FollowUpStep.FOLLOWUP_2: 7, FollowUpStep.CLOSING: 14}[self]
+                FollowUpStep.FOLLOWUP_2: 7, FollowUpStep.CLOSING: 14,
+                FollowUpStep.POST_SALE: 14}[self]
 
     @property
     def label(self) -> str:
         return {FollowUpStep.OPENING: "Abertura (dia 0)",
                 FollowUpStep.FOLLOWUP_1: "Follow-up 1 (dia 3)",
                 FollowUpStep.FOLLOWUP_2: "Follow-up 2 (dia 7)",
-                FollowUpStep.CLOSING: "Encerramento (dia 14)"}[self]
+                FollowUpStep.CLOSING: "Encerramento (dia 14)",
+                FollowUpStep.POST_SALE: "Pós-venda"}[self]
 
 class FollowUpStatus(enum.Enum):
     PENDING = "PENDING"       # agendado, aguardando envio (humano ou automático)
@@ -356,6 +366,10 @@ class Lead(Base):
     negotiation_stage = Column(Enum(NegotiationStage, name='negotiation_stage', create_type=True), nullable=True)
     contract_outcome = Column(Enum(ContractOutcome, name='contract_outcome', create_type=True), nullable=True)
     outcome_date = Column(DateTime(timezone=True), nullable=True)
+    # Pós-venda (roadmap-leads C.3): data do 1º contato pós-cliente e canal
+    # (planilha Alphamec: "DATA CONTATO PÓS-VENDA" + "PÓS VENDA POR").
+    post_sale_contacted_at = Column(DateTime(timezone=True), nullable=True)
+    post_sale_channel = Column(Enum(PostSaleChannel, name='post_sale_channel', create_type=True), nullable=True)
     status = Column(Enum(LeadStatus, name='lead_status', create_type=True), default=LeadStatus.NOVO)
 
     qualification_score = Column(Integer, default=0) 
@@ -619,6 +633,7 @@ class LeadActivityAction(enum.Enum):
     CONVERTED = "CONVERTED"
     CONTACT_ENRICHED = "CONTACT_ENRICHED"
     NEGOTIATION_UPDATED = "NEGOTIATION_UPDATED"
+    POST_SALE = "POST_SALE"
 
 
 class LeadActivity(Base):

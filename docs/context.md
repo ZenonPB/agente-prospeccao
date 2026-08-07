@@ -603,17 +603,35 @@ Branch `feat/org-onboarding` (roadmap-vendas P0):
 - **Testes**: `tests/test_org_service.py` (slug + criação owner/MANAGER) — **74
   testes passando**.
 
+### Item C.3 — Pós-venda ✅ (2026-08-06)
+
+Branch `feat/post-sale` (roadmap-leads C.3 — largar a planilha):
+
+- **Modelos/migration `f6b7c8d9e0f1`** (aplicada): `Lead.post_sale_contacted_at`
+  (data do 1º contato pós-cliente) + `Lead.post_sale_channel`
+  (`WHATSAPP`/`EMAIL`); `FollowUpStep.POST_SALE` (day_offset 14) para o lembrete
+  rodar pelo mesmo motor da cadência.
+- **`POST /leads/{id}/post-sale`** — registra data+canal, grava action `POST_SALE`
+  na trilha e, se houver `content`, agenda um `FollowUp.POST_SALE` (enviável
+  manualmente ou com `auto_send_email`). Só para leads convertidos (400 se não).
+- **Exposição**: campos novos no `_lead_summary`.
+- **Frontend**: `PostSaleControl` na aba Próximas Ações (exibido p/ leads
+  convertidos) — canal + mensagem opcional + registrar. `tsc`/lint/build limpos.
+- **CI/CD**: job de migrations do `ci.yml` ganhou seed smoke pós-`upgrade head`.
+- **Testes**: `tests/test_post_sale.py` (5) — **79 testes passando**.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-06 (fim de sessão)** — onde paramos:
 >
-> 1. **4.3 (warmup)**, **funil de negociação (C.3)** e **onboarding multi-org
->    (3.3.1/3.3.2)** entregues em branches empilhadas (`feat/cadence-warmup-throttle`
->    → `feat/negotiation-funnel` → `feat/org-onboarding`). Migrations até
->    `f5a6b7c8d9e0` aplicadas; `pytest` na venv da API (**74 testes**).
->    Próximo: **pós-venda** (roadmap-leads C.3: campos `DATA CONTATO PÓS-VENDA`/
->    `PÓS VENDA POR` com o mesmo motor da cadência) e, em seguida, os itens P1/P2
->    do roadmap-vendas (4.5 WhatsApp, 4.8 forecast, 3.3.3 gestão de membros).
+> 1. **4.3 (warmup)**, **funil de negociação (C.3)**, **onboarding multi-org
+>    (3.3.1/3.3.2)** e **pós-venda (C.3)** entregues em branches empilhadas
+>    (`feat/cadence-warmup-throttle` → `feat/negotiation-funnel` →
+>    `feat/org-onboarding` → `feat/post-sale`). Migrations até `f6b7c8d9e0f1`
+>    aplicadas; `pytest` na venv da API (**79 testes**); CI com seed smoke.
+>    Próximo: itens P1/P2 do roadmap-vendas — **4.5 WhatsApp (validação + 1 clique
+>    + trilha)**, **4.8 forecast/valor por oportunidade**, **3.3.3 gestão de
+>    membros** (remover/sair/transferir). Depois 4.9/4.10 (metas + SLA).
 > 2. Ações pendentes: mergear as branches (PR manual pelo dono), `graphify
 >    update .`, e quando a operação for real, ativar tracking com a URL pública.
 
