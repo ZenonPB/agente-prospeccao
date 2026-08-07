@@ -588,18 +588,32 @@ Branch `feat/negotiation-funnel` (roadmap-leads Parte C.3 — largar a planilha)
   (estágio RD/Orçamento/RP + resultado de contrato). `tsc`/lint/build limpos.
 - **Testes**: `tests/test_negotiation_enums.py` (4) — suíte em **70 passed**.
 
+### Item 3.3.1/3.3.2 — Criar/renomear org + onboarding por convite ✅ (2026-08-06)
+
+Branch `feat/org-onboarding` (roadmap-vendas P0):
+
+- **3.3.1 — criar/renomear org**: `org_service.create_organization` (dono OWNER
+  + `sales_role` MANAGER); `POST /orgs`; `PATCH /orgs/{id}/name` (owner/admin);
+  UI no `OrgSwitcher` ("Criar organização") e `OrgNameCard` em `/configuracoes`.
+- **3.3.2 — aceite com cadastro**: `GET /invites/check?token=` (público, informa
+  email/org/se tem conta) + `POST /invites/accept-register` (cria conta e aceita
+  o convite no mesmo fluxo, sem workspace pessoal — cai direto na org do convite;
+  devolve JWT p/ auto-login). Página `/aceitar-convite` vira o fluxo completo:
+  o convidado decide login (conta existe) × cadastro (não existe).
+- **Testes**: `tests/test_org_service.py` (slug + criação owner/MANAGER) — **74
+  testes passando**.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-06 (fim de sessão)** — onde paramos:
 >
-> 1. **Item 4.3 (Warmup/throttling)** e **funil de negociação (roadmap-leads
->    C.3)** entregues nas branches `feat/cadence-warmup-throttle` e
->    `feat/negotiation-funnel` (esta, baseada na anterior). Migrations até
->    `f5a6b7c8d9e0` aplicadas; `pytest` instalado na venv da API (70 testes).
->    Próximo: **onboarding multi-org** (3.3.1 criar/renomear org — e aí 3.3.2
->    aceite de convite com cadastro p/ quem ainda não tem conta). Depois:
->    **pós-venda** (roadmap-leads C.3, campos `DATA CONTATO PÓS-VENDA`/
->    `PÓS VENDA POR`).
+> 1. **4.3 (warmup)**, **funil de negociação (C.3)** e **onboarding multi-org
+>    (3.3.1/3.3.2)** entregues em branches empilhadas (`feat/cadence-warmup-throttle`
+>    → `feat/negotiation-funnel` → `feat/org-onboarding`). Migrations até
+>    `f5a6b7c8d9e0` aplicadas; `pytest` na venv da API (**74 testes**).
+>    Próximo: **pós-venda** (roadmap-leads C.3: campos `DATA CONTATO PÓS-VENDA`/
+>    `PÓS VENDA POR` com o mesmo motor da cadência) e, em seguida, os itens P1/P2
+>    do roadmap-vendas (4.5 WhatsApp, 4.8 forecast, 3.3.3 gestão de membros).
 > 2. Ações pendentes: mergear as branches (PR manual pelo dono), `graphify
 >    update .`, e quando a operação for real, ativar tracking com a URL pública.
 
