@@ -14,6 +14,7 @@ import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, u
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
+import { NegotiationControl } from '@/components/oportunidades/negotiation-control';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -53,6 +54,13 @@ const statusLabels: Record<string, string> = {
   PROPOSTA_ENVIADA: 'Proposta enviada',
   PERDIDO: 'Perdido',
 };
+
+const negotiationStatuses = new Set([
+  'RESPONDIDO',
+  'REUNIAO_MARCADA',
+  'REUNIAO_FEITA',
+  'PROPOSTA_ENVIADA',
+]);
 
 const activityLabels: Record<string, string> = {
   CREATED: 'Lead criado',
@@ -667,6 +675,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 <Trophy className="mr-2 h-4 w-4 text-emerald-600" />
                 Registrar conversão
               </Button>
+              {negotiationStatuses.has(lead.status ?? '') && (
+                <NegotiationControl
+                  key={lead.id}
+                  leadId={lead.id}
+                  initialStage={lead.negotiation_stage}
+                  initialOutcome={lead.contract_outcome}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

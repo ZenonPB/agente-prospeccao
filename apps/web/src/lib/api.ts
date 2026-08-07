@@ -159,6 +159,21 @@ export const leadsApi = {
       body: JSON.stringify(data),
     }),
 
+  patchNegotiation: (id: string, data: {
+    negotiation_stage?: import("@/types").NegotiationStage | null;
+    contract_outcome?: import("@/types").ContractOutcome | null;
+  }) =>
+    request<{
+      id: string;
+      negotiation_stage: string | null;
+      contract_outcome: string | null;
+      outcome_date: string | null;
+      status: string | null;
+    }>(`/api/leads/${id}/negotiation`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   getCadence: (id: string) =>
     request<LeadCadence>(`/api/leads/${id}/cadence`),
 
@@ -378,6 +393,8 @@ export interface AnalyticsOverview {
   meeting_rate: number;
   funnel: { stage: string; count: number }[];
   leads_by_score_band: { band: string; count: number; converted: number; conversion_rate: number }[];
+  negotiation_distribution: { stage: string; count: number }[];
+  contracts_by_outcome: { outcome: string; count: number }[];
 }
 
 export interface AnalyticsConsultant {
