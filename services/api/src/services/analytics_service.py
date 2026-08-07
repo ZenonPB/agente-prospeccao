@@ -25,6 +25,8 @@ from src.db.models import (
     LeadActivityAction,
     User,
     OrganizationMember,
+    NegotiationStage,
+    ContractOutcome,
 )
 
 # Faixas de score usadas no overview (0-100).
@@ -160,6 +162,16 @@ class AnalyticsService:
             "meeting_rate": round((meetings / qualified * 100), 1) if qualified else 0,
             "funnel": funnel,
             "leads_by_score_band": score_bands,
+            # Funil interno de negociação (roadmap-leads C.3): estágio
+            # RD/ORÇAMENTO/RP e resultado de contrato APROVADO/REPROVADO/EM_ANÁLISE.
+            "negotiation_distribution": [
+                {"stage": s.value, "count": base.filter(Lead.negotiation_stage == s).count()}
+                for s in NegotiationStage
+            ],
+            "contracts_by_outcome": [
+                {"outcome": o.value, "count": base.filter(Lead.contract_outcome == o).count()}
+                for o in ContractOutcome
+            ],
         }
 
     # ---------------------------------------------------------------- consultants
