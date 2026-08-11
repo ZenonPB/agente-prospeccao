@@ -742,9 +742,15 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **Item 4.7 Mais fontes de contato** entregue na branch `feat/contact-more-sources` (aguardando PR/merge) — fecha o **P1** do roadmap-vendas.
-> 2. Item 4.10 mergeado no `main` (PR #61).
-> 3. Próximos passos (P2, sem LGPD — sistema interno): **4.16 paginação/performance**, **4.14 cotas por org**, **4.17 mobile-first**, **4.15 observabilidade**, **3.3.4 auditoria**.
+> 1. **Item 4.7 Mais fontes de contato** mergeado no `main` (PR #62) — **P1 do
+>    roadmap-vendas fechado**.
+> 2. A antiga `docs/especificacao-integracao-prospeccao-linkedin.md` foi
+>    **arquivada no roadmap-vendas** (itens **4.22–4.27**, seção "LinkedIn —
+>    descobrir, validar e enriquecer decisores e empresas") e o arquivo foi
+>    removido de `docs/`.
+> 3. Próximos passos (P2, sem LGPD — sistema interno): **4.22 pesquisa assistida +
+>    perfil manual do LinkedIn**, **4.16 paginação/performance**, **4.14 cotas por
+>    org**, **4.17 mobile-first**, **4.15 observabilidade**, **3.3.4 auditoria**.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

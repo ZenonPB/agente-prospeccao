@@ -84,6 +84,10 @@ Síntese do que já funciona e deve ser **preservado**:
   atividades, conversão por faixa de score.
 - **Frontend** Next.js 16: dashboard, campanhas, oportunidades, vendas,
   relatórios, configurações — com temas, roles e CSP.
+- **LinkedIn passivo** (`contact_enrichment_service.py`): busca "nome+empresa
+  linkedin" (DuckDuckGo→Bing), heurística validada por índice, `linkedin_confidence`;
+  sem API oficial (SNAP fechada para novos parceiros) — o resto da evolução
+  LinkedIn está no backlog (itens 4.22–4.27).
 
 > **Não mexer (regra preservada):** o **CONSULTOR cria e gerencia campanhas
 > próprias** — é autônomo para prospectar o que e onde decidir. Qualquer
@@ -458,6 +462,86 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 ---
 
+### LinkedIn — descobrir, validar e enriquecer decisores e empresas (sem API oficial)
+
+> Origem: antiga `docs/especificacao-integracao-prospeccao-linkedin.md` (arquivada
+> no roadmap). A spec deixa explícito que **não há API pública de pesquisa** —
+> Sales Navigator exige o programa SNAP e o LinkedIn não aceita novos parceiros
+> hoje (§34). Portanto a arquitetura é toda **passiva + pesquisa assistida
+> (humano no loop)**: nada de scraping nem automação de navegador (§20/§25/§35).
+>
+> O que **já está contemplado**: busca passiva "nome + empresa + linkedin"
+> (DuckDuckGo → Bing), heurística de URL validada por índice de busca (candidato
+> ≠ confirmado), `linkedin_confidence`, múltiplos decisores por lead com
+> `is_primary` (prioridade CEO/Diretor/Sócio), score comercial configurável por
+> campanha e explicabilidade (evidence/pitch one-pager).
+
+#### 4.22 Pesquisa assistida + associação manual de perfil ⬜ (P1, M, gratuito)
+
+- **Hoje:** sem API oficial, quando a busca passiva não acha o decisor não há
+  caminho — o consultor não consegue gerar a consulta certa nem colar a URL de
+  um perfil que encontrou manualmente.
+- **Proposta:**
+  - `GET /leads/{id}/linkedin-query` — consultas sugeridas (`"<empresa>"`
+    founder/sócio/diretor/head/psicólogo… lista default, sobrescrevível pelo
+    template) + atalho de busca externa `site:linkedin.com/in`.
+  - `PATCH /leads/{id}/contacts/{contact_id}/linkedin` — valida a URL colada
+    (formato + existência passiva no índice de busca), grava
+    `linkedin_source="manual:<user>"` e `linkedin_confidence` (validado/revisão)
+    + atividade na trilha.
+- **Aceite:** todo lead sem decisor tem um fluxo guiado "copiar consulta →
+  abrir no LinkedIn → colar o perfil → salvar validado".
+
+#### 4.23 LinkedIn da empresa (company page) ⬜ (P2, S, gratuito)
+
+- **Hoje:** só o LinkedIn da pessoa; a **página da empresa** (`/company/<slug>`)
+  não é descoberta nem exibida.
+- **Proposta:** no enriquecimento, busca passiva `"<empresa>" linkedin` →
+  `linkedin.com/company/<slug>` gravando `leads.company_linkedin_url`
+  (migration) + proveniência; exibir "Empresa no LinkedIn" na página do lead e
+  no pitch.
+- **Aceite:** a empresa prospectada tem a página da empresa localizada e
+  clicável (valida o alvo além do decisor).
+
+#### 4.24 Match semântico do LinkedIn (status derivado) ⬜ (P2, S, gratuito)
+
+- **Hoje:** só `linkedin_confidence` numérico; não há o "encontramos a pessoa
+  certa?" como estado separado do score comercial.
+- **Proposta:** derivar `linkedin_match_status` = `NOT_FOUND / CANDIDATE /
+  NEEDS_REVIEW / VERIFIED` (fonte + confiança + manual) no serializador do
+  contato; badge de 4 estados na aba Contatos; nunca exibir como confirmado
+  abaixo do limiar.
+- **Aceite:** o consultor distingue em 1 clique "perfil certo" de "candidato a
+  revisar", sem interpretar número.
+
+#### 4.25 Estado do enriquecimento + TTL ⬜ (P2, M, gratuito)
+
+- **Hoje:** `last_contacted_at` existe, mas não há estado/TTL por lead para
+  evitar re-pesquisar os mesmos padrões repetidamente.
+- **Proposta:** `last_enriched_at`/estado por lead com TTL (candidato LinkedIn
+  30d, site 7d, reviews 24h) e depreciação indicada na página do lead.
+- **Aceite:** re-enriquecer não refaz busca dentro do TTL (idempotência + cache).
+
+#### 4.26 Sinal de Instagram no ICP/scoring ⬜ (P3, M, gratuito)
+
+- **Hoje:** "Instagram ativo" é um dos sinais mais fortes de dor/oportunidade na
+  spec (§13/§27/§31), mas não é coletado.
+- **Proposta:** detectar `instagram_url`/atividade (link social no site,
+  followers visíveis) → evidência no scoring + fato no pitch.
+- **Aceite:** leads com Instagram ativo e sem site sobem de score com
+  justificativa.
+
+#### 4.27 Separação Company/Person ⬜ (P3, L, gratuito — decisão de produto)
+
+- **Hoje:** modelo lead-centrado com contatos embutidos; a mesma empresa entre
+  leads não é normalizada.
+- **Proposta (grande):** modelo de 3 entidades (Company, Person, Employment +
+  Lead = oportunidade) com dedupe por LinkedIn-id/e-mail/nome+empresa e
+  histórico de emprego.
+- **Aceite:** mesma empresa/pessoa reaproveitada entre campanhas sem duplicata.
+
+---
+
 ### P3 — Entrega 7 · Aprofundamento (quando a operação crescer)
 
 - **4.18 Ajuste automático de threshold por org** — com volume de conversões,
@@ -503,6 +587,12 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ⬜ |
 | 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | ⬜ |
 | 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ⬜ |
+| 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ⬜ |
+| 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ⬜ |
+| 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ⬜ |
+| 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
+| 4.26 | Sinal de Instagram no ICP/scoring | LinkedIn | P3 | M | gratuito | 4.6 | ⬜ |
+| 4.27 | Separação Company/Person (3 entidades) | LinkedIn | P3 | L | gratuito | — | ⬜ |
 
 **Legenda de esforço:** S < 1 dia · M 1-3 dias · L > 1 semana.
 
@@ -522,11 +612,12 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   *Critério de saída:* consultor fecha 1º ciclo completo com tracking e
   WhatsApp; gestor vê desempenho contra meta.
 - **Fase 2 — Conformidade e escala (semanas 6-9):** 4.11-4.13 (LGPD),
-  4.14-4.17 (confiabilidade), 3.3.3-3.3.4 (gestão de membros).
+  4.14-4.17 (confiabilidade), 3.3.3-3.3.4 (gestão de membros),
+  4.22-4.25 (LinkedIn assistido).
   *Critério de saída:* sem risco LGPD pendente, backup restaurável, UI em
-  produção sem travar.
+  produção sem travar, decisores associados via pesquisa assistida.
 - **Fase 3 — Diferenciação (semanas 10+):** 4.18-4.21 (calibração, A/B,
-  integrações, playbooks).
+  integrações, playbooks), 4.26-4.27 (Instagram + modelo 3 entidades).
 
 ---
 
