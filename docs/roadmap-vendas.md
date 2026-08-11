@@ -245,7 +245,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     exige probe SMTP (`RCPT TO`), ação não-passiva proibida pela política
     (Lei 12.737). Fica como item futuro caso a EJ decida explicitamente.
 
-#### 4.2 Rastreamento de abertura e clique ⬜ (M, gratuito)
+#### 4.2 Rastreamento de abertura e clique ✅ (M, gratuito)
 
 - **Hoje:** só existe inbound de resposta/STOP. Não se sabe quem leu — o sinal
   mais quente de vendas.
@@ -259,6 +259,11 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     "quem está quente" do `today-actions`.
 - **Aceite:** após uma rodada de envio, o consultor vê quais leads abriram e em
   quais links clicaram; pode priorizar follow-up por isso.
+- **Status — Entregue (2026-08-05, `feat/email-tracking`):** pixel 1×1 em
+  `GET /t/{token}` (grava `opened_at`) + redirect `GET /c/{token}?url=`
+  (grava `clicked_at`); `email_service` injeta pixel/links quando
+  `TRACKING_BASE_URL` configurada; `FollowUp`/`Message` carregam
+  `tracking_token`; badges "abriu"/"clicou" no `CadencePanel`.
 
 #### 4.3 Warmup, throttling e remetente dedicado ✅ (M, gratuito)
 
@@ -285,18 +290,22 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     limite diário, janela e remetente da org.
   - Guia de aquecimento no `README.md`.
 
-#### 4.4 Correção do threading de follow-ups ⬜ (S, gratuito)
+#### 4.4 Correção do threading de follow-ups ✅ (S, gratuito)
 
 - **Hoje:** `_thread_headers` em `cadence_service` referencia só o último
   `Message-ID`; Gmail conversa perfeitamente exige a **cadeia** de References.
 - **Proposta:** acumular todos os Message-IDs anteriores em `References`
   (`refs + [novo]`), `In-Reply-To` do último.
+- **Status — Entregue (2026-08-05, `fix/threading-chain`):**
+  `_thread_headers` em `cadence_service.py` acumula a cadeia completa em
+  `References` e usa o Message-ID mais recente em `In-Reply-To` (exigência do
+  Gmail/Exchange para agrupar a conversa). Teste `tests/test_cadence_threading.py`.
 
 ---
 
 ### P1 — Entrega 2 · WhatsApp (canal que fecha venda no Brasil)
 
-#### 4.5 Número validado + fluxo de 1 clique ⬜ (M, custo baixo)
+#### 4.5 Número validado + fluxo de 1 clique ✅ (M, custo baixo)
 
 - **Hoje:** só `wa.me` manual com `whatsapp_short` preenchido.
 - **Proposta:**
@@ -313,12 +322,17 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   com envio de baixo volume e follow-up de decisores que já abriram e-mail.
 - **Aceite:** consultor vê "número verificado", abre WhatsApp preenchido em 1
   clique e o envio fica na trilha/BI.
+- **Status — Entregue (2026-08-10, `feat/whatsapp-one-click`):**
+  `POST /leads/{id}/whatsapp-click` valida número móvel BR, formata `wa.me`,
+  atualiza `last_contacted_at` e grava a action `WHATSAPP_SENT` na trilha
+  (migration `02a4353c47a7`); botões de 1 clique no kanban e no detalhe do lead
+  abrem o WhatsApp com a mensagem pré-preenchida.
 
 ---
 
 ### P1 — Entrega 3 · Dados de coleta = sinal de venda
 
-#### 4.6 Rating, reviews e dados do Google Maps no scoring ⬜ (S, gratuito)
+#### 4.6 Rating, reviews e dados do Google Maps no scoring ✅ (S, gratuito)
 
 - **Hoje:** `FIELD_MASK` de `places_service` não pede `rating`,
   `userRatingCount`, `openingHours`. Perde-se a **dor mais óbvia** de um lead
@@ -332,6 +346,11 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     serviços (lanchonetes, academias, lojas) avaliação ruim = oportunidade.
 - **Aceite:** leads com nota baixa aparecem como oportunidade; evidência no
   detalhe/pitch/PDF.
+- **Status — Entregue (2026-08-05, `feat/places-rating-scoring`):**
+  `places_service` coleta `rating`/`userRatingCount`/`googleMapsUri`; campos em
+  `leads` (migration `d8e9f0a2b3c4`); vira evidência "Reputação Google:
+  X.Y★ com N avaliações" no scoring e exposto no pitch/summary do lead. Teste
+  `tests/test_places_rating.py`.
 
 #### 4.7 Mais fontes de contato além da Receita ✅ (M, gratuito)
 
@@ -361,7 +380,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 ### P1 — Entrega 4 · Gestão comercial (o que a diretoria cobra)
 
-#### 4.8 Valor por oportunidade + forecast ponderado ⬜ (M, gratuito)
+#### 4.8 Valor por oportunidade + forecast ponderado ✅ (M, gratuito)
 
 - **Hoje:** conversão tem `contract_value`, mas não há valor por estágio nem
   previsão de receita.
@@ -373,6 +392,12 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     no PDF executivo.
   - Filtro "receita projetada vs realizada" no período.
 - **Aceite:** diretor abre o PDF e vê receita projetada por estágio/consultor.
+- **Status — Entregue (2026-08-10, `feat/opportunity-forecast`):** migration
+  `69f0f84a9739` (`lead.value`, `expected_close_date`, `lost_reason`);
+  `AnalyticsService.forecast()` (pipeline_value, forecast ponderado 5%–90%,
+  receita realizada, motivos de perda) + `GET /analytics/forecast`;
+  `PATCH /leads/{id}` aceita os 3 campos; card de ticket/previsão/motivo no lead
+  e `ForecastCard` em `/relatorios`.
 
 #### 4.9 Metas de vendas por consultor ✅ (M, gratuito)
 
@@ -543,7 +568,6 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 | # | Item | Pilar | Prio | Esforço | Custo | Depende de | Status |
 |---|---|---|---|---|---|---|---|
-| 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
 | 4.1 | Verificação de e-mail (MX/blocklist) + badge | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-04 |
 | 4.2 | Rastreamento de abertura/clique (pixel + redirect) | Entregabilidade | P0 | M | gratuito | — | ✅ Entregue 2026-08-05 |
 | 4.3 | Warmup, throttling e remetente dedicado | Entregabilidade | P0 | M | gratuito | 4.1 | ✅ Entregue 2026-08-06 |

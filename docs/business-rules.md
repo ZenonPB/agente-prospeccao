@@ -2,13 +2,15 @@
 
 ## Funil de Status dos Leads
 NOVO
-→ ANALISADO      (após enriquecimento técnico)
+→ ANALISADO      (após enriquecimento/scoring)
 → QUALIFICADO    (score >= 60)
-→ DESQUALIFICADO (score < 60 ou sem site)
+→ DESQUALIFICADO (score < 60)
 → CONTATADO      (1ª mensagem enviada)
 → RESPONDIDO     (lead respondeu)
 → REUNIAO_MARCADA
-→ PERDIDO
+→ REUNIAO_FEITA  (reunião realizada)
+→ PROPOSTA_ENVIADA
+→ PERDIDO        (volta à fila após 90 dias)
 
 ## Critérios de Scoring (0-100)
 
@@ -87,11 +89,73 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
 
 ## Regras do Pipeline
 
-- Lead sem website entra como NOVO mas não passa pelo enriquecimento técnico
-- Lead sem contato com confidence >= 50 não entra no outreach automático
-- Leads PERDIDO voltam para a fila após 90 dias
+- Lead sem website **não passa pelo enriquecimento técnico**, mas é pontuado
+  pelo **caminho business** em campanhas `WEB_PRESENCE` (fatores cadastrais +
+  sinais do template direcionados a quem não tem site próprio — roadmap-leads
+  S4). Nunca fica invisível/`NOVO` esperando por um site.
+- Lead sem contato com `email_verified = True` não sai no **envio automático**
+  da cadência (gate 4.1); humano ainda pode enviar não-verificado com aviso.
+- Leads PERDIDO voltam para a fila após 90 dias.
 - Scoring é recalculado quando novos dados de enriquecimento chegam
-- Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead
+  (`POST /campaigns/{id}/reanalyze`).
+- Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead.
+
+## Cadência de follow-up e envio (3.7/4.3)
+
+- Etapas `FollowUpStep`: `OPENING` (dia 0) → `FOLLOWUP_1` (dia 3) →
+  `FOLLOWUP_2` (dia 7) → `CLOSING` (dia 14) + `POST_SALE` (pós-venda, mesmo
+  motor). Status: `PENDING/SENT/SKIPPED/CANCELLED`.
+- **Humano no loop por padrão**; envio automático só com opt-in da org
+  (`auto_send_email`), e respeita:
+  - teto diário por org (`daily_email_limit`, default 40) e janela de
+    espalhamento (`send_window_start/end`, default 09:00–17:00, fuso do
+    servidor) — etapas que não couberem ficam `PENDING` (postergadas, nunca
+    falham);
+  - remetente dedicado por consultor (`organization_members.email_from`) →
+    org (`organizations.email_from`) → global (`SMTP_FROM_EMAIL`);
+  - `opt_out` do lead cancela as etapas pendentes;
+  - destinatário com `email_verified = True`.
+- Inbound (`POST /webhooks/email/inbound`, valida `EMAIL_WEBHOOK_SECRET`):
+  resposta → `RESPONDIDO` (cancela a cadência); STOP → `opt_out`.
+- Tracking de abertura/clique por etapa (`tracking_token`) quando
+  `TRACKING_BASE_URL` configurada; bounce registra em `email_suppressions`.
+
+## Opt-out / supressão
+
+- `POST /leads/{id}/opt-out` marca `Lead.opt_out` e torna as etapas pendentes
+  da cadência `SKIPPED`; `DELETE /leads/{id}` remove o lead.
+- Bounce (falha de entrega) registra em `email_suppressions` e impede novos
+  envios ao mesmo endereço.
+
+## Funil de negociação e resultado de contrato (C.3)
+
+- `Lead.negotiation_stage`: `RD` (reunião de demonstração) → `ORCAMENTO` → `RP`
+  (reunião de proposta). Gravado via `PATCH /leads/{id}/negotiation` **somente**
+  quando o lead está em `RESPONDIDO / REUNIAO_MARCADA / REUNIAO_FEITA /
+  PROPOSTA_ENVIADA` (400 caso contrário).
+- `Lead.contract_outcome`: `APROVADO/REPROVADO/EM_ANALISE` (+ `outcome_date`);
+  a conversão (`POST /leads/{id}/conversion`) marca `APROVADO`.
+- Pós-venda (`POST /leads/{id}/post-sale`): registra `post_sale_contacted_at` +
+  `post_sale_channel` (`WHATSAPP/EMAIL`) e agenda o lembrete `POST_SALE` quando
+  há conteúdo. Somente para leads convertidos.
+
+## Valor, forecast e metas (4.8/4.9)
+
+- `Lead.value` (ticket estimado) + `expected_close_date` + `lost_reason`
+  (`PRECO/PRAZO/NAO_RESPONDEU/CONCORRENTE/OUTRO`) — `PATCH /leads/{id}`.
+- Forecast ponderado no BI: `value × win-rate do estágio` (NOVO 5% →
+  PROPOSTA_ENVIADA 90%); `realized_revenue` vem de `Conversion.contract_value`.
+- Metas mensais por consultor em `sales_targets` (`meetings_target`/
+  `revenue_target`, mês `YYYY-MM`); `AnalyticsService.consultants()` devolve o
+  atingimento (% realizado vs meta).
+
+## SLA de leads parados (4.10)
+
+- Prazos configuráveis por org (`organizations.sla_*_days`; defaults 5/2/2):
+  `QUALIFICADO_NO_CONTACT`, `RESPONDIDO_NO_NEXT_ACTION`, `OPENED_NO_RESPONSE`.
+- `GET /leads/sla-alerts` lista os alertas por dias parados, respeitando o
+  escopo do consultor (`consultant_lead_scope`); alimenta o painel "Ações de
+  hoje" e a notificação no kanban.
 
 ## Limites Legais (Lei 12.737/2012)
 
@@ -122,3 +186,4 @@ Se uma chave exceder seu limite, todas as operações usarão fallback (cache lo
 | Follow-up 1 | Dia 3 sem resposta | Reforço leve |
 | Follow-up 2 | Dia 7 sem resposta | Última tentativa |
 | Encerramento | Dia 14 sem resposta | Ciclo encerrado, lead volta em 90 dias |
+| Pós-venda | Após conversão | Acompanhamento pós-cliente (canal WhatsApp/E-mail) |

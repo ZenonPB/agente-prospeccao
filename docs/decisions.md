@@ -76,7 +76,7 @@ A partir de 2026-07-09, todo o código usa:
 | Extrair enrich+scoring para `enrichment_orchestrator.process_single_lead()` | Eliminar duplicação entre `main.py` e `pipeline_worker.py`; manutenção em um só lugar |
 | slowapi para rate limiting | Biblioteca madura, decorator simples, suporte a Redis futuro |
 | Token cache em memória no frontend | Elimina chamada HTTP `getSession()` em cada request de API; cache é populado após login/register |
-| WebSocket auth via query param `?token=` | `WebSocket` browser não permite headers customizados; query param é o padrão da indústria |
+| WebSocket auth na 1ª mensagem (token fora da URL) | `WebSocket` browser não permite headers customizados; o token enviado na 1ª mensagem de texto evita expor o JWT em query params/logs de proxy (fix de segurança do go-live) |
 
 ## Issues Conhecidas (resolvidas)
 
