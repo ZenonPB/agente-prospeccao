@@ -90,8 +90,6 @@ def _template_dict(template: CampaignScoringTemplate) -> dict:
     }
 
 
-def reprocess_one(lead: Lead, db):
-    campaign = None
 async def reprocess_one(lead: Lead, db):
     campaign = None
     if lead.campaign_id:
