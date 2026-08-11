@@ -64,6 +64,12 @@ export interface ContactItem {
   created_at?: string;
 }
 
+// Item 4.22 — consulta sugerida para achar o decisor no LinkedIn.
+export interface LinkedinQuery {
+  label: string;
+  query: string;
+}
+
 // Funil interno de negociação (roadmap-leads C.3 — largar a planilha).
 export type NegotiationStage = 'RD' | 'ORCAMENTO' | 'RP';
 export type ContractOutcome = 'APROVADO' | 'REPROVADO' | 'EM_ANALISE';

@@ -16,11 +16,12 @@ import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
 import { NegotiationControl } from '@/components/oportunidades/negotiation-control';
 import { PostSaleControl } from '@/components/oportunidades/post-sale-control';
+import { LinkedInAssociateDialog } from '@/components/oportunidades/linkedin-associate-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { OutreachMessages } from '@/types/index';
+import { OutreachMessages, ContactItem } from '@/types/index';
 import { useState } from 'react';
 
 const primaryNeedLabels: Record<string, string> = {
@@ -63,6 +64,14 @@ function formatEmailSource(rawData: unknown): string | null {
   return emailSourceLabels[source] || source;
 }
 
+// Item 4.22 — perfil associado manualmente pelo consultor.
+function formatLinkedinSource(rawData: unknown): string | null {
+  if (typeof rawData !== 'object' || rawData === null) return null;
+  const source = (rawData as Record<string, unknown>).linkedin_source;
+  if (typeof source === 'string' && source.startsWith('manual')) return 'Associado manualmente';
+  return null;
+}
+
 const statusLabels: Record<string, string> = {
   NOVO: 'Novo',
   ANALISADO: 'Analisado',
@@ -96,6 +105,7 @@ const activityLabels: Record<string, string> = {
   LOST: 'Lead perdido',
   CONVERTED: 'Conversão registrada',
   CONTACT_ENRICHED: 'Decisores enriquecidos',
+  LINKEDIN_ASSOCIATED: 'Perfil LinkedIn associado',
 };
 
 function FollowUpCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['data']> }) {
@@ -253,6 +263,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const [convService, setConvService] = useState('');
   const [convValue, setConvValue] = useState('');
   const [convNotes, setConvNotes] = useState('');
+  const [associateContact, setAssociateContact] = useState<ContactItem | null>(null);
   const registerConversion = useRegisterConversion();
 
   const copyToClipboard = (text: string, message: string) => {
@@ -658,12 +669,28 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                                 Perfil validado
                               </Badge>
                             )}
+                            {formatLinkedinSource(contact.raw_data) && (
+                              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                                {formatLinkedinSource(contact.raw_data)}
+                              </Badge>
+                            )}
                           </div>
                         ) : (
-                          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <LinkedInIcon className="h-4 w-4" />
-                            LinkedIn não encontrado — use &quot;Enriquecer decisores&quot;.
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <LinkedInIcon className="h-4 w-4" />
+                              LinkedIn não encontrado.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1 text-[11px]"
+                              onClick={() => setAssociateContact(contact)}
+                            >
+                              <UserPlus className="h-3 w-3" aria-hidden="true" />
+                              Associar perfil
+                            </Button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -998,6 +1025,18 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {associateContact && (
+        <LinkedInAssociateDialog
+          leadId={lead.id}
+          companyName={lead.company_name}
+          contact={associateContact}
+          open={!!associateContact}
+          onOpenChange={(open) => {
+            if (!open) setAssociateContact(null);
+          }}
+        />
+      )}
     </div>
   );
 }

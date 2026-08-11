@@ -151,6 +151,15 @@ export const leadsApi = {
       body: JSON.stringify({ cnpj: cnpj || "" }),
     }),
 
+  linkedinQueries: (id: string) =>
+    request<{ queries: import("@/types").LinkedinQuery[]; search_url: string }>(`/api/leads/${id}/linkedin-query`),
+
+  associateLinkedIn: (id: string, contactId: string, url: string) =>
+    request<import("@/types").ContactItem>(`/api/leads/${id}/contacts/${contactId}/linkedin`, {
+      method: "PATCH",
+      body: JSON.stringify({ url }),
+    }),
+
   recordWhatsAppClick: (id: string, messageText?: string) =>
     request<{ whatsapp_url: string; phone: string; is_valid: boolean; last_contacted_at: string }>(`/api/leads/${id}/whatsapp-click`, {
       method: "POST",
