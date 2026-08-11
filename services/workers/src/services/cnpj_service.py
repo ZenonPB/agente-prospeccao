@@ -60,7 +60,7 @@ def is_valid_cnpj(cnpj: str) -> bool:
 
 
 def mask_cpf(cpf: Optional[str]) -> Optional[str]:
-    """Mascara CPF para persistência (item 4.7/LGPD): minimização de dados
+    """Mascara CPF para persistência (item 4.7): minimização de dados
     pessoais — guardamos só os 3 primeiros e 2 últimos dígitos."""
     if not cpf:
         return None

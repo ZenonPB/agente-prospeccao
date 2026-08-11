@@ -15,7 +15,7 @@ Saída: dict com 4 mensagens prontas para revisão.
 Princípios de produto (de `product-vision.md`):
 - Nunca genéricas — sempre referenciam evidências/dor real do lead.
 - Endereçado ao decisor pelo nome quando disponível.
-- Opt-out em toda mensagem (rodapé) — LGPD.
+- Opt-out em toda mensagem (rodapé com STOP).
 - Não automatiza envio em LinkedIn (apenas EMAIL e WHATSAPP aqui).
 """
 import json
@@ -96,14 +96,14 @@ SYSTEM_PROMPT = (
     "oferece reaproche em 90 dias.\n"
     "- Varie a estrutura entre follow-ups — nunca use o mesmo template da "
     "primeira.\n"
-    "- WhatsApp: 2-3 frases, informal, até 1 emoji. Sem rodapé LGPD aqui.\n"
+    "- WhatsApp: 2-3 frases, informal, até 1 emoji. Sem rodapé de opt-out aqui.\n"
     "- rationale: 2-3 frases em pt-BR explicando o gancho principal e o "
     "porquê deste ângulo.\n\n"
-    "LGPD:\n"
+    "Opt-out:\n"
     "- Em toda mensagem de EMAIL (body_opening, followup_1, followup_2, "
     "closing), adicionar ao final em linhas separadas:\n"
     "-\n"
-    "Responda STOP para ser removido. E-mail B2B conforme LGPD.\n\n"
+    "Responda STOP para não receber mais mensagens.\n\n"
     "As contagens mínimas são obrigatórias. Não produza uma mensagem de "
     "body com menos de 200 palavras nem follow-up com menos de 120 palavras. "
     "Se estiver curto, acrescente concretude.\n\n"
@@ -114,11 +114,11 @@ SCHEMA_HINT = """
 Retorne um JSON com EXATAMENTE esta estrutura:
 {
   "subject": "<assunto do email, sem prefixo, sem clickbait, máx 55 chars, observação factual que desperta curiosidade>",
-  "body_opening": "<corpo da mensagem de abertura, 200-280 palavras, texto plano com \\n entre parágrafos, com rodapé LGPD em linhas finais>",
-  "followup_1": "<reforço com NOVO ângulo, 120-160 palavras, com rodapé LGPD>",
-  "followup_2": "<valor direto + insight + breve caso do segmento (sem nome inventado), 140-180 palavras, com rodapé LGPD>",
-  "closing": "<encerramento respeitoso, 70-100 palavras, com rodapé LGPD>",
-  "whatsapp_short": "<versão curta WhatsApp Business, 2-3 frases, até 1 emoji, sem rodapé LGPD>",
+  "body_opening": "<corpo da mensagem de abertura, 200-280 palavras, texto plano com \\n entre parágrafos, com rodapé de opt-out em linhas finais>",
+  "followup_1": "<reforço com NOVO ângulo, 120-160 palavras, com rodapé de opt-out>",
+  "followup_2": "<valor direto + insight + breve caso do segmento (sem nome inventado), 140-180 palavras, com rodapé de opt-out>",
+  "closing": "<encerramento respeitoso, 70-100 palavras, com rodapé de opt-out>",
+  "whatsapp_short": "<versão curta WhatsApp Business, 2-3 frases, até 1 emoji, sem rodapé de opt-out>",
   "rationale": "<2-3 frases em pt-BR explicando o gancho principal e o porquê deste ângulo>"
 }
 """
@@ -224,10 +224,10 @@ def build_prompt(
     lines.append("4. Demonstra diagnóstico, não pitch. Descreve o impacto no negócio dele em termos dele (alunos perdidos, orçamento desperdiçado, oportunidades deixadas na mesa) — concretude visual, não clichê.")
     lines.append("5. Cita UM fato específico do lead por mensagem, só dos fatos acima. JAMAIS invente números, datas, percentuais ou nomes de empresas reais. Casos no follow-up 2 são genéricos (\"uma academia de porte similar\").")
     lines.append("6. Um único CTA por mensagem, específico e de baixo atrito. Nunca \"vamos marcar uma call para apresentar nossas soluções\". Propõe algo concreto: \"15 minutos para discutir <tópico> — terça às 10h ou quarta às 14h?\"")
-    lines.append("7. Body de abertura: 200-280 palavras, 4 parágrafos curtos. Followup 1: 120-160 palavras (novo ângulo). Followup 2: 140-180 palavras (insight + caso genérico). Closing: 70-100 palavras. WhatsApp: 2-3 frases, até 1 emoji, sem rodapé LGPD.")
+    lines.append("7. Body de abertura: 200-280 palavras, 4 parágrafos curtos. Followup 1: 120-160 palavras (novo ângulo). Followup 2: 140-180 palavras (insight + caso genérico). Closing: 70-100 palavras. WhatsApp: 2-3 frases, até 1 emoji, sem rodapé de opt-out.")
     lines.append("8. Contagens mínimas são OBRIGATÓRIAS. Se estiver curto, acrescente concretude, não repita.")
     lines.append("9. Sem jargão (\"soluções\", \"sinergia\", \"jornada\") e sem frases com cara de IA (\"Neste cenário\", \"Diante disso\", \"Vale destacar\").")
-    lines.append("10. Rodapé LGPD em toda mensagem de email (body_opening, followup_1, followup_2, closing), em linhas finais separadas: \"-\\nResponda STOP para ser removido. E-mail B2B conforme LGPD.\"")
+    lines.append("10. Rodapé de opt-out em toda mensagem de email (body_opening, followup_1, followup_2, closing), em linhas finais separadas: \"-\\nResponda STOP para não receber mais mensagens.\"")
     lines.append("")
     lines.append(SCHEMA_HINT)
     return "\n".join(lines)
@@ -243,11 +243,11 @@ def _normalize_response(parsed: Dict[str, Any]) -> Dict[str, Any]:
         "whatsapp_short": str(parsed.get("whatsapp_short") or ""),
         "rationale": str(parsed.get("rationale") or ""),
     }
-    # Garante rodapé LGPD se a LLM esqueceu.
+    # Garante rodapé de opt-out se a LLM esqueceu.
     if "STOP" not in out["body_opening"]:
         out["body_opening"] = (
             out["body_opening"].rstrip()
-            + "\n-\nResponda STOP para ser removido. E-mail B2B conforme LGPD."
+            + "\n-\nResponda STOP para não receber mais mensagens."
         )
     return out
 

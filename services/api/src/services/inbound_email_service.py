@@ -4,7 +4,7 @@ Quando a org usa um provedor de inbound (Postmark/SendGrid inbound parse,
 IMAP poll, etc.) apontando para `POST /api/webhooks/email/inbound`, este
 serviço:
 
-- Detecta "STOP" (subject/body) → marca `opt_out` (LGPD) e cancela a cadência.
+- Detecta "STOP" (subject/body) → marca `opt_out` (do-not-contact) e cancela a cadência.
 - Detecta resposta (qualquer outra) → move o lead para `RESPONDIDO`, cancela
   follow-ups pendentes (o lead respondeu — para de enviar) e grava na trilha.
 
@@ -63,7 +63,7 @@ def process_inbound_email(db: Session, from_email: str, subject: str, body: str)
     stop = _is_stop_request(subject, body)
 
     if stop:
-        # LGPD: pedido de descadastro — para qualquer envio futuro.
+        # Pedido de descadastro — para qualquer envio futuro.
         lead.opt_out = True
         for fu in db.query(FollowUp).filter(
             FollowUp.lead_id == lead.id,

@@ -9,7 +9,7 @@ import { AlertCircle } from 'lucide-react';
 import type { AnalyticsGeoState } from '@/lib/api';
 
 // Centroides aproximados das UFs brasileiras (lat, lng) — mapa por UF sem
-// depender de API de geocodificação (offline, determinístico, LGPD-friendly).
+// depender de API de geocodificação (offline, determinístico).
 const UF_CENTROIDS: Record<string, [number, number]> = {
   AC: [-9.0, -70.0], AL: [-9.6, -36.7], AP: [1.0, -52.0], AM: [-4.0, -63.5],
   BA: [-12.6, -41.5], CE: [-5.2, -39.5], DF: [-15.8, -47.9], ES: [-19.2, -40.5],

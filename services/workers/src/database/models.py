@@ -132,7 +132,7 @@ class FollowUpStep(enum.Enum):
 class FollowUpStatus(enum.Enum):
     PENDING = "PENDING"       # agendado, aguardando envio (humano ou automático)
     SENT = "SENT"             # enviado
-    SKIPPED = "SKIPPED"       # pulado (ex.: opt-out LGPD ou lead respondeu)
+    SKIPPED = "SKIPPED"       # pulado (ex.: opt-out do lead ou lead respondeu)
     CANCELLED = "CANCELLED"   # cancelado (ciclo encerrado cedo)
 
 # Modelos
@@ -438,7 +438,7 @@ class Lead(Base):
     assigned_at = Column(DateTime(timezone=True), nullable=True)
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
 
-    # LGPD opt-out (item 3.7): lead pediu para não receber mais mensagens.
+    # Opt-out (item 3.7): lead pediu para não receber mais mensagens.
     # Cadências pendentes são canceladas/puladas e nenhum envio automático ocorre.
     opt_out = Column(Boolean, default=False, nullable=False, server_default="false")
 
@@ -511,7 +511,7 @@ class FollowUp(Base):
     - Se a org optou por **envio automático** (`Organization.auto_send_email`),
       o scheduler envia quando `scheduled_at` vence. Senão (humano-no-loop
       default), o consultor envia manualmente pela UI.
-    - Leads com `opt_out` (LGPD) têm etapas pendentes marcadas como `SKIPPED`.
+    - Leads com `opt_out` têm etapas pendentes marcadas como `SKIPPED`.
     """
     __tablename__ = "follow_ups"
     __table_args__ = (

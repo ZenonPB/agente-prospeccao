@@ -385,7 +385,7 @@ def delete_lead(
     member: OrganizationMember = Depends(get_user_membership),
     user: User = Depends(get_current_user),
 ):
-    """Exclui um lead e seus dados relacionados (direito ao apagamento — LGPD).
+    """Exclui um lead e seus dados relacionados (direito ao apagamento).
 
     Requer acesso total (ANALYST/MANAGER/owner/admin). Remove contactos,
     atividades, follow-ups, mensagens, conversões, enriquecimento e registro
@@ -1135,7 +1135,7 @@ def opt_out_lead(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Registra opt-out LGPD de um lead: cancela cadência e impede novos envios."""
+    """Registra opt-out de um lead: cancela cadência e impede novos envios."""
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
         Lead.organization_id == _org.id,
