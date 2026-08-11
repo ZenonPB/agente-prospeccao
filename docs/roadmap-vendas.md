@@ -434,26 +434,38 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 ### P2 — Entrega 6 · Confiabilidade para produção real
 
-#### 4.14 Medidor de cotas por org + alertas ⬜ (M, gratuito)
+#### 4.14 Medidor de cotas por org + alertas ✅ (M, gratuito)
 
 - **Hoje:** BYOK existe, mas **sem contador de uso** (Places ~100/mês, Groq).
 - **Proposta:** contador diário por org/key em `provider_client`; alerta no
   dashboard ao passar 80%; travar chamadas excedentes (fallback/aviso).
 - **Aceite:** custo nunca estoura sem aviso; org vê consumo na UI.
+- **Status — Entregue (2026-08-11, `feat/p2-confiabilidade` — PR #68):**
+  `QuotaService`/`provider_usage` no workers (medidor diário por org/provedor +
+  guard em Groq/Places); API: endpoint de uso + `PATCH api_quota` +
+  guard/consume nas rotas de IA; web: card de cotas da org em `/configuracoes`
+  (consumo Google/Groq, badge "Configurada"/"Pool global").
 
-#### 4.15 Observabilidade e restauração ⬜ (M, gratuito)
+#### 4.15 Observabilidade e restauração ✅ (M, gratuito)
 
 - **Proposta:** logs estruturados dos eventos de cadência/abertura; **teste real
   de restore** do `pg_dump` quinzenal; `pytest` com 1 E2E do ciclo completo de
   outreach (agendar→verificar→enviar→abrir→responder/STOP); Sentry se aplicável.
 - **Aceite:** backup é comprovadamente restaurável; ciclo completo tem teste.
+- **Status — Entregue (2026-08-11, `feat/p2-confiabilidade` — PR #68):**
+  logs estruturados dos eventos de cadência/abertura; teste real de restore do
+  `pg_dump`; pytest E2E do ciclo completo de outreach
+  (agendar→verificar→enviar→abrir→responder/STOP).
 
-#### 4.16 Paginação e performance das listas ⬜ (M, gratuito)
+#### 4.16 Paginação e performance das listas ✅ (M, gratuito)
 
 - **Proposta:** paginação server-side nas listas de leads/kanban (hoje em
   memória), índice composto `(organization_id, status, qualification_score)`,
   debounce já feito na busca.
 - **Aceite:** listas de milhares de leads sem travar a UI.
+- **Status — Entregue (2026-08-11, `feat/p2-confiabilidade` — PR #68):**
+  paginação server-side no kanban e na lista de leads + índices compostos
+  `(organization_id, status, qualification_score)` (migration `ca2c1a...`).
 
 #### 4.17 Frontend mobile-first ⬜ (M, gratuito)
 
@@ -581,9 +593,9 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ Entregue 2026-08-11 |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
-| 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ⬜ |
-| 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ⬜ |
-| 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ⬜ |
+| 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
+| 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
+| 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | ⬜ |
 | 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ⬜ |
 | 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ⬜ |
@@ -615,8 +627,8 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   *Critério de saída:* consultor fecha 1º ciclo completo com tracking e
   WhatsApp; gestor vê desempenho contra meta.
 - **Fase 2 — Conformidade e escala (semanas 6-9):**
-  4.14-4.17 (confiabilidade), 3.3.3-3.3.4 (gestão de membros),
-  4.22-4.25 (LinkedIn assistido).
+  4.14-4.16 (confiabilidade) ✅, 4.17 (mobile-first),
+  3.3.4 (auditoria de acessos), 4.22-4.25 (LinkedIn assistido).
   *Critério de saída:* backup restaurável, UI em produção sem travar, decisores
   associados via pesquisa assistida.
 - **Fase 3 — Diferenciação (semanas 10+):** 4.18-4.21 (calibração, A/B,
@@ -766,8 +778,10 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Item 4.22 entregue (2026-08-11):** LinkedIn assistido (consultas sugeridas +
   associação manual de perfil com validação passiva) — branch
   `feat/linkedin-assistido-lgpd-cleanup`.
-- **Backlog pendente (⬜ do §5):** P2 confiabilidade (**4.14** cotas, **4.15**
-  observabilidade/restore, **4.16** paginação/kanban, **4.17** mobile-first) →
-  **3.3.4** auditoria → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+- **Itens 4.14–4.16 entregues (2026-08-11, PR #68):** cotas por org (4.14),
+  observabilidade/restore (4.15) e paginação/índices (4.16) — P2 confiabilidade
+  fechado.
+- **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
+  auditoria de acessos, LinkedIn **4.23–4.25**) → P3 (4.18–4.21, 4.26–4.27).
 - **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir
   antes de fechar o próximo ciclo de UI.
