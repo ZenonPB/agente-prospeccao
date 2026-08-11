@@ -713,13 +713,38 @@ Branch `feat/sla-lead-reminders` (roadmap-vendas P1):
     direto para a oportunidade.
 - **Testes**: `tests/test_sla_service.py` (3) — suíte em **93 passed**.
 
+### Item 4.7 — Mais fontes de contato além da Receita ✅ (2026-08-10)
+
+Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
+
+- **`ContactEnrichmentService`** (`services/workers/src/services/contact_enrichment_service.py`):
+  - `_emails_from_site(client, lead)` — GET passivo da home + `/contato`,
+    `/fale-conosco` e `/contact`; extrai e-mails/telefones públicos com
+    de-ofuscação anti-bot (` [at] `/`(dot)`/entidades HTML); cache `_site_cache`
+    por página; fonte `site` (alta veracidade, MX-verificável).
+  - `_mail_to_company(client, contact, lead)` — busca passiva `"<nome>"
+    "<empresa>" email` em DuckDuckGo/Bing (reusa a infra de LinkedIn); seleciona
+    o e-mail cujo local part combina com o nome do decisor; fonte `search:*`.
+  - **Precedência de e-mail**: Hunter → **site** → **busca** → **CNPJ** →
+    heurística; proveniência sempre gravada em `email_source`/`phone_source` no
+    `raw_data` do contato.
+  - `_contacts_from_receita` usa o e-mail/telefone cadastral da empresa
+    (`company_email`/`company_phone` do DTO da Receita) como fonte extra —
+    sócios seguem com CPF mascarado (LGPD).
+  - Pequeno ganho de qualidade: `_email_heuristic` agora normaliza acentos
+    (`João` → `joao`).
+- **Frontend**: badge "Fonte: ..." (Site/Busca/CNPJ/Hunter/heurística) ao lado
+  do e-mail na aba Contatos do lead (`/oportunidades/[id]`).
+- **Sem migration** (usa colunas existentes + `raw_data`).
+- **Testes**: `tests/test_contact_site_sources.py` (15) — suíte em **108 passed**.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **Item 4.10 SLA/lembretes** entregue na branch `feat/sla-lead-reminders` (backend + frontend + testes) — aguardando PR/merge.
-> 2. Items 4.9, 3.3.3, 4.8 e 4.5 já mergeados no `main`.
-> 3. Próximo passo do roadmap-vendas: **4.7 Ranking de respondentes** ou itens 4.14–4.17 (gestão/BI/confiabilidade).
+> 1. **Item 4.7 Mais fontes de contato** entregue na branch `feat/contact-more-sources` (aguardando PR/merge) — fecha o **P1** do roadmap-vendas.
+> 2. Item 4.10 mergeado no `main` (PR #61).
+> 3. Próximos passos (P2, sem LGPD — sistema interno): **4.16 paginação/performance**, **4.14 cotas por org**, **4.17 mobile-first**, **4.15 observabilidade**, **3.3.4 auditoria**.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

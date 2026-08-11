@@ -229,6 +229,9 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
   (default 2); `GET /leads/sla-alerts` computa os alertas por org.
 - **organization_secrets** — BYOK, `encrypted_value` (Fernet).
 - **contacts / company_record** — decisores, e-mails, LinkedIn, confidence; cadastro.
+  Item 4.7: proveniência do e-mail/telefone em `raw_data.email_source` /
+  `phone_source` (Hunter · site/página de contato · busca DuckDuckGo/Bing ·
+  CNPJ/Receita · heurística).
 - **enrichments** — dados técnicos do site (SSL, CMS, load_time_ms, `raw_technical_data`).
 - **jobs** — coleta/processamento (organization_id nullable).
 - **lead_activities / conversions** — trilha de atribuição/status; conversões e feedback.

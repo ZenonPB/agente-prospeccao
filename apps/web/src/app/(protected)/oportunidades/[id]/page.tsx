@@ -43,6 +43,26 @@ function formatPrimaryNeed(value?: string): string {
   return primaryNeedLabels[value] || value;
 }
 
+// Item 4.7 — proveniência do e-mail do decisor (onde foi encontrado).
+const emailSourceLabels: Record<string, string> = {
+  hunter: 'Hunter',
+  site: 'Site',
+  'search:duckduckgo': 'Busca (DuckDuckGo)',
+  'search:bing': 'Busca (Bing)',
+  'search:cached': 'Busca (cache)',
+  search: 'Busca',
+  cnpj: 'CNPJ/Receita',
+  heuristic: 'Padrão (heurística)',
+  cnpj_receita: 'CNPJ/Receita',
+};
+
+function formatEmailSource(rawData: unknown): string | null {
+  if (typeof rawData !== 'object' || rawData === null) return null;
+  const source = (rawData as Record<string, unknown>).email_source;
+  if (typeof source !== 'string' || !source) return null;
+  return emailSourceLabels[source] || source;
+}
+
 const statusLabels: Record<string, string> = {
   NOVO: 'Novo',
   ANALISADO: 'Analisado',
@@ -598,6 +618,11 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                               <Badge variant="outline" className="text-[10px] font-normal gap-1">
                                 <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />
                                 Não verificado
+                              </Badge>
+                            )}
+                            {formatEmailSource(contact.raw_data) && (
+                              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                                Fonte: {formatEmailSource(contact.raw_data)}
                               </Badge>
                             )}
                           </div>

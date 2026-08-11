@@ -329,7 +329,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 - **Aceite:** leads com nota baixa aparecem como oportunidade; evidência no
   detalhe/pitch/PDF.
 
-#### 4.7 Mais fontes de contato além da Receita ⬜ (M, gratuito)
+#### 4.7 Mais fontes de contato além da Receita ✅ (M, gratuito)
 
 - **Hoje:** decisores vêm de Receita (nome dos sócios) + Hunter (opcional) +
   heurística. Hit-rate de e-mail limitado.
@@ -341,6 +341,17 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   - **CNPJ enriquecido** (sócios com CPF já mascarado) + `phone` da empresa.
   - Consolidar e marcar proveniência (`email_source`) — alimenta o 4.1.
 - **Aceite:** proporção de leads com e-mail verificado sobe.
+- **Entregue (2026-08-10, branch `feat/contact-more-sources`):**
+  - `ContactEnrichmentService` ganha `_emails_from_site` (home + `/contato`,
+    `/fale-conosco`, `/contact` — extração passiva de e-mail/telefone com
+    de-ofuscação anti-bot) e `_mail_to_company` (busca passiva
+    `"<nome>" "<empresa>" email` via DuckDuckGo/Bing).
+  - Precedência de e-mail: Hunter → **site** → **busca** → **CNPJ** → heurística;
+    proveniência em `email_source`/`phone_source` no `raw_data` do contato.
+  - `_contacts_from_receita` passa a usar o e-mail/telefone cadastral da empresa
+    (`company_email`/`company_phone` da Receita) como fonte extra.
+  - Frontend: badge "Fonte: ..." na aba Contatos do lead.
+  - Testes: `tests/test_contact_site_sources.py` (15).
 
 ---
 
@@ -475,7 +486,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 3.3.2 | Onboarding por convite (cadastro no aceite) | Multi-org | P0 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-06 |
 | 4.5 | WhatsApp: validação + 1 clique + trilha | WhatsApp | P1 | M | baixo | 4.7 | ✅ Entregue 2026-08-10 |
 | 4.6 | Rating/reviews do Google no scoring | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-05 |
-| 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ⬜ |
+| 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ✅ Entregue 2026-08-10 |
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ |
