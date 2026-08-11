@@ -119,6 +119,11 @@ export const leadsApi = {
     meetings_count: number;
   }>("/api/leads/stats"),
 
+  slaAlerts: (params?: { limit?: number }) =>
+    request<{ alerts: import("@/types").SlaAlertItem[] }>("/api/leads/sla-alerts", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
   updateStatus: (id: string, status: string) =>
     request<{ id: string; company_name: string; status: string }>(`/api/leads/${id}/status`, {
       method: "PATCH",
@@ -424,6 +429,9 @@ export const orgsApi = {
     send_window_start?: string;
     send_window_end?: string;
     email_from?: string;
+    sla_qualified_no_contact_days?: number;
+    sla_responded_no_next_action_days?: number;
+    sla_opened_no_response_days?: number;
   }) =>
     request<{
       id: string;
@@ -434,6 +442,9 @@ export const orgsApi = {
       send_window_end: string;
       email_from?: string | null;
       sends_today: number;
+      sla_qualified_no_contact_days?: number;
+      sla_responded_no_next_action_days?: number;
+      sla_opened_no_response_days?: number;
     }>(
       `/api/orgs/${orgId}`,
       { method: "PATCH", body: JSON.stringify(data) },

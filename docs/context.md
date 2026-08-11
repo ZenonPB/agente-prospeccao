@@ -689,13 +689,37 @@ Branch `feat/sales-targets` (roadmap-vendas P1):
     `useSalesTargets`, `useUpsertSalesTarget`, `useDeleteSalesTarget`.
 - **Testes**: `tests/test_sales_targets.py` — suíte em **90 passed**. `tsc --noEmit` e `eslint` limpos. Grafo atualizado (`graphify extract` + `cluster-only`: 2128 nós, 4509 arestas, 160 comunidades).
 
+### Item 4.10 — SLA e lembretes para leads parados 🔧 em andamento (2026-08-10)
+
+Branch `feat/sla-lead-reminders` (roadmap-vendas P1):
+
+- **Modelos/migration `c24a13047b0e`** (aplicada): `organizations` ganhou
+  `sla_qualified_no_contact_days` (default 5), `sla_responded_no_next_action_days`
+  (default 2) e `sla_opened_no_response_days` (default 2) — prazos por org.
+- **Backend**:
+  - `services/api/src/services/sla_service.py` (novo): `compute_sla_alerts(db, org_id, member, limit=50)` com regras
+    `QUALIFICADO_NO_CONTACT` (QUALIFICADO sem nenhum contato há N dias),
+    `RESPONDIDO_NO_NEXT_ACTION` (RESPONDIDO sem próxima ação agendada/vencida há N dias)
+    e `OPENED_NO_RESPONSE` (abriu mensagem via tracking e não respondeu há N dias);
+    respeita o escopo do consultor (`consultant_lead_scope`).
+  - Endpoint `GET /api/leads/sla-alerts?limit=` em `routes/leads.py` listando os
+    alertas ordenados por dias parados (regras configuráveis por org).
+  - `PATCH /orgs/{org_id}` + `/orgs/me` expõem/aceitam os 3 campos SLA
+    (validação 1-120 dias).
+- **Frontend**:
+  - Card **"SLA de leads parados"** em `/configuracoes` (owner/admin) para editar os
+    prazos (`OrgSlaSettings`).
+  - Seção **"Leads parados (SLA)"** no painel "Ações de hoje" do dashboard com link
+    direto para a oportunidade.
+- **Testes**: `tests/test_sla_service.py` (3) — suíte em **93 passed**.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **PR #59 (Item 3.3.3 Gestão de membros)** mergeado no `main` do repositório remoto. Local `main` atualizado.
-> 2. **Item 4.9 Metas de vendas por consultor** entregue na branch `feat/sales-targets`.
-> 3. Próximo passo do roadmap-vendas: **4.10 SLA/lembretes para leads parados** (regras por org + hoje-actions/kanban).
+> 1. **Item 4.10 SLA/lembretes** entregue na branch `feat/sla-lead-reminders` (backend + frontend + testes) — aguardando PR/merge.
+> 2. Items 4.9, 3.3.3, 4.8 e 4.5 já mergeados no `main`.
+> 3. Próximo passo do roadmap-vendas: **4.7 Ranking de respondentes** ou itens 4.14–4.17 (gestão/BI/confiabilidade).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

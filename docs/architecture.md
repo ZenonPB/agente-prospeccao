@@ -117,7 +117,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | POST | `/invites/accept-register` | Cadastra conta e aceita convite em 1 passo (3.3.2) |
 | GET/PUT/DELETE | `/orgs/{org_id}/secrets/{key_name}` | BYOK (org admin) — só expõe `configured` |
 | GET/PUT | `/orgs/{org_id}/sales-targets` · `DELETE /orgs/{org_id}/sales-targets/{id}` | Metas mensais por consultor (4.9): listar (MANAGER+), upsert/remover (owner/admin) |
-| PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end` |
+| PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end`, `sla_*` (prazos SLA p/ alerts — 4.10) |
 
 ### Campanhas
 | Método | Rota | Descrição |
@@ -133,7 +133,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/leads` | Lista (filtros: status, campaign, search, min_score, assigned, next_action_before) |
-| GET | `/leads/stats` · `GET /leads/{id}` | Agregados e detalhe (contatos, atividades, assigned_to) |
+| GET | `/leads/sla-alerts` · `GET /leads/stats` · `GET /leads/{id}` | Alertas SLA (4.10), agregados e detalhe (contatos, atividades, assigned_to) |
 | PATCH | `/leads/{id}` | `whatsapp`, `notes`, `next_action_at` |
 | PATCH | `/leads/{id}/status` · PATCH `/leads/{id}/assign` | Status (trilha) e atribuição |
 | PATCH | `/leads/{id}/negotiation` | Funil interno de negociação (`RD/ORÇAMENTO/RP`) + resultado de contrato (`APROVADO/REPROVADO/EM_ANALISE`) — gate em RESPONDIDO→PROPOSTA_ENVIADA |
@@ -224,6 +224,9 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
   `daily_email_limit` e `send_window_start/end` (item 4.3: teto diário e janela
   de espalhamento do envio automático); `organization_members` ganha
   `email_from` (remetente dedicado por consultor).
+- **SLAs (item 4.10)** — `organizations.sla_qualified_no_contact_days` (default 5),
+  `sla_responded_no_next_action_days` (default 2) e `sla_opened_no_response_days`
+  (default 2); `GET /leads/sla-alerts` computa os alertas por org.
 - **organization_secrets** — BYOK, `encrypted_value` (Fernet).
 - **contacts / company_record** — decisores, e-mails, LinkedIn, confidence; cadastro.
 - **enrichments** — dados técnicos do site (SSL, CMS, load_time_ms, `raw_technical_data`).

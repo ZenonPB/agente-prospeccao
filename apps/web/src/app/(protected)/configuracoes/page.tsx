@@ -14,6 +14,7 @@ import { authApi } from '@/lib/api';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
+import { OrgSlaSettings } from '@/components/configuracoes/org-sla-settings';
 import { OrgNameCard } from '@/components/configuracoes/org-name-card';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
@@ -320,6 +321,9 @@ export default function ConfiguracoesPage() {
 
       {/* Envio de follow-ups (item 3.7) */}
       <OrgSendSettings />
+
+      {/* SLA de leads parados (item 4.10) */}
+      <OrgSlaSettings />
     </div>
   );
 }

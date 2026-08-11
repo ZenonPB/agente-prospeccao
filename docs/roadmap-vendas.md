@@ -372,7 +372,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   em `routes/orgs.py`; `SalesTargetsManager` em `/configuracoes/membros` e badges
   de atingimento no `ConsultantsCard` de `/relatorios`.
 
-#### 4.10 SLA e lembretes para leads parados ⬜ (M, gratuito)
+#### 4.10 SLA e lembretes para leads parados ✅ (M, gratuito)
 
 - **Proposta:** regras configuráveis por org (ex.: QUALIFICADO sem contato há 5
   dias → alerta; RESPONDIDO sem próximo passo em 2 dias → lembrete; lead que
@@ -380,6 +380,10 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   notificação no kanban.
 - **Aceite:** leads quentes nunca ficam esquecidos; painel "ações de hoje"
   reflete as regras.
+- **Entregue (2026-08-10, branch `feat/sla-lead-reminders`):** colunas de SLA por
+  org (`sla_qualified_no_contact_days`, `sla_responded_no_next_action_days`,
+  `sla_opened_no_response_days`); serviço `sla_service` + `GET /api/leads/sla-alerts`;
+  card de configuração em `/configuracoes` e seção no painel "Ações de hoje".
 
 ---
 
@@ -474,7 +478,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ⬜ |
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
-| 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ⬜ |
+| 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
 | 4.11 | Supressão global por e-mail/telefone | LGPD | P2 | S | gratuito | 4.1 | ⬜ |
 | 4.12 | Base legal e proveniência explícitas | LGPD | P2 | M | gratuito | — | ⬜ |
