@@ -74,7 +74,7 @@ Síntese do que já funciona e deve ser **preservado**:
   (exact→fuzzy→LLM→geração), score 0-100, `priority` HOT/WARM/COLD,
   `evidence[]`, `pitch_angle`, `executive_summary`.
 - **Outreach personalizado** (`outreach_service.py`): sequência 0/3/7/14,
-  copywriter anti-IA, CTA concreto, rodapé LGPD; geração de WhatsApp.
+  copywriter anti-IA, CTA concreto, rodapé com opt-out (STOP); geração de WhatsApp.
 - **Cadência + envio** (`cadence_service.py`/`email_service.py`): humano no
   loop (default) ou `auto_send_email` (opt-in), bounce handling, supressão,
   threading, inbound de resposta/STOP.
@@ -337,7 +337,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 - **Hoje:** decisores vêm de Receita (nome dos sócios) + Hunter (opcional) +
   heurística. Hit-rate de e-mail limitado.
-- **Proposta (tudo passivo/LGPD):**
+- **Proposta (tudo passivo):**
   - **Página de contato do site** da empresa (scrape passivo): e-mails/telefones
     públicos → alta veracidade.
   - **Busca de "nome + empresa + email"** em buscadores (padrão já usado para
@@ -405,32 +405,6 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 ---
 
-### P2 — Entrega 5 · LGPD e conformidade (indispensável para empresa real)
-
-#### 4.11 Supressão global por e-mail/telefone ⬜ (S, gratuito)
-
-- **Hoje:** `opt_out` e `EmailSuppression` são **por lead**. A mesma pessoa em 2
-  campanhas pode receber 2 fluxos (risco LGPD e imagem).
-- **Proposta:** no momento do envio (`send_step`/`run_due`), consultar supressão
-  **global** (e-mail/telefone cruzando orgs). Movimentar STOP/opt-out de qualquer
-  lead para a lista global.
-- **Aceite:** pessoa que deu STOP nunca mais recebe de nenhuma campanha.
-
-#### 4.12 Base legal e proveniência explícitas ⬜ (M, gratuito)
-
-- **Proposta:** coluna `legal_basis` por contato/lead (`interesse_legitimo`/
-  `consentimento`), origem e timestamp do dado (`email_source`, canal, data),
-  e expor num dossiê "origem dos dados" por lead. Protege a EJ juridicamente.
-- **Aceite:** todo contato tem origem e base documentadas e auditáveis.
-
-#### 4.13 Retenção e anonimização automática ⬜ (M, gratuito)
-
-- **Hoje:** `DELETE /leads/{id}` existe; sem política automática.
-- **Proposta:** job que **anonimiza** PII (nome, e-mail, telefone, CPF) de leads
-  sem conversão após X meses (configurável) mantendo metadados agregados para BI;
-  log de auditoria de acesso a campos sensíveis.
-- **Aceite:** PII não fica retida para sempre; BI continua válido.
-
 ---
 
 ### P2 — Entrega 6 · Confiabilidade para produção real
@@ -479,7 +453,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 > `is_primary` (prioridade CEO/Diretor/Sócio), score comercial configurável por
 > campanha e explicabilidade (evidence/pitch one-pager).
 
-#### 4.22 Pesquisa assistida + associação manual de perfil ⬜ (P1, M, gratuito)
+#### 4.22 Pesquisa assistida + associação manual de perfil ✅ (P1, M, gratuito)
 
 - **Hoje:** sem API oficial, quando a busca passiva não acha o decisor não há
   caminho — o consultor não consegue gerar a consulta certa nem colar a URL de
@@ -494,6 +468,11 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     + atividade na trilha.
 - **Aceite:** todo lead sem decisor tem um fluxo guiado "copiar consulta →
   abrir no LinkedIn → colar o perfil → salvar validado".
+- **Entregue (2026-08-11, `feat/linkedin-assistido-lgpd-cleanup`):** backend
+  (`linkedin-query` + `PATCH .../linkedin`, serviço `linkedin_assist_service`,
+  action nova `LINKEDIN_ASSOCIATED` na trilha) + frontend (Dialog guiado na aba
+  Contatos: consultas copiáveis, busca externa, colar URL e "Validar e salvar";
+  badge "Associado manualmente"). Testes: `tests/test_linkedin_assist.py` (8).
 
 #### 4.23 LinkedIn da empresa (company page) ⬜ (P2, S, gratuito)
 
@@ -578,9 +557,6 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ Entregue 2026-08-11 |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
-| 4.11 | Supressão global por e-mail/telefone | LGPD | P2 | S | gratuito | 4.1 | ⬜ |
-| 4.12 | Base legal e proveniência explícitas | LGPD | P2 | M | gratuito | — | ⬜ |
-| 4.13 | Retenção/anonimização automática | LGPD | P2 | M | gratuito | — | ⬜ |
 | 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ⬜ |
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ⬜ |
 | 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ⬜ |
@@ -590,7 +566,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ⬜ |
 | 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | ⬜ |
 | 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ⬜ |
-| 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ⬜ |
+| 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
 | 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ⬜ |
 | 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ⬜ |
 | 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
@@ -614,11 +590,11 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   4.7 (fontes), 4.8/4.9 (forecast + metas), 4.10 (SLA).
   *Critério de saída:* consultor fecha 1º ciclo completo com tracking e
   WhatsApp; gestor vê desempenho contra meta.
-- **Fase 2 — Conformidade e escala (semanas 6-9):** 4.11-4.13 (LGPD),
+- **Fase 2 — Conformidade e escala (semanas 6-9):**
   4.14-4.17 (confiabilidade), 3.3.3-3.3.4 (gestão de membros),
   4.22-4.25 (LinkedIn assistido).
-  *Critério de saída:* sem risco LGPD pendente, backup restaurável, UI em
-  produção sem travar, decisores associados via pesquisa assistida.
+  *Critério de saída:* backup restaurável, UI em produção sem travar, decisores
+  associados via pesquisa assistida.
 - **Fase 3 — Diferenciação (semanas 10+):** 4.18-4.21 (calibração, A/B,
   integrações, playbooks), 4.26-4.27 (Instagram + modelo 3 entidades).
 
@@ -744,19 +720,30 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   `web_presence`: a análise técnica já cobre presença/stack/performance do site
   do lead; os **critérios** (sinais positivos/negativos) são editáveis por
   template (`CampaignScoringTemplate`), então a categoria é configurável.
-- **Decisão pendente:** validar com a EJ se basta criar templates de categoria
-  (ex.: "Aplicações web/ERP") ou se quer um **terceiro perfil** de análise.
-  Registrado para decisão da diretoria antes de qualquer implementação.
+- **Recomendação (2026-08-11):** **criar templates de categoria** ("Aplicações
+  web/ERP") em vez de um terceiro perfil. Motivo: o motor já separa perfil
+  (o *que* analisar) de template (os *critérios*). ERP/web apps são o MESMO perfil
+  `web_presence` (analisar o site do prospecto); o que muda são os sinais — adicionar
+  no template: positivos = "site institucional/landing (sem função) para quem vende
+  sistema", "sem área logada/portal", "processo manual/planilha"; negativos =
+  "painel/área do cliente presente", "menção a integrações/API", "portal do
+  aluno/cliente ativo". Sem código novo — só um seed de template.
+- **Decisão pendente:** validar com a EJ se basta a abordagem acima (criar o seed
+  de template + descrever na UI) ou se quer um **terceiro perfil** de análise.
+  Registrado para decisão da diretoria antes de implementar.
 
 ---
 
 ## 11. Próximos passos (roadmap)
 
 - **Imediato (pós-merge):** rodar `reprocess_stuck_leads --apply --fix-site-evidence`
-  (C2/C3) **na base real** e revalidar a distribuição de scores no `analytics/overview`.
-  Kanban de SLA (4.10) entregue em 2026-08-11.
-- **Backlog pendente (⬜ do §5):** P1 **4.22** (LinkedIn assistido) → P2
-  confiabilidade (**4.14** cotas, **4.15** observabilidade/restore, **4.16**
-  paginação/kanban, **4.17** mobile-first) → **3.3.4** auditoria → P2 LGPD
-  (**4.11–4.13**) → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
-- **Decisão aberta:** C5 (ERP/web apps) antes de fechar o próximo ciclo de UI.
+  (C2/C3) **na base real** (script validado; base local de teste recém-criada tem
+  0 leads) e revalidar a distribuição de scores no `analytics/overview`.
+- **Item 4.22 entregue (2026-08-11):** LinkedIn assistido (consultas sugeridas +
+  associação manual de perfil com validação passiva) — branch
+  `feat/linkedin-assistido-lgpd-cleanup`.
+- **Backlog pendente (⬜ do §5):** P2 confiabilidade (**4.14** cotas, **4.15**
+  observabilidade/restore, **4.16** paginação/kanban, **4.17** mobile-first) →
+  **3.3.4** auditoria → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+- **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir
+  antes de fechar o próximo ciclo de UI.

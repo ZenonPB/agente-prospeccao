@@ -9,8 +9,8 @@ Envio:
   (`send_step`). Nenhum e-mail sai automaticamente sem ação humana.
 - **Automático (opt-in):** se a org tem `auto_send_email=True`, o scheduler
   (`run_due`) envia quando `scheduled_at` vence, respeitando `opt_out`.
-- LGPD: leads com `opt_out` têm etapas pendentes marcadas `SKIPPED` e nunca
-  recebem envio automático.
+- Leads com `opt_out` têm etapas pendentes marcadas `SKIPPED` e nunca
+  recebem envio automático (do-not-contact).
 - Bounce (item 3.2): falha transitória (4xx/rede) re-tenta até
   `MAX_ATTEMPTS`; bounce permanente (5xx) marca a etapa `CANCELLED` e
   suprime o endereço em `email_suppressions`.
@@ -281,7 +281,7 @@ def _thread_headers(
 
 
 def mark_opt_out(db: Session, lead: Lead) -> None:
-    """Registra opt-out (LGPD): cancela etapas pendentes e impede novos envios."""
+    """Registra opt-out (do-not-contact): cancela etapas pendentes e impede novos envios."""
     lead.opt_out = True
     for fu in db.query(FollowUp).filter(
         FollowUp.lead_id == lead.id,

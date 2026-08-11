@@ -424,7 +424,7 @@ async def run_pipeline(
 
         # --- Fase 3: Enriquecimento automático de decisores (email + LinkedIn) ---
         # Apenas leads QUALIFICADOS (score >= 60) entram na fila de outreach;
-        # enriquecer contatos melhora a taxa de contato. Busca passiva (LGPD-safe).
+        # enriquecer contatos melhora a taxa de contato. Busca passiva.
         if not reanalyze_only:
             yield {
                 "type": "log",

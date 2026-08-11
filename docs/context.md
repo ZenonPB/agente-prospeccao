@@ -7,7 +7,7 @@
 1. `docs/architecture.md` — estrutura do sistema, stack, serviços, modelo de dados
 2. `docs/business-rules.md` — regras de negócio, pipeline, status dos leads
 3. `docs/roadmap-vendas.md` — **mapa e norte de evolução** para uso comercial da EJ
-   (entregabilidade, WhatsApp, dados, gestão/BI, LGPD, confiabilidade, multi-org)
+   (entregabilidade, WhatsApp, dados, gestão/BI, confiabilidade, multi-org)
 
 ## Consulte antes de modificar
 
@@ -22,12 +22,12 @@
 - `places_service.py` — coleta via Google Places API (async)
 - `technical_enrichment_service.py` — análise passiva de sites (async)
   - `_detect_cms` agora usa HTML já baixado (sem nova requisição) + detecção ampliada de stack
-  - `_check_seo` verifica title/meta description/h1 + menção a LGPD
+  - `_check_seo` verifica title/meta description/h1 + menção a privacidade
   - `performance` interpreta `load_time_ms` (rápido/aceitável/lento/muito lento)
 - `scoring_service.py` — qualificação via Groq (llama-3.1-8b-instant)
   - Prompt conhece contexto da campanha (`target_service` + `target_segment`)
   - LLM gera `pitch_angle` (gancho de abordagem) e `suggested_subject` (assunto de e-mail)
-  - `primary_need` inclui LGPD
+  - `primary_need` inclui adequação de privacidade
   - `qualification_reason` vira argumento de venda
 - `enrichment_orchestrator.py` — repassa contexto da campanha ao scoring e persiste `pitch_angle`/`suggested_subject`
 - `models.py` — `Lead.pitch_angle` (Text) e `Lead.suggested_subject` (String 255) adicionados (migration `1fb286c0715b`)
@@ -177,7 +177,7 @@
      CTA específico com horário proposto ("terça 10h ou quarta 14h"),
      contagens mínimas: body 200-280, followup_1 120-160, followup_2 140-180,
      closing 70-100 palavras. `max_tokens=3200` no payload Groq. Schema JSON
-     atualizado. Bugfix do rodapé LGPD ("B2P" → "B2B"). INSTRUÇÕES do
+     atualizado. Bugfix do rodapé de opt-out ("B2P" → "B2B"). INSTRUÇÕES do
      `build_prompt` agora guiam saudação em linha separada + observação
      factual imediata.
 - Integração Cal.com para agendamento
@@ -347,7 +347,7 @@ filtro período) corretos; **ANALYST → 200 em todos; CONSULTOR → 403 em todo
   - KPIs executivos (leads, qualificados, contatados, reuniões, convertidos, receita)
   - Funil, taxas (conversão/resposta/reunião), faixas de score
   - **Mapa de oportunidades** (Leaflet): círculos por UF, cor = score médio, tamanho = nº leads,
-    tooltip com convertidos — centroides estáticos (sem API de geocodificação; offline/LGPD)
+    tooltip com convertidos — centroides estáticos (sem API de geocodificação; offline)
   - Desempenho por consultor + campanhas + melhores oportunidades
   - Evolução temporal (Recharts: barras novos/reuniões + linha de fechados)
   - Filtro de período (presets 30/90 dias/Tudo + datas) e botão **Exportar PDF** (download)
@@ -365,7 +365,7 @@ pré-existentes em `campaign-pipeline.tsx`/`funnel-chart.tsx`); dev server respo
 - `src/services/pitch_service.py` (novo) — `build_pitch_one_pager()` e `build_site_audit()`:
   consolida identidade (CNPJ/porte/CNAE), contexto da campanha, qualificação (score, dores,
   necessidade), pitch (gancho, assunto), fatores +/−, evidências, contato principal e auditoria do site
-  (SSL, CMS, velocidade, segurança, SEO, LGPD, caminhos expostos)
+  (SSL, CMS, velocidade, segurança, SEO, privacidade, caminhos expostos)
 - `GET /api/leads/{id}/pitch` (endpoint novo no `routes/leads.py`): retorna o pitch one-pager
   estruturado para o vendedor/consultor
 - `pdf_report_service.py`: inclui dossiê das 3 melhores oportunidades no PDF do relatório executivo
@@ -518,11 +518,11 @@ Branch: `feat/outreach-cadence-playbooks`
 **Models (migration `72ce8b2f4cf3`):**
 - `FollowUp` (tabela `follow_ups`) — etapas da cadência dia 0/3/7/14 por lead; enums `FollowUpStep` (OPENING/FOLLOWUP_1/FOLLOWUP_2/CLOSING, com `day_offset` 0/3/7/14) e `FollowUpStatus` (PENDING/SENT/SKIPPED/CANCELLED).
 - `Organization.auto_send_email` (default false) — opt-in de envio automático.
-- `Lead.opt_out` (default false) — LGPD opt-out (cadências pendentes → SKIPPED).
+- `Lead.opt_out` (default false) — opt-out do lead (cadências pendentes → SKIPPED).
 
 **Backend:**
 - `email_service.send_email(to, subject, body)` — SMTP ou fallback console (dev).
-- `cadence_service.py` — `schedule_cadence` (gera etapas dia 0/3/7/14), `send_step` (envia, registra Message + `CONTACTED` na trilha, move para CONTATADO no 1º contato), `mark_opt_out` (LGPD), `run_due` (envio automático só de orgs com opt-in, respeitando opt-out).
+- `cadence_service.py` — `schedule_cadence` (gera etapas dia 0/3/7/14), `send_step` (envia, registra Message + `CONTACTED` na trilha, move para CONTATADO no 1º contato), `mark_opt_out` (do-not-contact), `run_due` (envio automático só de orgs com opt-in, respeitando opt-out).
 - Scheduler asyncio no lifespan do `main.py` (poll `CADENCE_POLL_SECONDS`, default 60s) — sem dependência nova.
 - Rotas: `GET /leads/{id}/cadence`, `POST /leads/{id}/cadence/start`, `POST /leads/{id}/cadence/send/{step}`, `POST /leads/{id}/opt-out`; `PATCH /orgs/{org_id}` (auto_send_email) + exposto no `/orgs/me`.
 
@@ -537,7 +537,7 @@ Branch: `feat/outreach-cadence-playbooks`
 - CRUD de templates expõe/aceita playbook; `template-selector.tsx` edita hooks/assuntos/objeções.
 
 **Frontend:**
-- Aba **Cadência** no detalhe do lead (`CadencePanel`): iniciar cadência, lista de etapas com status, enviar etapa manualmente (humano-no-loop), opt-out LGPD.
+- Aba **Cadência** no detalhe do lead (`CadencePanel`): iniciar cadência, lista de etapas com status, enviar etapa manualmente (humano-no-loop), opt-out do lead.
 - Configurações da org: toggle **Envio automático de follow-ups** (`OrgSendSettings`).
 - Types/hooks: `LeadCadence`, `FollowUpItem`, `useLeadCadence`, `useStartCadence`, `useSendCadenceStep`, `useOptOutLead`, `usePatchOrgSettings`.
 
@@ -734,13 +734,35 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
     `raw_data` do contato.
   - `_contacts_from_receita` usa o e-mail/telefone cadastral da empresa
     (`company_email`/`company_phone` do DTO da Receita) como fonte extra —
-    sócios seguem com CPF mascarado (LGPD).
+    sócios seguem com CPF mascarado (minimização de dados).
   - Pequeno ganho de qualidade: `_email_heuristic` agora normaliza acentos
     (`João` → `joao`).
 - **Frontend**: badge "Fonte: ..." (Site/Busca/CNPJ/Hunter/heurística) ao lado
   do e-mail na aba Contatos do lead (`/oportunidades/[id]`).
 - **Sem migration** (usa colunas existentes + `raw_data`).
 - **Testes**: `tests/test_contact_site_sources.py` (15) — suíte em **108 passed**.
+
+### Item 4.22 — LinkedIn assistido ✅ (2026-08-11)
+
+Branch `feat/linkedin-assistido-lgpd-cleanup` (roadmap-vendas P1):
+
+- **Backend**:
+  - `services/api/src/services/linkedin_assist_service.py` (novo): `build_linkedin_queries`
+    (consultas `"<empresa>" <papel> linkedin` — padrão ou `playbook.linkedin_queries` do
+    template), `extract_linkedin_username` (formato validado) e `LinkedInAssistService`
+    (validação passiva via DDG/Bing + `associate` que grava `linkedin_source="manual:<user>"`
+    com confidence 90 validado / 60 revisão e registra `LINKEDIN_ASSOCIATED` na trilha).
+  - Migration `c183a77bc662` — action nova `LINKEDIN_ASSOCIATED` no enum
+    `lead_activity_action` (aplicada).
+  - `GET /api/leads/{id}/linkedin-query` — consultas sugeridas + `search_url`
+    (`site:linkedin.com/in`); `PATCH /api/leads/{id}/contacts/{contact_id}/linkedin` —
+    valida URL e associa (org-scoped, `_can_access_lead`).
+- **Frontend**:
+  - `LinkedInAssociateDialog` na aba Contatos: fluxo guiado "copiar consulta → buscar
+    no LinkedIn → colar perfil → validar e salvar"; badge "Associado manualmente".
+  - Hooks `useLinkedinQueries`/`useAssociateLinkedIn`; label `LINKEDIN_ASSOCIATED`
+    na trilha.
+- **Testes**: `tests/test_linkedin_assist.py` (8) — suíte em **121 passed**.
 
 ### Próximo passo imediato
 
@@ -752,22 +774,22 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
 > 2. **Correções levantadas em 2026-08-11** — ver `docs/roadmap-vendas.md §10`:
 >    - **C1** Selects com valor cru (`web_presence` etc.) — **corrigido**.
 >    - **C2** 53 leads presos em `ANALISADO`/score 0 (falha transitória do Groq);
->      fix aplicado (falha mantém `NOVO`) + script `reprocess_stuck_leads.py`.
->      **Script validado** (dry-run OK; `def reprocess_one` duplicado removido);
->      na base local recém-criada há **0 leads presos**. **PENDENTE na base real:**
->      `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`
->      (56 leads: 53 presos + 3 com evidência errada de "sem site").
->    - **C3** IA alega "sem site próprio" em leads que TÊM site (ex.: Pâmela
->      Oliveira) — fix aplicado (prompt + guard determinístico + 5 testes).
->      **PENDENTE:** re-pontuar os afetados (mesmo comando do C2, na base real).
+>      fix aplicado (falha mantém `NOVO`) + script `reprocess_stuck_leads.py`
+>      (validado; **rodar na base real**).
+>    - **C3** IA alega "sem site próprio" em leads que TÊM site — fix aplicado
+>      (prompt + guard determinístico + 5 testes); re-pontuar na base real.
 >    - **C4** Leads sem site (público-alvo) voltam a pontuar após o C2.
->    - **C5** Decisão aberta: suporte a aplicações web/ERP (perfil/template).
-> 3. **Item 4.7** mergeado no `main` (PR #62) — P1 do roadmap-vendas fechado.
-> 4. **Item 4.10 fechado** (branch `fix/reprocess-stuck-leads-4-9-4-10`):
->    notificação de SLA no kanban (chip resumo + contador por coluna + badge por
->    cartão) + testes das 3 regras de `compute_sla_alerts` — suíte em **118 passed**.
-> 5. Próximos passos (backlog): **4.22 LinkedIn assistido (P1)** → P2
->    confiabilidade (4.14/4.15/4.16/4.17) → 3.3.4 auditoria → LGPD 4.11–4.13.
+>    - **C5** Decisão aberta: ERP/web apps — **recomendação registrada** no
+>      roadmap-vendas §10 (criar template de categoria, sem terceiro perfil).
+> 3. **LGPD removido dos docs/roadmap** (software interno): itens 4.11–4.13
+>    retirados do backlog; menções neutralizadas. Features mantidas
+>    (opt-out/STOP, exclusão de lead, CPF mascarado) + sinais comerciais
+>    (Adequação LGPD/SEO do prospecto). Lei 12.737/2012 (passivo) preservada.
+> 4. **Item 4.22 entregue (2026-08-11)** — LinkedIn assistido: `linkedin-query`
+>    + `PATCH .../linkedin` (validação passiva, `manual:<user>`, action
+>    `LINKEDIN_ASSOCIATED`) + Dialog guiado na aba Contatos. Testes (8).
+> 5. Próximos passos (backlog): P2 confiabilidade (4.14/4.15/4.16/4.17) →
+>    3.3.4 auditoria → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 
@@ -870,10 +892,10 @@ A vistoria gerou a branch `fix/go-live-prep` com correções. Entregue até aqui
 - **API**: rate limits nos endpoints de custo, cap de CSV (10MB/10k linhas),
   `max_leads` limitado a 200, WS com auth na 1ª mensagem (sem token na URL),
   error-shape `detail` no frontend, `PATCH /leads/{id}` (notas/whatsapp/
-  next_action), `DELETE /leads/{id}` (LGPD), CORS/settings por env,
+  next_action), `DELETE /leads/{id}` (exclusão do lead), CORS/settings por env,
   `/health` com ping no banco, N+1 reduzido (leads/campaigns), código morto
   removido.
-- **Segurança/LGPD**: CPF mascarado + `raw_data` de contatos saneado;
+- **Segurança/privacidade**: CPF mascarado + `raw_data` de contatos saneado;
   remoção da varredura de caminhos sensíveis (só robots/sitemap).
 - **Scoring**: evidência com origem "inferência LLM" filtrada; `evidence_ref`
   validado; leads sem site agora são pontuados (business) em vez de
@@ -1014,7 +1036,7 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 - **`docs/roadmap-vendas.md` (novo)**: mapa-norte de evolução para a EJ —
   diagnóstico do multi-org/papéis (gaps: criar/renomear org, onboarding de
   convidado sem conta, remover/transferir membro, metas/forecast) + backlog
-  completo de entregabilidade, WhatsApp, dados, gestão, LGPD e confiabilidade.
+  completo de entregabilidade, WhatsApp, dados, gestão e confiabilidade.
   Regra preservada: **CONSULTOR mantém autonomia de criar/gerenciar campanhas**.
 
 ### Entregável 1 — Verificação de e-mail (roadmap-vendas 4.1) ✅ (2026-08-04)

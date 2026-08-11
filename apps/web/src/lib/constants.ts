@@ -75,6 +75,7 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   CONVERTED: 'Conversão registrada',
   CONTACT_ENRICHED: 'Decisores enriquecidos',
   WHATSAPP_SENT: 'WhatsApp acionado',
+  LINKEDIN_ASSOCIATED: 'Perfil LinkedIn associado',
 };
 
 // Kanban Column Status Configuration

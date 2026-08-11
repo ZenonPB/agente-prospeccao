@@ -47,7 +47,7 @@ def is_valid_email_syntax(email: Optional[str]) -> bool:
     return bool(email and _EMAIL_RE.match(email.strip()))
 
 
-# Campos sensíveis (LGPD) removidos do `raw_data` persistido de contatos.
+# Campos pessoais sensíveis removidos do `raw_data` persistido de contatos.
 _SENSITIVE_RAW_KEYS = (
     "cnpj_cpf_do_socio", "cpf", "taxId", "tax_id", "document", "document_cpf",
     "faixa_etaria", "faixa_etária", "nationality", "nascimento", "birthdate",
@@ -56,7 +56,7 @@ _SENSITIVE_RAW_KEYS = (
 
 def _sanitize_raw(raw: Any) -> Optional[Dict[str, Any]]:
     """Remove campos pessoais sensíveis do payload cru antes de persistir
-    (item 4.7 — minimização LGPD: CPF/faixa etária não são necessários para
+    (item 4.7 — minimização de dados: CPF/faixa etária não são necessários para
     o fluxo de vendas)."""
     if not isinstance(raw, dict):
         return raw

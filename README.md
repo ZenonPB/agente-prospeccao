@@ -12,7 +12,7 @@ Coleta → enriquecimento adaptativo (site? CNPJ? contatos?)
         ↓
 Score contextual explicável (templates + LLM) → prioridade HOT/WARM/COLD
         ↓
-Atribuição ao consultor → mensagens IA → cadência dia 0/3/7/14 (LGPD/opt-out)
+Atribuição ao consultor → mensagens IA → cadência dia 0/3/7/14 (opt-out)
         ↓
 Resultado real (ganhou/perdeu) → BI por analista → PDF para a diretoria
         ↓

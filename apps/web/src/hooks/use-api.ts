@@ -522,6 +522,25 @@ export function useEnrichContacts() {
   });
 }
 
+export function useLinkedinQueries(leadId?: string) {
+  return useQuery({
+    queryKey: ["leads", leadId, "linkedin-query"],
+    queryFn: () => leadsApi.linkedinQueries(leadId as string),
+    enabled: !!leadId,
+  });
+}
+
+export function useAssociateLinkedIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ leadId, contactId, url }: { leadId: string; contactId: string; url: string }) =>
+      leadsApi.associateLinkedIn(leadId, contactId, url),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
+    },
+  });
+}
+
 export function useRecordWhatsAppClick() {
   const queryClient = useQueryClient();
   return useMutation({

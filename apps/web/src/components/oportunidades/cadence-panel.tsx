@@ -66,7 +66,7 @@ export function CadencePanel({ leadId }: { leadId: string }) {
   const handleOptOut = useCallback(async () => {
     try {
       await optOut.mutateAsync(leadId);
-      toast.success("Opt-out registrado (LGPD). Cadência pausada.");
+      toast.success("Opt-out registrado. Cadência pausada.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao registrar opt-out.");
     }
@@ -96,7 +96,7 @@ export function CadencePanel({ leadId }: { leadId: string }) {
         ) : optOutActive ? (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <ShieldAlert className="h-4 w-4 shrink-0" />
-            Lead opt-out (LGPD) — nenhuma mensagem é enviada.
+            Lead opt-out — nenhuma mensagem é enviada.
           </div>
         ) : followUps.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-4 text-center">
@@ -187,7 +187,7 @@ export function CadencePanel({ leadId }: { leadId: string }) {
                 disabled={optOut.isPending}
               >
                 <Ban className="mr-1 h-3.5 w-3.5" />
-                Opt-out (LGPD)
+                Opt-out
               </Button>
             </div>
           </>
