@@ -41,4 +41,5 @@ from database.models import (
     ContractOutcome,
     PostSaleChannel,
     LostReason,
+    SalesTarget,
 )

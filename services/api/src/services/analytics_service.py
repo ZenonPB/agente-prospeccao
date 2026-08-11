@@ -28,6 +28,7 @@ from src.db.models import (
     NegotiationStage,
     ContractOutcome,
     LostReason,
+    SalesTarget,
 )
 
 # Faixas de score usadas no overview (0-100).
@@ -194,10 +195,40 @@ class AnalyticsService:
         }
 
     # ---------------------------------------------------------------- consultants
+    def _target_month(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> str:
+        """Resolve o mês ("YYYY-MM") da meta conforme o período consultado.
+
+        Prioriza `to_date` → `from_date` → mês atual. Itens 4.9: metas são
+        mensais (`sales_targets.month`).
+        """
+        anchor = to_date or from_date
+        if anchor and len(anchor) >= 7:
+            return anchor[:7]
+        return datetime.now(timezone.utc).strftime("%Y-%m")
+
+    def _targets_by_user(self, month: str) -> dict:
+        """Metas mensais (reuniões/receita) por user_id para a org."""
+        rows = (
+            self.db.query(SalesTarget)
+            .filter(
+                SalesTarget.organization_id == self.org_id,
+                SalesTarget.month == month,
+            )
+            .all()
+        )
+        return {
+            str(t.user_id): {
+                "meetings_target": t.meetings_target or 0,
+                "revenue_target": float(t.revenue_target or 0),
+            }
+            for t in rows
+        }
+
     def consultants(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> list:
         """Métricas por consultor: atribuídos, contatados, reuniões, propostas,
-        convertidos, conversão %. Baseia-se em `assigned_to_id` (atribuição) e
-        `Conversion` (quem fechou). Inclui apenas membros da org."""
+        convertidos, conversão % e atingimento da meta mensal (item 4.9)."""
+        month = self._target_month(from_date, to_date)
+        targets = self._targets_by_user(month)
         members = (
             self.db.query(OrganizationMember, User)
             .join(User, OrganizationMember.user_id == User.id)
@@ -223,16 +254,23 @@ class AnalyticsService:
 
         # Conversões por usuário (quem fechou: user_id ou assigned_to_id).
         converted_by_user: dict = {}
+        revenue_by_user: dict = {}
         conv_rows = (
-            self.db.query(Conversion.user_id, Conversion.assigned_to_id, Conversion.id)
+            self.db.query(
+                Conversion.user_id,
+                Conversion.assigned_to_id,
+                Conversion.id,
+                Conversion.contract_value,
+            )
             .join(Lead, Conversion.lead_id == Lead.id)
             .filter(Lead.organization_id == self.org_id)
             .all()
         )
-        for user_id, assigned_id, _ in conv_rows:
+        for user_id, assigned_id, _, contract_value in conv_rows:
             key = str(user_id) if user_id else (str(assigned_id) if assigned_id else None)
             if key:
                 converted_by_user[key] = converted_by_user.get(key, 0) + 1
+                revenue_by_user[key] = revenue_by_user.get(key, 0) + float(contract_value or 0)
 
         result = []
         for member, user in members:
@@ -248,6 +286,11 @@ class AnalyticsService:
             )
             meetings = self._count_status(base, LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA)
             proposals = self._count_status(base, LeadStatus.PROPOSTA_ENVIADA)
+            revenue = revenue_by_user.get(uid, 0)
+
+            tgt = targets.get(uid, {"meetings_target": 0, "revenue_target": 0.0})
+            meetings_target = tgt["meetings_target"]
+            revenue_target = tgt["revenue_target"]
 
             result.append({
                 "user_id": uid,
@@ -259,6 +302,12 @@ class AnalyticsService:
                 "proposals_sent": proposals,
                 "converted_leads": converted,
                 "conversion_rate": round((converted / assigned * 100), 1) if assigned else 0,
+                # Item 4.9 — metas mensais e atingimento (%).
+                "revenue_realized": round(revenue, 2),
+                "meetings_target": meetings_target,
+                "revenue_target": revenue_target,
+                "meetings_attainment": round((meetings / meetings_target * 100), 1) if meetings_target else None,
+                "revenue_attainment": round((revenue / revenue_target * 100), 1) if revenue_target else None,
             })
 
         result.sort(key=lambda r: r["converted_leads"], reverse=True)

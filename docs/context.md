@@ -665,13 +665,37 @@ Branch `feat/org-member-management` (roadmap-vendas P1):
   - Hooks `useRemoveMember`, `useTransferOwnership`, `useLeaveOrganization` em `use-api.ts`.
 - **Testes**: `tests/test_org_member_management.py` — suíte em **86 passed**. `tsc --noEmit` e `eslint` limpos.
 
+### Item 4.9 — Metas de vendas por consultor ✅ (2026-08-10)
+
+Branch `feat/sales-targets` (roadmap-vendas P1):
+
+- **Modelos/migration `b613230fd8fd`** (aplicada): tabela `sales_targets`
+  (`organization_id`, `user_id`, `month` "YYYY-MM", `meetings_target`,
+  `revenue_target`; unique `(org, user, month)`).
+- **Backend & BI**:
+  - `AnalyticsService.consultants()` agora calcula `revenue_realized` (soma dos
+    `Conversion.contract_value` por consultor), resolve a meta do mês do período
+    (`_target_month`) e devolve `meetings_target`, `revenue_target`,
+    `meetings_attainment` e `revenue_attainment` (% realizado vs meta).
+  - CRUD em `routes/orgs.py` (owner/admin p/ gravar, MANAGER+/owner p/ listar):
+    `GET /orgs/{org_id}/sales-targets?month=`, `PUT /orgs/{org_id}/sales-targets`
+    (upsert), `DELETE /orgs/{org_id}/sales-targets/{target_id}`.
+- **Frontend**:
+  - `SalesTargetsManager` em `/configuracoes/membros` (card "Metas de vendas" do
+    mês atual): definir/editar/remover meta de reuniões e receita por consultor.
+  - `ConsultantsCard` em `/relatorios` exibe receita realizada e badges coloridos
+    de atingimento de meta (verde ≥100%, âmbar ≥60%, vermelho <60%).
+  - Tipos `SalesTarget` + `AnalyticsConsultant` estendido; hooks
+    `useSalesTargets`, `useUpsertSalesTarget`, `useDeleteSalesTarget`.
+- **Testes**: `tests/test_sales_targets.py` — suíte em **90 passed**. `tsc --noEmit` e `eslint` limpos. Grafo atualizado (`graphify extract` + `cluster-only`: 2128 nós, 4509 arestas, 160 comunidades).
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **PR #58 (Item 4.8 Forecast)** mergeado no `main` do repositório remoto. Local `main` atualizado.
-> 2. **Item 3.3.3 Gestão de membros** entregue na branch `feat/org-member-management`.
-> 3. Próximos passos do roadmap-vendas: **4.9 metas de vendas por consultor** e **4.10 SLA/lembretes para leads parados**.
+> 1. **PR #59 (Item 3.3.3 Gestão de membros)** mergeado no `main` do repositório remoto. Local `main` atualizado.
+> 2. **Item 4.9 Metas de vendas por consultor** entregue na branch `feat/sales-targets`.
+> 3. Próximo passo do roadmap-vendas: **4.10 SLA/lembretes para leads parados** (regras por org + hoje-actions/kanban).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 
