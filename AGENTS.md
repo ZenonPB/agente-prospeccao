@@ -13,7 +13,7 @@ Compact guidance for OpenCode sessions working in this repo. Read alongside `doc
 ## Environment & secrets
 
 - `.env` (repo root) is **gitignored** and shared by both Python services via a CWD-relative `env_file='../../.env'`. Never commit or echo secret values — reference config by env var name only.
-- Gotcha: the API requires `JWT_SECRET` (required field in `services/api/src/config/settings.py`), but it is **not listed in `.env.example`**. Add it to the root `.env` before starting the API.
+- `JWT_SECRET` is a required field in `services/api/src/config/settings.py` — the API won't start without it. It is documented in `.env.example`; generate with `openssl rand -hex 32`.
 - Ask the user before installing new dependencies.
 
 ## Where things live
@@ -72,8 +72,10 @@ alembic revision --autogenerate -m "..."
 
 ## Tests & verification
 
-- **No test framework is configured** in either package (no pytest/jest/vitest config, no test files). Verify Python changes by running the service directly.
-- Web: `npm run lint` (eslint); typecheck with `npx tsc --noEmit`. Workers have no linter configured.
+- Root-level `tests/` (pytest, unit-only, no DB needed). Install deps with `pip install -r requirements-dev.txt` (root) then run **from repo root**: `python -m pytest tests -q`. Neither service venv includes pytest by default.
+- `tests/conftest.py` injects dummy env vars before imports and fixes `sys.path`: `services.*`, `database.*`, `config.*` → `services/workers/src`; `src.*` → API. This mapping mirrors runtime, so don't move it.
+- CI (`.github/workflows/ci.yml`) is the verification order: web `npm run lint` → `npx tsc --noEmit` → `npm run build`; backend `python -m compileall -q services/api services/workers` + `python -m pytest tests -q`; migrations job runs `alembic upgrade head` + seed smoke against Postgres.
+- For one-off Python verification not covered by tests, run the service directly (see run commands above).
 
 ## Conventions that matter
 

@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
 import { useOrgMembership } from '@/hooks/use-api';
 import { OrgSwitcher } from './org-switcher';
-import { BrandMark } from './brand-mark';
+import { BrandLogo } from './brand-logo';
 
 interface NavItem {
   name: string;
@@ -95,7 +95,7 @@ export function Sidebar() {
         <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-4">
           {sidebarOpen && (
             <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
-              <BrandMark className="h-7 w-7 shrink-0 text-sidebar-primary" />
+              <BrandLogo className="h-7 w-7 text-sidebar-primary" />
               <span className="truncate text-[15px] font-semibold tracking-tight text-sidebar-foreground">
                 Agente Prospecção
               </span>
@@ -103,7 +103,7 @@ export function Sidebar() {
           )}
           {!sidebarOpen && (
             <Link href="/dashboard" className="mx-auto">
-              <BrandMark className="h-7 w-7 text-sidebar-primary" />
+              <BrandLogo className="h-7 w-7 text-sidebar-primary" />
             </Link>
           )}
           <Button

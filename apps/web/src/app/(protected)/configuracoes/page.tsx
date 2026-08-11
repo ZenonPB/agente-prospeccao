@@ -41,12 +41,12 @@ const themes = [
   },
   {
     id: 'alpha' as const,
-    name: 'Alpha',
-    description: 'Tema AlphaMec (vermelho profundo)',
+    name: 'AlphaMec',
+    description: 'Claro e corporativo, com a identidade da marca',
     icon: Palette,
-    preview: 'bg-[#4c0000] border-[#7c0000]',
-    previewText: 'text-white',
-    previewAccent: 'bg-[#630201]',
+    preview: 'bg-[#fffaf8] border-[#910001]',
+    previewText: 'text-[#4c0000]',
+    previewAccent: 'bg-[#910001]/10',
   },
 ];
 

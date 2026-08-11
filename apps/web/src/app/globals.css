@@ -119,38 +119,39 @@
 }
 
 .alpha {
-  /* AlphaMec Theme - Vermelho Profundo Elegante (#4c0000, #630201, #7c0000, #910001, #ffffff) */
-  --background: oklch(0.18 0.04 15);
-  --foreground: oklch(0.96 0.005 15);
-  --card: oklch(0.23 0.05 15);
-  --card-foreground: oklch(0.96 0.005 15);
-  --popover: oklch(0.23 0.05 15);
-  --popover-foreground: oklch(0.96 0.005 15);
-  --primary: oklch(0.52 0.22 18);
-  --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.28 0.06 15);
-  --secondary-foreground: oklch(0.96 0.005 15);
-  --muted: oklch(0.26 0.04 15);
-  --muted-foreground: oklch(0.7 0.03 15);
-  --accent: oklch(0.58 0.24 18);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.6 0.25 25);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.52 0.22 18);
-  --chart-1: oklch(0.52 0.22 18);
-  --chart-2: oklch(0.6 0.24 25);
-  --chart-3: oklch(0.45 0.18 15);
-  --chart-4: oklch(0.65 0.2 30);
-  --chart-5: oklch(0.38 0.14 15);
-  --sidebar: oklch(0.15 0.04 15);
-  --sidebar-foreground: oklch(0.94 0.005 15);
-  --sidebar-primary: oklch(0.52 0.22 18);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent: oklch(0.25 0.06 15);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.52 0.22 18);
+  /* Tema AlphaMec — claro e corporativo. Vinho #910001/#4c0000 sobre branco
+     quente; o app inteiro (sidebar, botões, acentos) veste a marca. */
+  --background: oklch(0.99 0.003 20);
+  --foreground: oklch(0.18 0.04 20);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.04 20);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.04 20);
+  --primary: oklch(0.45 0.17 23);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0.012 20);
+  --secondary-foreground: oklch(0.18 0.04 20);
+  --muted: oklch(0.955 0.008 20);
+  --muted-foreground: oklch(0.46 0.04 20);
+  --accent: oklch(0.945 0.018 23);
+  --accent-foreground: oklch(0.45 0.17 23);
+  --destructive: oklch(0.55 0.22 24);
+  --border: oklch(0.18 0.04 20 / 12%);
+  --input: oklch(0.18 0.04 20 / 10%);
+  --ring: oklch(0.45 0.17 23);
+  --chart-1: oklch(0.45 0.17 23);
+  --chart-2: oklch(0.3 0.13 23);
+  --chart-3: oklch(0.55 0.22 24);
+  --chart-4: oklch(0.22 0.09 20);
+  --chart-5: oklch(0.18 0.04 20);
+  --sidebar: oklch(0.97 0.006 20);
+  --sidebar-foreground: oklch(0.18 0.04 20);
+  --sidebar-primary: oklch(0.45 0.17 23);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.014 20);
+  --sidebar-accent-foreground: oklch(0.18 0.04 20);
+  --sidebar-border: oklch(0.18 0.04 20 / 8%);
+  --sidebar-ring: oklch(0.45 0.17 23);
 }
 
 @layer base {

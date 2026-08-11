@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -10,9 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Handshake } from "lucide-react";
+import { Loader2, Handshake, Banknote } from "lucide-react";
 import { toast } from "sonner";
-import { usePatchNegotiation } from "@/hooks/use-api";
+import { usePatchNegotiation, useRegisterConversion } from "@/hooks/use-api";
 import type { NegotiationStage, ContractOutcome } from "@/types";
 
 const STAGE_OPTIONS: { value: NegotiationStage; label: string }[] = [
@@ -41,11 +42,24 @@ export function NegotiationControl({
   initialOutcome?: ContractOutcome | null;
 }) {
   const patch = usePatchNegotiation();
+  const register = useRegisterConversion();
   const [stage, setStage] = useState<NegotiationStage | "">(initialStage ?? "");
   const [outcome, setOutcome] = useState<ContractOutcome | "">(initialOutcome ?? "");
+  const [value, setValue] = useState("");
 
   const handleSave = async () => {
     try {
+      const isApproved = outcome === "APROVADO";
+      const normalizedValue = value.trim() ? Number(value.replace(",", ".")) : null;
+      const hasValue = normalizedValue !== null && !Number.isNaN(normalizedValue) && normalizedValue > 0;
+
+      if (isApproved && hasValue) {
+        await register.mutateAsync({
+          id: leadId,
+          data: { contract_value: normalizedValue },
+        });
+      }
+
       await patch.mutateAsync({
         id: leadId,
         data: {
@@ -53,7 +67,15 @@ export function NegotiationControl({
           contract_outcome: outcome || null,
         },
       });
-      toast.success("Negociação atualizada.");
+
+      toast.success(
+        isApproved && hasValue
+          ? "Negociação atualizada e receita registrada."
+          : isApproved
+            ? "Negociação aprovada. Registre o valor do contrato para alimentar a Receita Realizada."
+            : "Negociação atualizada.",
+      );
+      setValue("");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao atualizar negociação.");
     }
@@ -98,8 +120,31 @@ export function NegotiationControl({
           </Select>
         </div>
       </div>
-      <Button size="sm" onClick={handleSave} disabled={patch.isPending}>
-        {patch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      {outcome === "APROVADO" && (
+        <div className="space-y-1.5">
+          <Label htmlFor="neg-value">Valor do contrato (R$)</Label>
+          <div className="relative">
+            <Banknote className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="neg-value"
+              type="number"
+              min="0"
+              step="0.01"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="Ex.: 3.500,00"
+              className="pl-9"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Registra a conversão e alimenta a Receita Realizada dos relatórios.
+          </p>
+        </div>
+      )}
+      <Button size="sm" onClick={handleSave} disabled={patch.isPending || register.isPending}>
+        {patch.isPending || register.isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : null}
         Salvar negociação
       </Button>
     </div>

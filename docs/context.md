@@ -742,13 +742,28 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **Item 4.7 Mais fontes de contato** mergeado no `main` (PR #62) — **P1 do
+> 1. **Frontend — 3 temas + logo padrão** (apps/web, 2026-08-11): **Claro comum,
+>    Escuro e AlphaMec** (próprio, claro e corporativo — paleta vinho
+>    `#910001/#4c0000`). **Tema padrão = AlphaMec** (`defaultTheme="alpha"`).
+>    A logo oficial aparece por padrão: login/registro (carrossel Nortear/fotos +
+>    galeria de membros Yasmin/Thiago) e também na **sidebar/header** do
+>    dashboard via `components/layout/brand-logo.tsx` (logo no tema AlphaMec,
+>    radar nos demais). Imagens em `apps/web/public/imgs/alphamec/`.
+> 2. **Bugfix relatórios (2026-08-11)**: o mapa de oportunidades ficava em
+>    branco porque o `MapContainer` do Leaflet iniciava com **altura 0**
+>    (wrapper com `min-h`/flex, sem altura definida). Corrigido com altura fixa
+>    (`h-[300px]`) em `brazil-state-map.tsx`.
+> 3. **Receita Realizada (forecast)**: o valor do contrato é informado no
+>    fechamento ("Registrar conversão" em `oportunidades/[id]`). Agora o
+>    `NegotiationControl` também pede o **Valor do contrato (R$)** ao marcar
+>    **APROVADO** e registra a conversão automaticamente (alimenta a receita).
+> 4. **Item 4.7 Mais fontes de contato** mergeado no `main` (PR #62) — **P1 do
 >    roadmap-vendas fechado**.
-> 2. A antiga `docs/especificacao-integracao-prospeccao-linkedin.md` foi
+> 5. A antiga `docs/especificacao-integracao-prospeccao-linkedin.md` foi
 >    **arquivada no roadmap-vendas** (itens **4.22–4.27**, seção "LinkedIn —
 >    descobrir, validar e enriquecer decisores e empresas") e o arquivo foi
 >    removido de `docs/`.
-> 3. Próximos passos (P2, sem LGPD — sistema interno): **4.22 pesquisa assistida +
+> 6. Próximos passos (P2, sem LGPD — sistema interno): **4.22 pesquisa assistida +
 >    perfil manual do LinkedIn**, **4.16 paginação/performance**, **4.14 cotas por
 >    org**, **4.17 mobile-first**, **4.15 observabilidade**, **3.3.4 auditoria**.
 

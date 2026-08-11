@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 # Setup completo do ambiente de desenvolvimento SEM root.
 #
@@ -21,6 +22,27 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Evita o "Internal Server Error" no dev do Next.js causado por caminhos com espaços ou acentos
+if ! LC_ALL=C expr "$REPO_ROOT" : '^[ -~]*$' >/dev/null || [[ "$REPO_ROOT" =~ " " ]]; then
+  echo "=======================================================================" >&2
+  echo "ERRO CRÍTICO DE SETUP: Caminho do repositório inválido!" >&2
+  echo "-----------------------------------------------------------------------" >&2
+  echo "O caminho atual contém espaços ou caracteres especiais/acentos:" >&2
+  echo "  $REPO_ROOT" >&2
+  echo "" >&2
+  echo "O Next.js (tanto Webpack quanto Turbopack) falha internamente com" >&2
+  echo "'Internal Server Error' (Cannot find module) quando executado em caminhos" >&2
+  echo "com espaços ou caracteres especiais (como 'Área de trabalho')." >&2
+  echo "" >&2
+  echo "SOLUÇÃO:" >&2
+  echo "1. Mova ou clone o repositório para um diretório sem espaços e sem acentos." >&2
+  echo "   Exemplo: /home/aluno/code/agente-prospeccao" >&2
+  echo "2. Rode o ./scripts/setup.sh novamente a partir do novo local." >&2
+  echo "=======================================================================" >&2
+  exit 1
+fi
+
 PG_ROOT="${PG_ROOT:-$HOME/.local/agente-prospeccao}"
 PG_BIN="$PG_ROOT/bin"
 PGDATA="$PG_ROOT/pgdata"
@@ -79,8 +101,17 @@ install_venv() {
   local req="$dir/requirements.txt"
   local marker="$dir/venv/.requirements.sha1"
 
-  if [ ! -x "$dir/venv/bin/python" ]; then
+  local python_ok=0
+  if [ -x "$dir/venv/bin/python" ] && [ -f "$dir/venv/bin/pip" ]; then
+    # Verifica se os scripts do venv (como o pip) apontam para a pasta atual (evita caminhos antigos)
+    if grep -q "$dir/venv/bin/python" "$dir/venv/bin/pip"; then
+      python_ok=1
+    fi
+  fi
+
+  if [ "$python_ok" -eq 0 ]; then
     step "Criando venv do serviço $service"
+    rm -rf "$dir/venv"
     python3 -m venv "$dir/venv"
     "$dir/venv/bin/pip" install --upgrade pip -q
     "$dir/venv/bin/pip" install -r "$req" -q
