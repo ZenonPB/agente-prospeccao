@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, type ScoringTemplateInput } from "@/lib/api";
 import type { SalesRole, OrgRole } from "@/types";
 
@@ -25,6 +25,56 @@ export function useLeads(params?: {
   return useQuery({
     queryKey: ["leads", params],
     queryFn: () => leadsApi.list(params),
+  });
+}
+
+const PAGE_SIZE = 100;
+
+export function useAllLeads(params?: {
+  status?: string;
+  campaign_id?: string;
+  search?: string;
+  min_score?: number;
+  assigned?: string;
+}) {
+  return useQuery({
+    queryKey: ["leads", "all", params],
+    queryFn: async () => {
+      // Paginação server-side (item 4.16): busca todas as páginas de 100 até
+      // esgotar o `total` devolvido pela API, em vez de trazer tudo em memória
+      // ou limitar a primeira página.
+      let all: Awaited<ReturnType<typeof leadsApi.list>>["leads"] = [];
+      let total = Infinity;
+      for (let offset = 0; offset < total; offset += PAGE_SIZE) {
+        const page = await leadsApi.list({ ...params, limit: PAGE_SIZE, offset });
+        total = page.total;
+        all = all.concat(page.leads);
+        if (page.leads.length === 0 || page.leads.length < PAGE_SIZE) break;
+      }
+      return { leads: all, total: all.length };
+    },
+  });
+}
+
+const LIST_PAGE_SIZE = 50;
+
+export function useInfiniteLeads(params?: {
+  status?: string;
+  campaign_id?: string;
+  search?: string;
+  min_score?: number;
+  assigned?: string;
+  next_action_before?: string;
+}) {
+  return useInfiniteQuery({
+    queryKey: ["leads", "infinite", params],
+    queryFn: ({ pageParam }) =>
+      leadsApi.list({ ...params, limit: LIST_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.leads.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
 }
 

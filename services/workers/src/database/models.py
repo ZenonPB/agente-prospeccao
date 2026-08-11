@@ -401,6 +401,10 @@ class Lead(Base):
         UniqueConstraint("organization_id", "place_id", name="uq_leads_org_place_id"),
         UniqueConstraint("organization_id", "cnpj", name="uq_leads_org_cnpj"),
         UniqueConstraint("organization_id", "normalized_domain", name="uq_leads_org_normalized_domain"),
+        # Item 4.16 (paginação server-side): índices compostos que cobrem os
+        # filtros mais usados — org + status (+ score) e org + status + data.
+        Index("ix_leads_org_status_score", "organization_id", "status", "qualification_score"),
+        Index("ix_leads_org_status_created", "organization_id", "status", "created_at"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)

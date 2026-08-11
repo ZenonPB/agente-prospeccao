@@ -10,7 +10,7 @@ import { Search, AlertCircle, RefreshCw, CheckCheck, X, Download, UserPlus, User
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import {
-  useLeads, useCampaigns, useAssignLead, useUpdateLeadStatus,
+  useInfiniteLeads, useCampaigns, useAssignLead, useUpdateLeadStatus,
   useOrgMembership, useOrgMembers,
 } from '@/hooks/use-api';
 import type { Lead } from '@/types';
@@ -191,7 +191,13 @@ export function LeadList() {
   const { data: campaignsData } = useCampaigns();
   const campaigns = campaignsData?.campaigns || [];
 
-  const { data, isLoading, isError, error, refetch } = useLeads({
+  // Paginação server-side (item 4.16): `useInfiniteLeads` busca 50 por vez e
+  // acumula as páginas via useInfiniteQuery — o "Carregar mais" chama
+  // `fetchNextPage` e anexa a próxima leva.
+  const {
+    data, isLoading, isError, error, refetch,
+    fetchNextPage, hasNextPage, isFetchingNextPage,
+  } = useInfiniteLeads({
     search: debouncedSearch || undefined,
     campaign_id: campaignFilter !== 'all' ? campaignFilter : undefined,
     min_score: minScoreFilter,
@@ -199,7 +205,10 @@ export function LeadList() {
     assigned: myLeadsOnly && currentUserId ? currentUserId : undefined,
   });
 
-  const leads = data?.leads || [];
+  const leads = data?.pages.flatMap((p) => p.leads) ?? [];
+  const totalLeads = data?.pages[0]?.total ?? leads.length;
+  const hasMore = hasNextPage ?? false;
+  const loadingMore = isFetchingNextPage;
 
   const sortedLeads = [...leads].sort((a, b) => {
     switch (sortBy) {
@@ -465,7 +474,7 @@ export function LeadList() {
               />
               Selecionar todos visíveis
             </label>
-            <span className="ml-auto">{data?.total ?? sortedLeads.length} lead(s)</span>
+            <span className="ml-auto">{totalLeads} lead(s)</span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sortedLeads.map((lead) => {
@@ -535,6 +544,21 @@ export function LeadList() {
               );
             })}
           </div>
+          {hasMore && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchNextPage()}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <RefreshCw className="mr-2 h-3 w-3 animate-spin" aria-hidden="true" />
+                ) : null}
+                Carregar mais ({totalLeads - leads.length} restantes)
+              </Button>
+            </div>
+          )}
         </>
       )}
     </div>
