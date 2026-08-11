@@ -13,6 +13,27 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Evita o "Internal Server Error" no dev do Next.js causado por caminhos com espaços ou acentos
+if ! LC_ALL=C expr "$REPO_ROOT" : '^[ -~]*$' >/dev/null || [[ "$REPO_ROOT" =~ " " ]]; then
+  echo "=======================================================================" >&2
+  echo "ERRO CRÍTICO: Caminho do repositório inválido para execução!" >&2
+  echo "-----------------------------------------------------------------------" >&2
+  echo "O caminho atual contém espaços ou caracteres especiais/acentos:" >&2
+  echo "  $REPO_ROOT" >&2
+  echo "" >&2
+  echo "O Next.js (tanto Webpack quanto Turbopack) falha internamente com" >&2
+  echo "'Internal Server Error' (Cannot find module) quando executado em caminhos" >&2
+  echo "com espaços ou caracteres especiais (como 'Área de trabalho')." >&2
+  echo "" >&2
+  echo "SOLUÇÃO:" >&2
+  echo "1. Mova ou clone o repositório para um diretório sem espaços e sem acentos." >&2
+  echo "   Exemplo: /home/aluno/code/agente-prospeccao" >&2
+  echo "2. Rode o ./scripts/setup.sh novamente a partir do novo local e depois o dev.sh." >&2
+  echo "=======================================================================" >&2
+  exit 1
+fi
+
 PG_ROOT="${PG_ROOT:-$HOME/.local/agente-prospeccao}"
 PG_BIN="$PG_ROOT/bin"
 PGDATA="$PG_ROOT/pgdata"
