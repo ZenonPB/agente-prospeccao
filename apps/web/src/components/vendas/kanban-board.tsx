@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts } from '@/hooks/use-api';
+import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -116,7 +116,7 @@ export function KanbanBoard() {
   const mySalesRole = membership?.membership?.sales_role;
   const canAssignOthers = myRole === 'OWNER' || myRole === 'ADMIN' || mySalesRole === 'MANAGER';
   const { data: membersData } = useOrgMembers(canAssignOthers ? orgId : undefined);
-  const { data, isLoading, isError, error, refetch } = useLeads({
+  const { data, isLoading, isError, error, refetch } = useAllLeads({
     status: SALES_STATUSES,
   });
   const { data: slaData } = useSlaAlerts(100);

@@ -106,6 +106,8 @@ class GooglePlacesService:
         query: str,
         max_results: int = 10,
         exclude_place_ids: Optional[set] = None,
+        db=None,
+        organization_id: Optional[str] = None,
     ) -> List[Dict]:
         """
         Busca estabelecimentos na Places API (nova) usando texto livre.
@@ -121,10 +123,16 @@ class GooglePlacesService:
         que já possuem leads salvos, sem gastar páginas da API com
         resultados já conhecidos.
 
+        Item 4.14 (cotas): com `db` + `organization_id`, verifica a cota
+        diária de `GOOGLE_API_KEY` antes de cada página (fail-closed) e
+        contabiliza uma chamada por página bem-sucedida.
+
         Args:
             query: Texto de busca, ex: "Restaurantes em Campinas, SP".
             max_results: Número máximo de leads novos a retornar.
             exclude_place_ids: Conjunto de place_ids já coletados a ignorar.
+            db: Sessão (opcional) para o medidor de cotas.
+            organization_id: Org (opcional) dona da chamada.
 
         Returns:
             Lista de dicionários no formato de lead prontos para persistência.
@@ -137,8 +145,25 @@ class GooglePlacesService:
 
         logger.info("Buscando na Places API: '%s'", query)
 
+        if db is not None and organization_id is not None:
+            from services.quota_service import QuotaService
+            if not QuotaService.can_consume(db, organization_id, "GOOGLE_API_KEY"):
+                logger.warning(
+                    "Cota diária esgotada para GOOGLE_API_KEY (org %s) — coleta bloqueada.",
+                    organization_id,
+                )
+                return []
+
         async with httpx.AsyncClient(timeout=30) as client:
             while len(leads) < max_results and pages < max_pages:
+                if db is not None and organization_id is not None:
+                    from services.quota_service import QuotaService
+                    if not QuotaService.can_consume(db, organization_id, "GOOGLE_API_KEY"):
+                        logger.warning(
+                            "Cota diária esgotada para GOOGLE_API_KEY (org %s) — interrompendo coleta.",
+                            organization_id,
+                        )
+                        break
                 pages += 1
                 payload: Dict = {
                     "textQuery": query,
@@ -151,6 +176,10 @@ class GooglePlacesService:
                 response = await client.post(PLACES_API_URL, headers=self.headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
+
+                if db is not None and organization_id is not None:
+                    from services.quota_service import QuotaService
+                    QuotaService.consume(db, organization_id, "GOOGLE_API_KEY")
 
                 places = data.get("places", [])
                 if not places:

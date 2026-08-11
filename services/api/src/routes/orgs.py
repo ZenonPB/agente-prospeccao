@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Dict, List, Optional
 import os
 import sys
 
@@ -435,6 +435,8 @@ class PatchOrgSettingsRequest(BaseModel):
     sla_qualified_no_contact_days: Optional[int] = None
     sla_responded_no_next_action_days: Optional[int] = None
     sla_opened_no_response_days: Optional[int] = None
+    # Item 4.14 — teto diário por provedor (BYOK vs pool). Ex.: {"GROQ_API_KEY": 500}.
+    api_quota: Optional[Dict[str, int]] = None
 
 
 def _validate_hhmm(value: Optional[str]) -> None:
@@ -495,6 +497,15 @@ def patch_org_settings(
         if not 1 <= body.sla_opened_no_response_days <= 120:
             raise HTTPException(status_code=400, detail="sla_opened_no_response_days deve estar entre 1 e 120")
         org.sla_opened_no_response_days = body.sla_opened_no_response_days
+    if body.api_quota is not None:
+        from services.secret_service import KEY_NAMES
+        valid_keys = set(KEY_NAMES)
+        for key, value in body.api_quota.items():
+            if key not in valid_keys:
+                raise HTTPException(status_code=400, detail=f"key de cota inválida: {key}")
+            if not 1 <= int(value) <= 1_000_000:
+                raise HTTPException(status_code=400, detail=f"limite inválido para {key}")
+        org.api_quota = dict(body.api_quota)
     db.commit()
     db.refresh(org)
 
@@ -651,3 +662,25 @@ def delete_sales_target(
     db.delete(target)
     db.commit()
     return {"deleted": True, "target_id": target_id}
+
+
+@router.get("/{org_id}/usage")
+def get_org_usage(
+    org_id: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_manager()),
+):
+    """Medidor de cotas diárias da org por provedor (roadmap-vendas 4.14).
+
+    Retorna o uso de hoje por `key_name` (usado/limite/restante/%) e o flag
+    `alert` quando qualquer provedor passou de 80% do teto. MANAGER+/owner/admin.
+    """
+    from services.quota_service import QuotaService
+
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    usage = QuotaService.usage_for_org(db, org_id)
+    alert = any(u["pct"] >= 80 for u in usage)
+    return {"usage": usage, "alert": alert}

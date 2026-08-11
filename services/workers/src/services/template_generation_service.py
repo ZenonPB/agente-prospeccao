@@ -207,10 +207,18 @@ class TemplateGenerationService:
         cai no template 'Genérico' sem quebrar o pipeline.
         """
         generic = self._load_generic(db)
+
+        from services.provider_client import quota_ok, consume_quota
+        if not quota_ok(db, organization_id, "GROQ_API_KEY"):
+            logger.warning("Cota de IA esgotada — caindo no template Genérico (org=%s).", organization_id)
+            return _serialize(generic) if generic else {}
+
         generated = await self._call_llm(target_service, target_segment)
 
         if generated is None:
             return _serialize(generic) if generic else {}
+
+        consume_quota(db, organization_id, "GROQ_API_KEY")
 
         # Reutiliza se já existir template gerado com o mesmo label (mesma org ou global).
         existing = self._find_existing(db, generated["service_label"], organization_id)

@@ -99,6 +99,8 @@ async def process_single_lead(
             website=lead.website,
             google_rating=lead.google_rating,
             google_rating_count=lead.google_rating_count,
+            db=db,
+            organization_id=str(lead.organization_id) if lead.organization_id else None,
         )
     else:
         # Perfil business_opportunity (ou template alinhou para skipar técnico).
@@ -124,6 +126,8 @@ async def process_single_lead(
             template=scoring_template,
             google_rating=lead.google_rating,
             google_rating_count=lead.google_rating_count,
+            db=db,
+            organization_id=str(lead.organization_id) if lead.organization_id else None,
         )
 
     _persist_scoring(lead, scoring_data, enrichment)

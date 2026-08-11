@@ -45,7 +45,10 @@ export const useAppStore = create<AppState>((set) => ({
     ),
   })),
   
-  sidebarOpen: true,
+  // Item 4.17 (auditoria mobile): a sidebar nasce FECHADA em telas < lg
+  // (off-canvas) e ABERTA no desktop — evita o menu cobrindo o conteúdo no
+  // primeiro acesso mobile. O usuário alterna pelo hambúrguer.
+  sidebarOpen: typeof window === 'undefined' || window.innerWidth >= 1024,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   

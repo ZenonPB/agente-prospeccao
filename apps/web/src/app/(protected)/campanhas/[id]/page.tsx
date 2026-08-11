@@ -50,7 +50,7 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link href="/campanhas">

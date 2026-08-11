@@ -31,4 +31,14 @@ class Settings(BaseSettings):
     # chave determinística do DATABASE_URL (adequado só para desenvolvimento).
     SECRETS_ENCRYPTION_KEY: str = Field("", description='Chave Fernet para organization_secrets')
 
+    # Item 4.14 — teto diário de chamadas por provedor (default do pool global).
+    # A org pode sobrescrever por provedor via `organizations.api_quota`.
+    PROVIDER_DAILY_QUOTA: dict = Field(
+        default_factory=lambda: {
+            "GOOGLE_API_KEY": 100,
+            "GROQ_API_KEY": 2000,
+        },
+        description='Teto diário de chamadas por provedor (key_name → limite)',
+    )
+
 settings = Settings()

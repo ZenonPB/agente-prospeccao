@@ -408,6 +408,8 @@ class AIScoringService:
         self,
         user_prompt: str,
         has_website: Optional[bool] = None,
+        db=None,
+        organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         from services.provider_client import groq_json_chat
 
@@ -418,6 +420,8 @@ class AIScoringService:
             user_prompt=user_prompt,
             url=GROQ_URL,
             temperature=0.2,
+            db=db,
+            organization_id=organization_id,
         )
         if parsed is None:
             return None
@@ -438,6 +442,8 @@ class AIScoringService:
         website: Optional[str] = None,
         google_rating: Optional[float] = None,
         google_rating_count: Optional[int] = None,
+        db=None,
+        organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Scoring contextual de um lead com site (web_presence).
 
@@ -477,7 +483,7 @@ class AIScoringService:
             technical_facts=technical_facts,
             business_facts=business_facts,
         )
-        return await self._call_groq(prompt, has_website=bool(website))
+        return await self._call_groq(prompt, has_website=bool(website), db=db, organization_id=organization_id)
 
     async def score_business_lead(
         self,
@@ -491,6 +497,8 @@ class AIScoringService:
         template: Optional[Dict[str, Any]] = None,
         google_rating: Optional[float] = None,
         google_rating_count: Optional[int] = None,
+        db=None,
+        organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Scoring contextual de um lead sem análise técnica (business_opportunity).
 
@@ -515,7 +523,7 @@ class AIScoringService:
             technical_facts=[],
             business_facts=business_facts,
         )
-        return await self._call_groq(prompt)
+        return await self._call_groq(prompt, db=db, organization_id=organization_id)
 
 
 async def main_test_scoring():

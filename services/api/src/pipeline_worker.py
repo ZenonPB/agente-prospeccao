@@ -189,6 +189,8 @@ async def run_pipeline(
                 query,
                 max_results=max_leads,
                 exclude_place_ids=existing_ids_set,
+                db=db,
+                organization_id=str(campaign.organization_id) if campaign else None,
             )
 
             logger.info("Pipeline collected %d results", len(results))

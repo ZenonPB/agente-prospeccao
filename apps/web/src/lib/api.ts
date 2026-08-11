@@ -441,6 +441,7 @@ export const orgsApi = {
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;
+    api_quota?: Record<string, number>;
   }) =>
     request<{
       id: string;
@@ -458,6 +459,9 @@ export const orgsApi = {
       `/api/orgs/${orgId}`,
       { method: "PATCH", body: JSON.stringify(data) },
     ),
+
+  getUsage: (orgId: string) =>
+    request<{ usage: import("@/types").ProviderUsageItem[]; alert: boolean }>(`/api/orgs/${orgId}/usage`),
 };
 
 export interface AnalyticsOverview {
