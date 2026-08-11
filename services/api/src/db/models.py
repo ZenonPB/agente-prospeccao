@@ -40,4 +40,5 @@ from database.models import (
     NegotiationStage,
     ContractOutcome,
     PostSaleChannel,
+    LostReason,
 )

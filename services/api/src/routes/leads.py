@@ -37,14 +37,18 @@ NEGOTIATION_STATUSES = {
 
 class UpdateLeadStatusRequest(BaseModel):
     status: LeadStatus
+    lost_reason: Optional[LostReason] = None
 
 
 class UpdateLeadRequest(BaseModel):
-    """Campos de trabalho do consultor (item 4.4 da auditoria)."""
+    """Campos de trabalho do consultor (item 4.4 da auditoria + 4.8 forecast)."""
     notes: Optional[str] = None
     whatsapp: Optional[str] = None
     next_action_at: Optional[str] = None  # ISO datetime (tz-aware) ou null
     last_contacted_at: Optional[str] = None
+    value: Optional[float] = None
+    expected_close_date: Optional[str] = None
+    lost_reason: Optional[LostReason] = None
 
 
 class EnrichContactsRequest(BaseModel):
@@ -142,6 +146,9 @@ def _lead_summary(lead: Lead) -> dict:
         "outcome_date": lead.outcome_date.isoformat() if lead.outcome_date else None,
         "post_sale_contacted_at": lead.post_sale_contacted_at.isoformat() if lead.post_sale_contacted_at else None,
         "post_sale_channel": lead.post_sale_channel.value if lead.post_sale_channel else None,
+        "value": float(lead.value) if lead.value is not None else None,
+        "expected_close_date": lead.expected_close_date.isoformat() if lead.expected_close_date else None,
+        "lost_reason": lead.lost_reason.value if lead.lost_reason else None,
     }
 
 
@@ -325,6 +332,8 @@ def update_lead_status(
 
     previous = lead.status
     lead.status = body.status
+    if body.lost_reason is not None:
+        lead.lost_reason = body.lost_reason
     log_status_change(
         db, lead, user_id=str(user.id), status_to=body.status,
         status_from=previous,
@@ -429,6 +438,12 @@ def update_lead(
         lead.next_action_at = _parse_dt(body.next_action_at)
     if body.last_contacted_at is not None:
         lead.last_contacted_at = _parse_dt(body.last_contacted_at)
+    if body.value is not None:
+        lead.value = body.value
+    if body.expected_close_date is not None:
+        lead.expected_close_date = _parse_dt(body.expected_close_date) if body.expected_close_date else None
+    if body.lost_reason is not None:
+        lead.lost_reason = body.lost_reason
 
     db.commit()
     db.refresh(lead)

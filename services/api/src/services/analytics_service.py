@@ -27,6 +27,7 @@ from src.db.models import (
     OrganizationMember,
     NegotiationStage,
     ContractOutcome,
+    LostReason,
 )
 
 # Faixas de score usadas no overview (0-100).
@@ -36,6 +37,17 @@ SCORE_BANDS = [
     (60, 79, "60-79"),
     (80, 100, "80-100"),
 ]
+
+STAGE_WIN_RATES = {
+    LeadStatus.NOVO: 0.05,
+    LeadStatus.ANALISADO: 0.10,
+    LeadStatus.QUALIFICADO: 0.15,
+    LeadStatus.CONTATADO: 0.25,
+    LeadStatus.RESPONDIDO: 0.40,
+    LeadStatus.REUNIAO_MARCADA: 0.60,
+    LeadStatus.REUNIAO_FEITA: 0.75,
+    LeadStatus.PROPOSTA_ENVIADA: 0.90,
+}
 
 
 def _parse_period(value: Optional[str], end_of_day: bool = False) -> Optional[datetime]:
@@ -148,6 +160,11 @@ class AnalyticsService:
                 ) if band_count else 0,
             })
 
+        # Forecast resumo para o overview (item 4.8)
+        open_leads = base.filter(Lead.status.in_(list(STAGE_WIN_RATES.keys()))).all()
+        pipeline_val = sum(float(l.value or 0) for l in open_leads)
+        forecast_val = sum(float(l.value or 0) * STAGE_WIN_RATES.get(l.status, 0.0) for l in open_leads)
+
         return {
             "total_leads": total,
             "qualified_leads": qualified,
@@ -157,6 +174,8 @@ class AnalyticsService:
             "proposals_sent": proposals,
             "converted_leads": converted,
             "total_revenue": round(float(revenue), 2),
+            "pipeline_value": round(pipeline_val, 2),
+            "forecast_weighted": round(forecast_val, 2),
             "conversion_rate": round((converted / qualified * 100), 1) if qualified else 0,
             "response_rate": round((responded / contacted * 100), 1) if contacted else 0,
             "meeting_rate": round((meetings / qualified * 100), 1) if qualified else 0,
@@ -485,3 +504,63 @@ class AnalyticsService:
 
         ordered = sorted(series.values(), key=lambda r: r["date"])
         return ordered
+
+    # ---------------------------------------------------------------- forecast
+    def forecast(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:
+        """Forecast ponderado por estágio do funil (Item 4.8).
+
+        Calcula o valor total do pipeline aberto, o forecast ponderado pela
+        probabilidade de conversão de cada estágio e a receita já realizada.
+        """
+        base = self._leads(from_date, to_date)
+
+        revenue = (
+            self.db.query(func.coalesce(func.sum(Conversion.contract_value), 0))
+            .join(Lead, Conversion.lead_id == Lead.id)
+            .filter(Lead.organization_id == self.org_id)
+            .scalar()
+        ) or 0
+
+        open_statuses = list(STAGE_WIN_RATES.keys())
+        open_leads = base.filter(Lead.status.in_(open_statuses)).all()
+
+        pipeline_value = sum(float(l.value or 0) for l in open_leads)
+        forecast_weighted = sum(
+            float(l.value or 0) * STAGE_WIN_RATES.get(l.status, 0.0)
+            for l in open_leads
+        )
+
+        by_stage = []
+        for status, weight in STAGE_WIN_RATES.items():
+            leads_in = [l for l in open_leads if l.status == status]
+            val = sum(float(l.value or 0) for l in leads_in)
+            by_stage.append({
+                "stage": status.value,
+                "count": len(leads_in),
+                "probability": weight,
+                "total_value": round(val, 2),
+                "weighted_value": round(val * weight, 2),
+            })
+
+        lost_reasons = []
+        for r in LostReason:
+            count = base.filter(
+                Lead.status == LeadStatus.PERDIDO,
+                Lead.lost_reason == r,
+            ).count()
+            lost_reasons.append({"reason": r.value, "count": count})
+        no_reason = base.filter(
+            Lead.status == LeadStatus.PERDIDO,
+            Lead.lost_reason.is_(None),
+        ).count()
+        if no_reason:
+            lost_reasons.append({"reason": "SEM_MOTIVO", "count": no_reason})
+
+        return {
+            "pipeline_value": round(pipeline_value, 2),
+            "forecast_weighted": round(forecast_weighted, 2),
+            "realized_revenue": round(float(revenue), 2),
+            "open_leads_count": len(open_leads),
+            "pipeline_by_stage": by_stage,
+            "lost_reasons_breakdown": lost_reasons,
+        }

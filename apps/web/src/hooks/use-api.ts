@@ -143,7 +143,7 @@ export function useUpdateLeadStatus() {
 export function useUpdateLead() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { notes?: string; whatsapp?: string; next_action_at?: string | null } }) =>
+    mutationFn: ({ id, data }: { id: string; data: { notes?: string; whatsapp?: string; next_action_at?: string | null; value?: number; expected_close_date?: string | null; lost_reason?: string } }) =>
       leadsApi.update(id, data),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
@@ -272,6 +272,13 @@ export function useAnalyticsTimeline(period?: AnalyticsPeriod) {
   return useQuery({
     queryKey: ["analytics", "timeline", period],
     queryFn: () => analyticsApi.timeline({ group_by: "day", ...period }),
+  });
+}
+
+export function useAnalyticsForecast(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "forecast", period],
+    queryFn: () => analyticsApi.forecast(period),
   });
 }
 

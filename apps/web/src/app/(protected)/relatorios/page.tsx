@@ -5,9 +5,10 @@ import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { useOrgMembership } from '@/hooks/use-api';
-import { useAnalyticsOverview, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
+import { useAnalyticsOverview, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useAnalyticsForecast, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
 import { FunnelCard, RatesCard, ScoreBandsCard, NegotiationCard, ChartCardSkeleton, ChartCardError } from '@/components/relatorios/chart-cards';
+import { ForecastCard } from '@/components/relatorios/forecast-card';
 import { ConsultantsCard, CampaignsCard, TopLeadsCard, ListCardSkeleton } from '@/components/relatorios/list-cards';
 import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-map';
 import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline-card';
@@ -28,11 +29,12 @@ export default function RelatoriosPage() {
   const geoQ = useAnalyticsGeo(period);
   const campaignsQ = useAnalyticsCampaigns(period);
   const timelineQ = useAnalyticsTimeline(period);
+  const forecastQ = useAnalyticsForecast(period);
   const exportPdf = useExportAnalyticsPdf();
 
-  const anyLoading = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ].some((q) => q.isLoading);
-  const anyError = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ].some((q) => q.isError);
-  const errMsg = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ].find((q) => q.error)?.error;
+  const anyLoading = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isLoading);
+  const anyError = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isError);
+  const errMsg = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].find((q) => q.error)?.error;
 
   const handleExport = async () => {
     try {
@@ -96,6 +98,7 @@ export default function RelatoriosPage() {
       ) : (
         <>
           {overviewQ.data && <ExecutiveKpis overview={overviewQ.data} />}
+          {forecastQ.data && <ForecastCard forecast={forecastQ.data} />}
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-6">

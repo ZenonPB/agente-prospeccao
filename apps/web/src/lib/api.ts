@@ -103,7 +103,7 @@ export const leadsApi = {
 
   get: (id: string) => request<Lead & { enrichment?: Enrichment }>(`/api/leads/${id}`),
 
-  update: (id: string, data: { notes?: string; whatsapp?: string; next_action_at?: string | null }) =>
+  update: (id: string, data: { notes?: string; whatsapp?: string; next_action_at?: string | null; value?: number; expected_close_date?: string | null; lost_reason?: string }) =>
     request<Lead>(`/api/leads/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -513,6 +513,11 @@ export const analyticsApi = {
 
   timeline: (params?: { group_by?: "day" | "week"; from?: string; to?: string }) =>
     request<{ timeline: AnalyticsTimelineItem[] }>("/api/analytics/timeline", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  forecast: (params?: { from?: string; to?: string }) =>
+    request<import("@/types").ForecastData>("/api/analytics/forecast", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 

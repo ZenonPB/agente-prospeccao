@@ -633,13 +633,31 @@ Branch `feat/whatsapp-one-click` (roadmap-vendas P1):
   - Tradução `WHATSAPP_SENT` ("WhatsApp acionado") na trilha de atividades.
 - **Testes**: `tests/test_whatsapp_click.py` (4) — suíte em **83 passed**. `tsc --noEmit` e `eslint` limpos.
 
+### Item 4.8 — Valor por oportunidade + forecast ponderado ✅ (2026-08-10)
+
+Branch `feat/opportunity-forecast` (roadmap-vendas P1):
+
+- **Modelos/migration `69f0f84a9739`** (aplicada):
+  - `Lead.value` (Numeric 12,2) — estimativa de ticket / contrato.
+  - `Lead.expected_close_date` (DateTime) — data prevista de fechamento.
+  - `Lead.lost_reason` (enum `LostReason`: `PRECO`, `PRAZO`, `NAO_RESPONDEU`, `CONCORRENTE`, `OUTRO`).
+- **Backend & BI**:
+  - `AnalyticsService.forecast()`: calcula `pipeline_value` em aberto, `forecast_weighted` ponderado pela probabilidade do estágio (`NOVO` 5% → `PROPOSTA_ENVIADA` 90%), `realized_revenue` e distribuição por estágio/motivos de perda.
+  - Endpoint `GET /api/analytics/forecast` (ANALYST/MANAGER) + `overview()` atualizado com `pipeline_value` e `forecast_weighted`.
+  - `PATCH /api/leads/{id}` aceita `value`, `expected_close_date` e `lost_reason`.
+- **Frontend**:
+  - Card "Acompanhamento & Oportunidade" no detalhe do lead com edição de ticket (R$), previsão de fechamento e motivo de perda.
+  - Badge de valor estimado no card do Kanban board.
+  - `ForecastCard` em `/relatorios`: KPIs (Pipeline Total, Forecast Ponderado, Receita Realizada), tabela por estágio e detalhamento de motivos de perda.
+- **Testes**: `tests/test_opportunity_forecast.py` (2) — suíte em **85 passed**. `tsc --noEmit` e `eslint` limpos.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **PRs #54, #55, #56 mergeados** no `main` do repositório remoto. Local `main` atualizado.
-> 2. **Item 4.5 WhatsApp (validação + 1 clique + trilha)** entregue na branch `feat/whatsapp-one-click`.
-> 3. Próximos passos do roadmap-vendas: **4.8 forecast/valor por oportunidade** (ticket + previsão de receita), **3.3.3 gestão de membros** (remover/sair/transferir org) e **4.9 metas de vendas por consultor**.
+> 1. **PR #57 (Item 4.5 WhatsApp)** mergeado no `main` do repositório remoto. Local `main` atualizado.
+> 2. **Item 4.8 Forecast & Oportunidades** entregue na branch `feat/opportunity-forecast`.
+> 3. Próximos passos do roadmap-vendas: **3.3.3 gestão de membros** (remover/sair/transferir org), **4.9 metas de vendas por consultor** e **4.10 SLA/lembretes para leads parados**.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

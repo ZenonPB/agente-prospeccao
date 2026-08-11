@@ -42,6 +42,14 @@ class PostSaleChannel(enum.Enum):
     WHATSAPP = "WHATSAPP"
     EMAIL = "EMAIL"
 
+class LostReason(enum.Enum):
+    """Motivo de perda do lead (roadmap-vendas 4.8)."""
+    PRECO = "PRECO"
+    PRAZO = "PRAZO"
+    NAO_RESPONDEU = "NAO_RESPONDEU"
+    CONCORRENTE = "CONCORRENTE"
+    OUTRO = "OUTRO"
+
 class CampaignStatus(enum.Enum):
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
@@ -370,6 +378,10 @@ class Lead(Base):
     # (planilha Alphamec: "DATA CONTATO PÓS-VENDA" + "PÓS VENDA POR").
     post_sale_contacted_at = Column(DateTime(timezone=True), nullable=True)
     post_sale_channel = Column(Enum(PostSaleChannel, name='post_sale_channel', create_type=True), nullable=True)
+    # Forecast e oportunidade (roadmap-vendas 4.8): ticket estimado, data de fechamento e motivo de perda
+    value = Column(Numeric(12, 2), nullable=True)
+    expected_close_date = Column(DateTime(timezone=True), nullable=True)
+    lost_reason = Column(Enum(LostReason, name='lost_reason', create_type=True), nullable=True)
     status = Column(Enum(LeadStatus, name='lead_status', create_type=True), default=LeadStatus.NOVO)
 
     qualification_score = Column(Integer, default=0) 
