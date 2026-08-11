@@ -144,7 +144,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | POST | `/leads/{id}/enrich-contacts` | Enriquece decisores (Receita→email/LinkedIn) |
 | GET | `/leads/{id}/pitch` | Pitch one-pager + site audit |
 | GET/POST | `/leads/{id}/cadence` · `/leads/{id}/cadence/start` · `/leads/{id}/cadence/send/{step}` | Cadência dia 0/3/7/14 |
-| POST | `/leads/{id}/opt-out` · `DELETE /leads/{id}` | LGPD: opt-out e exclusão |
+| POST | `/leads/{id}/opt-out` · `DELETE /leads/{id}` | Opt-out do lead e exclusão |
 
 ### Métricas / BI
 | Método | Rota | Descrição |

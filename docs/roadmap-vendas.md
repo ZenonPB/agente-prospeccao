@@ -74,7 +74,7 @@ Síntese do que já funciona e deve ser **preservado**:
   (exact→fuzzy→LLM→geração), score 0-100, `priority` HOT/WARM/COLD,
   `evidence[]`, `pitch_angle`, `executive_summary`.
 - **Outreach personalizado** (`outreach_service.py`): sequência 0/3/7/14,
-  copywriter anti-IA, CTA concreto, rodapé LGPD; geração de WhatsApp.
+  copywriter anti-IA, CTA concreto, rodapé com opt-out (STOP); geração de WhatsApp.
 - **Cadência + envio** (`cadence_service.py`/`email_service.py`): humano no
   loop (default) ou `auto_send_email` (opt-in), bounce handling, supressão,
   threading, inbound de resposta/STOP.
@@ -337,7 +337,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 
 - **Hoje:** decisores vêm de Receita (nome dos sócios) + Hunter (opcional) +
   heurística. Hit-rate de e-mail limitado.
-- **Proposta (tudo passivo/LGPD):**
+- **Proposta (tudo passivo):**
   - **Página de contato do site** da empresa (scrape passivo): e-mails/telefones
     públicos → alta veracidade.
   - **Busca de "nome + empresa + email"** em buscadores (padrão já usado para
@@ -401,32 +401,6 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   card de configuração em `/configuracoes` e seção no painel "Ações de hoje".
 
 ---
-
-### P2 — Entrega 5 · LGPD e conformidade (indispensável para empresa real)
-
-#### 4.11 Supressão global por e-mail/telefone ⬜ (S, gratuito)
-
-- **Hoje:** `opt_out` e `EmailSuppression` são **por lead**. A mesma pessoa em 2
-  campanhas pode receber 2 fluxos (risco LGPD e imagem).
-- **Proposta:** no momento do envio (`send_step`/`run_due`), consultar supressão
-  **global** (e-mail/telefone cruzando orgs). Movimentar STOP/opt-out de qualquer
-  lead para a lista global.
-- **Aceite:** pessoa que deu STOP nunca mais recebe de nenhuma campanha.
-
-#### 4.12 Base legal e proveniência explícitas ⬜ (M, gratuito)
-
-- **Proposta:** coluna `legal_basis` por contato/lead (`interesse_legitimo`/
-  `consentimento`), origem e timestamp do dado (`email_source`, canal, data),
-  e expor num dossiê "origem dos dados" por lead. Protege a EJ juridicamente.
-- **Aceite:** todo contato tem origem e base documentadas e auditáveis.
-
-#### 4.13 Retenção e anonimização automática ⬜ (M, gratuito)
-
-- **Hoje:** `DELETE /leads/{id}` existe; sem política automática.
-- **Proposta:** job que **anonimiza** PII (nome, e-mail, telefone, CPF) de leads
-  sem conversão após X meses (configurável) mantendo metadados agregados para BI;
-  log de auditoria de acesso a campos sensíveis.
-- **Aceite:** PII não fica retida para sempre; BI continua válido.
 
 ---
 
@@ -575,9 +549,6 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
-| 4.11 | Supressão global por e-mail/telefone | LGPD | P2 | S | gratuito | 4.1 | ⬜ |
-| 4.12 | Base legal e proveniência explícitas | LGPD | P2 | M | gratuito | — | ⬜ |
-| 4.13 | Retenção/anonimização automática | LGPD | P2 | M | gratuito | — | ⬜ |
 | 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ⬜ |
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ⬜ |
 | 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ⬜ |
@@ -611,11 +582,11 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   4.7 (fontes), 4.8/4.9 (forecast + metas), 4.10 (SLA).
   *Critério de saída:* consultor fecha 1º ciclo completo com tracking e
   WhatsApp; gestor vê desempenho contra meta.
-- **Fase 2 — Conformidade e escala (semanas 6-9):** 4.11-4.13 (LGPD),
+- **Fase 2 — Conformidade e escala (semanas 6-9):**
   4.14-4.17 (confiabilidade), 3.3.3-3.3.4 (gestão de membros),
   4.22-4.25 (LinkedIn assistido).
-  *Critério de saída:* sem risco LGPD pendente, backup restaurável, UI em
-  produção sem travar, decisores associados via pesquisa assistida.
+  *Critério de saída:* backup restaurável, UI em produção sem travar, decisores
+  associados via pesquisa assistida.
 - **Fase 3 — Diferenciação (semanas 10+):** 4.18-4.21 (calibração, A/B,
   integrações, playbooks), 4.26-4.27 (Instagram + modelo 3 entidades).
 
@@ -752,6 +723,6 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   (C2/C3) e revalidar a distribuição de scores no `analytics/overview`.
 - **Backlog pendente (⬜ do §5):** P1 **4.22** (LinkedIn assistido) → P2
   confiabilidade (**4.14** cotas, **4.15** observabilidade/restore, **4.16**
-  paginação/kanban, **4.17** mobile-first) → **3.3.4** auditoria → P2 LGPD
-  (**4.11–4.13**) → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+  paginação/kanban, **4.17** mobile-first) → **3.3.4** auditoria → LinkedIn
+  4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
 - **Decisão aberta:** C5 (ERP/web apps) antes de fechar o próximo ciclo de UI.
