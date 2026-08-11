@@ -15,6 +15,7 @@ import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
 import { OrgSlaSettings } from '@/components/configuracoes/org-sla-settings';
+import { OrgQuotaCard } from '@/components/configuracoes/org-quota-card';
 import { OrgNameCard } from '@/components/configuracoes/org-name-card';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
@@ -318,6 +319,9 @@ export default function ConfiguracoesPage() {
 
       {/* Chaves de API (BYOK) */}
       <OrgSecretsCard />
+
+      {/* Cotas de uso de IA e dados (item 4.14) */}
+      <OrgQuotaCard />
 
       {/* Envio de follow-ups (item 3.7) */}
       <OrgSendSettings />

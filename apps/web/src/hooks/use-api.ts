@@ -645,11 +645,21 @@ export function usePatchOrgSettings() {
       sla_qualified_no_contact_days?: number;
       sla_responded_no_next_action_days?: number;
       sla_opened_no_response_days?: number;
+      api_quota?: Record<string, number>;
     } }) =>
       orgsApi.patchSettings(orgId, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["org", "me"] });
       queryClient.invalidateQueries({ queryKey: ["orgs", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["orgs", variables.orgId, "usage"] });
     },
+  });
+}
+
+export function useOrgUsage(orgId?: string) {
+  return useQuery({
+    queryKey: ["orgs", orgId, "usage"],
+    queryFn: () => orgsApi.getUsage(orgId as string),
+    enabled: !!orgId,
   });
 }

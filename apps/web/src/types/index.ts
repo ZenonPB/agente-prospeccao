@@ -70,6 +70,15 @@ export interface LinkedinQuery {
   query: string;
 }
 
+// Item 4.14 — medidor de cotas diárias por provedor/org.
+export interface ProviderUsageItem {
+  key_name: string;
+  used: number;
+  limit: number;
+  remaining: number;
+  pct: number;
+}
+
 // Funil interno de negociação (roadmap-leads C.3 — largar a planilha).
 export type NegotiationStage = 'RD' | 'ORCAMENTO' | 'RP';
 export type ContractOutcome = 'APROVADO' | 'REPROVADO' | 'EM_ANALISE';
