@@ -689,9 +689,9 @@ Branch `feat/sales-targets` (roadmap-vendas P1):
     `useSalesTargets`, `useUpsertSalesTarget`, `useDeleteSalesTarget`.
 - **Testes**: `tests/test_sales_targets.py` — suíte em **90 passed**. `tsc --noEmit` e `eslint` limpos. Grafo atualizado (`graphify extract` + `cluster-only`: 2128 nós, 4509 arestas, 160 comunidades).
 
-### Item 4.10 — SLA e lembretes para leads parados 🔧 em andamento (2026-08-10)
+### Item 4.10 — SLA e lembretes para leads parados ✅ (2026-08-11)
 
-Branch `feat/sla-lead-reminders` (roadmap-vendas P1):
+Branch `feat/sla-lead-reminders` (roadmap-vendas P1) + `fix/reprocess-stuck-leads-4-9-4-10`:
 
 - **Modelos/migration `c24a13047b0e`** (aplicada): `organizations` ganhou
   `sla_qualified_no_contact_days` (default 5), `sla_responded_no_next_action_days`
@@ -711,7 +711,11 @@ Branch `feat/sla-lead-reminders` (roadmap-vendas P1):
     prazos (`OrgSlaSettings`).
   - Seção **"Leads parados (SLA)"** no painel "Ações de hoje" do dashboard com link
     direto para a oportunidade.
-- **Testes**: `tests/test_sla_service.py` (3) — suíte em **93 passed**.
+  - **Notificação no kanban** (`/vendas`, kanban-board.tsx): chip vermelho "N leads
+    parados (SLA)" no topo, contador vermelho por coluna e badge "SLA há Xd" nos
+    cartões com alerta ativo (tooltip com o rótulo da regra).
+- **Testes**: `tests/test_sla_service.py` (8: 3 helpers + 5 com `compute_sla_alerts`
+  cobrindo as 3 regras e a ordenação por criticidade via db fake) — suíte em **118 passed**.
 
 ### Item 4.7 — Mais fontes de contato além da Receita ✅ (2026-08-10)
 
@@ -749,15 +753,20 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
 >    - **C1** Selects com valor cru (`web_presence` etc.) — **corrigido**.
 >    - **C2** 53 leads presos em `ANALISADO`/score 0 (falha transitória do Groq);
 >      fix aplicado (falha mantém `NOVO`) + script `reprocess_stuck_leads.py`.
->      **PENDENTE: rodar `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`**
+>      **Script validado** (dry-run OK; `def reprocess_one` duplicado removido);
+>      na base local recém-criada há **0 leads presos**. **PENDENTE na base real:**
+>      `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`
 >      (56 leads: 53 presos + 3 com evidência errada de "sem site").
 >    - **C3** IA alega "sem site próprio" em leads que TÊM site (ex.: Pâmela
 >      Oliveira) — fix aplicado (prompt + guard determinístico + 5 testes).
->      **PENDENTE:** re-pontuar os afetados (mesmo comando do C2).
+>      **PENDENTE:** re-pontuar os afetados (mesmo comando do C2, na base real).
 >    - **C4** Leads sem site (público-alvo) voltam a pontuar após o C2.
 >    - **C5** Decisão aberta: suporte a aplicações web/ERP (perfil/template).
 > 3. **Item 4.7** mergeado no `main` (PR #62) — P1 do roadmap-vendas fechado.
-> 4. Próximos passos (backlog): **4.22 LinkedIn assistido (P1)** → P2
+> 4. **Item 4.10 fechado** (branch `fix/reprocess-stuck-leads-4-9-4-10`):
+>    notificação de SLA no kanban (chip resumo + contador por coluna + badge por
+>    cartão) + testes das 3 regras de `compute_sla_alerts` — suíte em **118 passed**.
+> 5. Próximos passos (backlog): **4.22 LinkedIn assistido (P1)** → P2
 >    confiabilidade (4.14/4.15/4.16/4.17) → 3.3.4 auditoria → LGPD 4.11–4.13.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)

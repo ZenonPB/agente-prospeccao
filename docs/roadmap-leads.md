@@ -473,7 +473,7 @@ Levantamento de campo (mesma sessão do roadmap-vendas §10 — C2/C3/C4):
   53 leads (35 na medição inicial, cresceu com novos batches) ficavam com 0 para
   sempre — inclusive o público-alvo **sem** site (a regra do item 4.2 já os pontuava
   via `score_business_lead`; o problema era o travamento). **Fix aplicado:** a falha
-  agora mantém o lead em `NOVO`. **PENDENTE:** rodar
+  agora mantém o lead em `NOVO`. **PENDENTE (base real):** rodar
   `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`.
 - **Alucinação "sem site próprio" (C3):** a LLM gravava evidência contradizendo o
   fact `Tem website: sim` (ex.: Psicóloga Pâmela Oliveira, site WordPress/SSL ok).
@@ -484,6 +484,7 @@ Levantamento de campo (mesma sessão do roadmap-vendas §10 — C2/C3/C4):
 - **Script novo:** `services/workers/src/scripts/reprocess_stuck_leads.py`
   (idempotente, dry-run por padrão) re-pontua os presos + (com `--fix-site-evidence`)
   os leads com evidência errada. Levantamento atual: **56 leads** (53 + 3).
+  Validado em 2026-08-11 (`def reprocess_one` duplicado removido; dry-run OK).
 
-**Verificação**: `python -m pytest tests -q` → 113 passed; `compileall` dos serviços OK;
-dry-run do script lista os 56 leads.
+**Verificação**: `python -m pytest tests -q` → **118 passed**; `compileall` dos serviços
+OK; dry-run do script OK (base local recém-criada sem leads presos).

@@ -8,7 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick } from '@/hooks/use-api';
+import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts } from '@/hooks/use-api';
+import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -118,11 +119,36 @@ export function KanbanBoard() {
   const { data, isLoading, isError, error, refetch } = useLeads({
     status: SALES_STATUSES,
   });
+  const { data: slaData } = useSlaAlerts(100);
 
   const columns = useMemo(
     () => groupLeadsByColumn(data?.leads || []),
     [data?.leads]
   );
+
+  // Item 4.10 — notificação de SLA no kanban: mapeia alerta por lead e
+  // conta por coluna (coluna do status do alerta).
+  const slaByLead = useMemo(() => {
+    const map: Record<string, SlaAlertItem> = {};
+    (slaData?.alerts || []).forEach((alert) => {
+      map[alert.id] = alert;
+    });
+    return map;
+  }, [slaData]);
+
+  const slaCountByColumn = useMemo(() => {
+    const counts: Record<string, number> = {};
+    COLUMNS.forEach((col) => {
+      counts[col.id] = 0;
+    });
+    (slaData?.alerts || []).forEach((alert) => {
+      const col = COLUMNS.find((c) => c.status.includes(alert.status || ''));
+      if (col) counts[col.id] += 1;
+    });
+    return counts;
+  }, [slaData]);
+
+  const slaAlertsCount = Object.values(slaByLead).length;
 
   const onDragEnd = useCallback((result: DropResult) => {
     const { draggableId, destination } = result;
@@ -233,6 +259,12 @@ export function KanbanBoard() {
         <p className="text-sm font-medium text-muted-foreground">
           Arraste os cartões entre as colunas para atualizar o status do funil
         </p>
+        {slaAlertsCount > 0 && (
+          <div className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+            {slaAlertsCount} lead{slaAlertsCount !== 1 ? 's' : ''} parado{slaAlertsCount !== 1 ? 's' : ''} (SLA)
+          </div>
+        )}
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
@@ -245,9 +277,21 @@ export function KanbanBoard() {
                     <div className={`h-2 w-2 rounded-full ${column.color}`} />
                     <h3 className="font-medium">{column.title}</h3>
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {columns[column.id]?.length || 0}
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-xs">
+                      {columns[column.id]?.length || 0}
+                    </Badge>
+                    {slaCountByColumn[column.id] > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="gap-1 border-red-200 bg-red-50 px-1.5 text-[11px] font-semibold text-red-700"
+                        title="Leads parados (SLA) nesta etapa"
+                      >
+                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                        {slaCountByColumn[column.id]}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 <Droppable droppableId={column.id}>
@@ -321,6 +365,18 @@ export function KanbanBoard() {
                                       {lead.contract_outcome === 'EM_ANALISE' ? 'Em análise' : lead.contract_outcome}
                                     </Badge>
                                   )}
+                                </div>
+                              )}
+                              {slaByLead[lead.id] && (
+                                <div className="mb-2 flex flex-wrap gap-1.5">
+                                  <Badge
+                                    variant="outline"
+                                    className="gap-1 border-red-200 bg-red-50 text-red-700 text-xs"
+                                    title={slaByLead[lead.id].alert_label}
+                                  >
+                                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                                    SLA há {slaByLead[lead.id].days_since}d
+                                  </Badge>
                                 </div>
                               )}
                               <p className="mb-3 text-sm text-muted-foreground">

@@ -395,10 +395,13 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   notificação no kanban.
 - **Aceite:** leads quentes nunca ficam esquecidos; painel "ações de hoje"
   reflete as regras.
-- **Entregue (2026-08-10, branch `feat/sla-lead-reminders`):** colunas de SLA por
-  org (`sla_qualified_no_contact_days`, `sla_responded_no_next_action_days`,
+- **Entregue (2026-08-10, branch `feat/sla-lead-reminders`; kanban 2026-08-11):** colunas
+  de SLA por org (`sla_qualified_no_contact_days`, `sla_responded_no_next_action_days`,
   `sla_opened_no_response_days`); serviço `sla_service` + `GET /api/leads/sla-alerts`;
   card de configuração em `/configuracoes` e seção no painel "Ações de hoje".
+  **Notificação no kanban** (parte do "alimenta today-actions **e** notificação no
+  kanban"): chip resumo "N leads parados (SLA)", contador vermelho por coluna e badge
+  "SLA há Xd" nos cartões (tooltip com a regra). Testes: `tests/test_sla_service.py` (8).
 
 ---
 
@@ -573,7 +576,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ✅ Entregue 2026-08-10 |
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
-| 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ |
+| 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ Entregue 2026-08-11 |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
 | 4.11 | Supressão global por e-mail/telefone | LGPD | P2 | S | gratuito | 4.1 | ⬜ |
 | 4.12 | Base legal e proveniência explícitas | LGPD | P2 | M | gratuito | — | ⬜ |
@@ -702,15 +705,16 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   os afetados ficavam presos para sempre.
 - **Fix aplicado:** `enrichment_orchestrator.py` agora mantém `NOVO` na falha
   (será reprocessado no próximo batch). Verificado: re-run manual pontua 60+.
-- **PENDENTE — rodar agora:** reprocessar os presos:
+- **Script `src/scripts/reprocess_stuck_leads.py`** (idempotente, dry-run por
+  padrão) **validado** em 2026-08-11 (removido o `def reprocess_one` duplicado).
+  Levantamento atual: **53 presos** + **3 com evidência errada de "sem site"** =
+  56 leads.
+- **PENDENTE — rodar na base real** (base local de teste recém-criada tem 0 leads):
   ```bash
   cd services/workers
   source venv/bin/activate
   python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence
   ```
-  Novo script `src/scripts/reprocess_stuck_leads.py` (idempotente, dry-run por
-  padrão). Levantamento atual: **53 presos** + **3 com evidência errada de
-  "sem site"** = 56 leads.
 
 ### C3 · Alucinação "sem site próprio" quando o lead TEM site 🟡
 - **Sintoma:** ex. **Psicóloga Pâmela Oliveira** (site `psipamelaoliveira.com`,
@@ -749,7 +753,8 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 ## 11. Próximos passos (roadmap)
 
 - **Imediato (pós-merge):** rodar `reprocess_stuck_leads --apply --fix-site-evidence`
-  (C2/C3) e revalidar a distribuição de scores no `analytics/overview`.
+  (C2/C3) **na base real** e revalidar a distribuição de scores no `analytics/overview`.
+  Kanban de SLA (4.10) entregue em 2026-08-11.
 - **Backlog pendente (⬜ do §5):** P1 **4.22** (LinkedIn assistido) → P2
   confiabilidade (**4.14** cotas, **4.15** observabilidade/restore, **4.16**
   paginação/kanban, **4.17** mobile-first) → **3.3.4** auditoria → P2 LGPD
