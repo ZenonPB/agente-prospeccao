@@ -327,7 +327,12 @@ export function KanbanBoard() {
                                 {lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}
                               </p>
                               <div className="mb-2 flex items-center gap-2 text-xs">
-                                {lead.assigned_to_id ? (
+                                 {lead.value ? (
+                                   <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-400">
+                                     R$ {lead.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                   </span>
+                                 ) : null}
+                                 {lead.assigned_to_id ? (
                                   <span
                                     className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
                                       lead.assigned_to_id === currentUserId

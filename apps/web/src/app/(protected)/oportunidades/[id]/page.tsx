@@ -85,6 +85,11 @@ function FollowUpCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['
   const [draftNextAction, setDraftNextAction] = useState(
     lead.next_action_at ? lead.next_action_at.slice(0, 16) : ''
   );
+  const [draftValue, setDraftValue] = useState(lead.value ? String(lead.value) : '');
+  const [draftExpectedClose, setDraftExpectedClose] = useState(
+    lead.expected_close_date ? lead.expected_close_date.slice(0, 10) : ''
+  );
+  const [draftLostReason, setDraftLostReason] = useState(lead.lost_reason ?? '');
 
   const saveFollowUp = () => {
     updateLead.mutate(
@@ -94,6 +99,9 @@ function FollowUpCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['
           notes: draftNotes,
           whatsapp: draftWhatsapp || undefined,
           next_action_at: draftNextAction ? new Date(draftNextAction).toISOString() : null,
+          value: draftValue ? parseFloat(draftValue) : undefined,
+          expected_close_date: draftExpectedClose ? new Date(draftExpectedClose).toISOString() : null,
+          lost_reason: draftLostReason || undefined,
         },
       },
       {
@@ -106,7 +114,7 @@ function FollowUpCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Acompanhamento</CardTitle>
+        <CardTitle>Acompanhamento & Oportunidade</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -133,6 +141,55 @@ function FollowUpCard({ lead }: { lead: NonNullable<ReturnType<typeof useLead>['
             />
           </div>
         </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label htmlFor="lead-value" className="text-sm font-medium">
+              Valor estimado da oportunidade (R$)
+            </label>
+            <Input
+              id="lead-value"
+              type="number"
+              step="0.01"
+              placeholder="Ex: 5000.00"
+              value={draftValue}
+              onChange={(e) => setDraftValue(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="lead-expected-close" className="text-sm font-medium">
+              Previsão de fechamento
+            </label>
+            <Input
+              id="lead-expected-close"
+              type="date"
+              value={draftExpectedClose}
+              onChange={(e) => setDraftExpectedClose(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {lead.status === 'PERDIDO' && (
+          <div className="space-y-2">
+            <label htmlFor="lead-lost-reason" className="text-sm font-medium">
+              Motivo de perda
+            </label>
+            <select
+              id="lead-lost-reason"
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              value={draftLostReason}
+              onChange={(e) => setDraftLostReason(e.target.value)}
+            >
+              <option value="">Selecione o motivo...</option>
+              <option value="PRECO">Preço / Orçamento estourado</option>
+              <option value="PRAZO">Prazo de entrega longo</option>
+              <option value="NAO_RESPONDEU">Parou de responder / Sumiu</option>
+              <option value="CONCORRENTE">Fechou com concorrente</option>
+              <option value="OUTRO">Outro motivo</option>
+            </select>
+          </div>
+        )}
+
         <div className="space-y-2">
           <label htmlFor="lead-notes" className="text-sm font-medium">
             Notas

@@ -467,7 +467,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.5 | WhatsApp: validação + 1 clique + trilha | WhatsApp | P1 | M | baixo | 4.7 | ✅ Entregue 2026-08-10 |
 | 4.6 | Rating/reviews do Google no scoring | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-05 |
 | 4.7 | Mais fontes de contato (site, busca) | Dados | P1 | M | gratuito | 4.1 | ⬜ |
-| 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ⬜ |
+| 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ⬜ |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ⬜ |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ⬜ |

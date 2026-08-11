@@ -54,6 +54,15 @@ def consultants(
     return {"consultants": analytics.consultants(from_date=from_date, to_date=to_date)}
 
 
+@router.get("/forecast")
+def forecast(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    return analytics.forecast(from_date=from_date, to_date=to_date)
+
+
 @router.get("/leads-ranking")
 def leads_ranking(
     sort_by: str = Query("score", pattern="^(score|converted|created)$"),

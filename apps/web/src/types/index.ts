@@ -104,6 +104,9 @@ export interface Lead {
   outcome_date?: string | null;
   post_sale_contacted_at?: string | null;
   post_sale_channel?: 'WHATSAPP' | 'EMAIL' | null;
+  value?: number | null;
+  expected_close_date?: string | null;
+  lost_reason?: 'PRECO' | 'PRAZO' | 'NAO_RESPONDEU' | 'CONCORRENTE' | 'OUTRO' | null;
   activities?: LeadActivityItem[];
   contacts?: ContactItem[];
   created_at: string;
@@ -352,4 +355,26 @@ export interface CsvImportResult {
   duplicate_count: number;
   error_count: number;
   errors: CsvImportErrorItem[];
+}
+
+export interface ForecastStageItem {
+  stage: string;
+  count: number;
+  probability: number;
+  total_value: number;
+  weighted_value: number;
+}
+
+export interface LostReasonItem {
+  reason: string;
+  count: number;
+}
+
+export interface ForecastData {
+  pipeline_value: number;
+  forecast_weighted: number;
+  realized_revenue: number;
+  open_leads_count: number;
+  pipeline_by_stage: ForecastStageItem[];
+  lost_reasons_breakdown: LostReasonItem[];
 }
