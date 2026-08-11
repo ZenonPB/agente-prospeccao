@@ -25,7 +25,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useOrgMembership, useOrgMembers, usePatchMemberSalesRole } from '@/hooks/use-api';
+import { UserMinus, Crown, LogOut } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { useOrgMembership, useOrgMembers, usePatchMemberSalesRole, useRemoveMember, useTransferOwnership, useLeaveOrganization } from '@/hooks/use-api';
 import { InvitesManager } from '@/components/configuracoes/invites-manager';
 import { PageHeader } from '@/components/ui/page-header';
 import type { SalesRole } from '@/types';
@@ -65,6 +77,9 @@ export default function MembrosPage() {
 
   const { data: membersData, isLoading, isError, error, refetch } = useOrgMembers(orgId);
   const patchRole = usePatchMemberSalesRole();
+  const removeMember = useRemoveMember();
+  const transferOwnership = useTransferOwnership();
+  const leaveOrg = useLeaveOrganization();
 
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
@@ -106,6 +121,42 @@ export default function MembrosPage() {
           toast.error(err instanceof Error ? err.message : 'Erro ao atualizar o papel.');
         },
         onSettled: () => setPendingId(null),
+      }
+    );
+  };
+
+  const handleRemoveMember = (userId: string, memberName?: string) => {
+    if (!orgId) return;
+    removeMember.mutate(
+      { orgId, userId },
+      {
+        onSuccess: () => toast.success(`Membro ${memberName || ''} removido da organização.`),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Erro ao remover membro.'),
+      }
+    );
+  };
+
+  const handleTransferOwnership = (newOwnerUserId: string, memberName?: string) => {
+    if (!orgId) return;
+    transferOwnership.mutate(
+      { orgId, newOwnerUserId },
+      {
+        onSuccess: () => toast.success(`Propriedade transferida para ${memberName || 'o novo proprietário'}.`),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Erro ao transferir propriedade.'),
+      }
+    );
+  };
+
+  const handleLeaveOrg = () => {
+    if (!orgId) return;
+    leaveOrg.mutate(
+      { orgId },
+      {
+        onSuccess: () => {
+          toast.success('Você saiu da organização.');
+          window.location.href = '/dashboard';
+        },
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Erro ao sair da organização.'),
       }
     );
   };
@@ -164,6 +215,7 @@ export default function MembrosPage() {
                   <TableHead>Pessoa</TableHead>
                   <TableHead>Papel na organização</TableHead>
                   <TableHead>Papel de venda</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -217,6 +269,87 @@ export default function MembrosPage() {
                         ) : (
                           <SalesRoleBadge role={member.sales_role} />
                         )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Transfer Owner Option (OWNER only, target !== me) */}
+                          {myRole === 'OWNER' && !isMe && (
+                            <AlertDialog>
+                              <AlertDialogTrigger render={<Button variant="outline" size="sm" className="h-8 gap-1 text-xs" />}>
+                                <Crown className="h-3.5 w-3.5 text-amber-500" />
+                                Transferir Dono
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Transferir propriedade da organização?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Você está prestes a passar o papel de **Dono** para <strong>{member.name || member.email}</strong>. Seu papel na organização será alterado para **Admin**.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleTransferOwnership(member.user_id, member.name)}>
+                                    Confirmar transferência
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+
+                          {/* Remove Member Option (canManage, target !== me, target !== OWNER) */}
+                          {canManage && !isMe && member.role !== 'OWNER' && (
+                            <AlertDialog>
+                              <AlertDialogTrigger render={<Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" />}>
+                                <UserMinus className="h-3.5 w-3.5" />
+                                Remover
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Remover {member.name || member.email}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Este membro perderá acesso a esta organização. Todos os leads atualmente atribuídos a ele serão desatribuídos automaticamente para a fila livre.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleRemoveMember(member.user_id, member.name)}
+                                  >
+                                    Remover membro
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+
+                          {/* Leave Org Option (for me if not OWNER) */}
+                          {isMe && member.role !== 'OWNER' && (
+                            <AlertDialog>
+                              <AlertDialogTrigger render={<Button variant="outline" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-destructive" />}>
+                                <LogOut className="h-3.5 w-3.5" />
+                                Sair da org
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Sair da organização?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Você deixará de ser membro desta organização. Seus leads atribuídos voltarão para a fila livre da equipe.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={handleLeaveOrg}
+                                  >
+                                    Confirmar saída
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
