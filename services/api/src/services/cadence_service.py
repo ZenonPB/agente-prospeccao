@@ -31,6 +31,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.config.settings import settings
+from src.services.observability import log_event
 from src.db.models import (
     FollowUp,
     FollowUpStatus,
@@ -145,6 +146,13 @@ def send_step(
     if not to_email:
         logger.info("Lead %s sem e-mail — etapa %s pulada (sem destino)",
                     lead.id if lead else follow_up.lead_id, follow_up.step.value)
+        log_event(
+            "cadence_skipped",
+            lead_id=str(follow_up.lead_id),
+            organization_id=str(lead.organization_id) if lead and lead.organization_id else None,
+            reason="no_recipient",
+            step=follow_up.step.value,
+        )
         follow_up.status = FollowUpStatus.SKIPPED
         db.commit()
         return False
@@ -208,6 +216,14 @@ def send_step(
         ):
             lead.status = LeadStatus.CONTATADO
         db.commit()
+        log_event(
+            "cadence_sent",
+            lead_id=str(follow_up.lead_id),
+            organization_id=str(lead.organization_id) if lead and lead.organization_id else None,
+            user_id=str(user_id) if user_id else None,
+            step=follow_up.step.value,
+            message_id=str(result.message_id) if result.message_id else None,
+        )
         return True
 
     # Falha: classifica em permanente (5xx → supressão + cancelamento) ou
@@ -215,6 +231,13 @@ def send_step(
     if result.permanent:
         logger.warning("Bounce permanente %s — etapa %s cancelada e endereço suprimido",
                        to_email, follow_up.step.value)
+        log_event(
+            "cadence_bounced",
+            lead_id=str(follow_up.lead_id),
+            organization_id=str(lead.organization_id) if lead and lead.organization_id else None,
+            reason=(result.error or "bounce permanente")[:255],
+            step=follow_up.step.value,
+        )
         follow_up.status = FollowUpStatus.CANCELLED
         db.commit()
         try:

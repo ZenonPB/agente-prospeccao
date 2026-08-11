@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from src.db.dependencies import get_db
 from src.db.models import Message
+from src.services.observability import log_event
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def tracking_pixel(
         if message.opened_at is None:
             message.opened_at = datetime.now(timezone.utc)
             db.commit()
+            log_event("email_opened", lead_id=str(getattr(message, "lead_id", "")) or None)
     except HTTPException:
         # Pixel não deve "quebrar" o e-mail se o token não existir — devolve
         # o GIF mesmo assim (image load silencioso), sem registrar nada.
@@ -81,5 +83,6 @@ def tracking_redirect(
     if message.clicked_at is None:
         message.clicked_at = datetime.now(timezone.utc)
         db.commit()
+        log_event("email_clicked", lead_id=str(getattr(message, "lead_id", "")) or None, url=url)
 
     return RedirectResponse(url=url, status_code=302)
