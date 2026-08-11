@@ -649,14 +649,14 @@ Branch `feat/opportunity-forecast` (roadmap-vendas P1):
   - Card "Acompanhamento & Oportunidade" no detalhe do lead com edição de ticket (R$), previsão de fechamento e motivo de perda.
   - Badge de valor estimado no card do Kanban board.
   - `ForecastCard` em `/relatorios`: KPIs (Pipeline Total, Forecast Ponderado, Receita Realizada), tabela por estágio e detalhamento de motivos de perda.
-- **Testes**: `tests/test_opportunity_forecast.py` (2) — suíte em **85 passed**. `tsc --noEmit` e `eslint` limpos.
+- **Testes**: `tests/test_opportunity_forecast.py` (2) — suíte em **85 passed**. `tsc --noEmit` e `eslint` limpos. Corrigido import de `LostReason` no topo de `routes/leads.py` (build CI).
 
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **PR #57 (Item 4.5 WhatsApp)** mergeado no `main` do repositório remoto. Local `main` atualizado.
-> 2. **Item 4.8 Forecast & Oportunidades** entregue na branch `feat/opportunity-forecast`.
+> 1. **PR #57 (Item 4.5 WhatsApp)** mergeado no `main` do repositório remoto.
+> 2. **Item 4.8 Forecast & Oportunidades** entregue na branch `feat/opportunity-forecast` (PR #58 aberto e CI corrigido com `LostReason` re-export).
 > 3. Próximos passos do roadmap-vendas: **3.3.3 gestão de membros** (remover/sair/transferir org), **4.9 metas de vendas por consultor** e **4.10 SLA/lembretes para leads parados**.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)

@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for

@@ -134,6 +134,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | PATCH | `/leads/{id}/status` · PATCH `/leads/{id}/assign` | Status (trilha) e atribuição |
 | PATCH | `/leads/{id}/negotiation` | Funil interno de negociação (`RD/ORÇAMENTO/RP`) + resultado de contrato (`APROVADO/REPROVADO/EM_ANALISE`) — gate em RESPONDIDO→PROPOSTA_ENVIADA |
 | POST | `/leads/{id}/post-sale` | Pós-venda: canal + data do 1º contato pós-cliente e lembrete `FollowUp.POST_SALE` (motor da cadência) |
+| POST | `/leads/{id}/whatsapp-click` | WhatsApp 1 clique (Item 4.5): valida número BR, atualiza `last_contacted_at` e registra `WHATSAPP_SENT` na trilha |
 | POST | `/leads/{id}/generate-messages` | Sequência de outreach (Groq 70B) |
 | POST | `/leads/{id}/conversion` | Registra conversão (serviço/valor/notas) |
 | POST | `/leads/{id}/enrich-contacts` | Enriquece decisores (Receita→email/LinkedIn) |
@@ -147,6 +148,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | GET | `/metrics` | Métricas do dashboard + funnel |
 | GET | `/analytics/overview` · `/analytics/consultants` · `/analytics/leads-ranking` | KPIs, funil (+ negociação RD/ORÇ/RP e resultado de contrato), desempenho por consultor, ranking |
 | GET | `/analytics/geo` · `/analytics/campaigns` · `/analytics/timeline` | Geo, campanhas, evolução temporal |
+| GET | `/analytics/forecast` | Forecast ponderado por estágio (5% a 90%), pipeline total e motivos de perda (Item 4.8) |
 | GET | `/analytics/export/pdf` | PDF executivo (WeasyPrint) |
 | GET/POST/PATCH | `/scoring-templates` | CRUD de templates (globais + da org) |
 
@@ -206,6 +208,7 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
   `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
   (APROVADO/REPROVADO/EM_ANALISE) + `outcome_date` (funil interno C.3),
   `post_sale_contacted_at` + `post_sale_channel` (WHATSAPP/EMAIL — pós-venda C.3),
+  `value` + `expected_close_date` + `lost_reason` (forecast e oportunidade 4.8),
   timestamps. Uniques por org: `(organization_id, place_id)`,
   `(organization_id, cnpj)`, `(organization_id, normalized_domain)`.
 - **campaigns** — `organization_id`, `name`, `target_service/segment/city/state/country`,
