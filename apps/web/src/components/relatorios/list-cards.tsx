@@ -11,13 +11,19 @@ const STATUS_LABELS: Record<string, string> = {
   REUNIAO_FEITA: 'Reunião realizada', PROPOSTA_ENVIADA: 'Proposta enviada', PERDIDO: 'Perdido',
 };
 
+function attainmentColor(value: number): string {
+  if (value >= 100) return 'text-emerald-600 dark:text-emerald-400';
+  if (value >= 60) return 'text-amber-600 dark:text-amber-400';
+  return 'text-destructive';
+}
+
 export function ConsultantsCard({ consultants }: { consultants: AnalyticsConsultant[] }) {
   const maxAssigned = Math.max(1, ...consultants.map((c) => c.assigned_leads));
   return (
     <Card>
       <CardHeader>
         <CardTitle>Desempenho por consultor</CardTitle>
-        <CardDescription>Atribuição, contato e conversão de cada vendedor</CardDescription>
+        <CardDescription>Atribuição, contato, conversão e atingimento de meta (4.9)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {consultants.length === 0 && (
@@ -25,6 +31,7 @@ export function ConsultantsCard({ consultants }: { consultants: AnalyticsConsult
         )}
         {consultants.map((c) => {
           const pct = (c.assigned_leads / maxAssigned) * 100;
+          const hasTarget = c.meetings_target > 0 || c.revenue_target > 0;
           return (
             <div key={c.user_id} className="space-y-1.5">
               <div className="flex items-center justify-between text-sm">
@@ -46,7 +53,22 @@ export function ConsultantsCard({ consultants }: { consultants: AnalyticsConsult
               </div>
               <p className="text-xs text-muted-foreground">
                 {c.contacted_leads} contatados · {c.meetings} reuniões · {c.proposals_sent} propostas
+                {c.revenue_realized > 0 && ` · R$ ${c.revenue_realized.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
               </p>
+              {hasTarget && (
+                <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-medium">
+                  {c.meetings_attainment !== null && c.meetings_attainment !== undefined && (
+                    <span className={attainmentColor(c.meetings_attainment)}>
+                      Reuniões: {c.meetings}/{c.meetings_target} ({c.meetings_attainment}%)
+                    </span>
+                  )}
+                  {c.revenue_attainment !== null && c.revenue_attainment !== undefined && (
+                    <span className={attainmentColor(c.revenue_attainment)}>
+                      Receita: {c.revenue_attainment}% da meta
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
           );
         })}

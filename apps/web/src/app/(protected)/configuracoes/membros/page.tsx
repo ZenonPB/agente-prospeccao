@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useOrgMembership, useOrgMembers, usePatchMemberSalesRole, useRemoveMember, useTransferOwnership, useLeaveOrganization } from '@/hooks/use-api';
 import { InvitesManager } from '@/components/configuracoes/invites-manager';
+import { SalesTargetsManager } from '@/components/configuracoes/sales-targets-manager';
 import { PageHeader } from '@/components/ui/page-header';
 import type { SalesRole } from '@/types';
 
@@ -174,6 +175,8 @@ export default function MembrosPage() {
       />
 
       <InvitesManager />
+
+      {orgId && <SalesTargetsManager orgId={orgId} members={members} />}
 
       <Card>
         <CardHeader>

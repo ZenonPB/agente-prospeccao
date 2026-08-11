@@ -218,6 +218,33 @@ class Invite(Base):
         return f"<Invite(org='{self.organization_id}', email='{self.email}', accepted={self.accepted_at is not None})>"
 
 
+class SalesTarget(Base):
+    """Meta de vendas mensal por consultor (roadmap-vendas 4.9).
+
+    Define quanto cada consultor deve produzir no mês (`month` "YYYY-MM"):
+    meta de reuniões e meta de receita. O BI (`/analytics/consultants`) cruza
+    o realizado com estas metas para mostrar atingimento (%).
+    """
+    __tablename__ = "sales_targets"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id", "month", name="uq_sales_targets_org_user_month"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    month = Column(String(7), nullable=False, index=True)
+    meetings_target = Column(Integer, default=0, nullable=False)
+    revenue_target = Column(Numeric(12, 2), default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+    user = relationship("User")
+
+    def __repr__(self):
+        return f"<SalesTarget(org='{self.organization_id}', user='{self.user_id}', month='{self.month}')>"
+
+
 class OrganizationSecret(Base):
     """Chaves de API próprias da organização (BYOK — item 3.5).
 

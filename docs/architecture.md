@@ -116,6 +116,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | GET | `/invites/check` | Resolve convite por token (público): email, org, se há conta (3.3.2) |
 | POST | `/invites/accept-register` | Cadastra conta e aceita convite em 1 passo (3.3.2) |
 | GET/PUT/DELETE | `/orgs/{org_id}/secrets/{key_name}` | BYOK (org admin) — só expõe `configured` |
+| GET/PUT | `/orgs/{org_id}/sales-targets` · `DELETE /orgs/{org_id}/sales-targets/{id}` | Metas mensais por consultor (4.9): listar (MANAGER+), upsert/remover (owner/admin) |
 | PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end` |
 
 ### Campanhas
@@ -149,7 +150,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/metrics` | Métricas do dashboard + funnel |
-| GET | `/analytics/overview` · `/analytics/consultants` · `/analytics/leads-ranking` | KPIs, funil (+ negociação RD/ORÇ/RP e resultado de contrato), desempenho por consultor, ranking |
+| GET | `/analytics/overview` · `/analytics/consultants` · `/analytics/leads-ranking` | KPIs, funil (+ negociação RD/ORÇ/RP e resultado de contrato), desempenho por consultor (com atingimento de meta 4.9), ranking |
 | GET | `/analytics/geo` · `/analytics/campaigns` · `/analytics/timeline` | Geo, campanhas, evolução temporal |
 | GET | `/analytics/forecast` | Forecast ponderado por estágio (5% a 90%), pipeline total e motivos de perda (Item 4.8) |
 | GET | `/analytics/export/pdf` | PDF executivo (WeasyPrint) |
@@ -230,6 +231,8 @@ exigem `ANALYST`/`MANAGER`/owner # admin.
 - **lead_activities / conversions** — trilha de atribuição/status; conversões e feedback.
 - **follow_ups / email_suppressions** — cadência dia 0/3/7/14; bounce/opt-out.
 - **messages / analysis_profiles** — registros de envio e perfis de análise.
+- **sales_targets** — metas mensais por consultor (4.9): `month` "YYYY-MM",
+  `meetings_target`, `revenue_target`; unique `(organization_id, user_id, month)`.
 
 ## Scheduler & Tarefas Assíncronas
 

@@ -388,6 +388,22 @@ export const orgsApi = {
       method: "POST",
     }),
 
+  listSalesTargets: (orgId: string, month?: string) =>
+    request<{ month: string; targets: SalesTarget[] }>(`/api/orgs/${orgId}/sales-targets`, {
+      params: month ? { month } : undefined,
+    }),
+
+  upsertSalesTarget: (orgId: string, data: { user_id: string; month: string; meetings_target: number; revenue_target: number }) =>
+    request<SalesTarget>(`/api/orgs/${orgId}/sales-targets`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  deleteSalesTarget: (orgId: string, targetId: string) =>
+    request<{ deleted: boolean; target_id: string }>(`/api/orgs/${orgId}/sales-targets/${targetId}`, {
+      method: "DELETE",
+    }),
+
   listSecrets: (orgId: string) =>
     request<{ secrets: OrgSecretStatus[] }>(`/api/orgs/${orgId}/secrets`),
 
@@ -452,6 +468,21 @@ export interface AnalyticsConsultant {
   proposals_sent: number;
   converted_leads: number;
   conversion_rate: number;
+  revenue_realized: number;
+  meetings_target: number;
+  revenue_target: number;
+  meetings_attainment: number | null;
+  revenue_attainment: number | null;
+}
+
+export interface SalesTarget {
+  id: string;
+  user_id: string;
+  name?: string | null;
+  email?: string | null;
+  month: string;
+  meetings_target: number;
+  revenue_target: number;
 }
 
 export interface AnalyticsRankingItem {

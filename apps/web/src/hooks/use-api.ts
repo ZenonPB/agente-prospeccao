@@ -246,6 +246,38 @@ export function useLeaveOrganization() {
   });
 }
 
+export function useSalesTargets(orgId?: string, month?: string) {
+  return useQuery({
+    queryKey: ["org", orgId, "sales-targets", month],
+    queryFn: () => orgsApi.listSalesTargets(orgId as string, month),
+    enabled: !!orgId,
+  });
+}
+
+export function useUpsertSalesTarget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, data }: { orgId: string; data: { user_id: string; month: string; meetings_target: number; revenue_target: number } }) =>
+      orgsApi.upsertSalesTarget(orgId, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["org", variables.orgId, "sales-targets"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+}
+
+export function useDeleteSalesTarget() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, targetId }: { orgId: string; targetId: string }) =>
+      orgsApi.deleteSalesTarget(orgId, targetId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["org", variables.orgId, "sales-targets"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+}
+
 export function useAssignLead() {
   const queryClient = useQueryClient();
   return useMutation({

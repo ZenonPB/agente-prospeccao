@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -13,6 +13,7 @@ from src.db.models import (
     OrganizationRole,
     SalesRole,
     OrganizationSecret,
+    SalesTarget,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -513,3 +514,117 @@ def rename_org(
         "name": org.name,
         "slug": org.slug,
     }
+
+
+class UpsertSalesTargetRequest(BaseModel):
+    """Meta mensal de vendas para um consultor (roadmap-vendas 4.9)."""
+    user_id: str = Field(..., min_length=1)
+    month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
+    meetings_target: int = Field(0, ge=0, le=1000)
+    revenue_target: float = Field(0.0, ge=0)
+
+
+def _sales_target_dict(t: SalesTarget) -> dict:
+    return {
+        "id": str(t.id),
+        "user_id": str(t.user_id),
+        "name": t.user.name if t.user else None,
+        "email": t.user.email if t.user else None,
+        "month": t.month,
+        "meetings_target": t.meetings_target or 0,
+        "revenue_target": float(t.revenue_target or 0),
+    }
+
+
+@router.get("/{org_id}/sales-targets")
+def list_sales_targets(
+    org_id: str,
+    month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_manager()),
+):
+    """Lista as metas de vendas da organização (roadmap-vendas 4.9).
+
+    MANAGER/ANALYST/owner/admin podem consultar. Se `month` for omitido,
+    retorna o mês atual (YYYY-MM).
+    """
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    import datetime
+    target_month = month or datetime.date.today().strftime("%Y-%m")
+    targets = (
+        db.query(SalesTarget)
+        .filter(
+            SalesTarget.organization_id == org_id,
+            SalesTarget.month == target_month,
+        )
+        .all()
+    )
+    return {"month": target_month, "targets": [_sales_target_dict(t) for t in targets]}
+
+
+@router.put("/{org_id}/sales-targets")
+def upsert_sales_target(
+    org_id: str,
+    body: UpsertSalesTargetRequest,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Cria/atualiza a meta mensal de um consultor (roadmap-vendas 4.9).
+
+    Upsert por `(organization_id, user_id, month)`. Owner/admin apenas.
+    """
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    target = (
+        db.query(SalesTarget)
+        .filter(
+            SalesTarget.organization_id == org_id,
+            SalesTarget.user_id == body.user_id,
+            SalesTarget.month == body.month,
+        )
+        .first()
+    )
+    if target:
+        target.meetings_target = body.meetings_target
+        target.revenue_target = body.revenue_target
+    else:
+        target = SalesTarget(
+            organization_id=org_id,
+            user_id=body.user_id,
+            month=body.month,
+            meetings_target=body.meetings_target,
+            revenue_target=body.revenue_target,
+        )
+        db.add(target)
+    db.commit()
+    db.refresh(target)
+    return _sales_target_dict(target)
+
+
+@router.delete("/{org_id}/sales-targets/{target_id}")
+def delete_sales_target(
+    org_id: str,
+    target_id: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Remove uma meta mensal de vendas (roadmap-vendas 4.9). Owner/admin."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    target = db.query(SalesTarget).filter(
+        SalesTarget.id == target_id,
+        SalesTarget.organization_id == org_id,
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Meta não encontrada")
+
+    db.delete(target)
+    db.commit()
+    return {"deleted": True, "target_id": target_id}
