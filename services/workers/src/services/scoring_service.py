@@ -25,12 +25,39 @@ Esta versão substitui a abordagem anterior (específica para tecnologia):
 import json
 import logging
 import os
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
 from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Padrões de alegação de ausência/presença de site que a LLM pode inventar
+# apesar dos facts ("Tem website: sim" nos facts vs "sem site próprio" na
+# resposta). Guard determinístico: evidência que contradiz o fato é removida.
+_NO_SITE_CLAIM = re.compile(
+    r"sem\s+(site|p[áa]gina|presen[çc]a|website|home)|"
+    r"n[aã]o\s+(tem|possui|h[aá])\s+(um|uma|nenhum|nenhuma)?\s*(site|website|p[áa]gina)|"
+    r"aus[eê]ncia\s+de\s+(site|website|presen[çc]a)",
+    re.IGNORECASE,
+)
+_HAS_SITE_CLAIM = re.compile(
+    r"(tem|possui)\s+(um|uma|o|a)?\s*(site|website|homepage)|com\s+site\s+pr[oó]prio",
+    re.IGNORECASE,
+)
+
+
+def _contradicts_site_state(evidence: Dict[str, Any], has_website: bool) -> bool:
+    """True se a evidência contradiz o fato cadastral de presença de site."""
+    text = " ".join(str(evidence.get(k) or "") for k in ("title", "description"))
+    if has_website:
+        return bool(_NO_SITE_CLAIM.search(text))
+    # Sem site: negação explícita ("não tem site") tem prioridade e nunca é
+    # tratada como claim de posse — o _HAS_SITE_CLAIM casaria no "tem site".
+    if _NO_SITE_CLAIM.search(text):
+        return False
+    return bool(_HAS_SITE_CLAIM.search(text))
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.1-8b-instant"
@@ -44,6 +71,10 @@ SYSTEM_PROMPT = (
     "As frases do schema (pitch_angle, suggested_subject, etc.) são IMPLEMENTADAS "
     "especificamente a partir das evidence[] DESTE lead — NUNCA copie, repita ou "
     "parafraseie exemplos do schema ou de outros leads. "
+    "A presença de site é um FATO determinístico dos facts fornecidos ('Tem website: sim/não'). "
+    "Se os facts disserem que o lead TEM website, NUNCA declare que ele não tem site, "
+    "NUNCA use 'sem site próprio'/'ausência de site' como dor e NUNCA invente evidência "
+    "nesse sentido (vale o contrário quando os facts disserem que não tem). "
     "Se o lead NÃO tem site próprio (usa Instagram/Canva/WhatsApp ou não tem presença "
     "digital), o gancho e o assunto devem citar essa ausência/ferramenta como barreira "
     "concreta a negócios (ex.: 'sem site próprio, pedidos dependem do Instagram'). "
@@ -165,6 +196,9 @@ def build_prompt(
     lines.append("   - 40-59: fito parcial / sinais mistos")
     lines.append("   - 20-39: poucos sinais relevantes para a campanha")
     lines.append("   - 0-19:  não se encaixa ou sinais contrários")
+    lines.append("7. A presença de site é fato determinístico: se os facts disserem 'Tem website: sim',")
+    lines.append("   NUNCA afirme que o lead não tem site nem use 'ausência de site' como dor.")
+    lines.append("   A mesma regra vale ao contrário.")
     lines.append("")
 
     lines.append(RESPONSE_SCHEMA_HINT)
@@ -274,11 +308,19 @@ class AIScoringService:
 
     # ---------- normalização da resposta ----------
 
-    def _normalize_response(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_response(
+        self,
+        parsed: Dict[str, Any],
+        has_website: Optional[bool] = None,
+    ) -> Dict[str, Any]:
         """Normaliza e valida o JSON devolvido pela LLM.
 
         Garante defaults e tipos para todos os campos esperados pela camada
         de persistência (orchestrator).
+
+        `has_website` ativa o guard determinístico de presença de site: remove
+        evidências que contradizem o fato cadastral (ex.: "sem site próprio"
+        quando o lead TEM website, ou "tem site" quando não tem).
         """
         try:
             score = int(parsed.get("qualification_score", 0))
@@ -328,8 +370,11 @@ class AIScoringService:
                 "description": str(e.get("description") or ""),
                 "source": str(e.get("source") or "")[:60],
             })
+        if has_website is not None:
+            clean_evidence = [
+                e for e in clean_evidence if not _contradicts_site_state(e, has_website)
+            ]
         parsed["evidence"] = clean_evidence
-
         # Valida evidence_ref dos fatores: só mantém fatores que apontam para
         # uma evidência que permaneceu (evita referência quebrada na UI).
         kept_titles = {e["title"] for e in clean_evidence if e["title"]}
@@ -359,7 +404,11 @@ class AIScoringService:
 
     # ---------- chamada ao modelo ----------
 
-    async def _call_groq(self, user_prompt: str) -> Optional[Dict[str, Any]]:
+    async def _call_groq(
+        self,
+        user_prompt: str,
+        has_website: Optional[bool] = None,
+    ) -> Optional[Dict[str, Any]]:
         from services.provider_client import groq_json_chat
 
         parsed = await groq_json_chat(
@@ -372,7 +421,7 @@ class AIScoringService:
         )
         if parsed is None:
             return None
-        return self._normalize_response(parsed)
+        return self._normalize_response(parsed, has_website=has_website)
 
     # ---------- API pública ----------
 
@@ -428,7 +477,7 @@ class AIScoringService:
             technical_facts=technical_facts,
             business_facts=business_facts,
         )
-        return await self._call_groq(prompt)
+        return await self._call_groq(prompt, has_website=bool(website))
 
     async def score_business_lead(
         self,
