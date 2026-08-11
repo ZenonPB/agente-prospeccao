@@ -83,7 +83,7 @@ agente-prospeccao/
 │           │   ├── secret_service.py (BYOK) / provider_client.py / domain_utils.py
 │           │   └── main.py
 ├── scripts/                           ← dev.ps1 / dev.sh / backup.sh / setup.sh
-├── tests/                             ← pytest (27 testes)
+├── tests/                             ← pytest (134 testes)
 └── docs/
 ```
 
@@ -170,7 +170,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 
 All routes são filtradas pela org do usuário autenticado (dependency
 `get_user_organization`); acesso cross-tenant → 404/403. Endpoints de BI e PDF
-exigem `ANALYST`/`MANAGER`/owner # admin.
+exigem `ANALYST`/`MANAGER`/owner/admin.
 
 ## Pipeline Completo
 

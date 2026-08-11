@@ -35,7 +35,7 @@ Feedback converte-se em calibração do próximo ciclo
 services/workers/  — modelos (fonte única), migrations, coleta/enriquecimento/scoring
 services/api/      — API REST + WebSocket, scheduler de cadência, BI, PDF
 apps/web/          — frontend (dashboard, campanhas, oportunidades, vendas, relatórios)
-docs/              — documentação em português (context, architecture, auditoria, ...)
+docs/              — documentação em português (context, architecture, business-rules, roadmaps, ...)
 ```
 
 ## Rodando em desenvolvimento
