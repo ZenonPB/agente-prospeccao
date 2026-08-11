@@ -146,6 +146,12 @@ export const leadsApi = {
       body: JSON.stringify({ cnpj: cnpj || "" }),
     }),
 
+  recordWhatsAppClick: (id: string, messageText?: string) =>
+    request<{ whatsapp_url: string; phone: string; is_valid: boolean; last_contacted_at: string }>(`/api/leads/${id}/whatsapp-click`, {
+      method: "POST",
+      body: JSON.stringify({ message_text: messageText }),
+    }),
+
   registerConversion: (id: string, data: { service_sold?: string; contract_value?: number; notes?: string }) =>
     request<{
       id: string;

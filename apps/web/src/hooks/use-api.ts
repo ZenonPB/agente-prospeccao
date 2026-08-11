@@ -439,6 +439,18 @@ export function useEnrichContacts() {
   });
 }
 
+export function useRecordWhatsAppClick() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ leadId, messageText }: { leadId: string; messageText?: string }) =>
+      leadsApi.recordWhatsAppClick(leadId, messageText),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.leadId] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
 export function useRegisterConversion() {
   const queryClient = useQueryClient();
   return useMutation({

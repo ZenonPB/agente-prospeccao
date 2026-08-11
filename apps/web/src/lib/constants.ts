@@ -74,6 +74,7 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   LOST: 'Lead perdido',
   CONVERTED: 'Conversão registrada',
   CONTACT_ENRICHED: 'Decisores enriquecidos',
+  WHATSAPP_SENT: 'WhatsApp acionado',
 };
 
 // Kanban Column Status Configuration
