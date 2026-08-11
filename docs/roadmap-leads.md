@@ -463,3 +463,27 @@ Após o merge, dois pontos do roadmap ainda não estavam cobertos no `main`:
 
 **Verificação**: smoke determinístico (CSV + domínios S3) e detecção do script OK;
 `py_compile` dos arquivos tocados OK.
+
+## Correções de scoring (2026-08-11) — leads presos e alucinação de site
+
+Levantamento de campo (mesma sessão do roadmap-vendas §10 — C2/C3/C4):
+
+- **Leads presos em `ANALISADO`/score 0 (C2):** falha transitória do Groq fazia
+  `process_single_lead` marcar `ANALISADO`; os batches só reprocessam `NOVO`, então
+  53 leads (35 na medição inicial, cresceu com novos batches) ficavam com 0 para
+  sempre — inclusive o público-alvo **sem** site (a regra do item 4.2 já os pontuava
+  via `score_business_lead`; o problema era o travamento). **Fix aplicado:** a falha
+  agora mantém o lead em `NOVO`. **PENDENTE:** rodar
+  `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`.
+- **Alucinação "sem site próprio" (C3):** a LLM gravava evidência contradizendo o
+  fact `Tem website: sim` (ex.: Psicóloga Pâmela Oliveira, site WordPress/SSL ok).
+  **Fix aplicado:** regra explícita no prompt + **guard determinístico**
+  `_contradicts_site_state` em `scoring_service._normalize_response(has_website=...)`
+  que descarta evidência "sem site"/"com site" contrária ao cadastro. Testes:
+  `tests/test_scoring_site_claims.py` (5).
+- **Script novo:** `services/workers/src/scripts/reprocess_stuck_leads.py`
+  (idempotente, dry-run por padrão) re-pontua os presos + (com `--fix-site-evidence`)
+  os leads com evidência errada. Levantamento atual: **56 leads** (53 + 3).
+
+**Verificação**: `python -m pytest tests -q` → 113 passed; `compileall` dos serviços OK;
+dry-run do script lista os 56 leads.

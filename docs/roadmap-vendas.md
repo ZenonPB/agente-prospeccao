@@ -671,3 +671,87 @@ rodada e acompanhar por campanha:
 > **Preservar sempre:** o CONSULTOR cria e gerencia campanhas próprias e
 > prospecta de forma independente — nenhuma evolução pode restringir isso.
 > (Decisão explícita da diretoria, 2026-08-04.)
+
+---
+
+## 10. Correções operacionais (2026-08-11) — onde estamos
+
+Sessão de levantamento (branch `feat/theme-alphamec`, pronta para PR + este doc).
+Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
+
+### C1 · Selects exibindo valor cru (ex.: `web_presence`, `CONSULTOR`, UUID) ✅
+- **Sintoma:** o trigger do Select mostra o valor cru (`web_presence`) em vez do
+  rótulo ("Serviços digitais"); as opções aparecem corretas ao abrir.
+- **Causa:** o port de `@base-ui/react` do shadcn renderiza o **valor** no
+  `Select.Value` (o Radix renderizava o texto do item). Qualquer `Select` com
+  `<SelectValue />` sem resolver o rótulo mostrava o enum/UUID.
+- **Fix aplicado:** todos os `SelectValue` ganharam `children={(value) => label}`
+  (função suportada pelo base-ui). Arquivos: `campanhas/nova` (perfil da
+  prospecção), `configuracoes/membros` (papel de venda), `invites-manager`
+  (papel admin + venda + lista de convites), `template-selector` (template +
+  peso do sinal), `lead-list` (campanha, ordenação, mover). Verificado com
+  `npm run lint` + `npx tsc --noEmit` limpos.
+- **Atenção futura:** qualquer `Select` novo precisa de rótulo explícito no
+  `SelectValue` — não usar `<SelectValue />` solto.
+
+### C2 · Leads presos em `ANALISADO`/score 0 por falha transitória do Groq 🟡
+- **Sintoma:** 35 de 45 leads com score 0; todos em `ANALISADO`. Sensação de que
+  "só quem tem site recebe score" (o público-alvo **sem** site ficou preso).
+- **Causa:** quando a chamada ao Groq falhava (rate-limit/5xx/rede),
+  `process_single_lead` marcava `ANALISADO`; os batches só reprocessam `NOVO` —
+  os afetados ficavam presos para sempre.
+- **Fix aplicado:** `enrichment_orchestrator.py` agora mantém `NOVO` na falha
+  (será reprocessado no próximo batch). Verificado: re-run manual pontua 60+.
+- **PENDENTE — rodar agora:** reprocessar os presos:
+  ```bash
+  cd services/workers
+  source venv/bin/activate
+  python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence
+  ```
+  Novo script `src/scripts/reprocess_stuck_leads.py` (idempotente, dry-run por
+  padrão). Levantamento atual: **53 presos** + **3 com evidência errada de
+  "sem site"** = 56 leads.
+
+### C3 · Alucinação "sem site próprio" quando o lead TEM site 🟡
+- **Sintoma:** ex. **Psicóloga Pâmela Oliveira** (site `psipamelaoliveira.com`,
+  WordPress/SSL ok) — a IA gravou evidência "Sem site próprio — dados cadastrais",
+  contradizendo os facts `Tem website: sim`.
+- **Causa:** o prompt (SYSTEM_PROMPT/instruções) super-enfatizava o caso "sem
+  site" e a LLM repetia a alegação como fato.
+- **Fix aplicado:** regra no prompt ("presença de site é fato determinístico;
+  nunca afirme ausência") + **guard determinístico** `_contradicts_site_state`
+  em `scoring_service._normalize_response(has_website=...)` que remove
+  evidências contraditórias. Testes: `tests/test_scoring_site_claims.py` (5).
+- **PENDENTE:** re-pontuar os afetados (mesmo comando do C2, que já inclui o
+  `--fix-site-evidence`).
+
+### C4 · Leads SEM site deveriam pontuar (público-alvo de sites) ✅ entendido
+- **Sintoma/entendimento:** leads sem site (ex.: **Psicóloga Jaqueline Pradelli**)
+  estavam com 0 — mas por preso no C2, não por decisão. Para quem vende sites, o
+  lead **sem** site é o público-alvo (item 4.2: scoring business mesmo em campanha
+  web_presence).
+- **Ação:** a correção do C2 destrava; nenhuma mudança de regra necessária.
+
+### C5 · Suporte a aplicações web completas / ERP 🟡 decisão aberta
+- **Pergunta do usuário:** o sistema "só suporta landing pages"? Para vender
+  aplicações web completas ou sistemas ERP a análise precisa ser diferente.
+- **Hoje:** 2 perfis — `web_presence` (análise técnica do site) e
+  `business_opportunity` (sem análise técnica). Quem vende ERP/web apps usa
+  `web_presence`: a análise técnica já cobre presença/stack/performance do site
+  do lead; os **critérios** (sinais positivos/negativos) são editáveis por
+  template (`CampaignScoringTemplate`), então a categoria é configurável.
+- **Decisão pendente:** validar com a EJ se basta criar templates de categoria
+  (ex.: "Aplicações web/ERP") ou se quer um **terceiro perfil** de análise.
+  Registrado para decisão da diretoria antes de qualquer implementação.
+
+---
+
+## 11. Próximos passos (roadmap)
+
+- **Imediato (pós-merge):** rodar `reprocess_stuck_leads --apply --fix-site-evidence`
+  (C2/C3) e revalidar a distribuição de scores no `analytics/overview`.
+- **Backlog pendente (⬜ do §5):** P1 **4.22** (LinkedIn assistido) → P2
+  confiabilidade (**4.14** cotas, **4.15** observabilidade/restore, **4.16**
+  paginação/kanban, **4.17** mobile-first) → **3.3.4** auditoria → P2 LGPD
+  (**4.11–4.13**) → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+- **Decisão aberta:** C5 (ERP/web apps) antes de fechar o próximo ciclo de UI.
