@@ -136,8 +136,11 @@ async def process_single_lead(
             lead.status.value,
         )
     else:
-        lead.status = LeadStatus.ANALISADO
-        logger.warning("Falha ao pontuar '%s'. Status mantido ANALISADO.",
+        # Falha (ex.: Groq indisponível/rate-limit). Mantém o lead em NOVO para
+        # o próximo batch reprocessar — antes isso virava ANALISADO com score 0
+        # e o lead ficava preso para sempre (os batches só filtram NOVO).
+        lead.status = LeadStatus.NOVO
+        logger.warning("Falha ao pontuar '%s'. Status mantido NOVO (será reprocessado).",
                        lead.company_name)
 
     return enrichment, scoring_data

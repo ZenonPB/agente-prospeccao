@@ -68,7 +68,7 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
       negative_signals: base.negative_signals,
       context_signals: base.context_signals,
     };
-    const signals = [...(current[group] ?? []), { label: '', weight_hint: 'medium' }];
+    const signals = [...(current[group] ?? []), { label: '', description: '', weight_hint: 'medium' }];
     setDraft({ ...current, [group]: signals });
   };
 
@@ -153,7 +153,12 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
               <Label>Escolher template</Label>
               <Select value={selected?.id ?? ''} onValueChange={(id) => id && handleSelect(id)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um template" />
+                  <SelectValue>
+                    {(value) => {
+                      const t = templates.find((tpl) => tpl.id === value);
+                      return t ? `${t.service_label}${t.is_generated ? ' (gerado)' : ''}` : 'Selecione um template';
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {templates.map((t) => (
@@ -235,7 +240,7 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                         <Input
                           className="flex-1"
                           placeholder="Sinal"
-                          value={sig.label}
+                          value={sig.label ?? ''}
                           onChange={(e) => updateSignal(group.key, i, { label: e.target.value })}
                         />
                         <Input
@@ -245,11 +250,15 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                           onChange={(e) => updateSignal(group.key, i, { description: e.target.value })}
                         />
                         <Select
-                          value={sig.weight_hint}
+                          value={sig.weight_hint ?? 'medium'}
                           onValueChange={(v) => v && updateSignal(group.key, i, { weight_hint: v })}
                         >
                           <SelectTrigger className="w-24">
-                            <SelectValue />
+                            <SelectValue>
+                              {(value) =>
+                                ({ high: 'alta', medium: 'média', low: 'baixa' })[value as string] ?? (value as string)
+                              }
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="high">alta</SelectItem>
@@ -294,7 +303,7 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                         <Input
                           className="flex-1"
                           placeholder="Ex.: Petshop perde dono local para o e-commerce"
-                          value={hook}
+                          value={hook ?? ''}
                           onChange={(e) => updatePlaybookItem('hooks', i, e.target.value)}
                         />
                         <Button variant="ghost" size="icon" onClick={() => removePlaybookItem('hooks', i)}>
@@ -316,7 +325,7 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                         <Input
                           className="flex-1"
                           placeholder="Ex.: Seus clientes te acham no Google?"
-                          value={subject}
+                          value={subject ?? ''}
                           onChange={(e) => updatePlaybookItem('subject_ideas', i, e.target.value)}
                         />
                         <Button variant="ghost" size="icon" onClick={() => removePlaybookItem('subject_ideas', i)}>

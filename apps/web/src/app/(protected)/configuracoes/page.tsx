@@ -42,7 +42,7 @@ const themes = [
   {
     id: 'alpha' as const,
     name: 'AlphaMec',
-    description: 'Claro e corporativo, com a identidade da marca',
+    description: 'Para equipes que não cansam de impactar',
     icon: Palette,
     preview: 'bg-[#fffaf8] border-[#910001]',
     previewText: 'text-[#4c0000]',

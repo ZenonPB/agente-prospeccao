@@ -45,6 +45,18 @@ import type { OrgRole, SalesRole } from "@/types";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const ORG_ROLE_LABELS: Record<OrgRole, string> = {
+  MEMBER: "Membro",
+  ADMIN: "Administrador",
+  OWNER: "Proprietário",
+};
+
+const SALES_ROLE_LABELS: Record<SalesRole, string> = {
+  CONSULTOR: "Consultor",
+  ANALYST: "Analista",
+  MANAGER: "Gerente",
+};
+
 export function InvitesManager() {
   const { data: orgData } = useMyOrganization();
   const orgId = orgData?.organization?.id;
@@ -165,7 +177,9 @@ export function InvitesManager() {
                   <Label htmlFor="role">Papel Administrativo</Label>
                   <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>
                     <SelectTrigger id="role">
-                      <SelectValue />
+                      <SelectValue>
+                        {(value) => ORG_ROLE_LABELS[value as OrgRole] ?? (value as string)}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="MEMBER">Membro</SelectItem>
@@ -178,7 +192,9 @@ export function InvitesManager() {
                   <Label htmlFor="sales-role">Papel de Venda</Label>
                   <Select value={salesRole} onValueChange={(v) => setSalesRole(v as SalesRole)}>
                     <SelectTrigger id="sales-role">
-                      <SelectValue />
+                      <SelectValue>
+                        {(value) => SALES_ROLE_LABELS[value as SalesRole] ?? (value as string)}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="CONSULTOR">Consultor</SelectItem>
@@ -226,7 +242,7 @@ export function InvitesManager() {
                         {invite.role === "OWNER" ? "Proprietário" : invite.role === "ADMIN" ? "Administrador" : "Membro"}
                       </span>
                       <span>·</span>
-                      <span>{invite.sales_role}</span>
+                      <span>{SALES_ROLE_LABELS[invite.sales_role as SalesRole] ?? invite.sales_role}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       {invite.accepted_at ? (

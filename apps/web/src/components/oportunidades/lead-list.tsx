@@ -72,6 +72,13 @@ const bulkStatusOptions = [
   { value: 'PERDIDO', label: 'Marcar como perdido' },
 ];
 
+const sortByOptions = [
+  { value: 'score_desc', label: 'Maior aptidão primeiro' },
+  { value: 'score_asc', label: 'Menor aptidão primeiro' },
+  { value: 'date_desc', label: 'Mais recente' },
+  { value: 'date_asc', label: 'Mais antigo' },
+];
+
 function exportSelectedCsv(leads: Lead[], name: string) {
   const headers = [
     'Empresa', 'Website', 'Telefone', 'WhatsApp', 'Email', 'Cidade', 'UF',
@@ -181,7 +188,7 @@ export function LeadList() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns();
+  const { data: campaignsData } = useCampaigns();
   const campaigns = campaignsData?.campaigns || [];
 
   const { data, isLoading, isError, error, refetch } = useLeads({
@@ -318,7 +325,13 @@ export function LeadList() {
         </div>
         <Select value={campaignFilter} onValueChange={(v) => setCampaignFilter(v || 'all')}>
           <SelectTrigger className="w-full sm:w-[180px] h-10">
-            <SelectValue placeholder={campaignsLoading ? 'Carregando...' : 'Busca'} />
+            <SelectValue>
+              {(value) =>
+                value === 'all'
+                  ? 'Todas as buscas'
+                  : campaigns.find((c) => c.id === value)?.name ?? 'Busca'
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as buscas</SelectItem>
@@ -329,7 +342,9 @@ export function LeadList() {
         </Select>
         <Select value={sortBy} onValueChange={(v) => setSortBy(v || 'score_desc')}>
           <SelectTrigger className="w-full sm:w-[180px] h-10">
-            <SelectValue placeholder="Ordenar por" />
+            <SelectValue>
+              {(value) => sortByOptions.find((o) => o.value === value)?.label ?? 'Ordenar por'}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="score_desc">Maior aptidão primeiro</SelectItem>
@@ -380,7 +395,9 @@ export function LeadList() {
           )}
           <Select onValueChange={(v) => v && bulkStatus(v as string)}>
             <SelectTrigger className="h-8 w-auto">
-              <SelectValue placeholder="Mover para..." />
+              <SelectValue>
+                {(value) => bulkStatusOptions.find((o) => o.value === value)?.label ?? 'Mover para...'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {bulkStatusOptions.map((opt) => (
