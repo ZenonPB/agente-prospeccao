@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
+from urllib.parse import quote
 import os
 import sys
 import logging
@@ -698,6 +699,114 @@ async def enrich_lead_contacts(
     db.commit()
 
     return {"contacts": contacts}
+
+
+class AssociateLinkedInRequest(BaseModel):
+    url: str
+
+
+@router.get("/{lead_id}/linkedin-query")
+def get_linkedin_queries(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Consultas sugeridas para achar o decisor no LinkedIn (item 4.22).
+
+    Gera `"<empresa>" <papel> linkedin` a partir do nome da empresa (padrão
+    ou `playbook.linkedin_queries` do template da campanha) e devolve um
+    atalho de busca externa `site:linkedin.com/in` para abrir fora do app.
+    """
+    from src.services.linkedin_assist_service import build_linkedin_queries
+
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    playbook = None
+    if lead.campaign_id:
+        from src.db.models import CampaignScoringTemplate
+        campaign = db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        if campaign and campaign.scoring_template_id:
+            template = db.query(CampaignScoringTemplate).filter(
+                CampaignScoringTemplate.id == campaign.scoring_template_id,
+            ).first()
+            if template:
+                playbook = template.playbook or {}
+
+    company = lead.company_name or lead.name or ""
+    queries = build_linkedin_queries(company, playbook)
+    search_url = "https://www.google.com/search?q=" + quote(
+        f'site:linkedin.com/in "{company}"'
+    )
+    return {"queries": queries, "search_url": search_url}
+
+
+@router.patch("/{lead_id}/contacts/{contact_id}/linkedin")
+@limiter.limit("20/minute")
+async def associate_contact_linkedin(
+    request: Request,
+    lead_id: str,
+    contact_id: str,
+    body: AssociateLinkedInRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Associa manualmente um perfil LinkedIn a um decisor (item 4.22).
+
+    Valida o formato da URL e a existência passiva no índice de busca; grava
+    `linkedin_source="manual:<user_id>"` com confidence 90 (validado) ou 60
+    (candidato para revisão) e registra `LINKEDIN_ASSOCIATED` na trilha.
+    """
+    from src.services.linkedin_assist_service import (
+        LinkedInAssistService,
+        extract_linkedin_username,
+    )
+
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    contact = db.query(Contact).filter(
+        Contact.id == contact_id,
+        Contact.lead_id == lead.id,
+    ).first()
+    if not contact:
+        raise HTTPException(status_code=404, detail="Contato não encontrado")
+
+    username = extract_linkedin_username(body.url)
+    if not username:
+        raise HTTPException(
+            status_code=422,
+            detail="URL do LinkedIn inválida — use linkedin.com/in/<perfil>",
+        )
+
+    service = LinkedInAssistService()
+    validated = await service.profile_exists(username)
+    service.associate(
+        db,
+        lead,
+        contact,
+        username,
+        user_id=str(user.id) if user else "auto",
+        validated=validated,
+    )
+    db.commit()
+    return _contact_to_dict(contact)
 
 
 class RegisterConversionRequest(BaseModel):
