@@ -40,8 +40,7 @@ const teamPhotos = [
 ];
 
 const members = [
-  { src: "/imgs/alphamec/yasmin.png", name: "Yasmin Costa" },
-  { src: "/imgs/alphamec/thiago.png", name: "Eng. Thiago" },
+  { src: "/imgs/alphamec/yasmin.png", name: "Zenon" },
 ];
 
 /**
@@ -107,7 +106,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             {isAlpha ? (
               <>
                 <Image
-                  src="/imgs/alphamec/logo-alphamec.webp"
+                  src="/imgs/alphamec/logo-alphamec.png"
                   alt="AlphaMec Logo"
                   width={40}
                   height={40}
@@ -115,11 +114,11 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                   priority
                 />
                 <div>
-                  <p className="text-base font-semibold tracking-tight text-[#4c0000]">
+                  <p className="text-md font-semibold tracking-tight text-[#4c0000]">
                     Agente Prospecção
                   </p>
                   <p className="text-xs font-medium uppercase tracking-widest text-[#910001]">
-                    Powered by AlphaMec
+                    por AlphaMec
                   </p>
                 </div>
               </>
@@ -153,7 +152,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 {isAlpha
-                  ? "A AlphaMec Jr. une excelência acadêmica e inovação em engenharia para impulsionar suas vendas e qualificar suas oportunidades com inteligência de ponta."
+                  ? "Um sistema próprio da nossa manada, pensado para tornar a prospecção mais simples e dar mais força ao nosso time comercial. Aqui, encontramos novas oportunidades, organizamos os contatos e acompanhamos cada negociação de perto, do primeiro contato até a reunião."
                   : "Encontre empresas que precisam do que você vende, entenda o que importa e chegue primeiro — do primeiro contato à reunião marcada."}
               </p>
             </div>
@@ -258,7 +257,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                   ))}
                 </div>
                 <span className="text-xs font-medium text-[#7c0000]/80">
-                  Desenhado em parceria com os membros da AlphaMec
+                  Desenvolvido por Zenon para uso interno da AlphaMec
                 </span>
               </div>
             ) : null}
@@ -285,7 +284,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             {isAlpha ? (
               <>
                 <Image
-                  src="/imgs/alphamec/logo-alphamec.webp"
+                  src="/imgs/alphamec/logo-alphamec.png"
                   alt="AlphaMec Logo"
                   width={32}
                   height={32}

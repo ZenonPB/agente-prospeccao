@@ -25,7 +25,7 @@ export function BrandLogo({ className }: BrandLogoProps) {
   if (mounted && theme === "alpha") {
     return (
       <Image
-        src="/imgs/alphamec/logo-alphamec.webp"
+        src="/imgs/alphamec/logo-alphamec.png"
         alt="AlphaMec Logo"
         width={32}
         height={32}
