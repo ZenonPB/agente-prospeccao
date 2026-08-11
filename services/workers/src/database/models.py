@@ -160,6 +160,11 @@ class Organization(Base):
     # e "17:00"). Fora da janela, o scheduler posterga as etapas (fica PENDING).
     send_window_start = Column(String(5), default="09:00", nullable=False, server_default="09:00")
     send_window_end = Column(String(5), default="17:00", nullable=False, server_default="17:00")
+    # Item 4.10 — SLA e lembretes para leads parados (dias). Regras configuráveis
+    # por org que alimentam o painel "Ações de hoje" e os alertas do kanban.
+    sla_qualified_no_contact_days = Column(Integer, default=5, nullable=False, server_default="5")
+    sla_responded_no_next_action_days = Column(Integer, default=2, nullable=False, server_default="2")
+    sla_opened_no_response_days = Column(Integer, default=2, nullable=False, server_default="2")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

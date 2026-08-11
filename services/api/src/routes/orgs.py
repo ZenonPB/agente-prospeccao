@@ -93,6 +93,10 @@ def get_my_org(
             "send_window_end": member.organization.send_window_end if member.organization else None,
             "sends_today": sends_today(db, member.organization_id)[0] if member.organization else 0,
             "email_from": member.organization.email_from if member.organization else None,
+            # Item 4.10 — SLA de leads parados (dias).
+            "sla_qualified_no_contact_days": member.organization.sla_qualified_no_contact_days if member.organization else None,
+            "sla_responded_no_next_action_days": member.organization.sla_responded_no_next_action_days if member.organization else None,
+            "sla_opened_no_response_days": member.organization.sla_opened_no_response_days if member.organization else None,
         },
         "membership": {
             "role": member.role.name if member.role else None,
@@ -427,6 +431,10 @@ class PatchOrgSettingsRequest(BaseModel):
     send_window_start: Optional[str] = None
     send_window_end: Optional[str] = None
     email_from: Optional[str] = None
+    # Item 4.10 — SLA de leads parados (dias).
+    sla_qualified_no_contact_days: Optional[int] = None
+    sla_responded_no_next_action_days: Optional[int] = None
+    sla_opened_no_response_days: Optional[int] = None
 
 
 def _validate_hhmm(value: Optional[str]) -> None:
@@ -475,6 +483,18 @@ def patch_org_settings(
         org.send_window_end = body.send_window_end
     if body.email_from is not None:
         org.email_from = body.email_from or None
+    if body.sla_qualified_no_contact_days is not None:
+        if not 1 <= body.sla_qualified_no_contact_days <= 120:
+            raise HTTPException(status_code=400, detail="sla_qualified_no_contact_days deve estar entre 1 e 120")
+        org.sla_qualified_no_contact_days = body.sla_qualified_no_contact_days
+    if body.sla_responded_no_next_action_days is not None:
+        if not 1 <= body.sla_responded_no_next_action_days <= 120:
+            raise HTTPException(status_code=400, detail="sla_responded_no_next_action_days deve estar entre 1 e 120")
+        org.sla_responded_no_next_action_days = body.sla_responded_no_next_action_days
+    if body.sla_opened_no_response_days is not None:
+        if not 1 <= body.sla_opened_no_response_days <= 120:
+            raise HTTPException(status_code=400, detail="sla_opened_no_response_days deve estar entre 1 e 120")
+        org.sla_opened_no_response_days = body.sla_opened_no_response_days
     db.commit()
     db.refresh(org)
 
@@ -487,6 +507,9 @@ def patch_org_settings(
         "send_window_end": org.send_window_end,
         "email_from": org.email_from,
         "sends_today": sends_today(db, org.id)[0],
+        "sla_qualified_no_contact_days": org.sla_qualified_no_contact_days,
+        "sla_responded_no_next_action_days": org.sla_responded_no_next_action_days,
+        "sla_opened_no_response_days": org.sla_opened_no_response_days,
     }
 
 

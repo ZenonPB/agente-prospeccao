@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, CalendarClock, Target } from 'lucide-react';
-import { useLeads, useAssignLead } from '@/hooks/use-api';
+import { Loader2, UserPlus, CalendarClock, Target, AlertTriangle } from 'lucide-react';
+import { useLeads, useAssignLead, useSlaAlerts } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 
@@ -59,10 +59,12 @@ export function TodayActions() {
     assigned: 'none',
     limit: 5,
   });
+  const { data: slaData, isLoading: loadingSla } = useSlaAlerts(5);
 
   const overdue = overdueData?.leads || [];
   const unassigned = unassignedData?.leads || [];
-  const loading = loadingDue || loadingUnassigned;
+  const slaAlerts = slaData?.alerts || [];
+  const loading = loadingDue || loadingUnassigned || loadingSla;
 
   const onAssignToMe = (leadId: string) => {
     if (!currentUserId) return;
@@ -163,6 +165,41 @@ export function TodayActions() {
                         Atribuir a mim
                       </Button>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-sm font-medium">
+                  <AlertTriangle className="h-4 w-4 text-red-500" aria-hidden="true" />
+                  Leads parados (SLA)
+                </p>
+                <Badge variant="destructive" className="text-xs">
+                  {slaAlerts.length}
+                </Badge>
+              </div>
+              {slaAlerts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum lead parado (SLA) — tudo em dia.</p>
+              ) : (
+                <div className="space-y-2">
+                  {slaAlerts.map((alert) => (
+                    <Link
+                      key={alert.id}
+                      href={`/oportunidades/${alert.id}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-red-100 p-3 transition-colors hover:border-primary hover:bg-muted/50"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{alert.company_name}</p>
+                        <p className="text-xs text-muted-foreground">{alert.alert_label}</p>
+                      </div>
+                      {alert.qualification_score != null && (
+                        <Badge className="bg-emerald-100 text-emerald-700 text-xs shrink-0">
+                          {alert.qualification_score}
+                        </Badge>
+                      )}
+                    </Link>
                   ))}
                 </div>
               )}

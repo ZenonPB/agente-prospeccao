@@ -113,6 +113,22 @@ export interface Lead {
   updated_at: string;
 }
 
+export interface SlaAlertItem {
+  id: string;
+  company_name: string;
+  city?: string;
+  state?: string;
+  status?: string | null;
+  qualification_score: number;
+  assigned_to_name?: string | null;
+  alert_type: 'QUALIFICADO_NO_CONTACT' | 'RESPONDIDO_NO_NEXT_ACTION' | 'OPENED_NO_RESPONSE';
+  alert_label: string;
+  days_since: number;
+  last_contacted_at?: string | null;
+  next_action_at?: string | null;
+  opened_at?: string | null;
+}
+
 export interface OrganizationMember {
   organization_id: string;
   user_id: string;
@@ -135,6 +151,10 @@ export interface OrgMembership {
     send_window_end?: string;
     sends_today?: number;
     email_from?: string;
+    // Item 4.10 — SLA de leads parados (dias).
+    sla_qualified_no_contact_days?: number;
+    sla_responded_no_next_action_days?: number;
+    sla_opened_no_response_days?: number;
   };
   membership: {
     role: OrgRole;

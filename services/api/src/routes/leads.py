@@ -312,6 +312,25 @@ def lead_stats(
     }
 
 
+@router.get("/sla-alerts")
+def list_sla_alerts(
+    limit: int = Query(50, le=100),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Alertas de SLA / leads parados (roadmap-vendas 4.10).
+
+    Regras configuráveis por org: QUALIFICADO sem contato há N dias,
+    RESPONDIDO sem próximo passo há N dias e lead que abriu mas não
+    respondeu há N dias. Alimenta o painel "Ações de hoje".
+    """
+    from src.services.sla_service import compute_sla_alerts
+    alerts = compute_sla_alerts(db, _org.id, member, limit=limit)
+    return {"alerts": alerts}
+
+
 @router.patch("/{lead_id}/status")
 def update_lead_status(
     lead_id: str,

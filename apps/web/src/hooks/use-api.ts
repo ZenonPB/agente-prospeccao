@@ -43,6 +43,13 @@ export function useLeadStats() {
   });
 }
 
+export function useSlaAlerts(limit?: number) {
+  return useQuery({
+    queryKey: ["leads", "sla-alerts", limit],
+    queryFn: () => leadsApi.slaAlerts({ limit }),
+  });
+}
+
 export function useCampaigns(params?: { status?: string }) {
   return useQuery({
     queryKey: ["campaigns", params],
@@ -616,6 +623,9 @@ export function usePatchOrgSettings() {
       send_window_start?: string;
       send_window_end?: string;
       email_from?: string;
+      sla_qualified_no_contact_days?: number;
+      sla_responded_no_next_action_days?: number;
+      sla_opened_no_response_days?: number;
     } }) =>
       orgsApi.patchSettings(orgId, data),
     onSuccess: () => {
