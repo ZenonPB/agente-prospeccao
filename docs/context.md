@@ -738,6 +738,28 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
 - **Sem migration** (usa colunas existentes + `raw_data`).
 - **Testes**: `tests/test_contact_site_sources.py` (15) — suíte em **108 passed**.
 
+### Item 4.22 — LinkedIn assistido ✅ (2026-08-11)
+
+Branch `feat/linkedin-assistido-lgpd-cleanup` (roadmap-vendas P1):
+
+- **Backend**:
+  - `services/api/src/services/linkedin_assist_service.py` (novo): `build_linkedin_queries`
+    (consultas `"<empresa>" <papel> linkedin` — padrão ou `playbook.linkedin_queries` do
+    template), `extract_linkedin_username` (formato validado) e `LinkedInAssistService`
+    (validação passiva via DDG/Bing + `associate` que grava `linkedin_source="manual:<user>"`
+    com confidence 90 validado / 60 revisão e registra `LINKEDIN_ASSOCIATED` na trilha).
+  - Migration `c183a77bc662` — action nova `LINKEDIN_ASSOCIATED` no enum
+    `lead_activity_action` (aplicada).
+  - `GET /api/leads/{id}/linkedin-query` — consultas sugeridas + `search_url`
+    (`site:linkedin.com/in`); `PATCH /api/leads/{id}/contacts/{contact_id}/linkedin` —
+    valida URL e associa (org-scoped, `_can_access_lead`).
+- **Frontend**:
+  - `LinkedInAssociateDialog` na aba Contatos: fluxo guiado "copiar consulta → buscar
+    no LinkedIn → colar perfil → validar e salvar"; badge "Associado manualmente".
+  - Hooks `useLinkedinQueries`/`useAssociateLinkedIn`; label `LINKEDIN_ASSOCIATED`
+    na trilha.
+- **Testes**: `tests/test_linkedin_assist.py` (8) — suíte em **121 passed**.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-11** — onde paramos:
@@ -748,17 +770,22 @@ Branch `feat/contact-more-sources` (roadmap-vendas P1 — fechar a Entrega 3):
 > 2. **Correções levantadas em 2026-08-11** — ver `docs/roadmap-vendas.md §10`:
 >    - **C1** Selects com valor cru (`web_presence` etc.) — **corrigido**.
 >    - **C2** 53 leads presos em `ANALISADO`/score 0 (falha transitória do Groq);
->      fix aplicado (falha mantém `NOVO`) + script `reprocess_stuck_leads.py`.
->      **PENDENTE: rodar `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`**
->      (56 leads: 53 presos + 3 com evidência errada de "sem site").
->    - **C3** IA alega "sem site próprio" em leads que TÊM site (ex.: Pâmela
->      Oliveira) — fix aplicado (prompt + guard determinístico + 5 testes).
->      **PENDENTE:** re-pontuar os afetados (mesmo comando do C2).
+>      fix aplicado (falha mantém `NOVO`) + script `reprocess_stuck_leads.py`
+>      (validado; **rodar na base real**).
+>    - **C3** IA alega "sem site próprio" em leads que TÊM site — fix aplicado
+>      (prompt + guard determinístico + 5 testes); re-pontuar na base real.
 >    - **C4** Leads sem site (público-alvo) voltam a pontuar após o C2.
->    - **C5** Decisão aberta: suporte a aplicações web/ERP (perfil/template).
-> 3. **Item 4.7** mergeado no `main` (PR #62) — P1 do roadmap-vendas fechado.
-> 4. Próximos passos (backlog): **4.22 LinkedIn assistido (P1)** → P2
->    confiabilidade (4.14/4.15/4.16/4.17) → 3.3.4 auditoria → LinkedIn 4.23–4.25.
+>    - **C5** Decisão aberta: ERP/web apps — **recomendação registrada** no
+>      roadmap-vendas §10 (criar template de categoria, sem terceiro perfil).
+> 3. **LGPD removido dos docs/roadmap** (software interno): itens 4.11–4.13
+>    retirados do backlog; menções neutralizadas. Features mantidas
+>    (opt-out/STOP, exclusão de lead, CPF mascarado) + sinais comerciais
+>    (Adequação LGPD/SEO do prospecto). Lei 12.737/2012 (passivo) preservada.
+> 4. **Item 4.22 entregue (2026-08-11)** — LinkedIn assistido: `linkedin-query`
+>    + `PATCH .../linkedin` (validação passiva, `manual:<user>`, action
+>    `LINKEDIN_ASSOCIATED`) + Dialog guiado na aba Contatos. Testes (8).
+> 5. Próximos passos (backlog): P2 confiabilidade (4.14/4.15/4.16/4.17) →
+>    3.3.4 auditoria → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

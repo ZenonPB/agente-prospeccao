@@ -450,7 +450,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 > `is_primary` (prioridade CEO/Diretor/Sócio), score comercial configurável por
 > campanha e explicabilidade (evidence/pitch one-pager).
 
-#### 4.22 Pesquisa assistida + associação manual de perfil ⬜ (P1, M, gratuito)
+#### 4.22 Pesquisa assistida + associação manual de perfil ✅ (P1, M, gratuito)
 
 - **Hoje:** sem API oficial, quando a busca passiva não acha o decisor não há
   caminho — o consultor não consegue gerar a consulta certa nem colar a URL de
@@ -465,6 +465,11 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     + atividade na trilha.
 - **Aceite:** todo lead sem decisor tem um fluxo guiado "copiar consulta →
   abrir no LinkedIn → colar o perfil → salvar validado".
+- **Entregue (2026-08-11, `feat/linkedin-assistido-lgpd-cleanup`):** backend
+  (`linkedin-query` + `PATCH .../linkedin`, serviço `linkedin_assist_service`,
+  action nova `LINKEDIN_ASSOCIATED` na trilha) + frontend (Dialog guiado na aba
+  Contatos: consultas copiáveis, busca externa, colar URL e "Validar e salvar";
+  badge "Associado manualmente"). Testes: `tests/test_linkedin_assist.py` (8).
 
 #### 4.23 LinkedIn da empresa (company page) ⬜ (P2, S, gratuito)
 
@@ -558,7 +563,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ⬜ |
 | 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | ⬜ |
 | 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ⬜ |
-| 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ⬜ |
+| 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
 | 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ⬜ |
 | 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ⬜ |
 | 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
@@ -711,18 +716,30 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   `web_presence`: a análise técnica já cobre presença/stack/performance do site
   do lead; os **critérios** (sinais positivos/negativos) são editáveis por
   template (`CampaignScoringTemplate`), então a categoria é configurável.
-- **Decisão pendente:** validar com a EJ se basta criar templates de categoria
-  (ex.: "Aplicações web/ERP") ou se quer um **terceiro perfil** de análise.
-  Registrado para decisão da diretoria antes de qualquer implementação.
+- **Recomendação (2026-08-11):** **criar templates de categoria** ("Aplicações
+  web/ERP") em vez de um terceiro perfil. Motivo: o motor já separa perfil
+  (o *que* analisar) de template (os *critérios*). ERP/web apps são o MESMO perfil
+  `web_presence` (analisar o site do prospecto); o que muda são os sinais — adicionar
+  no template: positivos = "site institucional/landing (sem função) para quem vende
+  sistema", "sem área logada/portal", "processo manual/planilha"; negativos =
+  "painel/área do cliente presente", "menção a integrações/API", "portal do
+  aluno/cliente ativo". Sem código novo — só um seed de template.
+- **Decisão pendente:** validar com a EJ se basta a abordagem acima (criar o seed
+  de template + descrever na UI) ou se quer um **terceiro perfil** de análise.
+  Registrado para decisão da diretoria antes de implementar.
 
 ---
 
 ## 11. Próximos passos (roadmap)
 
 - **Imediato (pós-merge):** rodar `reprocess_stuck_leads --apply --fix-site-evidence`
-  (C2/C3) e revalidar a distribuição de scores no `analytics/overview`.
-- **Backlog pendente (⬜ do §5):** P1 **4.22** (LinkedIn assistido) → P2
-  confiabilidade (**4.14** cotas, **4.15** observabilidade/restore, **4.16**
-  paginação/kanban, **4.17** mobile-first) → **3.3.4** auditoria → LinkedIn
-  4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
-- **Decisão aberta:** C5 (ERP/web apps) antes de fechar o próximo ciclo de UI.
+  (C2/C3) **na base real** (script validado; base local de teste recém-criada tem
+  0 leads) e revalidar a distribuição de scores no `analytics/overview`.
+- **Item 4.22 entregue (2026-08-11):** LinkedIn assistido (consultas sugeridas +
+  associação manual de perfil com validação passiva) — branch
+  `feat/linkedin-assistido-lgpd-cleanup`.
+- **Backlog pendente (⬜ do §5):** P2 confiabilidade (**4.14** cotas, **4.15**
+  observabilidade/restore, **4.16** paginação/kanban, **4.17** mobile-first) →
+  **3.3.4** auditoria → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+- **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir
+  antes de fechar o próximo ciclo de UI.

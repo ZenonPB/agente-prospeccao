@@ -142,6 +142,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | POST | `/leads/{id}/generate-messages` | Sequência de outreach (Groq 70B) |
 | POST | `/leads/{id}/conversion` | Registra conversão (serviço/valor/notas) |
 | POST | `/leads/{id}/enrich-contacts` | Enriquece decisores (Receita→email/LinkedIn) |
+| GET | `/leads/{id}/linkedin-query` · PATCH `/leads/{id}/contacts/{contact_id}/linkedin` | LinkedIn assistido (Item 4.22): consultas sugeridas + associação manual de perfil com validação passiva |
 | GET | `/leads/{id}/pitch` | Pitch one-pager + site audit |
 | GET/POST | `/leads/{id}/cadence` · `/leads/{id}/cadence/start` · `/leads/{id}/cadence/send/{step}` | Cadência dia 0/3/7/14 |
 | POST | `/leads/{id}/opt-out` · `DELETE /leads/{id}` | Opt-out do lead e exclusão |
