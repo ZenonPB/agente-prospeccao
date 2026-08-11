@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers } from '@/hooks/use-api';
+import { useLeads, useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick } from '@/hooks/use-api';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -108,6 +108,7 @@ export function KanbanBoard() {
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const updateStatus = useUpdateLeadStatus();
   const assignLead = useAssignLead();
+  const recordWhatsApp = useRecordWhatsAppClick();
   const { data: membership } = useOrgMembership();
   const orgId = membership?.organization?.id;
   const myRole = membership?.membership?.role;
@@ -368,18 +369,40 @@ export function KanbanBoard() {
                                       <span>Aguardando resposta</span>
                                     </div>
                                   )}
-                                  {whatsAppLink(lead.whatsapp || lead.phone) && (
-                                    <a
-                                      href={whatsAppLink(lead.whatsapp || lead.phone) as string}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(e) => e.stopPropagation()}
-                                      aria-label={`Abrir WhatsApp de ${lead.company_name}`}
-                                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                                    >
-                                      <MessageCircle className="h-3.5 w-3.5" />
-                                    </a>
-                                  )}
+                                   {whatsAppLink(lead.whatsapp || lead.phone) && (
+                                     <Button
+                                       variant="ghost"
+                                       size="icon"
+                                       className="h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                       disabled={recordWhatsApp.isPending}
+                                       onClick={(e) => {
+                                         e.stopPropagation();
+                                         recordWhatsApp.mutate(
+                                           { leadId: lead.id },
+                                           {
+                                             onSuccess: (res) => {
+                                               if (res.whatsapp_url) {
+                                                 window.open(res.whatsapp_url, '_blank');
+                                                 toast.success('WhatsApp acionado e registrado');
+                                               }
+                                             },
+                                             onError: () => {
+                                               const fallback = whatsAppLink(lead.whatsapp || lead.phone);
+                                               if (fallback) window.open(fallback, '_blank');
+                                             },
+                                           }
+                                         );
+                                       }}
+                                       title="Abrir WhatsApp e registrar na trilha"
+                                       aria-label={`Abrir WhatsApp de ${lead.company_name}`}
+                                     >
+                                       {recordWhatsApp.isPending && recordWhatsApp.variables?.leadId === lead.id ? (
+                                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                       ) : (
+                                         <MessageCircle className="h-3.5 w-3.5" />
+                                       )}
+                                     </Button>
+                                   )}
                                   {!lead.assigned_to_id && (
                                     <Button
                                       variant="outline"

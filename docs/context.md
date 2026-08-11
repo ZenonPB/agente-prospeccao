@@ -620,20 +620,26 @@ Branch `feat/post-sale` (roadmap-leads C.3 — largar a planilha):
 - **CI/CD**: job de migrations do `ci.yml` ganhou seed smoke pós-`upgrade head`.
 - **Testes**: `tests/test_post_sale.py` (5) — **79 testes passando**.
 
+### Item 4.5 — WhatsApp: validação + 1 clique + registro na trilha ✅ (2026-08-10)
+
+Branch `feat/whatsapp-one-click` (roadmap-vendas P1):
+
+- **Modelos/migration `02a4353c47a7`** (aplicada): `LeadActivityAction.WHATSAPP_SENT`
+  adicionado ao enum `lead_activity_action`.
+- **`POST /api/leads/{id}/whatsapp-click`**: formata o número no padrão `wa.me`, valida se é móvel BR, atualiza `last_contacted_at` e grava a action `WHATSAPP_SENT` na trilha.
+- **Frontend**:
+  - `useRecordWhatsAppClick` hook + chamada no Kanban board (botão de WhatsApp no card) e no detalhe da oportunidade (header + modal de mensagens).
+  - Toast de confirmação + abertura da janela do WhatsApp com texto pré-preenchido.
+  - Tradução `WHATSAPP_SENT` ("WhatsApp acionado") na trilha de atividades.
+- **Testes**: `tests/test_whatsapp_click.py` (4) — suíte em **83 passed**. `tsc --noEmit` e `eslint` limpos.
+
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-06 (fim de sessão)** — onde paramos:
+> **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **4.3 (warmup)**, **funil de negociação (C.3)**, **onboarding multi-org
->    (3.3.1/3.3.2)** e **pós-venda (C.3)** entregues em branches empilhadas
->    (`feat/cadence-warmup-throttle` → `feat/negotiation-funnel` →
->    `feat/org-onboarding` → `feat/post-sale`). Migrations até `f6b7c8d9e0f1`
->    aplicadas; `pytest` na venv da API (**79 testes**); CI com seed smoke.
->    Próximo: itens P1/P2 do roadmap-vendas — **4.5 WhatsApp (validação + 1 clique
->    + trilha)**, **4.8 forecast/valor por oportunidade**, **3.3.3 gestão de
->    membros** (remover/sair/transferir). Depois 4.9/4.10 (metas + SLA).
-> 2. Ações pendentes: mergear as branches (PR manual pelo dono), `graphify
->    update .`, e quando a operação for real, ativar tracking com a URL pública.
+> 1. **PRs #54, #55, #56 mergeados** no `main` do repositório remoto. Local `main` atualizado.
+> 2. **Item 4.5 WhatsApp (validação + 1 clique + trilha)** entregue na branch `feat/whatsapp-one-click`.
+> 3. Próximos passos do roadmap-vendas: **4.8 forecast/valor por oportunidade** (ticket + previsão de receita), **3.3.3 gestão de membros** (remover/sair/transferir org) e **4.9 metas de vendas por consultor**.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

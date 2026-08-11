@@ -634,6 +634,7 @@ class LeadActivityAction(enum.Enum):
     CONTACT_ENRICHED = "CONTACT_ENRICHED"
     NEGOTIATION_UPDATED = "NEGOTIATION_UPDATED"
     POST_SALE = "POST_SALE"
+    WHATSAPP_SENT = "WHATSAPP_SENT"
 
 
 class LeadActivity(Base):

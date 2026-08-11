@@ -10,7 +10,7 @@ import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { whatsAppLink } from '@/lib/utils';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
@@ -167,6 +167,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
   const enrichContacts = useEnrichContacts();
+  const recordWhatsApp = useRecordWhatsAppClick();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
@@ -240,15 +241,35 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         </div>
         <div className="flex items-center gap-2">
           {whatsAppLink(lead.whatsapp || lead.phone) && (
-            <a
-              href={whatsAppLink(lead.whatsapp || lead.phone) as string}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-10 items-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            <Button
+              variant="outline"
+              className="h-10 gap-2 border-input bg-background font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              disabled={recordWhatsApp.isPending}
+              onClick={() => {
+                recordWhatsApp.mutate(
+                  { leadId: lead.id },
+                  {
+                    onSuccess: (res) => {
+                      if (res.whatsapp_url) {
+                        window.open(res.whatsapp_url, '_blank');
+                        toast.success('WhatsApp acionado e registrado na trilha');
+                      }
+                    },
+                    onError: () => {
+                      const fallback = whatsAppLink(lead.whatsapp || lead.phone);
+                      if (fallback) window.open(fallback, '_blank');
+                    },
+                  }
+                );
+              }}
             >
-              <MessageCircle className="h-4 w-4 text-emerald-600" />
+              {recordWhatsApp.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin text-emerald-600" />
+              ) : (
+                <MessageCircle className="h-4 w-4 text-emerald-600" />
+              )}
               WhatsApp
-            </a>
+            </Button>
           )}
           <Button className="h-10" onClick={handleOpenMessagesModal} disabled={generateMessagesMutation.isPending}>
             {generateMessagesMutation.isPending ? (
@@ -835,15 +856,34 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   <Badge className="mt-2">Versão curta para WhatsApp Business</Badge>
                 </div>
                 {whatsAppLink(lead.whatsapp || lead.phone, generatedMessages.whatsapp_short) ? (
-                  <a
-                    href={whatsAppLink(lead.whatsapp || lead.phone, generatedMessages.whatsapp_short) as string}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
+                  <Button
+                    className="h-10 w-full gap-2 bg-emerald-600 font-medium text-white shadow-sm hover:bg-emerald-700"
+                    disabled={recordWhatsApp.isPending}
+                    onClick={() => {
+                      recordWhatsApp.mutate(
+                        { leadId: lead.id, messageText: generatedMessages.whatsapp_short },
+                        {
+                          onSuccess: (res) => {
+                            if (res.whatsapp_url) {
+                              window.open(res.whatsapp_url, '_blank');
+                              toast.success('WhatsApp acionado com mensagem!');
+                            }
+                          },
+                          onError: () => {
+                            const fallback = whatsAppLink(lead.whatsapp || lead.phone, generatedMessages.whatsapp_short);
+                            if (fallback) window.open(fallback, '_blank');
+                          },
+                        }
+                      );
+                    }}
                   >
-                    <MessageCircle className="h-4 w-4" />
+                    {recordWhatsApp.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <MessageCircle className="h-4 w-4" />
+                    )}
                     Abrir no WhatsApp
-                  </a>
+                  </Button>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     Adicione um WhatsApp no lead (aba Dados gerais) para abrir a conversa direto.

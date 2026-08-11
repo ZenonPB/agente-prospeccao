@@ -56,6 +56,10 @@ class GenerateMessagesRequest(BaseModel):
     force_regenerate: bool = False
 
 
+class RecordWhatsAppClickRequest(BaseModel):
+    message_text: Optional[str] = None
+
+
 def _contact_to_dict(c: Contact) -> dict:
     return {
         "id": str(c.id),
@@ -1110,3 +1114,63 @@ def opt_out_lead(
     from src.services.cadence_service import mark_opt_out
     mark_opt_out(db, lead)
     return {"lead_id": str(lead.id), "opt_out": True}
+
+
+def _format_whatsapp_url(phone: Optional[str], text: Optional[str] = None) -> tuple[Optional[str], Optional[str], bool]:
+    if not phone:
+        return None, None, False
+    digits = "".join(filter(str.isdigit, phone))
+    if len(digits) < 10 or len(digits) > 13:
+        return None, phone, False
+    with_country = digits if (len(digits) == 12 or len(digits) == 13) else f"55{digits}"
+    is_mobile = len(digits) == 11 or (len(digits) == 13 and digits.startswith("55"))
+    from urllib.parse import quote
+    base = f"https://wa.me/{with_country}"
+    url = f"{base}?text={quote(text)}" if text else base
+    return url, with_country, is_mobile
+
+
+@router.post("/{lead_id}/whatsapp-click")
+def record_whatsapp_click(
+    lead_id: str,
+    body: Optional[RecordWhatsAppClickRequest] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra acionamento do WhatsApp e retorna link wa.me formatado (Item 4.5)."""
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    phone = lead.whatsapp or lead.phone
+    text = body.message_text if body else None
+    url, formatted_number, is_valid = _format_whatsapp_url(phone, text)
+
+    if not url:
+        raise HTTPException(status_code=400, detail="Lead não possui número de telefone/WhatsApp válido")
+
+    from datetime import datetime, timezone
+    lead.last_contacted_at = datetime.now(timezone.utc)
+
+    log_activity(
+        db, lead,
+        action=LeadActivityAction.WHATSAPP_SENT,
+        user_id=str(user.id),
+        detail=f"WhatsApp acionado ({formatted_number})",
+    )
+    db.commit()
+    db.refresh(lead)
+
+    return {
+        "whatsapp_url": url,
+        "phone": formatted_number,
+        "is_valid": is_valid,
+        "last_contacted_at": lead.last_contacted_at.isoformat(),
+    }
