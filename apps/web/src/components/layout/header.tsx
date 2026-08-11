@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/stores/useAppStore';
-import { BrandMark } from './brand-mark';
+import { BrandLogo } from './brand-logo';
 
 export function Header() {
   const { data: session } = useSession();
@@ -35,7 +35,7 @@ export function Header() {
           <Menu className="h-5 w-5" />
         </Button>
         <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
-          <BrandMark className="h-6 w-6 text-primary" />
+          <BrandLogo className="h-6 w-6 text-primary" />
           <span className="text-[15px] font-semibold tracking-tight">Prospecção</span>
         </Link>
       </div>
