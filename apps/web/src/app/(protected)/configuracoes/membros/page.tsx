@@ -256,7 +256,9 @@ export default function MembrosPage() {
                               disabled={isPending}
                             >
                               <SelectTrigger size="sm" className="w-32">
-                                <SelectValue />
+                                <SelectValue>
+                                  {(value) => ROLE_LABELS[value as SalesRole] ?? (value as string)}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {(Object.keys(ROLE_LABELS) as SalesRole[]).map((role) => (

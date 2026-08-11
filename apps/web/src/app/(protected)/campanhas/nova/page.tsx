@@ -365,7 +365,11 @@ export default function NovaCampanhaPage() {
                       }
                     >
                       <SelectTrigger id="brief-profile">
-                        <SelectValue />
+                        <SelectValue>
+                          {(value) =>
+                            profiles.find((p) => p.id === value)?.title ?? 'Selecione o perfil'
+                          }
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="web_presence">Serviços digitais</SelectItem>
