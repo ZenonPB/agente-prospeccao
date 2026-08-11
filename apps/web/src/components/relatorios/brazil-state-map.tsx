@@ -98,7 +98,7 @@ export function GeoCard({ states }: { states: AnalyticsGeoState[] }) {
       </CardHeader>
       <CardContent className="flex-1">
         <div className="flex h-full min-h-[320px] flex-col gap-3">
-          <div className="min-h-[280px] flex-1 overflow-hidden rounded-lg border">
+          <div className="relative h-[300px] overflow-hidden rounded-lg border">
             <BrazilStateMap states={states} />
           </div>
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
