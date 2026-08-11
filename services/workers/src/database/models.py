@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, Index
+from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, Index, Date
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -165,6 +165,9 @@ class Organization(Base):
     sla_qualified_no_contact_days = Column(Integer, default=5, nullable=False, server_default="5")
     sla_responded_no_next_action_days = Column(Integer, default=2, nullable=False, server_default="2")
     sla_opened_no_response_days = Column(Integer, default=2, nullable=False, server_default="2")
+    # Item 4.14 — teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
+    # default do settings (`PROVIDER_DAILY_QUOTA`). Ex.: {"GROQ_API_KEY": 500}.
+    api_quota = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
@@ -275,6 +278,32 @@ class OrganizationSecret(Base):
 
     def __repr__(self):
         return f"<OrganizationSecret(org='{self.organization_id}', key='{self.key_name}')>"
+
+
+class ProviderUsage(Base):
+    """Medidor diário de uso de provedores externos por org/key (item 4.14).
+
+    Contabiliza chamadas (Google Places e Groq) por organização e por dia,
+    contra um limite configurável (`organizations.api_quota` ou o default do
+    settings `PROVIDER_DAILY_QUOTA`). Alimenta o painel de cotas da org e trava
+    chamadas excedentes (fail-closed: `remaining <= 0` → o provider não chama).
+    """
+    __tablename__ = "provider_usage"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "key_name", "usage_date",
+                         name="uq_provider_usage_org_key_date"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    key_name = Column(String(60), nullable=False)
+    usage_date = Column(Date, nullable=False)
+    count = Column(Integer, default=0, nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+
+    def __repr__(self):
+        return f"<ProviderUsage(org='{self.organization_id}', key='{self.key_name}', date={self.usage_date}, count={self.count})>"
 
 
 class User(Base):

@@ -40,13 +40,28 @@ async def groq_json_chat(
     max_tokens: int = 2048,
     temperature: float = 0.2,
     timeout: float = 60.0,
+    db=None,
+    organization_id: Optional[str] = None,
+    quota_key: str = "GROQ_API_KEY",
 ) -> Optional[Dict[str, Any]]:
     """Chama a Groq pedindo JSON e devolve o dict parseado (ou None em falha).
 
     - Payload com `response_format: json_object`.
     - Loga erro com HTTP status (sem vazar o corpo inteiro).
     - Aplica backoff simples em 429/5xx (uma retentativa).
+    - Item 4.14 (cotas): se `db` + `organization_id` forem informados, verifica
+      a cota diária ANTES de chamar (fail-closed: estourada → None) e contabiliza
+      uma chamada após cada resposta 200.
     """
+    if db is not None and organization_id is not None:
+        from services.quota_service import QuotaService
+        if not QuotaService.can_consume(db, organization_id, quota_key):
+            logger.warning(
+                "Cota diária esgotada para %s (org %s) — chamada ao Groq bloqueada.",
+                quota_key, organization_id,
+            )
+            return None
+
     payload: Dict[str, Any] = {
         "model": model,
         "messages": [
@@ -79,6 +94,10 @@ async def groq_json_chat(
             continue
         logger.error("Groq respondeu HTTP %s (model=%s)", response.status_code, model)
         return None
+
+    if db is not None and organization_id is not None:
+        from services.quota_service import QuotaService
+        QuotaService.consume(db, organization_id, quota_key)
 
     try:
         data = response.json()
@@ -114,3 +133,26 @@ def _parse_json_content(content: Optional[str]) -> Optional[Dict[str, Any]]:
     except json.JSONDecodeError as e:
         logger.error("Falha ao decodificar JSON do Groq: %s", e)
         return None
+
+
+def quota_ok(
+    db, organization_id: Optional[str], key_name: str = "GROQ_API_KEY", n: int = 1,
+) -> bool:
+    """Fail-closed: True se a org ainda tem cota diária para o provedor (4.14).
+
+    Sem `db`/`organization_id` → sem medição (jobs legados/scripts manuais).
+    """
+    if db is None or organization_id is None:
+        return True
+    from services.quota_service import QuotaService
+    return QuotaService.can_consume(db, organization_id, key_name, n)
+
+
+def consume_quota(
+    db, organization_id: Optional[str], key_name: str = "GROQ_API_KEY", n: int = 1,
+) -> None:
+    """Contabiliza `n` chamadas da org no provedor hoje (4.14)."""
+    if db is None or organization_id is None:
+        return
+    from services.quota_service import QuotaService
+    QuotaService.consume(db, organization_id, key_name, n)

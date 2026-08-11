@@ -41,7 +41,12 @@ async def run_lead_collection(
     logger.info("Iniciando coleta de leads para: '%s'", query)
 
     try:
-        results = await places_service.search_places(query, max_results=max_leads_to_collect)
+        results = await places_service.search_places(
+            query,
+            max_results=max_leads_to_collect,
+            db=db,
+            organization_id=organization_id,
+        )
         collected_count = 0
         for item in results:
             company_name = item.get("name")
