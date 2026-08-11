@@ -27,7 +27,7 @@ if _workers_path not in sys.path:
     sys.path.insert(0, _workers_path)
 from services.secret_service import SecretService, KEY_NAMES  # noqa: E402
 from src.services.cadence_service import sends_today  # noqa: E402
-from src.services.org_service import create_organization  # noqa: E402
+from src.services.org_service import create_organization, unassign_user_leads_in_org  # noqa: E402
 
 router = APIRouter(prefix="/orgs", tags=["orgs"])
 
@@ -209,6 +209,136 @@ def patch_member_sales_role(
     db.commit()
     db.refresh(target)
     return _member_dict(target)
+
+
+class TransferOwnerRequest(BaseModel):
+    new_owner_user_id: str = Field(..., min_length=1)
+
+
+@router.delete("/{org_id}/members/{user_id}")
+def remove_member(
+    org_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Remove um membro da organização e desatribui seus leads (roadmap 3.3.3).
+
+    - Owner não pode ser removido (deve transferir ownership antes).
+    - Admins não podem remover a si mesmos por este endpoint (usam /leave).
+    - Admins não-owner não podem remover outros admins.
+    """
+    import uuid
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    target = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org_id,
+        OrganizationMember.user_id == user_id,
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Membro não encontrado")
+
+    if target.role == OrganizationRole.OWNER:
+        raise HTTPException(
+            status_code=400,
+            detail="O proprietário da organização não pode ser removido. Transfira a propriedade antes.",
+        )
+    if str(target.user_id) == str(actor.user_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Para sair da organização, utilize a opção 'Sair da organização'.",
+        )
+    if actor.role != OrganizationRole.OWNER and target.role == OrganizationRole.ADMIN:
+        raise HTTPException(
+            status_code=403,
+            detail="Administradores não podem remover outros administradores.",
+        )
+
+    unassign_user_leads_in_org(
+        db,
+        org_id=uuid.UUID(org_id),
+        user_id=uuid.UUID(user_id),
+        actor_user_id=actor.user_id,
+        reason="Membro desvinculado da organização por um administrador",
+    )
+    db.delete(target)
+    db.commit()
+    return {"removed": True, "user_id": user_id, "org_id": org_id}
+
+
+@router.post("/{org_id}/transfer-owner")
+def transfer_org_ownership(
+    org_id: str,
+    body: TransferOwnerRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Transfere a propriedade (OWNER) da organização para outro membro (roadmap 3.3.3)."""
+    import uuid
+    actor = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org_id,
+        OrganizationMember.user_id == user.id,
+    ).first()
+    if not actor or actor.role != OrganizationRole.OWNER:
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas o proprietário da organização pode transferir a propriedade.",
+        )
+
+    if str(actor.user_id) == body.new_owner_user_id:
+        raise HTTPException(status_code=400, detail="Você já é o proprietário desta organização.")
+
+    target = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org_id,
+        OrganizationMember.user_id == body.new_owner_user_id,
+    ).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Novo proprietário deve ser membro ativo da organização.")
+
+    actor.role = OrganizationRole.ADMIN
+    target.role = OrganizationRole.OWNER
+    target.sales_role = SalesRole.MANAGER
+    db.commit()
+    return {
+        "transferred": True,
+        "previous_owner_id": str(actor.user_id),
+        "new_owner_id": str(target.user_id),
+    }
+
+
+@router.post("/{org_id}/leave")
+def leave_org(
+    org_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Permite que um membro saia da organização (roadmap 3.3.3)."""
+    import uuid
+    member = db.query(OrganizationMember).filter(
+        OrganizationMember.organization_id == org_id,
+        OrganizationMember.user_id == user.id,
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Você não é membro desta organização.")
+
+    if member.role == OrganizationRole.OWNER:
+        raise HTTPException(
+            status_code=400,
+            detail="O proprietário não pode sair da organização sem antes transferir a propriedade.",
+        )
+
+    unassign_user_leads_in_org(
+        db,
+        org_id=uuid.UUID(org_id),
+        user_id=user.id,
+        actor_user_id=user.id,
+        reason="Membro saiu espontaneamente da organização",
+    )
+    db.delete(member)
+    db.commit()
+    return {"left": True, "org_id": org_id, "user_id": str(user.id)}
 
 
 class PutSecretRequest(BaseModel):

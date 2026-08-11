@@ -372,6 +372,22 @@ export const orgsApi = {
       body: JSON.stringify({ sales_role: salesRole }),
     }),
 
+  removeMember: (orgId: string, userId: string) =>
+    request<{ removed: boolean; user_id: string; org_id: string }>(`/api/orgs/${orgId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+
+  transferOwnership: (orgId: string, newOwnerUserId: string) =>
+    request<{ transferred: boolean; previous_owner_id: string; new_owner_id: string }>(`/api/orgs/${orgId}/transfer-owner`, {
+      method: "POST",
+      body: JSON.stringify({ new_owner_user_id: newOwnerUserId }),
+    }),
+
+  leaveOrganization: (orgId: string) =>
+    request<{ left: boolean; org_id: string; user_id: string }>(`/api/orgs/${orgId}/leave`, {
+      method: "POST",
+    }),
+
   listSecrets: (orgId: string) =>
     request<{ secrets: OrgSecretStatus[] }>(`/api/orgs/${orgId}/secrets`),
 

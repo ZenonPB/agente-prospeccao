@@ -108,6 +108,9 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | POST | `/orgs` | Cria organização (3.3.1): usuário vira OWNER + MANAGER |
 | PATCH | `/orgs/{org_id}/name` | Renomeia org (owner/admin) |
 | GET | `/orgs/{id}/members` · PATCH `/orgs/{id}/members/{user_id}` | Membros e `sales_role` (owner/admin) |
+| DELETE | `/orgs/{id}/members/{user_id}` | Remove membro da org e reatribui leads para a fila livre (3.3.3) |
+| POST | `/orgs/{id}/transfer-owner` | Transfere a propriedade (OWNER) para outro membro (3.3.3) |
+| POST | `/orgs/{id}/leave` | Membro sai da org e desatribui seus leads (3.3.3) |
 | GET/POST | `/orgs/{id}/invites` · `DELETE /orgs/{id}/invites/{id}` | Convites (owner/admin) |
 | POST | `/invites/accept` | Aceita convite por token (autenticado) |
 | GET | `/invites/check` | Resolve convite por token (público): email, org, se há conta (3.3.2) |

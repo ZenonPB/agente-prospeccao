@@ -651,13 +651,27 @@ Branch `feat/opportunity-forecast` (roadmap-vendas P1):
   - `ForecastCard` em `/relatorios`: KPIs (Pipeline Total, Forecast Ponderado, Receita Realizada), tabela por estágio e detalhamento de motivos de perda.
 - **Testes**: `tests/test_opportunity_forecast.py` (2) — suíte em **85 passed**. `tsc --noEmit` e `eslint` limpos. Corrigido import de `LostReason` no topo de `routes/leads.py` (build CI).
 
+### Item 3.3.3 — Gestão de membros (remover / sair / transferir ownership) ✅ (2026-08-10)
+
+Branch `feat/org-member-management` (roadmap-vendas P1):
+
+- **Backend & Serviços**:
+  - `unassign_user_leads_in_org()` em `org_service.py`: desatribui automaticamente todos os leads do usuário na organização e registra atividade `UNASSIGNED` na trilha.
+  - `DELETE /api/orgs/{org_id}/members/{user_id}` (owner/admin): desvincula o membro e reatribui seus leads para a fila livre (impede remoção do OWNER e auto-remoção).
+  - `POST /api/orgs/{org_id}/transfer-owner` (OWNER only): transfere o papel de OWNER para outro membro ativo da org.
+  - `POST /api/orgs/{org_id}/leave`: permite que um membro saia da org e desatribua seus leads.
+- **Frontend**:
+  - Tabela em `/configuracoes/membros` atualizada com a coluna "Ações": botões com diálogos de confirmação (`AlertDialog`) para "Remover membro", "Transferir Dono" e "Sair da org".
+  - Hooks `useRemoveMember`, `useTransferOwnership`, `useLeaveOrganization` em `use-api.ts`.
+- **Testes**: `tests/test_org_member_management.py` — suíte em **86 passed**. `tsc --noEmit` e `eslint` limpos.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-10** — onde paramos:
 >
-> 1. **PR #57 (Item 4.5 WhatsApp)** mergeado no `main` do repositório remoto.
-> 2. **Item 4.8 Forecast & Oportunidades** entregue na branch `feat/opportunity-forecast` (PR #58 aberto e CI corrigido com `LostReason` re-export).
-> 3. Próximos passos do roadmap-vendas: **3.3.3 gestão de membros** (remover/sair/transferir org), **4.9 metas de vendas por consultor** e **4.10 SLA/lembretes para leads parados**.
+> 1. **PR #58 (Item 4.8 Forecast)** mergeado no `main` do repositório remoto. Local `main` atualizado.
+> 2. **Item 3.3.3 Gestão de membros** entregue na branch `feat/org-member-management`.
+> 3. Próximos passos do roadmap-vendas: **4.9 metas de vendas por consultor** e **4.10 SLA/lembretes para leads parados**.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

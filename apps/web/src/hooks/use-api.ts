@@ -209,6 +209,43 @@ export function usePatchMemberSalesRole() {
   });
 }
 
+export function useRemoveMember() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, userId }: { orgId: string; userId: string }) =>
+      orgsApi.removeMember(orgId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+export function useTransferOwnership() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, newOwnerUserId }: { orgId: string; newOwnerUserId: string }) =>
+      orgsApi.transferOwnership(orgId, newOwnerUserId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org"] });
+      queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+    },
+  });
+}
+
+export function useLeaveOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId }: { orgId: string }) =>
+      orgsApi.leaveOrganization(orgId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["org"] });
+      queryClient.invalidateQueries({ queryKey: ["my-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
 export function useAssignLead() {
   const queryClient = useQueryClient();
   return useMutation({

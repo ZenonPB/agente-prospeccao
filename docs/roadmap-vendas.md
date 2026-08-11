@@ -174,7 +174,7 @@ e só depois aceitar o token — fricção real para embarcar a equipe inteira.
   devolve um JWT para auto-login;
 - página `/aceitar-convite` decide login (conta existe) vs cadastro (não existe).
 
-#### 3.3.3 Remoção de membro / saída da org / transferência de ownership ⬜ (P1)
+#### 3.3.3 Remoção de membro / saída da org / transferência de ownership ✅ (P1)
 
 **Problema:** não há como remover um membro, sair da org, transferir ownership
 nem fazer offboarding. Para uma organização real isso é essencial (rotatividade
@@ -470,7 +470,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ⬜ |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ⬜ |
-| 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ⬜ |
+| 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
 | 4.11 | Supressão global por e-mail/telefone | LGPD | P2 | S | gratuito | 4.1 | ⬜ |
 | 4.12 | Base legal e proveniência explícitas | LGPD | P2 | M | gratuito | — | ⬜ |
 | 4.13 | Retenção/anonimização automática | LGPD | P2 | M | gratuito | — | ⬜ |

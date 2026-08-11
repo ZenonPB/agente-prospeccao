@@ -15,7 +15,10 @@ from src.db.models import (
     OrganizationMember,
     OrganizationRole,
     SalesRole,
+    Lead,
+    LeadActivityAction,
 )
+from src.services.lead_activity_service import log_activity
 
 logger = logging.getLogger(__name__)
 
@@ -134,3 +137,29 @@ def user_organization(db: Session, user: User) -> Organization | None:
         OrganizationMember.user_id == user.id
     ).first()
     return member.organization if member else None
+
+
+def unassign_user_leads_in_org(
+    db: Session,
+    org_id: uuid.UUID,
+    user_id: uuid.UUID,
+    actor_user_id: uuid.UUID | None = None,
+    reason: str = "Membro desligado da organização",
+) -> int:
+    """Desatribui todos os leads de um usuário dentro de uma organização (roadmap 3.3.3)."""
+    leads = db.query(Lead).filter(
+        Lead.organization_id == org_id,
+        Lead.assigned_to_id == user_id,
+    ).all()
+    count = len(leads)
+    for lead in leads:
+        lead.assigned_to_id = None
+        lead.assigned_at = None
+        log_activity(
+            db,
+            lead,
+            action=LeadActivityAction.UNASSIGNED,
+            user_id=str(actor_user_id) if actor_user_id else None,
+            detail=reason,
+        )
+    return count
