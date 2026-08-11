@@ -689,9 +689,9 @@ Branch `feat/sales-targets` (roadmap-vendas P1):
     `useSalesTargets`, `useUpsertSalesTarget`, `useDeleteSalesTarget`.
 - **Testes**: `tests/test_sales_targets.py` — suíte em **90 passed**. `tsc --noEmit` e `eslint` limpos. Grafo atualizado (`graphify extract` + `cluster-only`: 2128 nós, 4509 arestas, 160 comunidades).
 
-### Item 4.10 — SLA e lembretes para leads parados 🔧 em andamento (2026-08-10)
+### Item 4.10 — SLA e lembretes para leads parados ✅ (2026-08-11)
 
-Branch `feat/sla-lead-reminders` (roadmap-vendas P1):
+Branch `feat/sla-lead-reminders` (roadmap-vendas P1) + `fix/reprocess-stuck-leads-4-9-4-10`:
 
 - **Modelos/migration `c24a13047b0e`** (aplicada): `organizations` ganhou
   `sla_qualified_no_contact_days` (default 5), `sla_responded_no_next_action_days`
@@ -711,7 +711,11 @@ Branch `feat/sla-lead-reminders` (roadmap-vendas P1):
     prazos (`OrgSlaSettings`).
   - Seção **"Leads parados (SLA)"** no painel "Ações de hoje" do dashboard com link
     direto para a oportunidade.
-- **Testes**: `tests/test_sla_service.py` (3) — suíte em **93 passed**.
+  - **Notificação no kanban** (`/vendas`, kanban-board.tsx): chip vermelho "N leads
+    parados (SLA)" no topo, contador vermelho por coluna e badge "SLA há Xd" nos
+    cartões com alerta ativo (tooltip com o rótulo da regra).
+- **Testes**: `tests/test_sla_service.py` (8: 3 helpers + 5 com `compute_sla_alerts`
+  cobrindo as 3 regras e a ordenação por criticidade via db fake) — suíte em **118 passed**.
 
 ### Item 4.7 — Mais fontes de contato além da Receita ✅ (2026-08-10)
 
