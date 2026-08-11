@@ -192,6 +192,9 @@ async def suggest_segment(
     retorna um fallback determinístico (offline-friendly).
     """
     from services.secret_service import SecretService
+    from services.provider_client import quota_ok, consume_quota
+    if not quota_ok(db, str(_org.id), "GROQ_API_KEY"):
+        raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
     keys = await SecretService.resolve_all(db, str(_org.id))
     service = SegmentSuggestionService(api_key=keys.get("GROQ_API_KEY"))
     result = await service.suggest(
@@ -201,6 +204,7 @@ async def suggest_segment(
     )
     if not result.get("segment"):
         raise HTTPException(status_code=502, detail="Não foi possível gerar sugestão")
+    consume_quota(db, str(_org.id), "GROQ_API_KEY")
     return result
 
 
@@ -229,7 +233,11 @@ async def create_campaign_from_brief(
     from services.campaign_brief_service import CampaignBriefService
     from services.secret_service import SecretService
     from services.template_router import route_scoring_template
+    from services.provider_client import quota_ok, consume_quota
     from src.db.models import CampaignScoringTemplate
+
+    if not quota_ok(db, str(_org.id), "GROQ_API_KEY"):
+        raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
     keys = await SecretService.resolve_all(db, str(_org.id))
     service = CampaignBriefService(api_key=keys.get("GROQ_API_KEY"))
@@ -237,6 +245,7 @@ async def create_campaign_from_brief(
         suggestion = await service.interpret(body.brief)
     except RuntimeError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+    consume_quota(db, str(_org.id), "GROQ_API_KEY")
 
     # Resolve o template de scoring mais próximo para o review card.
     template_info = await route_scoring_template(
