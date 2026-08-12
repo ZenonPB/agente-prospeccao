@@ -38,9 +38,11 @@ venv/
 # Artefatos de build/zip locais
 *.zip
 
-# Logs de runtime local (scripts/dev.sh)
+# Logs de runtime local (scripts/dev.sh / dev.ps1)
 uvicorn.log
+uvicorn.err.log
 next-dev.log
+next-dev.err.log
 
 # graphify outputs (nunca commitar no GitHub)
 graphify-out/
