@@ -764,6 +764,21 @@ Branch `feat/linkedin-assistido-lgpd-cleanup` (roadmap-vendas P1):
     na trilha.
 - **Testes**: `tests/test_linkedin_assist.py` (8) — suíte em **121 passed**.
 
+### Itens 4.14–4.16 — Confiabilidade (P2) ✅ (2026-08-11)
+
+Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
+
+- **4.14 Cotas por org + alertas** — `QuotaService`/`provider_usage` (workers):
+  medidor de cotas diárias por org/provedor + guard em Groq/Places; API:
+  endpoint de uso + `PATCH api_quota` + guard/consume nas rotas de IA; frontend:
+  card de cotas (Google/Groq) na página `/configuracoes`.
+- **4.15 Observabilidade + restauração** — logs estruturados dos eventos de
+  cadência/abertura; **teste real de restore** do `pg_dump`; pytest E2E do ciclo
+  completo de outreach (agendar→verificar→enviar→abrir→responder/STOP).
+- **4.16 Paginação / performance** — paginação server-side no kanban e na lista
+  de leads + índices compostos `(organization_id, status, qualification_score)`
+  (migration `ca2c1a...`).
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-11** — onde paramos:
@@ -788,8 +803,10 @@ Branch `feat/linkedin-assistido-lgpd-cleanup` (roadmap-vendas P1):
 > 4. **Item 4.22 entregue (2026-08-11)** — LinkedIn assistido: `linkedin-query`
 >    + `PATCH .../linkedin` (validação passiva, `manual:<user>`, action
 >    `LINKEDIN_ASSOCIATED`) + Dialog guiado na aba Contatos. Testes (8).
-> 5. Próximos passos (backlog): P2 confiabilidade (4.14/4.15/4.16/4.17) →
->    3.3.4 auditoria → LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+> 5. **PR #68 mergeado (2026-08-11): 4.14–4.16 entregues** — cotas por org,
+>    observabilidade/restore e paginação/índices (P2 confiabilidade fechado).
+> 6. Próximos passos (backlog): **4.17 mobile-first** → **3.3.4** auditoria →
+>    LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 
