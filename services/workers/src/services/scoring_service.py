@@ -47,6 +47,14 @@ _HAS_SITE_CLAIM = re.compile(
     re.IGNORECASE,
 )
 
+# Campanhas cujo serviço é presença digital/desenvolvimento de site — para elas,
+# um lead SEM site é público-alvo (o prompt pondera positivamente a ausência).
+_SELLS_WEB_PRESENCE = re.compile(
+    r"site|website|web|p[áa]gina|loja virtual|presen[çc]a digital|landing|"
+    r"marketing digital|seo|e-?commerce",
+    re.IGNORECASE,
+)
+
 
 def _contradicts_site_state(evidence: Dict[str, Any], has_website: bool) -> bool:
     """True se a evidência contradiz o fato cadastral de presença de site."""
@@ -78,6 +86,9 @@ SYSTEM_PROMPT = (
     "Se o lead NÃO tem site próprio (usa Instagram/Canva/WhatsApp ou não tem presença "
     "digital), o gancho e o assunto devem citar essa ausência/ferramenta como barreira "
     "concreta a negócios (ex.: 'sem site próprio, pedidos dependem do Instagram'). "
+    "A AUSÊNCIA de site próprio NÃO é, por si só, um contra-sinal: se a campanha vende "
+    "presença digital/desenvolvimento de site, empresa sem site é PÚBLICO-ALVO (alto fit "
+    "e forte oportunidade); se vende outro serviço, avalie o fit pelos demais sinais. "
     "Responda SOMENTE com JSON puro, sem markdown, sem bloco de código, "
     "sem texto antes ou depois do JSON."
 )
@@ -199,6 +210,14 @@ def build_prompt(
     lines.append("7. A presença de site é fato determinístico: se os facts disserem 'Tem website: sim',")
     lines.append("   NUNCA afirme que o lead não tem site nem use 'ausência de site' como dor.")
     lines.append("   A mesma regra vale ao contrário.")
+    if _SELLS_WEB_PRESENCE.search(target_service or ""):
+        lines.append("8. ESTA campanha vende presença digital/desenvolvimento de site: um lead SEM site")
+        lines.append("   próprio (sem website ou só com Instagram/WhatsApp/Canva) é PÚBLICO-ALVO.")
+        lines.append("   Trate a ausência de site como oportunidade FORTE (aumente o score) e não")
+        lines.append("   desqualifique por causa dela — use-a como dor no pitch/suggested_subject.")
+    else:
+        lines.append("8. A ausência de site próprio é NEUTRA para o fit desta campanha: avalie os")
+        lines.append("   demais sinais, não desqualifique nem supervalorize por causa dela.")
     lines.append("")
 
     lines.append(RESPONSE_SCHEMA_HINT)
@@ -523,7 +542,11 @@ class AIScoringService:
             technical_facts=[],
             business_facts=business_facts,
         )
-        return await self._call_groq(prompt, db=db, organization_id=organization_id)
+        # Guard determinístico de presença de site (item 4.2): sem site → remove
+        # evidências que afirmem que o lead TEM site.
+        return await self._call_groq(
+            prompt, has_website=bool(website), db=db, organization_id=organization_id
+        )
 
 
 async def main_test_scoring():

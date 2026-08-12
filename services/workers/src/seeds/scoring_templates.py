@@ -70,6 +70,7 @@ DEFAULT_TEMPLATES = [
             {"label": "Sem LGPD/cookies", "description": "Ausência de menção a privacidade na home", "weight_hint": "low"},
             {"label": "Sem formulário / CTA claros", "description": "Sem formulário de contato visível", "weight_hint": "medium"},
             {"label": "Sem responsividade", "description": "Layout não mobile-friendly", "weight_hint": "medium"},
+            {"label": "Sem site próprio / sem presença digital", "description": "Empresa sem website próprio (usa Instagram/Canva/WhatsApp ou não tem presença) — público-alvo direto para desenvolvimento de site", "weight_hint": "high"},
         ],
         "negative_signals": [
             {"label": "Site moderno (Next.js/Nuxt/Astro)", "description": "Stack atual", "weight_hint": "high"},
@@ -82,7 +83,12 @@ DEFAULT_TEMPLATES = [
         ],
         "extra_instructions": (
             "Concentre a análise em oportunidades de modernização/desenvolvimento de site. "
-            "Use os dados técnicos do site como evidência primária."
+            "Use os dados técnicos do site como evidência primária. "
+            "Empresa SEM site próprio ou com presença apenas via redes sociais "
+            "(Instagram/WhatsApp/Canva) é PÚBLICO-ALVO PRIORITÁRIO para desenvolvimento "
+            "de site — trate a ausência de site como oportunidade FORTE (aumenta o score), "
+            "nunca como desqualificação. Para esses leads não há relatório técnico: avalie "
+            "o fito pelo segmento, categoria e localização."
         ),
     },
     {
