@@ -356,10 +356,9 @@ export function LeadList() {
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="score_desc">Maior aptidão primeiro</SelectItem>
-            <SelectItem value="score_asc">Menor aptidão primeiro</SelectItem>
-            <SelectItem value="date_desc">Mais recente</SelectItem>
-            <SelectItem value="date_asc">Mais antigo</SelectItem>
+            {sortByOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

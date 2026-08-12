@@ -12,6 +12,7 @@ import { Loader2, Sparkles, Plus, Trash2, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useScoringTemplates, usePatchScoringTemplate } from '@/hooks/use-api';
 import type { ScoringTemplate, ScoringTemplateInput, Playbook } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface TemplateSelectorProps {
   value: string | null;
@@ -34,10 +35,23 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
 
   const handleSave = async () => {
     if (!selected || !draft) return;
+    // O backend rejeita (422) sinais com label vazio — valida antes para não
+    // "quebrar" o wizard com um erro não tratado.
+    const groups = ['positive_signals', 'negative_signals', 'context_signals'] as const;
+    const emptyLabel = groups.some((g) =>
+      (draft[g] ?? []).some((s) => !(s.label ?? '').trim())
+    );
+    if (emptyLabel) {
+      toast.error('Preencha o nome de todos os sinais (ou remova os vazios) antes de salvar.');
+      return;
+    }
     setSaving(true);
     try {
       await patchTemplate.mutateAsync({ id: selected.id, data: draft });
       setDraft(null);
+      toast.success('Template atualizado com sucesso.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao salvar o template.');
     } finally {
       setSaving(false);
     }
