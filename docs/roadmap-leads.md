@@ -3,7 +3,8 @@
 > **Mapa-norte do sistema de prospecção.** Reúne, de forma detalhada: (1) as
 > **soluções propostas** para os problemas de qualificação/scoring levantados nas
 > últimas sessões e (2) a **análise da planilha inteligente do setor de vendas da
-> Alphamec** (`docs/planilha_alphamec_atual.xlsx`) com o plano de trazê-la para o
+> Alphamec** (planilha externa à operação — não versionada no repo) com o plano
+> de trazê-la para o
 > sistema — para finalmente largarmos as planilhas.
 >
 > Leitura recomendada antes: `docs/business-rules.md` (funil e regras) e
@@ -248,7 +249,8 @@ Efeito: leads sem site ganham score e entram no funil; com os sinais corrigidos
 
 # Parte C — Análise da planilha Alphamec
 
-Arquivo: `docs/planilha_alphamec_atual.xlsx`.
+Arquivo: planilha `Alphamec` (arquivo **externo à operação, não versionado no
+repo** — análise da estrutura feita em 2026-08).
 
 A planilha é a base atual de operação do setor de vendas. **Não contém
 fórmulas**; os indicadores são apurados manualmente pela analista e pela
@@ -485,6 +487,13 @@ Levantamento de campo (mesma sessão do roadmap-vendas §10 — C2/C3/C4):
   (idempotente, dry-run por padrão) re-pontua os presos + (com `--fix-site-evidence`)
   os leads com evidência errada. Levantamento atual: **56 leads** (53 + 3).
   Validado em 2026-08-11 (`def reprocess_one` duplicado removido; dry-run OK).
+- **Reforço da regra "sem site = público-alvo" (2026-08-11, PR #70):** sinal
+  positivo **"Sem site próprio / sem presença digital"** (weight high) no seed
+  "Desenvolvimento de Sites"; instrução dinâmica no `build_prompt`
+  (`_SELLS_WEB_PRESENCE`) — quando a campanha vende presença digital, ausência de
+  site é oportunidade **FORTE** (aumenta o score); senão **NEUTRA**. `SYSTEM_PROMPT`
+  alinhado e guard `has_website` agora também no `score_business_lead`. Smoke
+  testado (web→PÚBLICO-ALVO, mecânica→NEUTRA).
 
-**Verificação**: `python -m pytest tests -q` → **118 passed**; `compileall` dos serviços
-OK; dry-run do script OK (base local recém-criada sem leads presos).
+**Verificação**: `python -m pytest tests -q` → **134 passed**; `compileall` dos
+serviços OK; dry-run do script OK (base local recém-criada sem leads presos).

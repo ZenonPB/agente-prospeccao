@@ -82,7 +82,7 @@ agente-prospeccao/
 │           │   ├── template_router.py / template_generation_service.py
 │           │   ├── secret_service.py (BYOK) / provider_client.py / domain_utils.py
 │           │   └── main.py
-├── scripts/                           ← dev.ps1 / dev.sh / backup.sh / setup.sh
+├── scripts/                           ← setup.sh / setup.ps1 / setup.cmd / dev.sh / dev.ps1 / dev.cmd / backup.sh
 ├── tests/                             ← pytest (134 testes)
 └── docs/
 ```

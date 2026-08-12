@@ -428,6 +428,18 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   kanban"): chip resumo "N leads parados (SLA)", contador vermelho por coluna e badge
   "SLA há Xd" nos cartões (tooltip com a regra). Testes: `tests/test_sla_service.py` (8).
 
+#### 4.11 Gráfico de funil ponta-a-ponta (leads → fechamento) ⬜ (P1, S, gratuito)
+
+- **Pedido da diretoria:** ver visualmente de quantos **leads achados** partimos,
+  quantos foram **prospectados** (1º contato), quantos **responderam**, quantos
+  marcaram **reunião diagnóstica** e quantos, de fato, **fecharam negócio** — por
+  campanha/período/consultor.
+- **Fontes no sistema:** funil atual (`GET /analytics/overview`), cadência
+  (`FollowUp.sent_at`), resposta (`Message.is_response`/`Lead.status=RESPONDIDO`),
+  reunião (`Lead.status=REUNIAO_MARCADA`), fechamento (`Conversion`).
+- **Aceite:** gráfico de funil (nº absoluto + % de conversão entre etapas) no
+  `/relatorios` e no PDF executivo — a diretoria enxerga onde o funil afina/vaza.
+
 ---
 
 ---
@@ -592,6 +604,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ Entregue 2026-08-11 |
+| 4.11 | Gráfico de funil ponta-a-ponta (achados→prospectados→responderam→reunião→fecharam) | Gestão | P1 | S | gratuito | 4.8/4.16 | ⬜ |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
 | 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
@@ -746,7 +759,20 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   estavam com 0 — mas por preso no C2, não por decisão. Para quem vende sites, o
   lead **sem** site é o público-alvo (item 4.2: scoring business mesmo em campanha
   web_presence).
-- **Ação:** a correção do C2 destrava; nenhuma mudança de regra necessária.
+- **Ação:** a correção do C2 destrava os presos. Em 2026-08-11 a regra foi
+  **reforçada no código** (ver C6): sinal positivo "Sem site próprio" no seed +
+  instrução dinâmica no prompt quando a campanha vende presença digital +
+  guard `has_website` no `score_business_lead` — lead sem site é pontuado como
+  público-alvo (não fica à mercê de interpretação do LLM).
+
+### C6 · Docs sincronizadas + pendências registradas (2026-08-11) ✅
+- **PR #70 mergeado (2026-08-11):** setup/dev **Windows sem Docker**
+  (`setup.ps1`/`dev.ps1` + launchers `.cmd`), scoring "sem site = público-alvo"
+  (C4) e fixes de UI (selects PT-BR, validação de sinais no template).
+- **Novo item 4.11 no backlog:** gráfico de funil ponta-a-ponta
+  (achados → prospectados → responderam → reunião diagnóstica → fecharam).
+- **Regra pendente:** `PERDIDO` volta à fila em 90 dias — **não implementada**
+  no código (registrada em `business-rules.md`).
 
 ### C5 · Suporte a aplicações web completas / ERP 🟡 decisão aberta
 - **Pergunta do usuário:** o sistema "só suporta landing pages"? Para vender
@@ -781,6 +807,11 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Itens 4.14–4.16 entregues (2026-08-11, PR #68):** cotas por org (4.14),
   observabilidade/restore (4.15) e paginação/índices (4.16) — P2 confiabilidade
   fechado.
+- **PR #70 mergeado (2026-08-11):** setup/dev **Windows sem Docker** +
+  scoring "sem site = público-alvo" (C4/C6) + fixes de UI.
+- **Item novo 4.11 no backlog (funil ponta-a-ponta)** — pedido da diretoria.
+- **Regra pendente:** `PERDIDO` volta à fila em 90 dias **não está implementada**
+  (ver `business-rules.md`).
 - **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
   auditoria de acessos, LinkedIn **4.23–4.25**) → P3 (4.18–4.21, 4.26–4.27).
 - **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir

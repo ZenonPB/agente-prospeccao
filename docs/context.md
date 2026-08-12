@@ -807,6 +807,15 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    observabilidade/restore e paginação/índices (P2 confiabilidade fechado).
 > 6. Próximos passos (backlog): **4.17 mobile-first** → **3.3.4** auditoria →
 >    LinkedIn 4.23–4.25 → P3 (4.18–4.21, 4.26–4.27).
+> 7. **PR #70 mergeado (2026-08-11):** setup/dev **Windows sem Docker**
+>    (`setup.ps1`/`dev.ps1` + launchers `.cmd`), scoring "sem site = público-alvo"
+>    (sinal no seed + instrução dinâmica + guard `has_website`) e fixes de UI.
+>    Docs sincronizadas nesta sessão.
+> 8. **Pendências novas/abertas:** **4.11 gráfico de funil ponta-a-ponta**
+>    (achados→prospectados→responderam→reunião diagnóstica→fecharam — pedido da
+>    diretoria, ver `roadmap-vendas.md`); regra **`PERDIDO` volta à fila em 90
+>    dias NÃO implementada** (`business-rules.md`); **C5** (ERP/web apps)
+>    aguardando decisão da diretoria.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

@@ -21,7 +21,7 @@ Se uma decisão precisar ser revertida, documente aqui o motivo.
 
 ## ADRs Detalhados
 
-Ver `docs/decisions/` para o raciocínio completo de cada decisão.
+ADRs consolidadas inline abaixo (a pasta `docs/decisions/` não existe neste repo).
 
 | Decisão | Motivo |
 |---|---|---|
