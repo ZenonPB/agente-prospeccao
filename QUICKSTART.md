@@ -1,5 +1,13 @@
 # Guia de Inicialização - Agente Prospecção
 
+> **Modo automático (Windows, sem Docker):** o jeito mais fácil é dar **duplo
+> clique em `scripts\setup.cmd`** (setup completo uma única vez) e depois em
+> **`scripts\dev.cmd`** (sobe tudo). Ou rode manualmente:
+> `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1` e depois
+> `.\scripts\dev.ps1 start`. O setup baixa um PostgreSQL embarcado (sem instalar
+> nada), cria os venvs, gera o `.env`/`.env.local` com segredos automáticos, roda
+> migrations e seed. Pule os passos 1–2 abaixo se usou o modo automático.
+
 ## Passo 1: Iniciar o Docker Desktop
 
 Antes de rodar o script, você precisa **iniciar o Docker Desktop manualmente**:

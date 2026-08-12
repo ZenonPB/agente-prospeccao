@@ -1168,6 +1168,61 @@ pitch "não tem site próprio... Instagram"; clínica com site moderno `40 COLD`
 checado para `api.whatsapp.com`/`canva`/`instadelivery` → sem site próprio.
 Commits: `43d874c` (fix scoring S1-S4) + docs nesta sessão.
 
+## Sessão atual — Windows plug-and-play + scoring de lead sem site (2026-08-11)
+
+Branch `feat/setup-windows`.
+
+**Windows sem Docker (validação completa nesta máquina):**
+- `scripts/setup.ps1` (equivalente do `setup.sh`) — validado no caminho embarcado
+  (zonky `embedded-postgres-binaries-windows-amd64:16.14.0`, jar baixado e
+  extraído em `$HOME\.local\agente-prospeccao`, `initdb` + `pg_ctl start` OK) e
+  no caminho "Postgres já existente". Re-execução leva ~3s (idempotente via
+  sha1 dos requirements).
+- Otimizações de velocidade: download com `curl.exe` (fallback
+  `Invoke-WebRequest`), `$ProgressPreference='SilentlyContinue'`, extração com
+  `tar.exe` do Windows (fallback lzma do Python), console em UTF-8, fix do print
+  da versão do Python ("Python: 3.14").
+- `scripts/dev.ps1` validado: `start` (subiu API :8000 e Web :3001, HTTP 200) /
+  `status` / `stop` (mantém Postgres externo). `start` remove `.next` antes de
+  subir (Turbopack limpo).
+- **Launchers de duplo clique** para o pessoal da EJ (sem abrir terminal):
+  `scripts/setup.cmd` e `scripts/dev.cmd` (`chcp 65001` + `-ExecutionPolicy
+  Bypass` + pause em erro). Documentados no `QUICKSTART.md`/`README.md`.
+- `.gitignore`: logs `uvicorn.err.log`/`next-dev.err.log` ignorados.
+
+**Scoring — lead SEM site em campanha de presença digital (score 0):**
+- Porquê: lead sem site (ou site = rede social → `places_service` zera o
+  `website`) ia para `score_business_lead`; o template "Desenvolvimento de
+  Sites" só tinha sinais positivos de site **existente e com problema**, o prompt
+  não orientava e o LLM devolvia 0 ("não se encaixa").
+- Fix:
+  - `seeds/scoring_templates.py`: sinal positivo **"Sem site próprio / sem
+    presença digital"** (high) + instrução explícita de que empresa sem site é
+    público-alvo prioritário (seed reaplicado).
+  - `scoring_service.py`: regra dinâmica no `build_prompt` — se o
+    `target_service` vender presença digital (`_SELLS_WEB_PRESENCE`), ausência
+    de site é oportunidade FORTE (aumenta score); senão, NEUTRA. `SYSTEM_PROMPT`
+    alinhado. `score_business_lead` agora passa `has_website=bool(website)` —
+    guard determinístico remove evidência "tem site" de lead sem site.
+  - Smoke testado: guard/instruções corretos (web → PÚBLICO-ALVO, mecânica → NEUTRA).
+
+**Wizard/weights quebrando:**
+- `template-selector.tsx`: salvar com sinal de label vazio dava 422 no backend e
+  erro não tratado. Agora valida antes (toast) + `toast` de sucesso/erro no save.
+
+**Selects/ordenação:**
+- Verificado: nenhum "biggest_to_lowest" existe no código (git log não acha);
+  o select de ordenação de `/oportunidades` já exibia "Maior aptidão primeiro"
+  etc. (padrão `SelectValue` com função é suportado pelo Base UI 1.6.0).
+  Refatorado para renderizar as opções a partir de `sortByOptions` (fonte única).
+  Se o usuário ainda vir inglês, é cache/build antigo → Ctrl+Shift+R.
+
+**Verificação:** `python -m compileall` OK; seed OK (9 templates); smoke de
+scoring OK; `tsc --noEmit` limpo; `eslint` limpo. `dev.ps1 start/stop` OK.
+Suite pytest **134 passed** (api venv, 1.10s); `npm run build` OK (17 rotas).
+Grafo atualizado: `graphify extract . --code-only && graphify cluster-only . --no-label`
+→ `graphify-out/graph.json` com **2410 nós, 5012 arestas, 190 comunidades**.
+
 ## Como rodar
 
 **Workers (backend):**

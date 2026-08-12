@@ -40,17 +40,33 @@ docs/              — documentação em português (context, architecture, busi
 
 ## Rodando em desenvolvimento
 
-### Opção A — Windows (PowerShell)
+### Opção A — Windows (PowerShell, sem Docker)
 
-Execute o script `scripts/dev.ps1` no PowerShell:
+Setup automático (1 vez) e depois subir tudo:
 
 ```powershell
-.\scripts\dev.ps1 start    # Sobe PostgreSQL (Docker), API (:8000) e Web (:3001)
-.\scripts\dev.ps1 status   # Verifica se tudo está rodando
-.\scripts\dev.ps1 stop     # Para todos os serviços
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+.\scripts\dev.ps1 start
 ```
 
-Os arquivos `.env` (raiz do projeto) e `apps/web/.env.local` já foram configurados automaticamente com as suas chaves de API (`GROQ_API_KEY`, `GOOGLE_API_KEY`, `HUNTER_API_KEY`).
+**Sem precisar de terminal:** dê duplo clique em `scripts\setup.cmd` (setup, uma
+vez) e em seguida `scripts\dev.cmd` (sobe tudo). Ambos são atalhos que rodam os
+scripts acima com permissão de execução.
+
+O `setup.ps1` faz tudo sozinho e é idempotente (pode rodar quantas vezes quiser):
+detecta um PostgreSQL já instalado OU baixa um **PostgreSQL embarcado** (sem
+Docker e sem instalar nada), cria os venvs Python, gera o `.env` da raiz e o
+`apps/web/.env.local` com segredos automáticos, cria o banco, roda as migrations
+e o seed dos templates. Depois é só:
+
+```powershell
+.\scripts\dev.ps1 start    # sobe PostgreSQL, API (:8000) e Web (:3001)
+.\scripts\dev.ps1 status   # verifica o que está rodando
+.\scripts\dev.ps1 stop     # para tudo
+```
+
+Única pendência manual: preencher `GROQ_API_KEY` e `GOOGLE_API_KEY` no `.env`
+(raiz) para coletar e qualificar leads (`HUNTER_API_KEY` é opcional).
 
 ### Opção B — Linux/macOS (Script Bash)
 
