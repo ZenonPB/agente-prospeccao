@@ -8,7 +8,7 @@ Compact guidance for OpenCode sessions working in this repo. Read alongside `doc
 - `docs/context.md` is the canonical "live state" doc — read it first and **update it at the end of every session** (_Estado atual_ and _Próximo passo imediato_).
 - Then `docs/architecture.md` and `docs/business-rules.md`. For _why_ something is the way it is, consult `docs/decisions.md` before proposing changes.
 - Load specialized skills with the `skill` tool before writing code: `frontend-design` & `vercel-react-best-practices` for `apps/web` work.
-- `apps/web/AGENTS.md` and the `CLAUDE.md` files carry package-specific rules — check them before editing that package.
+- `apps/web/AGENTS.md` carries package-specific rules — check it before editing that package.
 
 ## Environment & secrets
 
@@ -70,6 +70,14 @@ alembic revision --autogenerate -m "..."
 - Never drop columns in prod — mark deprecated first.
 - Docker provides Postgres + pgAdmin: `docker compose up -d` (db :5432, pgAdmin :5050). Both services expect `DATABASE_URL` from the root `.env`.
 
+## Windows sem Docker (alternativa ao compose)
+
+- `scripts/setup.ps1` (ou duplo clique em `scripts/setup.cmd`): setup completo e
+  idempotente — usa um PostgreSQL já existente na porta 5432 ou baixa um
+  **embarcado** (zonky), cria venvs, `.env`/`.env.local`, banco, migrations e seed.
+- `scripts/dev.ps1 start|stop|status|restart` (ou `scripts/dev.cmd`): sobe
+  Postgres/API/Web. Mesmas regras de `.env` e venvs dos comandos acima.
+
 ## Tests & verification
 
 - Root-level `tests/` (pytest, unit-only, no DB needed). Install deps with `pip install -r requirements-dev.txt` (root) then run **from repo root**: `python -m pytest tests -q`. Neither service venv includes pytest by default.
@@ -88,4 +96,4 @@ alembic revision --autogenerate -m "..."
 
 ## Scoring / business rules
 
-Score 0–100; `>= 60` → `QUALIFICADO` (enters outreach), `< 60` → `DESQUALIFICADO`. Lead funnels: `NOVO → ANALISADO → QUALIFICADO/DESQUALIFICADO → CONTATADO → RESPONDIDO → REUNIAO_MARCADA` (or `PERDIDO`, which re-enters the queue after 90 days). Leads without a website stay `NOVO` and skip technical enrichment. All website analysis is **passive** — never probe, inject, test auth, or take non-passive actions (Lei 12.737/2012).
+Score 0–100; `>= 60` → `QUALIFICADO` (enters outreach), `< 60` → `DESQUALIFICADO`. Lead funnels: `NOVO → ANALISADO → QUALIFICADO/DESQUALIFICADO → CONTATADO → RESPONDIDO → REUNIAO_MARCADA → REUNIAO_FEITA → PROPOSTA_ENVIADA` (or `PERDIDO`). Leads **without a website skip technical enrichment but are still scored** via the business path (for web-presence campaigns they are the public-alvo — never disqualified just for lacking a site); on Groq failure they stay `NOVO` to be reprocessed. ⚠️ The rule "`PERDIDO` re-enters the queue after 90 days" is **documented but not yet implemented** (pending). All website analysis is **passive** — never probe, inject, test auth, or take non-passive actions (Lei 12.737/2012).

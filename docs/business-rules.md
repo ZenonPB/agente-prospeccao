@@ -10,7 +10,7 @@ NOVO
 → REUNIAO_MARCADA
 → REUNIAO_FEITA  (reunião realizada)
 → PROPOSTA_ENVIADA
-→ PERDIDO        (volta à fila após 90 dias)
+→ PERDIDO        (⚠️ pendente: "volta à fila após 90 dias" não está implementado no código)
 
 ## Critérios de Scoring (0-100)
 
@@ -95,7 +95,8 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
   S4). Nunca fica invisível/`NOVO` esperando por um site.
 - Lead sem contato com `email_verified = True` não sai no **envio automático**
   da cadência (gate 4.1); humano ainda pode enviar não-verificado com aviso.
-- Leads PERDIDO voltam para a fila após 90 dias.
+- ⚠️ **PENDENTE (não implementado):** "Leads PERDIDO voltam para a fila após 90
+  dias" (requeue do status `PERDIDO`). Decidir se implementa ou remove a regra.
 - Scoring é recalculado quando novos dados de enriquecimento chegam
   (`POST /campaigns/{id}/reanalyze`).
 - Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead.
@@ -185,5 +186,5 @@ Se uma chave exceder seu limite, todas as operações usarão fallback (cache lo
 | 1ª mensagem | Dia 0 | Apresentação + problema + CTA reunião |
 | Follow-up 1 | Dia 3 sem resposta | Reforço leve |
 | Follow-up 2 | Dia 7 sem resposta | Última tentativa |
-| Encerramento | Dia 14 sem resposta | Ciclo encerrado, lead volta em 90 dias |
+| Encerramento | Dia 14 sem resposta | Ciclo encerrado (lead → `PERDIDO`; o retorno à fila em 90 dias é ⚠️ pendente) |
 | Pós-venda | Após conversão | Acompanhamento pós-cliente (canal WhatsApp/E-mail) |
