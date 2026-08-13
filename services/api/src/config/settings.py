@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     # Cadence scheduler (item 3.7.2) — intervalo do poll de follow-ups vencidos.
     CADENCE_POLL_SECONDS: int = Field(60, description='Segundos entre verificações de follow-ups vencidos')
 
+    # Re-enfileiramento de leads PERDIDO (business-rules): carência em dias para
+    # o lead voltar à fila (PERDIDO → NOVO) e intervalo do poll do job no main.py.
+    LOST_REQUEUE_DAYS: int = Field(90, description='Dias em PERDIDO até o lead voltar à fila (0 desativa)')
+    LOST_REQUEUE_POLL_SECONDS: int = Field(3600, description='Segundos entre verificações de leads PERDIDO vencidos')
+
     # Item 4.3 — throttling: teto diário de envios automáticos por org quando a
     # org não define o próprio `daily_email_limit`. A janela de espalhamento
     # também é configurável por org (`send_window_start/end`, HH:MM no fuso do

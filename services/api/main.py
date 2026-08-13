@@ -54,16 +54,51 @@ async def _cadence_scheduler_loop():
         await asyncio.sleep(settings.CADENCE_POLL_SECONDS)
 
 
+async def _lost_requeue_loop():
+    """Loop periódico: re-enfileira leads `PERDIDO` vencidos pela carência
+    (business-rules — 90 dias). Poll lento (default 1h); `LOST_REQUEUE_DAYS=0`
+    desativa."""
+    from src.db.session import SessionLocal
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                from src.services.requeue_service import requeue_expired_lost
+                requeued = await asyncio.to_thread(
+                    lambda: requeue_expired_lost(db, days=settings.LOST_REQUEUE_DAYS),
+                )
+                if requeued:
+                    logger.info(
+                        "Lost requeue: %d lead(s) PERDIDO re-enfileirado(s)", requeued
+                    )
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error("Erro no lost requeue: %s", e)
+        await asyncio.sleep(settings.LOST_REQUEUE_POLL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(_cadence_scheduler_loop())
+    requeue_task = asyncio.create_task(_lost_requeue_loop())
     logger.info("Cadence scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
+    logger.info(
+        "Lost requeue iniciado (carência %dd, poll %ds)",
+        settings.LOST_REQUEUE_DAYS, settings.LOST_REQUEUE_POLL_SECONDS,
+    )
     try:
         yield
     finally:
         task.cancel()
+        requeue_task.cancel()
         try:
             await task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await requeue_task
         except asyncio.CancelledError:
             pass
 
