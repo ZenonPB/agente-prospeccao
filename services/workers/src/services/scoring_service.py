@@ -67,6 +67,147 @@ def _contradicts_site_state(evidence: Dict[str, Any], has_website: bool) -> bool
         return False
     return bool(_HAS_SITE_CLAIM.search(text))
 
+
+# ---------------------------------------------------------------------------
+# Grounding do pitch/suggested_subject (Frente A)
+#
+# O LLM costuma alegar sintomas técnicos/UX (responsividade, formulário, CTA,
+# "site desatualizado", etc.) que NÃO estão nos facts — ou repete critérios do
+# template como se fossem fatos. Validação determinística: cada alegação de
+# risco precisa de um token correspondente nas evidências aprovadas; se o texto
+# reprovar, substitui-se por um pitch determinístico construído da evidência
+# mais forte (sempre factual, nunca nota 0 de grounding).
+# ---------------------------------------------------------------------------
+_PERF_SLOW = ("muito lento", "lento")
+_PERF_FAST = ("rápido", "rapido")
+
+_RISKY_CLAIMS = [
+    # (regex da alegação, tokens que precisam existir no texto das evidências)
+    (re.compile(r"responsiv|mobile-?friendly|mobile", re.IGNORECASE), ("viewport", "mobile", "responsiv")),
+    (re.compile(r"formul[áa]rio", re.IGNORECASE), ("formul",)),
+    (re.compile(r"\bcta\b|chamada para", re.IGNORECASE), ("cta", "formul")),
+    (re.compile(r"atualiz|desatualiz|antig", re.IGNORECASE), ("wordpress", "joomla", "drupal", "asp.net", "php", "cms", "desatualiz")),
+    (re.compile(r"\blento\b|muito lento|r[áa]pido|performance", re.IGNORECASE), None),  # tratado por _perf_claim_supported
+    (re.compile(r"\bssl\b|https|insegur|segur", re.IGNORECASE), ("ssl", "https")),
+    (re.compile(r"\bseo\b", re.IGNORECASE), ("seo",)),
+    (re.compile(r"lgpd|privacidade|cookies|cookie", re.IGNORECASE), ("lgpd", "privacidade", "cookies")),
+    (re.compile(r"whatsapp", re.IGNORECASE), ("whatsapp",)),
+    (re.compile(r"telefone|telefon", re.IGNORECASE), ("telefone",)),
+]
+
+_PERF_CLAIM = _RISKY_CLAIMS[4][0]
+
+
+def _evidence_text(evidence: List[Dict[str, Any]]) -> str:
+    """Texto normalizado de todas as evidências aprovadas (para busca de tokens)."""
+    return " ".join(
+        str(e.get("title") or "") + " " + str(e.get("description") or "")
+        for e in evidence if isinstance(e, dict)
+    ).lower()
+
+
+def _perf_claim_supported(text: str, ev_text: str) -> bool:
+    """Alegações de performance precisam casar com o valor medido (cronometria)."""
+    lt = re.search(r"load time[: ]*(\d+)\s*ms", ev_text)
+    ms = int(lt.group(1)) if lt else None
+    rating = re.search(r"rating:\s*(muito lento|lento|aceitável|aceitavel|r[áa]pido)", ev_text)
+    rating_val = rating.group(1).lower() if rating else None
+
+    if re.search(r"muito lento|\blento\b", text):
+        return ms is not None and ms > 3000 or rating_val in _PERF_SLOW
+    if re.search(r"r[áa]pido", text):
+        return ms is not None and ms < 1500 or rating_val in _PERF_FAST
+    # menção genérica a "performance" → precisa existir info de performance
+    return bool(re.search(r"load time|rating", ev_text))
+
+
+def _has_evidence_footprint(text: str, evidence: List[Dict[str, Any]]) -> bool:
+    """True se o texto referencia de alguma forma uma evidência aprovada
+    (palavra com 6+ caracteres do título/descrição aparece no texto)."""
+    low = text.lower()
+    words = set()
+    for e in evidence:
+        for field in ("title", "description"):
+            for w in re.findall(r"[a-zà-ÿ0-9]+", str(e.get(field) or "").lower()):
+                if len(w) >= 6:
+                    words.add(w)
+    return any(w in low for w in words)
+
+
+def _pitch_is_grounded(text: str, evidence: List[Dict[str, Any]]) -> bool:
+    """Validação determinística do pitch/subject do LLM.
+
+    False se: texto vazio, alguma alegação de risco sem suporte nas evidências,
+    ou nenhuma referência (footprint) a uma evidência aprovada.
+    """
+    if not text or not text.strip():
+        return False
+    ev_text = _evidence_text(evidence)
+    for regex, required in _RISKY_CLAIMS:
+        if not regex.search(text):
+            continue
+        if regex is _PERF_CLAIM:
+            if not _perf_claim_supported(text, ev_text):
+                return False
+        elif not any(k in ev_text for k in required):
+            return False
+    return _has_evidence_footprint(text, evidence)
+
+
+def _pick_strongest_evidence(evidence: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Escolhe a evidência de maior gravidade (e mais 'técnica') para o fallback."""
+    order = {"CRITICO": 0, "ALTO": 1, "MEDIO": 2, "BAIXO": 3, "INFO": 4}
+    ranked = []
+    for e in evidence:
+        if not isinstance(e, dict):
+            continue
+        sev = order.get(str(e.get("severity") or "INFO").upper(), 9)
+        typ = 0 if e.get("type") == "technical" else (1 if e.get("type") == "business" else 2)
+        ranked.append((sev, typ, e))
+    ranked.sort(key=lambda t: (t[0], t[1]))
+    return ranked[0][2] if ranked else None
+
+
+def _build_grounded_pitch(
+    evidence: List[Dict[str, Any]],
+    target_service: str = "",
+) -> Dict[str, str]:
+    """Pitch/subject determinísticos, montados da evidência aprovada mais forte.
+
+    Usado quando o pitch do LLM reprova o grounding (alegações inventadas).
+    Sempre cita a descrição da evidência — factual por construção.
+    """
+    ev = _pick_strongest_evidence(evidence)
+    if not ev:
+        return {"pitch_angle": "", "suggested_subject": ""}
+    title = str(ev.get("title") or "").strip()
+    desc = str(ev.get("description") or "").strip()
+    desc_first = (desc[:1].lower() + desc[1:]) if desc else ""
+    angle = ""
+    if target_service:
+        angle = f" Isso é o alvo direto de um serviço de {target_service.strip().lower()}."
+    pitch = (
+        f"Observamos no site: {desc_first}.{angle} "
+        "Se essa dor está tirando conversão, dá para resolver com um plano objetivo — quer ver como?"
+    )
+    subject = f"O que notamos: {title[:80]}" if title else "Uma observação concreta sobre o site de vocês"
+    return {"pitch_angle": pitch, "suggested_subject": subject}
+
+
+def _ground_pitch_fields(
+    parsed: Dict[str, Any],
+    evidence: List[Dict[str, Any]],
+    target_service: str = "",
+) -> None:
+    """Substitui pitch/subject reprovados no grounding por versão determinística."""
+    fallback = None
+    for field in ("pitch_angle", "suggested_subject"):
+        text = str(parsed.get(field) or "")
+        if not _pitch_is_grounded(text, evidence):
+            if fallback is None:
+                fallback = _build_grounded_pitch(evidence, target_service)
+            parsed[field] = fallback.get(field, "")
+
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = "llama-3.1-8b-instant"
 
@@ -76,6 +217,13 @@ SYSTEM_PROMPT = (
     "segmento prospectado) e nos critérios orientadores fornecidos. "
     "Toda conclusão deve ser JUSTIFICADA por evidências explícitas — nunca retorne "
     "apenas uma pontuação. "
+    "Os CRITÉRIOS/sinais do template são categorias de análise, NÃO fatos sobre o lead: "
+    "nunca inclua em evidence[], pitch_angle ou suggested_subject um sintoma "
+    "(ex.: 'sem responsividade', 'sem formulário/CTA', 'site desatualizado', 'sem SEO') "
+    "que não tenha um fact correspondente nas evidências fornecidas. "
+    "pitch_angle e suggested_subject DEVEM referenciar um título de evidence[] e só "
+    "podem alegar sintomas técnicos/UX (responsividade, formulário, CTA, atualização, "
+    "performance, SSL, CMS, WhatsApp) se houver evidência explícita e correspondente. "
     "As frases do schema (pitch_angle, suggested_subject, etc.) são IMPLEMENTADAS "
     "especificamente a partir das evidence[] DESTE lead — NUNCA copie, repita ou "
     "parafraseie exemplos do schema ou de outros leads. "
@@ -98,29 +246,29 @@ RESPONSE_SCHEMA_HINT = """
 Retorne um JSON com EXATAMENTE esta estrutura:
 {
   "qualification_score": <inteiro 0-100>,
-  "primary_need": "<necessidade provável do lead neste contexto — string livre em pt-BR, máx 80 chars>",
-  "qualification_reason": "<2-4 frases em pt-BR explicando o raciocínio que justifica o score, conectando evidências ao serviço que queremos vender>",
+  "primary_need": "<necessidade provável do lead — pt-BR, máx 80 chars>",
+  "qualification_reason": "<2-4 frases conectando evidências ao serviço que vendemos>",
   "priority": "HOT" | "WARM" | "COLD",
-  "priority_reasoning": "<1-3 frases em pt-BR justificando a prioridade. Não use simplesmente a faixa do score — explique o que torna o lead hot/warm/cold (urgência, fito, sinais de compra, etc.)>",
-  "executive_summary": "<2-4 frases em pt-BR com o resumo consultor comercial: principal oportunidade + principal risco + recomendação de abordagem>",
-  "pitch_angle": "<1-2 frases: gancho DIRETO e FACTUAL de abordagem, COM PROVA. NUNCA genérico ('empresa precisa de site moderno') e NUNCA elogio vazio ('parabéns pelo trabalho'). CITE UMA evidência objetiva, específica DESTE lead, tirada da lista em evidence[] — descreva a dor observada neste lead (ex.: cite o problema real apontado na evidência). Para lead SEM site, cite a ausência de presença digital ou a ferramenta usada (Instagram/Canva/WhatsApp) como barreira concreta. É o que o vendedor dirá na primeira frase do contato>",
-  "suggested_subject": "<sugestão de assunto de e-mail de prospecção específica e intrigante, citando a dor observada NESTE lead — NUNCA genérico como 'Proposta de parceria'. Para lead SEM site, mencione a ausência de presença digital observada>",
+  "priority_reasoning": "<1-3 frases justificando a prioridade (urgência/fito/sinais), sem apenas repetir a faixa do score>",
+  "executive_summary": "<2-4 frases: oportunidade principal + principal risco + abordagem recomendada>",
+  "pitch_angle": "<1-2 frases FACTUAIS com PROVA: cite UMA evidência objetiva DESTE lead (descreva a dor concreta observada: ex. problema real apontado na evidência; para SEM site, cite ausência de presença digital/ferramenta usada). NUNCA genérico, NUNCA elogio vazio, NUNCA alegue sintomas técnicos sem evidência>",
+  "suggested_subject": "<assunto de e-mail específico citando a dor observada NESTE lead (nunca genérico como 'Proposta de parceria')>",
   "score_factors": [
     {
-      "label": "<nome curto do fator>",
+      "label": "<fator curto>",
       "impact": "+" | "-",
       "weight": "high" | "medium" | "low",
-      "rationale": "<1 frase: por que este fator impacta o score neste contexto>",
-      "evidence_ref": "<referência à entrada correspondente em evidence[], pelo title>"
+      "rationale": "<1 frase: por que impacta o score>",
+      "evidence_ref": "<reference pelo title em evidence[]>"
     }
   ],
   "evidence": [
     {
-      "type": "<categoria: 'technical' | 'business' | 'context'>",
+      "type": "<'technical' | 'business' | 'context'>",
       "severity": "CRITICO" | "ALTO" | "MEDIO" | "BAIXO" | "INFO",
-      "title": "<título curto da evidência>",
-      "description": "<descrição em pt-BR EMBUTINDO o valor concreto (ex.: 'WordPress 5.8 detectado', 'Load time 4800ms', 'Setor: metalomecânica')>",
-      "source": "<origem: 'relatório técnico' | 'dados cadastrais' | 'contexto da campanha' | 'inferência LLM'>"
+      "title": "<título curto>",
+      "description": "<descrição EMBUTINDO o valor concreto do fact (ex.: 'Load time 4800ms', 'Setor: metalomecânica')>",
+      "source": "<'relatório técnico' | 'dados cadastrais' | 'contexto da campanha' | 'inferência LLM'>"
     }
   ]
 }
@@ -195,18 +343,14 @@ def build_prompt(
 
     lines.append("== INSTRUÇÕES ==")
     lines.append("1. Use EXCLUSIVAMENTE as evidências fornecidas acima (facts + contexto).")
-    lines.append("2. Se um fact técnico conflitar com a categoria (ex.: analysis técnica de site para 'Engenharia Mecânica'),")
+    lines.append("2. Se um fact técnico conflitar com a categoria (ex.: análise técnica de site para 'Engenharia Mecânica'),")
     lines.append("   trate-o como evidência secundária e pondere-o baixo no score_factors.")
     lines.append("3. Cada score_factors PRECISA referenciar uma entrada de evidence[] pelo title.")
     lines.append("4. Cada evidence[] deve EMBUTIR o valor concreto do fact (não dizer apenas 'lento', dizer '4800ms').")
     lines.append("5. priority é decisão LLM: HOT = urgência + fito + sinais de compra; COLD = poucos sinais.")
     lines.append("   Não derive priority matematicamente do score — justifique em priority_reasoning.")
-    lines.append("6. qualification_score 0-100, guideline geral:")
-    lines.append("   - 80-100: várias evidências positivas fortes para ESTA campanha")
-    lines.append("   - 60-79: fito razoável, alguns sinais positivos")
-    lines.append("   - 40-59: fito parcial / sinais mistos")
-    lines.append("   - 20-39: poucos sinais relevantes para a campanha")
-    lines.append("   - 0-19:  não se encaixa ou sinais contrários")
+    lines.append("6. qualification_score 0-100, guideline: 80-100 várias evidências fortes; 60-79 fito razoável;")
+    lines.append("   40-59 fito parcial; 20-39 poucos sinais; 0-19 não se encaixa ou sinais contrários.")
     lines.append("7. A presença de site é fato determinístico: se os facts disserem 'Tem website: sim',")
     lines.append("   NUNCA afirme que o lead não tem site nem use 'ausência de site' como dor.")
     lines.append("   A mesma regra vale ao contrário.")
@@ -218,6 +362,12 @@ def build_prompt(
     else:
         lines.append("8. A ausência de site próprio é NEUTRA para o fit desta campanha: avalie os")
         lines.append("   demais sinais, não desqualifique nem supervalorize por causa dela.")
+    lines.append("9. Os sinais do template (CRITÉRIOS) NÃO são fatos do lead: nunca inclua em evidence[],")
+    lines.append("   pitch_angle ou suggested_subject um sintoma (ex.: 'sem responsividade', 'sem formulário/CTA',")
+    lines.append("   'site desatualizado') que não tenha fact correspondente nas EVIDÊNCIAS acima.")
+    lines.append("10. pitch_angle e suggested_subject DEVEM referenciar um evidence.title e só podem alegar")
+    lines.append("    sintomas técnicos/UX (responsividade, formulário, CTA, atualização, performance, SSL, CMS, WhatsApp)")
+    lines.append("    se houver evidência explícita correspondente.")
     lines.append("")
 
     lines.append(RESPONSE_SCHEMA_HINT)
@@ -281,6 +431,28 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
     else:
         facts.append("Nenhum caminho sensível exposto")
 
+    ux = report.get("ux") or {}
+    if ux:
+        if ux.get("viewport_ok"):
+            facts.append("Meta viewport presente (layout mobile-friendly)")
+        else:
+            facts.append("Meta viewport ausente (provável layout não mobile-friendly)")
+        if ux.get("contact_form_found"):
+            facts.append("Formulário de contato presente na página")
+        else:
+            facts.append("Formulário de contato ausente na página")
+        canais = []
+        if ux.get("tel_link_found"):
+            canais.append("telefone")
+        if ux.get("whatsapp_link_found"):
+            canais.append("WhatsApp")
+        if ux.get("mailto_link_found"):
+            canais.append("e-mail")
+        if canais:
+            facts.append(f"Canais de contato clicáveis na home: {', '.join(canais)}")
+        else:
+            facts.append("Nenhum canal de contato clicável (telefone/WhatsApp/e-mail) na home")
+
     warnings = report.get("warnings") or []
     if warnings:
         facts.append(f"Avisos gerais: {', '.join(warnings[:5])}")
@@ -331,6 +503,7 @@ class AIScoringService:
         self,
         parsed: Dict[str, Any],
         has_website: Optional[bool] = None,
+        target_service: str = "",
     ) -> Dict[str, Any]:
         """Normaliza e valida o JSON devolvido pela LLM.
 
@@ -394,6 +567,9 @@ class AIScoringService:
                 e for e in clean_evidence if not _contradicts_site_state(e, has_website)
             ]
         parsed["evidence"] = clean_evidence
+        # Grounding do pitch/subject (Frente A): substitui alegações sem
+        # suporte nas evidências por versão determinística (sempre factual).
+        _ground_pitch_fields(parsed, clean_evidence, target_service)
         # Valida evidence_ref dos fatores: só mantém fatores que apontam para
         # uma evidência que permaneceu (evita referência quebrada na UI).
         kept_titles = {e["title"] for e in clean_evidence if e["title"]}
@@ -429,6 +605,7 @@ class AIScoringService:
         has_website: Optional[bool] = None,
         db=None,
         organization_id: Optional[str] = None,
+        target_service: str = "",
     ) -> Optional[Dict[str, Any]]:
         from services.provider_client import groq_json_chat
 
@@ -444,7 +621,7 @@ class AIScoringService:
         )
         if parsed is None:
             return None
-        return self._normalize_response(parsed, has_website=has_website)
+        return self._normalize_response(parsed, has_website=has_website, target_service=target_service)
 
     # ---------- API pública ----------
 
@@ -502,7 +679,10 @@ class AIScoringService:
             technical_facts=technical_facts,
             business_facts=business_facts,
         )
-        return await self._call_groq(prompt, has_website=bool(website), db=db, organization_id=organization_id)
+        return await self._call_groq(
+            prompt, has_website=bool(website), db=db,
+            organization_id=organization_id, target_service=target_service,
+        )
 
     async def score_business_lead(
         self,
@@ -545,7 +725,8 @@ class AIScoringService:
         # Guard determinístico de presença de site (item 4.2): sem site → remove
         # evidências que afirmem que o lead TEM site.
         return await self._call_groq(
-            prompt, has_website=bool(website), db=db, organization_id=organization_id
+            prompt, has_website=bool(website), db=db,
+            organization_id=organization_id, target_service=target_service,
         )
 
 

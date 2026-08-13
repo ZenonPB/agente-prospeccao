@@ -11,14 +11,50 @@ Concentra num só módulo o que estava espalhado por ~12 serviços:
 Uso em novos serviços:
     from services.provider_client import create_http_client, groq_json_chat
 """
+import asyncio
 import json
 import logging
+import time
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import certifi
 import httpx
 
+from config.settings import settings  # noqa: E402
+
 logger = logging.getLogger(__name__)
+
+# Pacing global por processo: intervalo mínimo entre o INÍCIO de chamadas Groq.
+# Evita estourar a janela de TPM/RPM do tier free em batches (scoring em fila).
+_groq_lock = asyncio.Lock()
+_last_groq_sent = 0.0  # time.monotonic()
+
+
+async def _pace_groq_start() -> None:
+    """Aguarda o intervalo mínimo desde a última chamada Groq (medido no início)."""
+    global _last_groq_sent
+    interval = getattr(settings, "GROQ_MIN_INTERVAL_SECONDS", 20.0)
+    async with _groq_lock:
+        now = time.monotonic()
+        wait = interval - (now - _last_groq_sent)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _last_groq_sent = time.monotonic()
+
+
+def _parse_retry_after(value: Optional[str]) -> Optional[float]:
+    """Interpreta o header `Retry-After` (segundos ou HTTP-date)."""
+    if not value:
+        return None
+    value = value.strip()
+    if value.isdigit():
+        return float(value)
+    try:
+        retry_at = datetime.strptime(value, "%a, %d %b %Y %H:%M:%S GMT").replace(tzinfo=timezone.utc)
+        return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+    except ValueError:
+        return None
 
 
 def create_http_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] = None) -> httpx.AsyncClient:
@@ -73,9 +109,14 @@ async def groq_json_chat(
         "response_format": {"type": "json_object"},
     }
 
+    max_attempts = max(1, getattr(settings, "GROQ_MAX_RETRIES", 5))
+    retry_base = getattr(settings, "GROQ_RETRY_BASE_SECONDS", 4.0)
+    retry_cap = getattr(settings, "GROQ_RETRY_MAX_SECONDS", 60.0)
+
     attempts = 0
     while True:
         attempts += 1
+        await _pace_groq_start()
         try:
             async with create_http_client(timeout=timeout, headers={
                 "Authorization": f"Bearer {api_key}",
@@ -88,9 +129,18 @@ async def groq_json_chat(
 
         if response.status_code == 200:
             break
-        if response.status_code in (429, 500, 502, 503, 504) and attempts < 2:
-            import asyncio
-            await asyncio.sleep(1.5 * attempts)
+        retriable = response.status_code in (429, 500, 502, 503, 504)
+        if retriable and attempts < max_attempts:
+            retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+            if response.status_code == 429 and retry_after is not None:
+                delay = min(retry_after, retry_cap)
+            else:
+                delay = min(retry_cap, retry_base * (2 ** (attempts - 1)))
+            logger.warning(
+                "Groq HTTP %s (model=%s) — retry %d/%d em %.1fs",
+                response.status_code, model, attempts, max_attempts, delay,
+            )
+            await asyncio.sleep(delay)
             continue
         logger.error("Groq respondeu HTTP %s (model=%s)", response.status_code, model)
         return None
