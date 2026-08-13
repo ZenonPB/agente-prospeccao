@@ -9,11 +9,12 @@ Fonte de dados:
 - `Conversion` (fechados, ticket, quem fechou)
 - `LeadActivity` (timeline de reuniões via STATUS_CHANGED → REUNIAO_MARCADA)
 - `OrganizationMember` (consultores da org)
+- `FollowUp`/`Message` (funil ponta-a-ponta 4.11 — 1º contato e resposta)
 """
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from src.db.models import (
@@ -21,8 +22,10 @@ from src.db.models import (
     LeadStatus,
     Campaign,
     Conversion,
+    FollowUp,
     LeadActivity,
     LeadActivityAction,
+    Message,
     User,
     OrganizationMember,
     NegotiationStage,
@@ -49,6 +52,59 @@ STAGE_WIN_RATES = {
     LeadStatus.REUNIAO_FEITA: 0.75,
     LeadStatus.PROPOSTA_ENVIADA: 0.90,
 }
+
+# ---------------------------------------------------------------------------
+# Funil ponta-a-ponta (roadmap-vendas 4.11) — achados → fechamento.
+#
+# Cada etapa é "pelo menos": um lead que respondeu também foi prospectado e
+# foi achado. Além do status atual (que sai da frente quando o lead vira
+# PERDIDO), contamos eventos reais (FollowUp/Message/LeadActivity/Conversion)
+# para não perder quem passou pela etapa mas já saiu do funil.
+# ---------------------------------------------------------------------------
+CONTACTED_STATUSES = (
+    LeadStatus.CONTATADO, LeadStatus.RESPONDIDO, LeadStatus.REUNIAO_MARCADA,
+    LeadStatus.REUNIAO_FEITA, LeadStatus.PROPOSTA_ENVIADA,
+)
+RESPONDED_STATUSES = (
+    LeadStatus.RESPONDIDO, LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA,
+    LeadStatus.PROPOSTA_ENVIADA,
+)
+MEETING_STATUSES = (
+    LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA, LeadStatus.PROPOSTA_ENVIADA,
+)
+
+FUNNEL_STAGES = [
+    {"key": "achados", "label": "Achados"},
+    {"key": "prospectados", "label": "Prospectados (1º contato)"},
+    {"key": "responderam", "label": "Responderam"},
+    {"key": "reuniao_diagnostica", "label": "Reunião diagnóstica"},
+    {"key": "fecharam", "label": "Fecharam negócio"},
+]
+
+
+def build_funnel_stages(counts: dict) -> list:
+    """Converte contagens por etapa no funil 4.11 ordenado, com conversão
+    entre etapas e participação sobre o total (função pura — testável)."""
+    total = counts.get("achados", 0)
+    stages = []
+    previous = None
+    for stage in FUNNEL_STAGES:
+        count = counts.get(stage["key"], 0)
+        if previous is None:
+            conversion_rate = 100.0
+        elif previous == 0:
+            conversion_rate = None
+        else:
+            conversion_rate = round(count / previous * 100, 1)
+        stages.append({
+            "key": stage["key"],
+            "label": stage["label"],
+            "count": count,
+            "conversion_rate": conversion_rate,
+            "share_of_total": round(count / total * 100, 1) if total else 0,
+        })
+        previous = count
+    return stages
 
 
 def _parse_period(value: Optional[str], end_of_day: bool = False) -> Optional[datetime]:
@@ -193,6 +249,74 @@ class AnalyticsService:
                 for o in ContractOutcome
             ],
         }
+
+    # ---------------------------------------------------------------- funnel 4.11
+    def funnel(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        campaign_id: Optional[str] = None,
+        consultant_id: Optional[str] = None,
+    ) -> dict:
+        """Funil ponta-a-ponta (roadmap-vendas 4.11, pedido da diretoria).
+
+        Etapas: achados → prospectados (1º contato) → responderam → reunião
+        diagnóstica → fecharam. Filtra por período/campanha/consultor sobre a
+        mesma base (org-scoped) usada no overview; a conversão entre etapas
+        mostra onde o funil afina/vaza.
+        """
+        base = self._leads(from_date, to_date, user_id=consultant_id)
+        if campaign_id:
+            base = base.filter(Lead.campaign_id == campaign_id)
+
+        def _event_lead_ids(model, *criteria):
+            """lead_ids (distintos, org-scoped) que têm o evento dado."""
+            return (
+                self.db.query(model.lead_id)
+                .join(Lead, Lead.id == model.lead_id)
+                .filter(Lead.organization_id == self.org_id, *criteria)
+                .subquery()
+            )
+
+        sent_followups = _event_lead_ids(FollowUp, FollowUp.sent_at.isnot(None))
+        sent_messages = _event_lead_ids(Message, Message.sent_at.isnot(None))
+        response_ids = _event_lead_ids(Message, Message.is_response.is_(True))
+        meeting_ids = _event_lead_ids(
+            LeadActivity,
+            or_(
+                and_(
+                    LeadActivity.action == LeadActivityAction.STATUS_CHANGED,
+                    LeadActivity.status_to == LeadStatus.REUNIAO_MARCADA,
+                ),
+                LeadActivity.action == LeadActivityAction.MEETING_SCHEDULED,
+            ),
+        )
+        converted_ids = _event_lead_ids(Conversion)
+
+        counts = {
+            "achados": base.count(),
+            "prospectados": base.filter(
+                or_(
+                    Lead.status.in_(CONTACTED_STATUSES),
+                    Lead.id.in_(sent_followups),
+                    Lead.id.in_(sent_messages),
+                )
+            ).count(),
+            "responderam": base.filter(
+                or_(
+                    Lead.status.in_(RESPONDED_STATUSES),
+                    Lead.id.in_(response_ids),
+                )
+            ).count(),
+            "reuniao_diagnostica": base.filter(
+                or_(
+                    Lead.status.in_(MEETING_STATUSES),
+                    Lead.id.in_(meeting_ids),
+                )
+            ).count(),
+            "fecharam": base.filter(Lead.id.in_(converted_ids)).count(),
+        }
+        return {"total_leads": counts["achados"], "funnel": build_funnel_stages(counts)}
 
     # ---------------------------------------------------------------- consultants
     def _target_month(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> str:
