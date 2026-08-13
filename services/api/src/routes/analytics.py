@@ -6,11 +6,14 @@ Consultor (CONSULTOR) recebe 403 — não acessa relatórios.
 
 Endpoints:
 - `GET /api/analytics/overview`      — KPIs, funil, conversão, resposta, score
+- `GET /api/analytics/funnel`        — funil ponta-a-ponta (4.11, pedido da diretoria)
 - `GET /api/analytics/consultants`   — desempenho por consultor
 - `GET /api/analytics/leads-ranking` — top leads (score/conversão/criação)
 - `GET /api/analytics/geo`           — agregação por cidade/UF (heatmap/mapa)
 - `GET /api/analytics/campaigns`     — desempenho por campanha
 - `GET /api/analytics/timeline`      — evolução temporal (novos/reuniões/fechados)
+- `GET /api/analytics/forecast`      — forecast ponderado por estágio
+- `GET /api/analytics/export/pdf`    — relatório executivo em PDF
 """
 from typing import Optional
 
@@ -43,6 +46,26 @@ def overview(
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     return analytics.overview(from_date=from_date, to_date=to_date)
+
+
+@router.get("/funnel")
+def funnel(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    campaign_id: Optional[str] = Query(None),
+    consultant_id: Optional[str] = Query(None),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Funil ponta-a-ponta (item 4.11) — achados → fechamento.
+
+    Aceita filtros opcionais de campanha e consultor além do período.
+    """
+    return analytics.funnel(
+        from_date=from_date,
+        to_date=to_date,
+        campaign_id=campaign_id,
+        consultant_id=consultant_id,
+    )
 
 
 @router.get("/consultants")
