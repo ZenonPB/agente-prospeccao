@@ -10,7 +10,7 @@ NOVO
 → REUNIAO_MARCADA
 → REUNIAO_FEITA  (reunião realizada)
 → PROPOSTA_ENVIADA
-→ PERDIDO        (⚠️ pendente: "volta à fila após 90 dias" não está implementado no código)
+→ PERDIDO        (volta à fila após 90 dias de carência; perdas deliberadas não voltam)
 
 ## Critérios de Scoring (0-100)
 
@@ -95,8 +95,14 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
   S4). Nunca fica invisível/`NOVO` esperando por um site.
 - Lead sem contato com `email_verified = True` não sai no **envio automático**
   da cadência (gate 4.1); humano ainda pode enviar não-verificado com aviso.
-- ⚠️ **PENDENTE (não implementado):** "Leads PERDIDO voltam para a fila após 90
-  dias" (requeue do status `PERDIDO`). Decidir se implementa ou remove a regra.
+- **Leads `PERDIDO` voltam à fila após 90 dias** (implementado 2026-08-12):
+  job em background (`LOST_REQUEUE_DAYS`, default 90) re-enfileira
+  `PERDIDO → NOVO` quando a perda é **baseada em tempo** (`lost_reason` nulo ou
+  `NAO_RESPONDEU` = "ciclo encerrado sem resposta") e o lead **não** é
+  `opt_out`. Perdas deliberadas (`PRECO`/`CONCORRENTE`/`PRAZO`/`OUTRO`) **não**
+  voltam automaticamente. Data de perda = última `LeadActivity` com
+  `status_to=PERDIDO` (fallback `updated_at`); mantém o consultor atribuído e
+  registra trilha. Carência configurável (`LOST_REQUEUE_DAYS=0` desativa).
 - Scoring é recalculado quando novos dados de enriquecimento chegam
   (`POST /campaigns/{id}/reanalyze`).
 - Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead.
@@ -186,5 +192,5 @@ Se uma chave exceder seu limite, todas as operações usarão fallback (cache lo
 | 1ª mensagem | Dia 0 | Apresentação + problema + CTA reunião |
 | Follow-up 1 | Dia 3 sem resposta | Reforço leve |
 | Follow-up 2 | Dia 7 sem resposta | Última tentativa |
-| Encerramento | Dia 14 sem resposta | Ciclo encerrado (lead → `PERDIDO`; o retorno à fila em 90 dias é ⚠️ pendente) |
+| Encerramento | Dia 14 sem resposta | Ciclo encerrado (lead → `PERDIDO`, marcado pelo consultor; volta à fila após 90 dias se a perda for por ausência de resposta) |
 | Pós-venda | Após conversão | Acompanhamento pós-cliente (canal WhatsApp/E-mail) |
