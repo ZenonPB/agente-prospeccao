@@ -112,6 +112,8 @@ async def lifespan(app: FastAPI):
     task = asyncio.create_task(_cadence_scheduler_loop())
     requeue_task = asyncio.create_task(_lost_requeue_loop())
     cadence_close_task = asyncio.create_task(_cadence_close_loop())
+    from src.jobs_consumer import job_consumer_loop
+    jobs_task = asyncio.create_task(job_consumer_loop())
     logger.info("Cadence scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
     logger.info(
         "Lost requeue iniciado (carência %dd, poll %ds)",
@@ -121,12 +123,14 @@ async def lifespan(app: FastAPI):
         "Cadence close iniciado (carência %dd, poll %ds)",
         settings.CADENCE_CLOSE_GRACE_DAYS, settings.CADENCE_CLOSE_POLL_SECONDS,
     )
+    logger.info("Job-consumer do pipeline iniciado (poll %ds)", settings.JOB_POLL_SECONDS)
     try:
         yield
     finally:
         task.cancel()
         requeue_task.cancel()
         cadence_close_task.cancel()
+        jobs_task.cancel()
         try:
             await task
         except asyncio.CancelledError:
@@ -137,6 +141,10 @@ async def lifespan(app: FastAPI):
             pass
         try:
             await cadence_close_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await jobs_task
         except asyncio.CancelledError:
             pass
 

@@ -41,4 +41,26 @@ class Settings(BaseSettings):
         description='Teto diário de chamadas por provedor (key_name → limite)',
     )
 
+    # Resiliência a rate-limit da Groq (HTTP 429 / janela de ~60s do tier free).
+    # Pacing: intervalo mínimo entre o INÍCIO de chamadas Groq no processo
+    # (evita estourar a janela de TPM/RPM em batches). Retry: em 429 a Groq
+    # informa `Retry-After`; sem ele, usa backoff exponencial base*2^tentativa
+    # limitado a GROQ_RETRY_MAX_SECONDS.
+    GROQ_MIN_INTERVAL_SECONDS: float = Field(
+        20.0,
+        description='Intervalo mínimo entre chamadas Groq (pacing, em segundos)',
+    )
+    GROQ_MAX_RETRIES: int = Field(
+        5,
+        description='Máximo de tentativas por chamada Groq em 429/5xx (1 = sem retry)',
+    )
+    GROQ_RETRY_BASE_SECONDS: float = Field(
+        4.0,
+        description='Backoff base (s) para retry sem header Retry-After',
+    )
+    GROQ_RETRY_MAX_SECONDS: float = Field(
+        60.0,
+        description='Teto do backoff (s) para retry sem header Retry-After',
+    )
+
 settings = Settings()

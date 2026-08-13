@@ -240,6 +240,45 @@ class TechnicalEnrichmentService:
 
         return result
 
+    def _check_ux(self, html_content: Optional[str]) -> Dict[str, Any]:
+        """Verifica sinais de conversão/mobile a partir do HTML já baixado (passivo).
+
+        Dá evidência DETERMINÍSTICA para alegações que a LLM costuma inventar
+        (responsividade, formulário de contato, canais clicáveis). Sem isto, o
+        gancho de abordagem alega "site não responsivo" sem ter medido nada.
+        """
+        result = {
+            "viewport_ok": False,
+            "contact_form_found": False,
+            "tel_link_found": False,
+            "whatsapp_link_found": False,
+            "mailto_link_found": False,
+            "issues": [],
+        }
+        if not html_content:
+            result["issues"].append("HTML não disponível para análise de UX/conversão")
+            return result
+
+        html_lower = html_content.lower()
+
+        result["viewport_ok"] = bool(re.search(r'<meta\s+name=["\']viewport["\']', html_lower))
+        if not result["viewport_ok"]:
+            result["issues"].append("Meta viewport ausente (provável layout não mobile-friendly)")
+
+        result["contact_form_found"] = bool(re.search(r'<form[\s>]', html_lower))
+        if not result["contact_form_found"]:
+            result["issues"].append("Nenhum formulário de contato (<form>) na página")
+
+        result["tel_link_found"] = bool(re.search(r'href=["\']tel:', html_lower))
+        result["whatsapp_link_found"] = bool(
+            re.search(r'wa\.me/|api\.whatsapp\.com/send', html_lower)
+        )
+        result["mailto_link_found"] = bool(re.search(r'href=["\']mailto:', html_lower))
+        if not (result["tel_link_found"] or result["whatsapp_link_found"] or result["mailto_link_found"]):
+            result["issues"].append("Nenhum canal de contato clicável (telefone/WhatsApp/e-mail) na home")
+
+        return result
+
     def _rate_performance(self, load_time_ms: Optional[int]) -> Dict[str, Any]:
         """Interpreta o tempo de carregamento em uma classificação legível."""
         if load_time_ms is None:
@@ -299,6 +338,7 @@ class TechnicalEnrichmentService:
             "performance": {},
             "cms_detection": None,
             "seo": {},
+            "ux": {},
             "exposed_paths": [],
         }
 
@@ -346,6 +386,13 @@ class TechnicalEnrichmentService:
             report["seo"] = self._check_seo(html_content)
             for issue in report["seo"].get("issues", []):
                 report["warnings"].append(f"SEO/LGPD: {issue}")
+
+            # UX/conversão (reusa HTML já baixado) — evidência determinística
+            # para responsividade/formulário/canais clicáveis. A LLM só pode
+            # alegar esses pontos se houver fact (grounding do pitch).
+            report["ux"] = self._check_ux(html_content)
+            for issue in report["ux"].get("issues", []):
+                report["warnings"].append(f"UX/Conversão: {issue}")
 
             # Checagem de arquivos públicos de SEO (robots/sitemap) — item 4.8:
             # sem varredura de caminhos sensíveis (.env, .git, admin/).

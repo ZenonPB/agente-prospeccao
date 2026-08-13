@@ -381,20 +381,17 @@ async def reanalyze_campaign(
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
-    """Dispara reanálise de TODOS os leads de uma campanha usando o pipeline
-    contextual novo.
+    """Agenda a reanálise de TODOS os leads de uma campanha na fila de Jobs.
+
+    A execução acontece no job-consumer (`jobs_consumer.py`), um job por vez;
+    aqui a request só insere o Job e devolve `job_id` para o frontend escutar
+    `/ws/pipeline/{job_id}` e consultar `GET /api/pipeline/jobs`.
 
     - Pula a coleta (reusa leads existentes).
     - Reseta scoring de cada lead (status=NOVO, fields limpos) internamente.
     - Usa o scoring contextual baseado em campaign.target_service/target_segment
       + fallback ao template 'Genérico'.
-
-    Retorna `{job_id}` para que o frontend possa escutar /ws/pipeline/{job_id}.
     """
-    import asyncio
-    from src.pipeline_worker import run_pipeline
-    from src.routes.pipeline import active_connections
-
     campaign = db.query(Campaign).filter(
         Campaign.id == campaign_id,
         Campaign.organization_id == _org.id,
@@ -421,30 +418,7 @@ async def reanalyze_campaign(
     db.commit()
     db.refresh(job)
 
-    job_id = str(job.id)
-
-    async def _runner():
-        try:
-            async for event in run_pipeline(
-                job_id=job_id, query=None, campaign_id=str(campaign.id),
-                max_leads=lead_count, reanalyze_only=True,
-            ):
-                connections = active_connections.get(job_id, [])
-                dead = []
-                for ws in connections:
-                    try:
-                        await ws.send_json(event)
-                    except Exception:
-                        dead.append(ws)
-                for ws in dead:
-                    connections.remove(ws)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error("Reanalyze task error: %s", e)
-
-    asyncio.create_task(_runner())
-
-    return {"job_id": job_id, "status": "started", "leads_to_reanalyze": lead_count}
+    return {"job_id": str(job.id), "status": "queued", "leads_to_reanalyze": lead_count}
 
 
 # Limites de segurança do upload (item 4.5): 10 MB e 10.000 linhas.
@@ -512,11 +486,11 @@ async def collect_campaign_cnae(
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
-    """Inicia a coleta/descoberta de empresas por CNAE / Receita Federal para uma campanha."""
-    import asyncio
-    from src.pipeline_worker import run_pipeline
-    from src.routes.pipeline import active_connections
+    """Agenda a coleta/descoberta por CNAE / Receita Federal na fila de Jobs.
 
+    Executado no job-consumer em background (um job por vez); a request só
+    insere o Job e devolve o `job_id` para o WS / `GET /api/pipeline/jobs`.
+    """
     campaign = db.query(Campaign).filter(
         Campaign.id == campaign_id,
         Campaign.organization_id == _org.id,
@@ -541,31 +515,4 @@ async def collect_campaign_cnae(
     db.commit()
     db.refresh(job)
 
-    job_id = str(job.id)
-
-    async def _runner():
-        try:
-            async for event in run_pipeline(
-                job_id=job_id,
-                campaign_id=str(campaign.id),
-                max_leads=data.max_leads,
-                source="cnae",
-                cnae_code=data.cnae_code,
-                cnpjs=data.cnpjs,
-            ):
-                connections = active_connections.get(job_id, [])
-                dead = []
-                for ws in connections:
-                    try:
-                        await ws.send_json(event)
-                    except Exception:
-                        dead.append(ws)
-                for ws in dead:
-                    connections.remove(ws)
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error("CNAE collection task error: %s", e)
-
-    asyncio.create_task(_runner())
-
-    return {"job_id": job_id, "status": "started", "cnae_code": data.cnae_code}
+    return {"job_id": str(job.id), "status": "queued", "cnae_code": data.cnae_code}

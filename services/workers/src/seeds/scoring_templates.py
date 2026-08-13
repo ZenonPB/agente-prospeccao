@@ -68,8 +68,8 @@ DEFAULT_TEMPLATES = [
             {"label": "SEO fraco (title/meta/h1)", "description": "Metadata mínima ou ausente, sem h1", "weight_hint": "medium"},
             {"label": "Site lento", "description": "Load time > 3s", "weight_hint": "medium"},
             {"label": "Sem LGPD/cookies", "description": "Ausência de menção a privacidade na home", "weight_hint": "low"},
-            {"label": "Sem formulário / CTA claros", "description": "Sem formulário de contato visível", "weight_hint": "medium"},
-            {"label": "Sem responsividade", "description": "Layout não mobile-friendly", "weight_hint": "medium"},
+            {"label": "Sem formulário / CTA claros", "description": "Critério a CONFIRMAR no HTML: sem formulário de contato visível nem CTA na home", "weight_hint": "medium"},
+            {"label": "Sem responsividade (viewport ausente)", "description": "Critério a CONFIRMAR no HTML: meta viewport ausente — provável layout não mobile-friendly", "weight_hint": "medium"},
             {"label": "Sem site próprio / sem presença digital", "description": "Empresa sem website próprio (usa Instagram/Canva/WhatsApp ou não tem presença) — público-alvo direto para desenvolvimento de site", "weight_hint": "high"},
         ],
         "negative_signals": [

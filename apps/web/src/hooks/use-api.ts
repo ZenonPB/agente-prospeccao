@@ -232,6 +232,19 @@ export function useReanalyzeCampaign() {
   });
 }
 
+export function usePipelineJobs(campaignId?: string, limit = 5) {
+  return useQuery({
+    queryKey: ["pipeline", "jobs", campaignId ?? "all"],
+    queryFn: () => pipelineApi.jobs({ campaign_id: campaignId, limit }),
+    refetchInterval: 8000, // re-checks job status while the user stays on the page
+  });
+}
+
+export function useInvalidateJobs() {
+  const queryClient = useQueryClient();
+  return () => queryClient.invalidateQueries({ queryKey: ["pipeline", "jobs"] });
+}
+
 export function useGenerateMessages() {
   return useMutation({
     mutationFn: ({ id, channel }: { id: string; channel?: "EMAIL" | "WHATSAPP" }) =>
