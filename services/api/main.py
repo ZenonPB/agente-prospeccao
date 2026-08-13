@@ -79,26 +79,64 @@ async def _lost_requeue_loop():
         await asyncio.sleep(settings.LOST_REQUEUE_POLL_SECONDS)
 
 
+async def _cadence_close_loop():
+    """Loop periódico: marca `PERDIDO`/`NAO_RESPONDEU` cadências cujo
+    **envio do encerramento** (dia 14) não teve resposta dentro da carência
+    (business-rules). Poll lento (default 1h); `CADENCE_CLOSE_GRACE_DAYS=0`
+    desativa."""
+    from src.db.session import SessionLocal
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                from src.services.cadence_close_service import close_expired_cadences
+                closed = await asyncio.to_thread(
+                    lambda: close_expired_cadences(
+                        db, grace_days=settings.CADENCE_CLOSE_GRACE_DAYS,
+                    ),
+                )
+                if closed:
+                    logger.info(
+                        "Cadence close: %d lead(s) marcado(s) PERDIDO (encerramento sem resposta)", closed
+                    )
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error("Erro no cadence close: %s", e)
+        await asyncio.sleep(settings.CADENCE_CLOSE_POLL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(_cadence_scheduler_loop())
     requeue_task = asyncio.create_task(_lost_requeue_loop())
+    cadence_close_task = asyncio.create_task(_cadence_close_loop())
     logger.info("Cadence scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
     logger.info(
         "Lost requeue iniciado (carência %dd, poll %ds)",
         settings.LOST_REQUEUE_DAYS, settings.LOST_REQUEUE_POLL_SECONDS,
+    )
+    logger.info(
+        "Cadence close iniciado (carência %dd, poll %ds)",
+        settings.CADENCE_CLOSE_GRACE_DAYS, settings.CADENCE_CLOSE_POLL_SECONDS,
     )
     try:
         yield
     finally:
         task.cancel()
         requeue_task.cancel()
+        cadence_close_task.cancel()
         try:
             await task
         except asyncio.CancelledError:
             pass
         try:
             await requeue_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await cadence_close_task
         except asyncio.CancelledError:
             pass
 
