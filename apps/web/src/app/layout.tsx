@@ -4,6 +4,8 @@ import { Providers } from "@/components/providers";
 import { Inter, Space_Grotesk, Geist_Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const spaceGrotesk = Space_Grotesk({
@@ -18,11 +20,13 @@ export const metadata: Metadata = {
   description: "Plataforma de Inteligência Comercial",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getServerSession(authOptions);
+
   return (
     <html
       lang="pt-BR"
@@ -35,7 +39,12 @@ export default function RootLayout({
       )}
     >
       <body className="font-sans antialiased bg-background text-foreground">
-        <Providers>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('app-theme')||'alpha',r=document.documentElement;['light','dark','alpha'].forEach(function(t){r.classList.remove(t)});r.classList.add(['light','dark','alpha'].indexOf(s)>-1?s:'alpha')}catch(e){}})();`,
+          }}
+        />
+        <Providers session={session}>
           {children}
           <Toaster richColors position="bottom-right" />
         </Providers>

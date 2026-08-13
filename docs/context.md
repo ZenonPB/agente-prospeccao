@@ -123,6 +123,9 @@
   - Tema Alpha refinado para paleta harmônica (dark com vermelho profundo elegantente).
   - `ThemeProvider` estendido para aceitar `['light', 'dark', 'alpha']`.
   - Página `/configuracoes` permite alternância em tempo real entre os 3 temas com persistência em `localStorage` (`app-theme`).
+  - **(2026-08-13)** `next-themes` removido: provider próprio em
+    `components/theme-provider.tsx` (classe no `<html>`, `useSyncExternalStore`,
+    sync cross-tab, anti-flash via script inline SSR no `layout.tsx`).
 
 **Bugfixes de qualidade de dados e UI (2026-08-04):**
 - **Limite de coleta**: `campaign-pipeline.tsx` agora busca até **50 leads** por coleta (era 10).
@@ -829,6 +832,15 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 > 11. **Pendências abertas:** **C5** (ERP/web apps) aguardando decisão da
 >    diretoria; backlog → **4.17 mobile-first** → **3.3.4** auditoria →
 >    LinkedIn **4.23–4.25** → P3 (4.18–4.21, 4.26–4.27).
+> 12. **Sessão 2026-08-13 (apps/web):** correções de erros de console/hydration —
+>    sessão pré-carregada no `SessionProvider` via `getServerSession` no
+>    `layout.tsx` (elimina mismatch de hydration e warning de `defaultValue`);
+>    `isActive` dos temas em `/configuracoes` agora guarda por `mounted`;
+>    `next-themes` **substituído** por `components/theme-provider.tsx` próprio
+>    (elimina aviso de `<script>` do React 19.2). Assets AlphaMec: logo
+>    `logo-alphamec.png` (transparente) e foto `zenon.png` movidos de
+>    `static/` para `apps/web/public/imgs/alphamec/`; `auth-shell.tsx` usa a
+>    foto do Zenon; `logo-alphamec.webp` removido.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

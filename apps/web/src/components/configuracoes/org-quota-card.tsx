@@ -136,7 +136,7 @@ export function OrgQuotaCard() {
           Cotas de uso de IA e dados
         </CardTitle>
         <CardDescription>
-          Uso diário de Google Places e Groq pela organização (roadmap 4.14)
+          Uso diário de Google Places e Groq pela organização
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

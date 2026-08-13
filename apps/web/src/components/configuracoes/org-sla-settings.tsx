@@ -138,7 +138,7 @@ export function OrgSlaSettings() {
           SLA de leads parados
         </CardTitle>
         <CardDescription>
-          Lembretes automáticos para leads que ficam esquecidos (roadmap 4.10)
+          Lembretes automáticos para leads que ficam esquecidos
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
