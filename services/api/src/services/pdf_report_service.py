@@ -116,6 +116,7 @@ def _bar(value: int, max_value: int) -> str:
 def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> str:
     """Monta o HTML do relatório a partir dos dados agregados."""
     ov = data.get("overview", {})
+    funnel_e2e = data.get("funnel_e2e", {}).get("funnel", [])
     consultants = data.get("consultants", [])
     campaigns = data.get("campaigns", [])
     ranking = data.get("ranking", {}).get("items", [])
@@ -131,6 +132,27 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
             f"<td class='stage-name'>{html.escape(stage['stage'])}</td>"
             f"<td>{_bar(stage['count'], max_funnel)}</td>"
             "</tr>"
+        )
+
+    # ---------- funil ponta-a-ponta (item 4.11) ----------
+    funnel_e2e_rows = ""
+    max_e2e = max([s.get("count", 0) for s in funnel_e2e] or [0])
+    for stage in funnel_e2e:
+        conv = stage.get("conversion_rate")
+        conv_label = "100%" if stage.get("key") == "achados" else (
+            f"{conv:.1f}%" if isinstance(conv, float) else "—"
+        )
+        funnel_e2e_rows += (
+            "<tr>"
+            f"<td class='stage-name'>{html.escape(stage['label'])}</td>"
+            f"<td>{_bar(stage['count'], max_e2e)}</td>"
+            f"<td>{conv_label}</td>"
+            f"<td>{_fmt_pct(stage.get('share_of_total', 0))}</td>"
+            "</tr>"
+        )
+    if not funnel_e2e:
+        funnel_e2e_rows = (
+            "<tr><td colspan='4' class='empty'>Sem leads no período.</td></tr>"
         )
 
     # ---------- KPIs visão executiva ----------
@@ -427,6 +449,12 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
     <tbody>{funnel_rows}</tbody>
   </table>
 
+  <h2>Funil ponta-a-ponta (achados → fechamento)</h2>
+  <table>
+    <thead><tr><th>Etapa</th><th>Leads</th><th>Conversão (etapa anterior)</th><th>% do total</th></tr></thead>
+    <tbody>{funnel_e2e_rows}</tbody>
+  </table>
+
   <h2>Desempenho por campanha</h2>
   <table>
     <thead><tr><th>Campanha</th><th>Leads</th><th>Qualificados</th><th>Reuniões</th><th>Convertidos</th><th>Conv. %</th><th>Receita</th></tr></thead>
@@ -496,6 +524,7 @@ def build_report_pdf(
 
     data = {
         "overview": svc.overview(from_date=from_date, to_date=to_date),
+        "funnel_e2e": svc.funnel(from_date=from_date, to_date=to_date),
         "consultants": svc.consultants(from_date=from_date, to_date=to_date),
         "campaigns": svc.campaigns(from_date=from_date, to_date=to_date),
         "ranking": svc.leads_ranking(sort_by="score", from_date=from_date, to_date=to_date, limit=20),
