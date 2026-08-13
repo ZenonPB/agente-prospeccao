@@ -5,9 +5,10 @@ import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { useOrgMembership } from '@/hooks/use-api';
-import { useAnalyticsOverview, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useAnalyticsForecast, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
+import { useAnalyticsOverview, useAnalyticsFunnel, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useAnalyticsForecast, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
 import { FunnelCard, RatesCard, ScoreBandsCard, NegotiationCard, ChartCardSkeleton, ChartCardError } from '@/components/relatorios/chart-cards';
+import { FunnelEndToEndCard, FunnelEndToEndSkeleton } from '@/components/relatorios/funnel-e2e-card';
 import { ForecastCard } from '@/components/relatorios/forecast-card';
 import { ConsultantsCard, CampaignsCard, TopLeadsCard, ListCardSkeleton } from '@/components/relatorios/list-cards';
 import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-map';
@@ -24,6 +25,7 @@ export default function RelatoriosPage() {
     membership?.membership?.sales_role === 'ANALYST' || membership?.membership?.sales_role === 'MANAGER';
 
   const overviewQ = useAnalyticsOverview(period);
+  const funnelQ = useAnalyticsFunnel(period);
   const consultantsQ = useAnalyticsConsultants(period);
   const rankingQ = useAnalyticsRanking(period);
   const geoQ = useAnalyticsGeo(period);
@@ -32,9 +34,9 @@ export default function RelatoriosPage() {
   const forecastQ = useAnalyticsForecast(period);
   const exportPdf = useExportAnalyticsPdf();
 
-  const anyLoading = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isLoading);
-  const anyError = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isError);
-  const errMsg = [overviewQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].find((q) => q.error)?.error;
+  const anyLoading = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isLoading);
+  const anyError = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isError);
+  const errMsg = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].find((q) => q.error)?.error;
 
   const handleExport = async () => {
     try {
@@ -99,6 +101,7 @@ export default function RelatoriosPage() {
         <>
           {overviewQ.data && <ExecutiveKpis overview={overviewQ.data} />}
           {forecastQ.data && <ForecastCard forecast={forecastQ.data} />}
+          {funnelQ.data && <FunnelEndToEndCard funnel={funnelQ.data} />}
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-6">
@@ -132,6 +135,7 @@ function ReportSkeleton() {
   return (
     <div className="space-y-6">
       <ExecutiveKpisSkeleton />
+      <FunnelEndToEndSkeleton />
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <ChartCardSkeleton lines={6} />

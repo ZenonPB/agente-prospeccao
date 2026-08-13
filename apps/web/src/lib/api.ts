@@ -556,9 +556,27 @@ export interface AnalyticsTimelineItem {
   closed: number;
 }
 
+export interface AnalyticsFunnelStage {
+  key: string;
+  label: string;
+  count: number;
+  conversion_rate: number | null;
+  share_of_total: number;
+}
+
+export interface AnalyticsFunnel {
+  total_leads: number;
+  funnel: AnalyticsFunnelStage[];
+}
+
 export const analyticsApi = {
   overview: (params?: { from?: string; to?: string }) =>
     request<AnalyticsOverview>("/api/analytics/overview", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  funnel: (params?: { from?: string; to?: string; campaign_id?: string; consultant_id?: string }) =>
+    request<AnalyticsFunnel>("/api/analytics/funnel", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 

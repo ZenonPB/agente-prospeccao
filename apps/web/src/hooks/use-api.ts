@@ -366,6 +366,13 @@ export function useAnalyticsOverview(period?: AnalyticsPeriod) {
   });
 }
 
+export function useAnalyticsFunnel(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "funnel", period],
+    queryFn: () => analyticsApi.funnel(period),
+  });
+}
+
 export function useAnalyticsConsultants(period?: AnalyticsPeriod) {
   return useQuery({
     queryKey: ["analytics", "consultants", period],
