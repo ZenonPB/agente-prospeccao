@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { Radar, ScanSearch, CalendarCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import { BrandMark } from "@/components/layout/brand-mark";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/theme-provider";
 import { useState, useEffect, useSyncExternalStore } from "react";
 
 const highlights = [
@@ -40,7 +40,7 @@ const teamPhotos = [
 ];
 
 const members = [
-  { src: "/imgs/alphamec/yasmin.png", name: "Zenon" },
+  { src: "/imgs/alphamec/zenon.png", name: "Zenon" },
 ];
 
 /**

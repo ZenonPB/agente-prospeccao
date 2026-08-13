@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Camera, Sun, Moon, Palette, Lock, Save, Loader2, Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
@@ -19,7 +19,7 @@ import { OrgQuotaCard } from '@/components/configuracoes/org-quota-card';
 import { OrgNameCard } from '@/components/configuracoes/org-name-card';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/theme-provider';
 
 const themes = [
   {
@@ -55,6 +55,11 @@ export default function ConfiguracoesPage() {
   const { data: session, update } = useSession();
   const { data: membership } = useOrgMembership();
   const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const handleThemeChange = (themeId: string) => {
     setTheme(themeId);
@@ -207,7 +212,7 @@ export default function ConfiguracoesPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             {themes.map((themeItem) => {
               const Icon = themeItem.icon;
-              const isActive = theme === themeItem.id;
+              const isActive = mounted && theme === themeItem.id;
               return (
                 <button
                   key={themeItem.id}
