@@ -811,11 +811,33 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    (`setup.ps1`/`dev.ps1` + launchers `.cmd`), scoring "sem site = público-alvo"
 >    (sinal no seed + instrução dinâmica + guard `has_website`) e fixes de UI.
 >    Docs sincronizadas nesta sessão.
-> 8. **Pendências novas/abertas:** **4.11 gráfico de funil ponta-a-ponta**
->    (achados→prospectados→responderam→reunião diagnóstica→fecharam — pedido da
->    diretoria, ver `roadmap-vendas.md`); regra **`PERDIDO` volta à fila em 90
->    dias NÃO implementada** (`business-rules.md`); **C5** (ERP/web apps)
->    aguardando decisão da diretoria.
+> 8. **4.11 entregue (2026-08-12, `feat/funnel-end-to-end`):** funil ponta-a-ponta
+>    (achados → prospectados → responderam → reunião diagnóstica → fecharam) —
+>    `AnalyticsService.funnel()` + `GET /api/analytics/funnel` (filtros
+>    `from/to/campaign_id/consultant_id`), card "Funil ponta-a-ponta" no
+>    `/relatorios` e seção no PDF executivo. Suíte em **140 passed**.
+> 9. **Pendências abertas:** regra **`PERDIDO` volta à fila em 90 dias NÃO
+>    implementada** (`business-rules.md`); **C5** (ERP/web apps) aguardando
+>    decisão da diretoria; backlog → **4.17 mobile-first** → **3.3.4** auditoria
+>    → LinkedIn **4.23–4.25** → P3 (4.18–4.21, 4.26–4.27).
+
+### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
+
+Branch `feat/funnel-end-to-end` (pedido da diretoria, roadmap-vendas 4.11):
+
+- **Backend:** `AnalyticsService.funnel()` — etapas cumulativas ("pelo menos"):
+  achados → prospectados (status de contato + `FollowUp.sent_at` +
+  `Message.sent_at`) → responderam (+ `Message.is_response`) → reunião
+  diagnóstica (+ `LeadActivity` STATUS_CHANGED→REUNIAO_MARCADA/MEETING_SCHEDULED)
+  → fecharam (`Conversion`). `build_funnel_stages` calcula conversão entre
+  etapas e % do total (função pura). Endpoint `GET /api/analytics/funnel`
+  (ANALYST/MANAGER-only, org-scoped) com filtros `from/to/campaign_id/consultant_id`.
+- **Frontend:** card **"Funil ponta-a-ponta"** em `/relatorios` (barras que
+  afunilam em degradê teal + conversão entre etapas e "vazou X%").
+- **PDF executivo:** seção "Funil ponta-a-ponta (achados → fechamento)" com
+  leads, conversão (etapa anterior) e % do total.
+- **Testes:** `tests/test_analytics_funnel.py` (6) — suíte em **140 passed**;
+  `compileall` OK; web lint + `tsc --noEmit` + `npm run build` OK.
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

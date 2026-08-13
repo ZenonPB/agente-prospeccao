@@ -428,7 +428,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   kanban"): chip resumo "N leads parados (SLA)", contador vermelho por coluna e badge
   "SLA há Xd" nos cartões (tooltip com a regra). Testes: `tests/test_sla_service.py` (8).
 
-#### 4.11 Gráfico de funil ponta-a-ponta (leads → fechamento) ⬜ (P1, S, gratuito)
+#### 4.11 Gráfico de funil ponta-a-ponta (leads → fechamento) ✅ (P1, S, gratuito)
 
 - **Pedido da diretoria:** ver visualmente de quantos **leads achados** partimos,
   quantos foram **prospectados** (1º contato), quantos **responderam**, quantos
@@ -439,6 +439,16 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   reunião (`Lead.status=REUNIAO_MARCADA`), fechamento (`Conversion`).
 - **Aceite:** gráfico de funil (nº absoluto + % de conversão entre etapas) no
   `/relatorios` e no PDF executivo — a diretoria enxerga onde o funil afina/vaza.
+- **Status — Entregue (2026-08-12, `feat/funnel-end-to-end`):** cada etapa é
+  **cumulativa** ("pelo menos"): além do status atual, conta eventos reais
+  (`FollowUp.sent_at`/`Message.sent_at` p/ prospectado, `Message.is_response` p/
+  resposta, `LeadActivity` STATUS_CHANGED→REUNIAO_MARCADA/MEETING_SCHEDULED p/
+  reunião e `Conversion` p/ fechado) — leads que já saíram do funil (ex.:
+  `PERDIDO`) não somem das etapas por onde passaram. `AnalyticsService.funnel()`
+  + `GET /api/analytics/funnel` (filtros `from/to/campaign_id/consultant_id`);
+  card **"Funil ponta-a-ponta"** em `/relatorios` (barras que afunilam + %
+  de conversão entre etapas e "vazou X%"); seção homônima no **PDF executivo**.
+  Testes: `tests/test_analytics_funnel.py` (6) — suíte em **140 passed**.
 
 ---
 
@@ -604,7 +614,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.8 | Valor por oportunidade + forecast ponderado | Gestão | P1 | M | gratuito | — | ✅ Entregue 2026-08-10 |
 | 4.9 | Metas de vendas por consultor | Gestão | P1 | M | gratuito | 4.8 | ✅ Entregue 2026-08-10 |
 | 4.10 | SLA/lembretes p/ leads parados | Gestão | P1 | M | gratuito | 4.2 | ✅ Entregue 2026-08-11 |
-| 4.11 | Gráfico de funil ponta-a-ponta (achados→prospectados→responderam→reunião→fecharam) | Gestão | P1 | S | gratuito | 4.8/4.16 | ⬜ |
+| 4.11 | Gráfico de funil ponta-a-ponta (achados→prospectados→responderam→reunião→fecharam) | Gestão | P1 | S | gratuito | 4.8/4.16 | ✅ Entregue 2026-08-12 |
 | 3.3.3 | Remover/sair/transferir org | Multi-org | P1 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-10 |
 | 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
@@ -774,6 +784,18 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Regra pendente:** `PERDIDO` volta à fila em 90 dias — **não implementada**
   no código (registrada em `business-rules.md`).
 
+### C7 · Funil ponta-a-ponta 4.11 entregue (2026-08-12) ✅
+- Branch `feat/funnel-end-to-end`: `AnalyticsService.funnel()` + endpoint
+  `GET /api/analytics/funnel` (filtros `from/to/campaign_id/consultant_id`),
+  card "Funil ponta-a-ponta" em `/relatorios` e seção no PDF executivo.
+- **Abordagem direcional (cumulativa):** cada etapa conta leads que **chegaram
+  até ela** — usa status atual **+ eventos** (`FollowUp.sent_at`,
+  `Message.sent_at`/`is_response`, `LeadActivity` → REUNIAO_MARCADA, `Conversion`).
+  Assim um lead `PERDIDO` que respondeu e marcou reunião continua contando nas
+  etapas que atravessou (coisa que só status atual não mostraria).
+- **Pendências que restaram:** regra `PERDIDO` volta à fila em 90 dias **não
+  implementada**; C5 (ERP/web apps) aguardando diretoria.
+
 ### C5 · Suporte a aplicações web completas / ERP 🟡 decisão aberta
 - **Pergunta do usuário:** o sistema "só suporta landing pages"? Para vender
   aplicações web completas ou sistemas ERP a análise precisa ser diferente.
@@ -809,7 +831,9 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   fechado.
 - **PR #70 mergeado (2026-08-11):** setup/dev **Windows sem Docker** +
   scoring "sem site = público-alvo" (C4/C6) + fixes de UI.
-- **Item novo 4.11 no backlog (funil ponta-a-ponta)** — pedido da diretoria.
+- **Item 4.11 entregue (2026-08-12, `feat/funnel-end-to-end`):** funil
+  ponta-a-ponta (achados → prospectados → responderam → reunião diagnóstica →
+  fecharam) no `/relatorios` e no PDF executivo — pedido da diretoria.
 - **Regra pendente:** `PERDIDO` volta à fila em 90 dias **não está implementada**
   (ver `business-rules.md`).
 - **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
