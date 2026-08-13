@@ -793,8 +793,24 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   `Message.sent_at`/`is_response`, `LeadActivity` → REUNIAO_MARCADA, `Conversion`).
   Assim um lead `PERDIDO` que respondeu e marcou reunião continua contando nas
   etapas que atravessou (coisa que só status atual não mostraria).
-- **Pendências que restaram:** regra `PERDIDO` volta à fila em 90 dias **não
-  implementada**; C5 (ERP/web apps) aguardando diretoria.
+- **Pendências que restaram:** C5 (ERP/web apps) aguardando diretoria.
+
+### C8 · Regra `PERDIDO` volta à fila implementada (2026-08-12) ✅
+- Branch `feat/perdido-requeue-90d`: job em background (`_lost_requeue_loop` no
+  `main.py`, poll `LOST_REQUEUE_POLL_SECONDS` default 1h) re-enfileira
+  `PERDIDO → NOVO` após a carência (`LOST_REQUEUE_DAYS`, default 90).
+- **Decisão (escopo conservador):** só volta quem foi perdido por **ausência de
+  resposta** (`lost_reason` nulo ou `NAO_RESPONDEU`) e **não** é `opt_out`.
+  Perdas deliberadas (`PRECO`/`CONCORRENTE`/`PRAZO`/`OUTRO`) **não** reabrem
+  automaticamente — re-enfileirar negócio perdido por decisão seria indesejado.
+- **Data de perda exata:** última `LeadActivity` com `status_to=PERDIDO`;
+  fallback `Lead.updated_at` (leads antigos sem trilha). Mantém o consultor
+  atribuído e grava a transição na trilha. `services/requeue_service.py`
+  (elegibilidade em Python, função `_is_time_based_loss` — determinística).
+- **Verificação:** `tests/test_requeue_lost.py` (14).
+- **Follow-up registrado (não implementado):** o auto-`PERDIDO` no encerramento
+  da cadência (dia 14 sem resposta) também não existe — hoje é marcado pelo
+  consultor; vale decisão separada se o human continua no loop.
 
 ### C5 · Suporte a aplicações web completas / ERP 🟡 decisão aberta
 - **Pergunta do usuário:** o sistema "só suporta landing pages"? Para vender
@@ -834,8 +850,9 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Item 4.11 entregue (2026-08-12, `feat/funnel-end-to-end`):** funil
   ponta-a-ponta (achados → prospectados → responderam → reunião diagnóstica →
   fecharam) no `/relatorios` e no PDF executivo — pedido da diretoria.
-- **Regra pendente:** `PERDIDO` volta à fila em 90 dias **não está implementada**
-  (ver `business-rules.md`).
+- **Regra `PERDIDO`/90d implementada (2026-08-12, `feat/perdido-requeue-90d`):**
+  job em background re-enfileira `PERDIDO → NOVO` após a carência (perda por
+  ausência de resposta e não-`opt_out`; perdas deliberadas não voltam). Ver §10 C8.
 - **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
   auditoria de acessos, LinkedIn **4.23–4.25**) → P3 (4.18–4.21, 4.26–4.27).
 - **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir

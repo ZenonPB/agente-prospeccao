@@ -816,10 +816,13 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    `AnalyticsService.funnel()` + `GET /api/analytics/funnel` (filtros
 >    `from/to/campaign_id/consultant_id`), card "Funil ponta-a-ponta" no
 >    `/relatorios` e seção no PDF executivo. Suíte em **140 passed**.
-> 9. **Pendências abertas:** regra **`PERDIDO` volta à fila em 90 dias NÃO
->    implementada** (`business-rules.md`); **C5** (ERP/web apps) aguardando
->    decisão da diretoria; backlog → **4.17 mobile-first** → **3.3.4** auditoria
->    → LinkedIn **4.23–4.25** → P3 (4.18–4.21, 4.26–4.27).
+> 9. **Regra `PERDIDO`/90d implementada (2026-08-12, `feat/perdido-requeue-90d`):**
+>    job em background (`_lost_requeue_loop` no `main.py`) re-enfileira
+>    `PERDIDO → NOVO` após a carência (`LOST_REQUEUE_DAYS`, default 90) — perda
+>    por ausência de resposta e não-`opt_out`; perdas deliberadas não voltam.
+> 10. **Pendências abertas:** **C5** (ERP/web apps) aguardando decisão da
+>    diretoria; backlog → **4.17 mobile-first** → **3.3.4** auditoria →
+>    LinkedIn **4.23–4.25** → P3 (4.18–4.21, 4.26–4.27).
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 
@@ -838,6 +841,23 @@ Branch `feat/funnel-end-to-end` (pedido da diretoria, roadmap-vendas 4.11):
   leads, conversão (etapa anterior) e % do total.
 - **Testes:** `tests/test_analytics_funnel.py` (6) — suíte em **140 passed**;
   `compileall` OK; web lint + `tsc --noEmit` + `npm run build` OK.
+
+### Regra `PERDIDO` volta à fila (90 dias) ✅ (2026-08-12)
+
+Branch `feat/perdido-requeue-90d` (business-rules — fechada a pendência):
+
+- **Job:** `_lost_requeue_loop` no `services/api/main.py` (lifespan), poll
+  `LOST_REQUEUE_POLL_SECONDS` (default 1h), carência `LOST_REQUEUE_DAYS`
+  (default 90; 0 desativa). `services/requeue_service.py` —
+  `requeue_expired_lost(db, now, days)`, elegibilidade em Python:
+  `_is_time_based_loss` (nulo/`NAO_RESPONDEU`) + não-`opt_out`.
+- **Data de perda:** última `LeadActivity` `status_to=PERDIDO` (fallback
+  `Lead.updated_at`). Destino `NOVO`, limpa `lost_reason`, mantém consultor
+  atribuído e registra trilha `STATUS_CHANGED PERDIDO→NOVO`.
+- **Decisão registrada:** perdas deliberadas (`PRECO/CONCORRENTE/PRAZO/OUTRO`)
+  não reabrem automaticamente; auto-`PERDIDO` no encerramento da cadência
+  segue pendente de decisão (follow-up).
+- **Testes:** `tests/test_requeue_lost.py` (14).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 
