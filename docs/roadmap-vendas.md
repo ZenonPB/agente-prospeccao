@@ -808,9 +808,21 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   atribuído e grava a transição na trilha. `services/requeue_service.py`
   (elegibilidade em Python, função `_is_time_based_loss` — determinística).
 - **Verificação:** `tests/test_requeue_lost.py` (14).
-- **Follow-up registrado (não implementado):** o auto-`PERDIDO` no encerramento
-  da cadência (dia 14 sem resposta) também não existe — hoje é marcado pelo
-  consultor; vale decisão separada se o human continua no loop.
+
+### C9 · Auto-`PERDIDO` no encerramento da cadência (2026-08-12) ✅
+- Branch `feat/cadence-auto-perdido`: fecha o ciclo do `PERDIDO` ponta-a-ponta —
+  o C8 é a **saída** (requeue 90d); este job é a **entrada**: quando o
+  **`CLOSING`** (dia 14) foi enviado e o lead não respondeu na carência
+  (`CADENCE_CLOSE_GRACE_DAYS`, default 7), ele é marcado `PERDIDO`/`NAO_RESPONDEU`
+  em vez de ficar `CONTATADO` para sempre.
+- **Guardas:** só transiciona `CONTATADO` (nunca sobrescreve `RESPONDIDO+` /
+  reunião / proposta) e **não** marca `opt_out`. Registra trilha
+  (STATUS_CHANGED + action `LOST`), que alimenta a data de perda do requeue C8.
+- **Implementação:** `_cadence_close_loop` no `main.py` (poll
+  `CADENCE_CLOSE_POLL_SECONDS` default 1h) + `services/cadence_close_service.py`
+  (`close_expired_cadences`, guardas em Python — determinístico).
+- **Verificação:** `tests/test_cadence_close.py` (12). Regra documentada em
+  `business-rules.md` (funil + cadência) já atualizada.
 
 ### C5 · Suporte a aplicações web completas / ERP 🟡 decisão aberta
 - **Pergunta do usuário:** o sistema "só suporta landing pages"? Para vender
@@ -853,6 +865,10 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Regra `PERDIDO`/90d implementada (2026-08-12, `feat/perdido-requeue-90d`):**
   job em background re-enfileira `PERDIDO → NOVO` após a carência (perda por
   ausência de resposta e não-`opt_out`; perdas deliberadas não voltam). Ver §10 C8.
+- **Ciclo do `PERDIDO` completo (2026-08-12, `feat/cadence-auto-perdido`):**
+  auto-`PERDIDO` no encerramento da cadência (dia 14 sem resposta →
+  `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
+  entrada + saída automáticas. Ver §10 C9.
 - **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
   auditoria de acessos, LinkedIn **4.23–4.25**) → P3 (4.18–4.21, 4.26–4.27).
 - **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir

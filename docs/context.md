@@ -820,7 +820,13 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    job em background (`_lost_requeue_loop` no `main.py`) re-enfileira
 >    `PERDIDO → NOVO` após a carência (`LOST_REQUEUE_DAYS`, default 90) — perda
 >    por ausência de resposta e não-`opt_out`; perdas deliberadas não voltam.
-> 10. **Pendências abertas:** **C5** (ERP/web apps) aguardando decisão da
+> 10. **Auto-`PERDIDO` no encerramento da cadência (2026-08-12,
+>    `feat/cadence-auto-perdido`):** job (`_cadence_close_loop`) marca
+>    `CONTATADO` → `PERDIDO`/`NAO_RESPONDEU` quando o `CLOSING` (dia 14) foi
+>    enviado e não houve resposta em `CADENCE_CLOSE_GRACE_DAYS` (default 7) —
+>    só transiciona `CONTATADO` e nunca marca `opt_out`. Fecha o ciclo do
+>    `PERDIDO` com o requeue (item 9): entrada + saída automáticas.
+> 11. **Pendências abertas:** **C5** (ERP/web apps) aguardando decisão da
 >    diretoria; backlog → **4.17 mobile-first** → **3.3.4** auditoria →
 >    LinkedIn **4.23–4.25** → P3 (4.18–4.21, 4.26–4.27).
 
@@ -855,9 +861,27 @@ Branch `feat/perdido-requeue-90d` (business-rules — fechada a pendência):
   `Lead.updated_at`). Destino `NOVO`, limpa `lost_reason`, mantém consultor
   atribuído e registra trilha `STATUS_CHANGED PERDIDO→NOVO`.
 - **Decisão registrada:** perdas deliberadas (`PRECO/CONCORRENTE/PRAZO/OUTRO`)
-  não reabrem automaticamente; auto-`PERDIDO` no encerramento da cadência
-  segue pendente de decisão (follow-up).
+  não reabrem automaticamente.
 - **Testes:** `tests/test_requeue_lost.py` (14).
+
+### Auto-`PERDIDO` no encerramento da cadência ✅ (2026-08-12)
+
+Branch `feat/cadence-auto-perdido` (business-rules — fecha o ciclo do
+`PERDIDO`; o requeue acima é a "saída", este é a "entrada"):
+
+- **Job:** `_cadence_close_loop` no `services/api/main.py` (lifespan), poll
+  `CADENCE_CLOSE_POLL_SECONDS` (default 1h), carência
+  `CADENCE_CLOSE_GRACE_DAYS` (default 7; 0 desativa).
+  `services/cadence_close_service.py` — `close_expired_cadences(db, now, grace_days)`
+  com guardas em Python (`_grace_elapsed` + status/opt-out).
+- **Regra:** quando o `CLOSING` (dia 14) foi **enviado** e o lead segue
+  `CONTATADO` sem resposta após a carência → `PERDIDO`/`NAO_RESPONDEU`.
+  Nunca sobrescreve `RESPONDIDO+`/reunião/proposta e nunca marca `opt_out`.
+- **Trilha:** STATUS_CHANGED + action `LOST` — alimenta a data de perda usada
+  pelo requeue de 90 dias.
+- **Testes:** `tests/test_cadence_close.py` (12).
+- **Decisão registrada:** comportamento automático (antes usado manual); o
+  consultor continua podendo reverter status (transições não são travadas).
 
 ### Gaps residuais do roadmap-leads (branch `fix/lead-scoring-residuals`, 2026-08-05)
 

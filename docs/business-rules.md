@@ -10,7 +10,7 @@ NOVO
 → REUNIAO_MARCADA
 → REUNIAO_FEITA  (reunião realizada)
 → PROPOSTA_ENVIADA
-→ PERDIDO        (volta à fila após 90 dias de carência; perdas deliberadas não voltam)
+→ PERDIDO        (automático ao encerrar a cadência sem resposta; volta à fila após 90 dias — perdas deliberadas não voltam)
 
 ## Critérios de Scoring (0-100)
 
@@ -103,6 +103,14 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
   voltam automaticamente. Data de perda = última `LeadActivity` com
   `status_to=PERDIDO` (fallback `updated_at`); mantém o consultor atribuído e
   registra trilha. Carência configurável (`LOST_REQUEUE_DAYS=0` desativa).
+- **`PERDIDO` automático no encerramento da cadência** (implementado 2026-08-12):
+  quando o **`CLOSING`** (dia 14) foi enviado e o lead **não respondeu** dentro
+  da carência (`CADENCE_CLOSE_GRACE_DAYS`, default 7), ele é marcado
+  `PERDIDO`/`NAO_RESPONDEU` automaticamente — só transiciona `CONTATADO` (nunca
+  sobrescreve `RESPONDIDO`+ / reunião / proposta) e **não** marca `opt_out`.
+  Registra trilha (STATUS_CHANGED + action `LOST`), que também alimenta a data
+  de perda do requeue de 90 dias. Carência configurável
+  (`CADENCE_CLOSE_GRACE_DAYS=0` desativa).
 - Scoring é recalculado quando novos dados de enriquecimento chegam
   (`POST /campaigns/{id}/reanalyze`).
 - Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead.
@@ -192,5 +200,5 @@ Se uma chave exceder seu limite, todas as operações usarão fallback (cache lo
 | 1ª mensagem | Dia 0 | Apresentação + problema + CTA reunião |
 | Follow-up 1 | Dia 3 sem resposta | Reforço leve |
 | Follow-up 2 | Dia 7 sem resposta | Última tentativa |
-| Encerramento | Dia 14 sem resposta | Ciclo encerrado (lead → `PERDIDO`, marcado pelo consultor; volta à fila após 90 dias se a perda for por ausência de resposta) |
+| Encerramento | Dia 14 sem resposta | Ciclo encerrado (lead → `PERDIDO` automático após `CADENCE_CLOSE_GRACE_DAYS` sem resposta; volta à fila em 90 dias se a perda for por ausência de resposta) |
 | Pós-venda | Após conversão | Acompanhamento pós-cliente (canal WhatsApp/E-mail) |

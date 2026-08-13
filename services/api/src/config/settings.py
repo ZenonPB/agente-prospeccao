@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     LOST_REQUEUE_DAYS: int = Field(90, description='Dias em PERDIDO até o lead voltar à fila (0 desativa)')
     LOST_REQUEUE_POLL_SECONDS: int = Field(3600, description='Segundos entre verificações de leads PERDIDO vencidos')
 
+    # Auto-PERDIDO no encerramento da cadência (business-rules — dia 14):
+    # carência em dias após o CLOSING enviado sem resposta até marcar
+    # PERDIDO/NAO_RESPONDEU; intervalo do poll do job no main.py.
+    CADENCE_CLOSE_GRACE_DAYS: int = Field(7, description='Dias após o encerramento (dia 14) sem resposta até marcar PERDIDO (0 desativa)')
+    CADENCE_CLOSE_POLL_SECONDS: int = Field(3600, description='Segundos entre verificações de cadências encerradas sem resposta')
+
     # Item 4.3 — throttling: teto diário de envios automáticos por org quando a
     # org não define o próprio `daily_email_limit`. A janela de espalhamento
     # também é configurável por org (`send_window_start/end`, HH:MM no fuso do
