@@ -841,6 +841,34 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    `logo-alphamec.png` (transparente) e foto `zenon.png` movidos de
 >    `static/` para `apps/web/public/imgs/alphamec/`; `auth-shell.tsx` usa a
 >    foto do Zenon; `logo-alphamec.webp` removido.
+> 13. **Sessão 2026-08-13 — pipeline confiável + grounding + background
+>    (`feat/background-pipeline-e-scoring-confiavel`):**
+>    - **Frente C (rate-limit):** 18 de 20 leads de uma rodada ficaram sem score
+>      por HTTP 429 da Groq (retry de 1.5s era inútil contra a janela de ~60s).
+>      `provider_client.py` agora lê `Retry-After`/backoff exponencial
+>      (`GROQ_MAX_RETRIES`, default 5) + **pacing global** entre chamadas
+>      (`GROQ_MIN_INTERVAL_SECONDS`, default 20) → todo lead pontua; batch de 10
+>      ≈ 4-5 min. Prompt de scoring enxuto (menos tokens = mais chamadas/min).
+>      Feed honesto: `score: null`/`status:"falha"` quando não pontuou e summary
+>      com `scored`/`failed` (acabou o "Score: 0 (analisado)" forjado).
+>      `max_leads` default 10 (campanha + CNAE).
+>    - **Frente A (grounding do pitch):** gancho de abordagem alegava "sem
+>      responsividade"/"sem formulário/CTA"/"site atualizado" sem nenhuma
+>      evidência (o enriquecimento nem media isso). Agora `_check_ux` mede
+>      viewport/form/tel/WhatsApp/mailto (facts determinísticos), e o
+>      `_normalize_response` valida cada alegação de risco contra as evidências
+>      aprovadas; se reprovar, gera pitch determinístico da evidência mais forte
+>      (sempre factual). Sinais do template clarificados como CRITÉRIOS.
+>    - **Frente B (background de verdade):** coleta/enriquecimento saiu do
+>      `asyncio.create_task` da request para um **job-consumer dedicado**
+>      (`src/jobs_consumer.py`, loop no lifespan, claim atômico
+>      `FOR UPDATE SKIP LOCKED`, um job por vez). Endpoints só agendam
+>      (`status:"queued"`); `GET /api/pipeline/jobs` restaura status/resumo na
+>      UI após sair/recarregar (banner "em andamento" + resumo Pontuados/Falhas);
+>      log da UI limitado às últimas 150 linhas (anti-congelamento).
+>    - **Próximo passo:** rodar seed (`python -m src.seeds.scoring_templates`) e
+>      **"Reanalisar leads"** na campanha para pontuar os 18 leads que ficaram
+>      `NOVO` por rate-limit antes do deploy desta correção.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

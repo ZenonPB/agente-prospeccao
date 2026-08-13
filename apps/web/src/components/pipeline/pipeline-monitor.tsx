@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Pause, Loader2, Play } from 'lucide-react';
-import { useStartPipeline } from '@/hooks/use-api';
+import { useStartPipeline, usePipelineJobs, useInvalidateJobs } from '@/hooks/use-api';
 import { createPipelineWs } from '@/lib/api';
+
+// Mantém o DOM/renders finitos mesmo em rodadas longas (anti-congelamento).
+const MAX_LOG_LINES = 150;
 
 interface PipelineEvent {
   type: string;
@@ -16,11 +19,13 @@ interface PipelineEvent {
   step?: string;
   percent?: number;
   name?: string;
-  score?: number;
+  score?: number | null;
   status?: string;
   summary?: {
     collected: number;
     qualified: number;
+    scored: number;
+    failed: number;
     total_processed: number;
   };
   timestamp?: string;
@@ -37,6 +42,12 @@ export function PipelineMonitor() {
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const startPipeline = useStartPipeline();
+  const jobsQuery = usePipelineJobs(undefined, 5);
+  const invalidateJobs = useInvalidateJobs();
+
+  // Restaura o resumo do último job da organização após reload/navegação.
+  const latestJob = jobsQuery.data?.jobs?.[0] ?? null;
+  const restoredSummary = summary ?? (latestJob?.status === 'COMPLETED' ? latestJob.summary : null);
 
   useEffect(() => {
     if (logsEndRef.current) {
@@ -58,6 +69,7 @@ export function PipelineMonitor() {
         query: query.trim(),
         max_leads: 10,
       });
+      invalidateJobs();
 
       const ws = createPipelineWs(result.job_id);
       wsRef.current = ws;
@@ -74,10 +86,12 @@ export function PipelineMonitor() {
         if (data.type === 'done') {
           setSummary(data.summary);
           setIsRunning(false);
+          invalidateJobs();
         }
 
         if (data.type === 'error') {
           setIsRunning(false);
+          invalidateJobs();
         }
       };
 
@@ -139,12 +153,12 @@ export function PipelineMonitor() {
       </Card>
 
       {/* Progress Bar */}
-      {(isRunning || events.length > 0) && (
+      {(isRunning || events.length > 0 || restoredSummary) && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>Busca em Andamento</CardTitle>
-              {summary && (
+              {restoredSummary && (
                 <Badge className="bg-emerald-100 text-emerald-700">
                   Concluído
                 </Badge>
@@ -159,19 +173,25 @@ export function PipelineMonitor() {
               <span className="font-medium">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-2" />
-            {summary && (
-              <div className="mt-4 grid grid-cols-3 gap-4 text-center">
+            {restoredSummary && (
+              <div className="mt-4 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
                 <div>
-                  <div className="text-2xl font-bold">{summary.collected}</div>
+                  <div className="text-2xl font-bold">{restoredSummary.collected}</div>
                   <div className="text-sm text-muted-foreground">Coletados</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-emerald-600">{summary.qualified}</div>
+                  <div className="text-2xl font-bold">{restoredSummary.scored}</div>
+                  <div className="text-sm text-muted-foreground">Pontuados</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-emerald-600">{restoredSummary.qualified}</div>
                   <div className="text-sm text-muted-foreground">Aptos</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold">{summary.total_processed}</div>
-                  <div className="text-sm text-muted-foreground">Analisados</div>
+                  <div className={`text-2xl font-bold ${restoredSummary.failed > 0 ? 'text-amber-600' : ''}`}>
+                    {restoredSummary.failed}
+                  </div>
+                  <div className="text-sm text-muted-foreground">Falhas</div>
                 </div>
               </div>
             )}
@@ -188,7 +208,7 @@ export function PipelineMonitor() {
           <CardContent>
             <div className="h-[400px] overflow-y-auto rounded-lg bg-muted/50 p-4 font-mono text-sm">
               <div className="space-y-1">
-                {events.map((event, i) => {
+                {events.slice(-MAX_LOG_LINES).map((event, i) => {
                   if (event.type === 'log') {
                     return (
                       <p key={i}>
@@ -200,7 +220,15 @@ export function PipelineMonitor() {
                     return null; // Handled by progress bar
                   }
                   if (event.type === 'lead') {
-                    const scoreColor = (event.score || 0) >= 60 ? 'text-emerald-500' : 'text-amber-500';
+                    if (event.score == null) {
+                      return (
+                        <p key={i}>
+                          <span className="text-red-400">→</span> {event.name} — não pontuado
+                          (falha do provedor)
+                        </p>
+                      );
+                    }
+                    const scoreColor = event.score >= 60 ? 'text-emerald-500' : 'text-amber-500';
                     return (
                       <p key={i}>
                         <span className={scoreColor}>→</span> {event.name} — Aptidão: {event.score} ({event.status})

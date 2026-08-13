@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, Request, status, HTTPException
@@ -13,7 +12,6 @@ from src.db.models import Job, JobStatus, JobType, Campaign, User, Organization
 from src.auth.dependencies import get_current_user, get_user_organization
 from src.auth.security import decode_access_token
 from src.middleware.rate_limit import limiter
-from src.pipeline_worker import run_pipeline
 from src.services.org_service import user_organization
 
 logger = logging.getLogger(__name__)
@@ -43,7 +41,11 @@ async def start_pipeline(
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
-    """Cria um job e inicia o pipeline em background.
+    """Agenda o pipeline na fila de Jobs (background) e retorna o job_id.
+
+    A execução acontece no job-consumer (`jobs_consumer.py`), um job por vez —
+    a request só insere o Job e volta imediatamente. O progresso é transmitido
+    via WebSocket em `/ws/{job_id}`; o status fica consultável em `GET /jobs`.
 
     Se `campaign_id` for fornecido, a query é construída automaticamente
     a partir dos campos da campanha (target_segment, target_city, etc.)
@@ -95,46 +97,45 @@ async def start_pipeline(
     db.commit()
     db.refresh(job)
 
-    job_id = str(job.id)
-
-    # Inicia pipeline em background
-    asyncio.create_task(_run_pipeline_task(
-        job_id, body.query, body.campaign_id, body.max_leads,
-        body.reanalyze_only,
-    ))
-
-    return {"job_id": job_id, "status": "started"}
+    return {"job_id": str(job.id), "status": "queued"}
 
 
-async def _run_pipeline_task(
-    job_id: str, query: str | None, campaign_id: str | None,
-    max_leads: int, reanalyze_only: bool = False,
+def _serialize_job(job: Job) -> Dict:
+    payload = job.payload if isinstance(job.payload, dict) else {}
+    return {
+        "id": str(job.id),
+        "job_type": job.job_type.value if job.job_type else None,
+        "status": job.status.value if job.status else None,
+        "campaign_id": str(job.campaign_id) if job.campaign_id else None,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        "error_message": job.error_message,
+        "summary": payload.get("summary"),
+    }
+
+
+@router.get("/jobs")
+@limiter.limit("60/minute")
+async def list_pipeline_jobs(
+    request: Request,
+    campaign_id: str | None = Query(default=None),
+    limit: int = Query(default=5, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
 ):
-    """Executa o pipeline em background e transmite eventos via WebSocket."""
-    try:
-        async for event in run_pipeline(
-            job_id=job_id, query=query, campaign_id=campaign_id,
-            max_leads=max_leads, reanalyze_only=reanalyze_only,
-        ):
-            # Lê conexões dinamicamente (WS pode conectar após a task iniciar)
-            connections = active_connections.get(job_id, [])
-            dead = []
-            for ws in connections:
-                try:
-                    await ws.send_json(event)
-                except Exception:
-                    dead.append(ws)
-            for ws in dead:
-                connections.remove(ws)
-    except Exception as e:
-        logger.error("Pipeline task error: %s", e)
-        connections = active_connections.get(job_id, [])
-        error_event = {"type": "error", "message": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
-        for ws in connections:
-            try:
-                await ws.send_json(error_event)
-            except Exception:
-                pass
+    """Histórico de jobs do pipeline da organização (para restaurar estado na UI).
+
+    Sem `campaign_id`, lista os jobs mais recentes da organização (default 5).
+    O `summary` (collected/scored/qualified/failed) fica no payload do job
+    concluído, permitindo recarregar o resumo após navegar/atualizar a página.
+    """
+    query = db.query(Job).filter(Job.organization_id == _org.id)
+    if campaign_id:
+        query = query.filter(Job.campaign_id == campaign_id)
+    jobs = query.order_by(Job.created_at.desc()).limit(limit).all()
+    return {"jobs": [_serialize_job(j) for j in jobs]}       
 
 
 @router.websocket("/ws/{job_id}")

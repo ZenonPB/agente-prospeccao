@@ -9,8 +9,11 @@ import {
   Play, CheckCircle, XCircle, Loader2,
   ExternalLink, Sparkles, RefreshCw,
 } from 'lucide-react';
-import { useStartPipeline, useReanalyzeCampaign } from '@/hooks/use-api';
+import { useStartPipeline, useReanalyzeCampaign, usePipelineJobs, useInvalidateJobs } from '@/hooks/use-api';
 import { createPipelineWs } from '@/lib/api';
+
+// Mantém o DOM/renders finitos mesmo em rodadas longas (anti-congelamento).
+const MAX_LOG_LINES = 150;
 
 interface PipelineEvent {
   type: string;
@@ -18,11 +21,13 @@ interface PipelineEvent {
   step?: string;
   percent?: number;
   name?: string;
-  score?: number;
+  score?: number | null;
   status?: string;
   summary?: {
     collected: number;
     qualified: number;
+    scored: number;
+    failed: number;
     total_processed: number;
   };
   timestamp?: string;
@@ -54,6 +59,15 @@ export function CampaignPipeline({
   const logsEndRef = useRef<HTMLDivElement>(null);
   const startPipeline = useStartPipeline();
   const reanalyzeCampaign = useReanalyzeCampaign();
+  const jobsQuery = usePipelineJobs(campaignId, 5);
+  const invalidateJobs = useInvalidateJobs();
+
+  // Com o pipeline em background (job-consumer), o usuário pode sair da tela e
+  // voltar: o resumo é restaurado do último job COMPLETED da campanha.
+  const latestJob = jobsQuery.data?.jobs?.[0] ?? null;
+  const hasActiveJob =
+    !!latestJob && (latestJob.status === 'PENDING' || latestJob.status === 'IN_PROGRESS');
+  const restoredSummary = summary ?? (latestJob?.status === 'COMPLETED' ? latestJob.summary : null);
 
   useEffect(() => {
     if (logsEndRef.current) {
@@ -77,8 +91,9 @@ export function CampaignPipeline({
           ? await reanalyzeCampaign.mutateAsync(campaignId)
 : await startPipeline.mutateAsync({
               campaign_id: campaignId,
-              max_leads: 20,
+              max_leads: 10,
             });
+      invalidateJobs();
 
       const ws = createPipelineWs(result.job_id);
       wsRef.current = ws;
@@ -95,11 +110,13 @@ export function CampaignPipeline({
         if (data.type === 'done') {
           setSummary(data.summary);
           setIsRunning(false);
+          invalidateJobs();
         }
 
         if (data.type === 'error') {
           setIsRunning(false);
           setErrorMessage(data.message || 'Erro durante o pipeline');
+          invalidateJobs();
         }
       };
 
@@ -117,7 +134,7 @@ export function CampaignPipeline({
       setErrorMessage(msg);
       setEvents((prev) => [...prev, { type: 'error', message: msg }]);
     }
-  }, [campaignId, startPipeline, reanalyzeCampaign]);
+  }, [campaignId, startPipeline, reanalyzeCampaign, invalidateJobs]);
 
   useEffect(() => {
     // Auto-start intencional: navegação com ?start=true dispara a coleta uma
@@ -197,6 +214,20 @@ export function CampaignPipeline({
         </Card>
       )}
 
+      {hasActiveJob && !isRunning && !hasStarted && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+              <span>
+                Há uma coleta/análise em andamento para esta campanha. Você pode sair desta
+                tela — o job continua em segundo plano e o resumo aparecerá aqui.
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {isRunning && (
         <Card className="border-primary/50">
           <CardHeader className="pb-3">
@@ -225,7 +256,7 @@ export function CampaignPipeline({
         </Card>
       )}
 
-      {summary && (
+      {restoredSummary && (
         <Card className="border-emerald-200 bg-emerald-50/50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-4">
@@ -234,20 +265,31 @@ export function CampaignPipeline({
                 {mode === 'reanalyze' ? 'Reanálise finalizada' : 'Coleta finalizada'}
               </h3>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center mb-4">
+            <div className="grid grid-cols-2 gap-4 text-center mb-2 sm:grid-cols-4">
               <div className="rounded-lg bg-white p-3 shadow-sm">
-                <div className="text-2xl font-bold">{summary.collected}</div>
+                <div className="text-2xl font-bold">{restoredSummary.collected}</div>
                 <div className="text-sm text-muted-foreground">Coletados</div>
               </div>
               <div className="rounded-lg bg-white p-3 shadow-sm">
-                <div className="text-2xl font-bold text-emerald-600">{summary.qualified}</div>
+                <div className="text-2xl font-bold">{restoredSummary.scored}</div>
+                <div className="text-sm text-muted-foreground">Pontuados</div>
+              </div>
+              <div className="rounded-lg bg-white p-3 shadow-sm">
+                <div className="text-2xl font-bold text-emerald-600">{restoredSummary.qualified}</div>
                 <div className="text-sm text-muted-foreground">Qualificados</div>
               </div>
               <div className="rounded-lg bg-white p-3 shadow-sm">
-                <div className="text-2xl font-bold">{summary.total_processed}</div>
-                <div className="text-sm text-muted-foreground">Processados</div>
+                <div className={`text-2xl font-bold ${restoredSummary.failed > 0 ? 'text-amber-600' : ''}`}>
+                  {restoredSummary.failed}
+                </div>
+                <div className="text-sm text-muted-foreground">Falhas</div>
               </div>
             </div>
+            {restoredSummary.failed > 0 && (
+              <p className="text-xs text-amber-700 mb-2">
+                Leads não pontuados (falha do provedor) voltam à fila automaticamente no próximo job.
+              </p>
+            )}
             <Button onClick={() => router.push('/oportunidades')}>
               <ExternalLink className="mr-2 h-4 w-4" />
               Ver Oportunidades
@@ -264,7 +306,7 @@ export function CampaignPipeline({
           <CardContent>
             <div className="h-[400px] overflow-y-auto rounded-lg bg-muted/50 p-4 font-mono text-sm">
               <div className="space-y-1">
-                {events.map((event, i) => {
+                {events.slice(-MAX_LOG_LINES).map((event, i) => {
                   if (event.type === 'log') {
                     return (
                       <p key={i}>
@@ -276,7 +318,15 @@ export function CampaignPipeline({
                     return null;
                   }
                   if (event.type === 'lead') {
-                    const scoreColor = (event.score || 0) >= 60 ? 'text-emerald-500' : 'text-amber-500';
+                    if (event.score == null) {
+                      return (
+                        <p key={i}>
+                          <span className="text-red-400">→</span> {event.name} — não pontuado
+                          (falha do provedor)
+                        </p>
+                      );
+                    }
+                    const scoreColor = event.score >= 60 ? 'text-emerald-500' : 'text-amber-500';
                     return (
                       <p key={i}>
                         <span className={scoreColor}>→</span> {event.name} — Score: {event.score} ({event.status})

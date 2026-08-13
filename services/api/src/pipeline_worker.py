@@ -360,6 +360,8 @@ async def run_pipeline(
             leads_query = leads_query.limit(max_leads)
             leads_to_process = leads_query.all()
 
+        scored_count = 0
+        failed_count = 0
         if not leads_to_process:
             yield {"type": "log", "message": "Nenhum lead novo para analisar", "timestamp": _ts()}
         else:
@@ -379,7 +381,7 @@ async def run_pipeline(
                     reason = "template não exige relatório técnico" if not req_tech else "lead sem website registrado"
                     yield {
                         "type": "log",
-                        "message": f"Pulpando auditoria técnica de site para {lead.company_name} ({reason}).",
+                        "message": f"Pulando auditoria técnica de site para {lead.company_name} ({reason}).",
                         "timestamp": _ts(),
                     }
                 else:
@@ -405,19 +407,40 @@ async def run_pipeline(
                     allow_business_fallback=reanalyze_only,
                 )
 
-                score = scoring_result.get("qualification_score", 0) if scoring_result else 0
-                status_label = {
-                    LeadStatus.QUALIFICADO: "qualificado",
-                    LeadStatus.DESQUALIFICADO: "desqualificado",
-                }.get(lead.status, "analisado")
-
-                yield {
-                    "type": "lead",
-                    "name": lead.company_name,
-                    "score": score,
-                    "status": status_label,
-                    "timestamp": _ts(),
-                }
+                if scoring_result is None:
+                    # Falha na pontuação (ex.: Groq rate-limit apesar do retry).
+                    # O orchestrator mantém o lead em NOVO para reprocesso; aqui
+                    # só deixamos o feed honesto (nada de "Score: 0" forjado).
+                    failed_count += 1
+                    yield {
+                        "type": "log",
+                        "message": (
+                            f"{lead.company_name} NÃO foi pontuado (rate-limit/falha do provedor) — "
+                            "será reprocessado no próximo batch."
+                        ),
+                        "timestamp": _ts(),
+                    }
+                    yield {
+                        "type": "lead",
+                        "name": lead.company_name,
+                        "score": None,
+                        "status": "falha",
+                        "timestamp": _ts(),
+                    }
+                else:
+                    scored_count += 1
+                    score = scoring_result.get("qualification_score", 0)
+                    status_label = {
+                        LeadStatus.QUALIFICADO: "qualificado",
+                        LeadStatus.DESQUALIFICADO: "desqualificado",
+                    }.get(lead.status, "analisado")
+                    yield {
+                        "type": "lead",
+                        "name": lead.company_name,
+                        "score": score,
+                        "status": status_label,
+                        "timestamp": _ts(),
+                    }
 
                 percent = 50 + int((i + 1) / total_to_process * 50)
                 yield {"type": "progress", "step": "analise", "percent": min(percent, 100)}
@@ -484,6 +507,8 @@ async def run_pipeline(
             "summary": {
                 "collected": collected_count,
                 "qualified": qualified,
+                "scored": scored_count,
+                "failed": failed_count,
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
             },
             "timestamp": _ts(),
@@ -493,6 +518,15 @@ async def run_pipeline(
         if job:
             job.status = JobStatus.COMPLETED
             job.completed_at = datetime.now(timezone.utc)
+            if not isinstance(job.payload, dict):
+                job.payload = {}
+            job.payload["summary"] = {
+                "collected": collected_count,
+                "qualified": qualified,
+                "scored": scored_count,
+                "failed": failed_count,
+                "total_processed": len(leads_to_process) if leads_to_process else 0,
+            }
             db.commit()
 
     except Exception as e:

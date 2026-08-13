@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     CADENCE_CLOSE_GRACE_DAYS: int = Field(7, description='Dias após o encerramento (dia 14) sem resposta até marcar PERDIDO (0 desativa)')
     CADENCE_CLOSE_POLL_SECONDS: int = Field(3600, description='Segundos entre verificações de cadências encerradas sem resposta')
 
+    # Job-consumer do pipeline (background): intervalo do poll de Jobs PENDING.
+    # A coleta/enriquecimento roda em um loop dedicado (não na request) e um job
+    # por vez — a fila respeita o pacing da Groq (rate-limit).
+    JOB_POLL_SECONDS: int = Field(5, description='Segundos entre verificações de Jobs PENDING')
+
     # Item 4.3 — throttling: teto diário de envios automáticos por org quando a
     # org não define o próprio `daily_email_limit`. A janela de espalhamento
     # também é configurável por org (`send_window_start/end`, HH:MM no fuso do

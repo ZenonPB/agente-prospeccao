@@ -688,7 +688,32 @@ export const pipelineApi = {
       `/api/campaigns/${campaign_id}/reanalyze`,
       { method: "POST", body: JSON.stringify({}) },
     ),
+  jobs: (params: { campaign_id?: string; limit?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.campaign_id) qs.set("campaign_id", params.campaign_id);
+    if (params.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<{ jobs: PipelineJob[] }>(`/api/pipeline/jobs${q ? `?${q}` : ""}`);
+  },
 };
+
+export interface PipelineJob {
+  id: string;
+  job_type: string;
+  status: "PENDING" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELLED";
+  campaign_id: string | null;
+  created_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  summary?: {
+    collected: number;
+    qualified: number;
+    scored: number;
+    failed: number;
+    total_processed: number;
+  } | null;
+}
 
 export const invitesApi = {
   create: (orgId: string, data: { email: string; role: import("@/types").OrgRole; sales_role: import("@/types").SalesRole }) =>

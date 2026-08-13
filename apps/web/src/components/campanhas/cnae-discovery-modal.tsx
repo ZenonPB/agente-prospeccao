@@ -28,7 +28,7 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
   const [open, setOpen] = useState(false);
   const [cnaeCode, setCnaeCode] = useState("");
   const [cnpjsRaw, setCnpjsRaw] = useState("");
-  const [maxLeads, setMaxLeads] = useState(20);
+  const [maxLeads, setMaxLeads] = useState(10);
   const collectCnae = useCollectCnae();
 
   const handleStartCollection = useCallback(async () => {
@@ -118,7 +118,7 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
               min={1}
               max={100}
               value={maxLeads}
-              onChange={(e) => setMaxLeads(parseInt(e.target.value) || 20)}
+              onChange={(e) => setMaxLeads(parseInt(e.target.value) || 10)}
             />
           </div>
         </div>
