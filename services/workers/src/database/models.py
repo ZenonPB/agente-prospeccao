@@ -306,6 +306,53 @@ class ProviderUsage(Base):
         return f"<ProviderUsage(org='{self.organization_id}', key='{self.key_name}', date={self.usage_date}, count={self.count})>"
 
 
+class OrgAuditEvent(enum.Enum):
+    """Eventos administrativos da organização registrados no audit log."""
+    ORG_CREATED = "ORG_CREATED"
+    ORG_RENAMED = "ORG_RENAMED"
+    ORG_SETTINGS_UPDATED = "ORG_SETTINGS_UPDATED"
+    MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
+    MEMBER_REMOVED = "MEMBER_REMOVED"
+    MEMBER_LEFT = "MEMBER_LEFT"
+    OWNER_TRANSFERRED = "OWNER_TRANSFERRED"
+    INVITE_CREATED = "INVITE_CREATED"
+    INVITE_ACCEPTED = "INVITE_ACCEPTED"
+    INVITE_REVOKED = "INVITE_REVOKED"
+    SECRET_SET = "SECRET_SET"
+    SECRET_DELETED = "SECRET_DELETED"
+    SALES_TARGET_UPSERTED = "SALES_TARGET_UPSERTED"
+    SALES_TARGET_DELETED = "SALES_TARGET_DELETED"
+
+
+class OrgAuditLog(Base):
+    """Trilha de eventos administrativos da organização.
+
+    Dá rastreabilidade à diretoria (quem convidou, mudou papel, removeu
+    membro, alterou chave/metas). `actor_name`/`actor_email` são gravados
+    junto porque o membro pode ser removido depois.
+    """
+    __tablename__ = "org_audit_log"
+    __table_args__ = (
+        Index("ix_org_audit_log_org_created", "organization_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    actor_name = Column(String(255))
+    actor_email = Column(String(255))
+    event = Column(Enum(OrgAuditEvent, name='org_audit_event', create_type=True), nullable=False)
+    target_type = Column(String(60))
+    target_id = Column(String(60))
+    detail = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization")
+    actor = relationship("User")
+
+    def __repr__(self):
+        return f"<OrgAuditLog(org='{self.organization_id}', event='{self.event.value}', at={self.created_at})>"
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

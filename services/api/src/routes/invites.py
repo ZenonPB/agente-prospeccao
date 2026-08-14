@@ -17,6 +17,7 @@ from src.db.models import (
     Invite,
     OrganizationRole,
     SalesRole,
+    OrgAuditEvent,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -25,6 +26,7 @@ from src.auth.dependencies import (
 )
 from src.auth.security import hash_password, create_access_token
 from src.services import invite_service
+from src.services.org_audit_service import log_org_event
 
 router = APIRouter(tags=["invites"])
 
@@ -119,6 +121,11 @@ def create_invite(
         role=body.role,
         sales_role=body.sales_role,
     )
+    log_org_event(
+        db, org.id, OrgAuditEvent.INVITE_CREATED, actor=actor,
+        target_type="invite", target_id=body.email.lower(),
+        detail=f"role={body.role.value} sales_role={body.sales_role.value}",
+    )
     db.commit()
     db.refresh(invite)
     
@@ -152,7 +159,11 @@ def accept_invite(
     o e-mail do usuário. Cria a membership na organização do convite.
     """
     member = invite_service.accept_invite(db, body.token, user)
-    
+    log_org_event(
+        db, member.organization_id, OrgAuditEvent.INVITE_ACCEPTED, actor=user,
+        target_type="invite", target_id=user.email,
+    )
+    db.commit()
     return {
         "message": "Convite aceito com sucesso",
         "organization": {
@@ -188,7 +199,11 @@ def revoke_invite(
         raise HTTPException(status_code=404, detail="Convite não encontrado")
     
     invite_service.revoke_invite(db, invite.id)
-    
+    log_org_event(
+        db, org.id, OrgAuditEvent.INVITE_REVOKED, actor=actor,
+        target_type="invite", target_id=invite.email,
+    )
+    db.commit()
     return {"message": "Convite revogado com sucesso"}
 
 
@@ -257,6 +272,11 @@ def accept_register(
     db.flush()
 
     member = invite_service.accept_invite(db, body.token, user)
+    log_org_event(
+        db, member.organization_id, OrgAuditEvent.INVITE_ACCEPTED, actor=user,
+        target_type="invite", target_id=user.email,
+    )
+    db.commit()
     token = create_access_token({"sub": str(user.id), "email": user.email})
 
     return {
