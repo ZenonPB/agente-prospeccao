@@ -126,8 +126,8 @@ export function KanbanBoard() {
     [data?.leads]
   );
 
-  // Item 4.10 — notificação de SLA no kanban: mapeia alerta por lead e
-  // conta por coluna (coluna do status do alerta).
+  // Alerta de SLA por lead: mapeia o alerta e o conta por coluna
+  // (coluna do status do alerta).
   const slaByLead = useMemo(() => {
     const map: Record<string, SlaAlertItem> = {};
     (slaData?.alerts || []).forEach((alert) => {

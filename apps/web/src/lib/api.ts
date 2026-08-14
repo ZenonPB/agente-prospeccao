@@ -770,8 +770,8 @@ export const invitesApi = {
     }),
 };
 
-// Helper de conexão WebSocket — token JWT enviado na PRIMEIRA mensagem
-// (nunca na URL, para não vazar em logs de proxy/acesso). Item 3.8.
+// Helper de conexão WebSocket — token JWT enviado na primeira mensagem,
+// nunca na URL (evita vazamento em logs de proxy/acesso).
 export function createPipelineWs(jobId: string): WebSocket {
   const token = getCachedToken();
   const baseUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;

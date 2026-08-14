@@ -1,4 +1,4 @@
-"""Testes de helpers de CNPJ — máscara de CPF (minimização), papel, confiança (4.7)."""
+"""Testes de helpers de CNPJ — máscara de CPF (minimização), papel e confiança."""
 from services.cnpj_service import (
     _calculate_confidence,
     _map_qualification_to_role,

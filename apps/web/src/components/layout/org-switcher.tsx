@@ -68,7 +68,7 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
 
   const organizations = useMemo(() => orgsData?.organizations || [], [orgsData]);
 
-  // Item 4.10: sem setState em effect — a org ativa é derivada em render.
+  // A org ativa é derivada em render (sem setState em effect).
   // Se o id persistido não estiver entre as orgs carregadas (ou ainda não
   // houver orgs), cai na primeira org. A persistência em localStorage só
   // acontece quando o usuário escolhe explicitamente (handleSelectOrg).

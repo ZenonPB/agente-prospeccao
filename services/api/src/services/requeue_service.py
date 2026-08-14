@@ -1,7 +1,7 @@
 """Re-enfileiramento de leads `PERDIDO` após o período de carência (90 dias).
 
-Regra documentada em `docs/business-rules.md` e implementada em 2026-08-12.
-Decisão (escopo conservador — reabrir perda deliberada não é automático):
+Regra documentada em `docs/business-rules.md`. Decisão (escopo conservador —
+reabrir perda deliberada não é automático):
 
 - Só volta à fila quem foi perdido por **ausência de resposta** (`lost_reason`
   nulo ou `NAO_RESPONDEU`) e **não** pediu `opt_out`. Perdas deliberadas

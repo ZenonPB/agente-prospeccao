@@ -33,7 +33,7 @@ export function ForecastCard({ forecast }: { forecast: ForecastData }) {
     <Card className="col-span-full">
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-base font-semibold">
-          <span>Forecast & Oportunidades (Item 4.8)</span>
+          <span>Forecast & Oportunidades</span>
           <span className="text-xs font-normal text-muted-foreground">
             {forecast.open_leads_count} leads em aberto
           </span>

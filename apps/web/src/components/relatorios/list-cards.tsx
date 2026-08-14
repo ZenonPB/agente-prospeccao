@@ -23,7 +23,7 @@ export function ConsultantsCard({ consultants }: { consultants: AnalyticsConsult
     <Card>
       <CardHeader>
         <CardTitle>Desempenho por consultor</CardTitle>
-        <CardDescription>Atribuição, contato, conversão e atingimento de meta (4.9)</CardDescription>
+        <CardDescription>Atribuição, contato, conversão e atingimento de meta</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {consultants.length === 0 && (
