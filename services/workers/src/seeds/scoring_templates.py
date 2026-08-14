@@ -111,6 +111,52 @@ DEFAULT_TEMPLATES = [
             "identifique gaps de conteúdo ou conversão."
         ),
     },
+    {
+        "service_label": "Aplicações Web / ERP",
+        "requires_technical_report": True,
+        "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Empresa ainda opera com planilha/processo manual que um sistema resolveria",
+                "Site é só institucional/landing sem área logada — o negócio continua no papel",
+                "Crescimento recente e sem sistema: pedidos, agenda e estoque espalhados",
+            ],
+            "subject_ideas": [
+                "Como está o processo de {processo_concreto} hoje na {empresa}?",
+                "{empresa} ainda usa planilha para {problema_concreto}?",
+                "Sistema para o crescimento da {empresa}",
+            ],
+            "objections": [
+                {"objection": "Já temos um sistema", "approach": "Perguntar o que ele não cobre hoje (relatório, integração, mobilidade) e propor reunião de diagnóstico"},
+                {"objection": "É muito caro", "approach": "Mostrar o custo do processo manual (erro humano, tempo, retrabalho) frente a um portal sob medida"},
+                {"objection": "Não dá tempo de implantar", "approach": "Propor implantação por fases: módulo crítico primeiro, resto depois"},
+            ],
+        },
+        "positive_signals": [
+            {"label": "Site institucional / landing sem função", "description": "Site apenas institucional ou landing page, sem área logada/portal ou funcionalidade (critério a CONFIRMAR no HTML)", "weight_hint": "high"},
+            {"label": "Sem área logada / portal do cliente", "description": "Ausência de login, painel, área do aluno/cliente ou portal (critério a CONFIRMAR no HTML)", "weight_hint": "high"},
+            {"label": "Processo manual / planilha", "description": "Indícios de operação por planilha, papel, WhatsApp ou processo manual no segmento", "weight_hint": "high"},
+            {"label": "Crescimento sem sistema", "description": "Sinais de expansão (filial, novos serviços) sem indícios de automação", "weight_hint": "medium"},
+        ],
+        "negative_signals": [
+            {"label": "Painel / área do cliente presente", "description": "Área logada, painel ou portal ativo no site (já tem sistema)", "weight_hint": "high"},
+            {"label": "Menção a integrações/API", "description": "Site/empresa cita integrações, API ou sistemas próprios", "weight_hint": "high"},
+            {"label": "Portal do aluno/cliente ativo", "description": "Portal de cliente/aluno ativo e funcional", "weight_hint": "medium"},
+        ],
+        "context_signals": [
+            {"label": "Segmento", "description": "Educação, saúde, serviços, comércio — setores com processos operacionais que viram sistema"},
+            {"label": "Região", "description": "Presença regional indica potencial de atendimento presencial"},
+        ],
+        "extra_instructions": (
+            "Venda de aplicações web completas ou sistemas ERP. Use os dados técnicos "
+            "do site como evidência primária da maturidade digital: a presença de "
+            "área logada/painel/portal indica que a empresa JÁ tem sistema (reduz o "
+            "score); site só institucional sem função indica processo manual "
+            "(aumenta o score). NUNCA desqualifique por 'site desatualizado' — para "
+            "quem vende sistema, processo manual/planilha é o público-alvo. "
+            "Critérios a CONFIRMAR no HTML: formulário, login, portal, menção a API."
+        ),
+    },
     # ----- Industrial / Engenharia -----
     {
         "service_label": "Engenharia Mecânica",
