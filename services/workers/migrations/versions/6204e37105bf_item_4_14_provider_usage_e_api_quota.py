@@ -1,4 +1,4 @@
-"""item 4.14 - provider_usage e api_quota
+"""provider_usage e api_quota
 
 Revision ID: 6204e37105bf
 Revises: c183a77bc662
@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Medidor diário de uso de provedores por org/key (item 4.14).
+    # Medidor diário de uso de provedores por org/key.
     op.create_table(
         'provider_usage',
         sa.Column('id', sa.UUID(), nullable=False),

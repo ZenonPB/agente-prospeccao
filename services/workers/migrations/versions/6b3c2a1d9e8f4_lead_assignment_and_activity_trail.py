@@ -4,7 +4,7 @@ Revision ID: 6b3c2a1d9e8f4
 Revises: 9a7b6c5d4e3f2
 Create Date: 2026-08-01
 
-Fase X1 (atribuição + trilha):
+Atribuição de leads + trilha de atividades:
 - `leads.assigned_to_id` (FK users, nullable) + `leads.assigned_at` — dono do
   lead (consultor responsável), atribuído manualmente no kanban.
 - Tabela `lead_activities` — trilha de quem fez o quê (atribuição, mudança de

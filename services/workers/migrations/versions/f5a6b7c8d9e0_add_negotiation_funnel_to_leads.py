@@ -4,7 +4,7 @@ Revision ID: f5a6b7c8d9e0
 Revises: f4a5b6c7d8e9
 Create Date: 2026-08-06
 
-Roadmap-leads C.3 — funil de negociação para largar a planilha Alphamec:
+Funil de negociação (RD/Orçamento/RP):
 - `leads.negotiation_stage` (enum `negotiation_stage`: RD/ORÇAMENTO/RP) — o
   estágio interno de negociação entre o lead responder e o fechamento.
 - `leads.contract_outcome` (enum `contract_outcome`: APROVADO/REPROVADO/

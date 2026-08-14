@@ -4,7 +4,7 @@ Revision ID: c3d4e5f6a7b8c
 Revises: b2c3d4e5f6a7b
 Create Date: 2026-08-04
 
-Fase A4/A5 (convites + org switcher):
+Convites + org switcher:
 - `invites.invited_by_id` (FK users, nullable) — quem enviou o convite.
 - `invites.sales_role` (enum sales_role, default CONSULTOR) — papel de venda
   atribuído ao convidado quando ele aceita.

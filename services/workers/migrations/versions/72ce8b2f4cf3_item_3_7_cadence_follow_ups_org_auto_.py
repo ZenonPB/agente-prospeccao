@@ -1,16 +1,16 @@
-"""item 3.7 cadence follow_ups + org auto_send + lead opt_out; item 3.8 playbook
+"""cadence follow_ups + org auto_send + lead opt_out; playbook por vertical
 
 Revision ID: 72ce8b2f4cf3
 Revises: f3a4b5c6d7e8
 Create Date: 2026-08-03 23:20:04.719491
 
-Fase 3.7 (cadência de follow-up + envio):
+Cadência de follow-up + envio:
 - Tabela `follow_ups` — etapas da cadência dia 0/3/7/14 por lead
   (enums `follow_up_step` e `follow_up_status`; `channel` reusa `message_channel`).
 - `organizations.auto_send_email` (default false) — opt-in de envio automático.
 - `leads.opt_out` (default false) — LGPD opt-out.
 
-Fase 3.8 (playbooks por vertical):
+Playbooks por vertical:
 - `campaign_scoring_templates.playbook` (JSONB) — hooks/assuntos/objeções.
 """
 from typing import Sequence, Union

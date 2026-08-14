@@ -4,7 +4,7 @@ Revision ID: f4a5b6c7d8e9
 Revises: e2f3a4b5c6d7
 Create Date: 2026-08-06
 
-Roadmap de vendas 4.3 — warmup/throttling e remetente dedicado:
+Warmup/throttling e remetente dedicado:
 - `organizations.daily_email_limit` (int, default 40) — teto diário de envios
   automáticos da org (o scheduler `run_due` nunca ultrapassa no dia).
 - `organizations.send_window_start` / `send_window_end` (HH:MM, default

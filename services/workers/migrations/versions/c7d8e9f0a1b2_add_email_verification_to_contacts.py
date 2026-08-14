@@ -4,7 +4,7 @@ Revision ID: c7d8e9f0a1b2
 Revises: b6c7d8e9f0a1
 Create Date: 2026-08-04
 
-Roadmap de vendas 4.1 (Fase 0 — entregabilidade):
+Verificação de e-mail (entregabilidade):
 - `contacts.email_verified` (Boolean, default false) — entregabilidade passiva
   confirmada (MX presente + não-descartável). Gate do envio automático.
 - `contacts.email_verified_at` (DateTime, nullable) — quando a verificação

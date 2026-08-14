@@ -1,4 +1,4 @@
-"""org_audit_log — trilha de eventos administrativos da organização (3.3.4)
+"""org_audit_log — trilha de eventos administrativos da organização
 
 Revision ID: bff05fb7eb01
 Revises: ef4d92ca2c1a
