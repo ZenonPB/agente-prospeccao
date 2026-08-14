@@ -154,6 +154,35 @@ export interface OrganizationMember {
   created_at?: string;
 }
 
+// Item 3.3.4 — auditoria de membros e acessos (org_audit_log).
+export type OrgAuditEvent =
+  | 'ORG_CREATED'
+  | 'ORG_RENAMED'
+  | 'ORG_SETTINGS_UPDATED'
+  | 'MEMBER_ROLE_CHANGED'
+  | 'MEMBER_REMOVED'
+  | 'MEMBER_LEFT'
+  | 'OWNER_TRANSFERRED'
+  | 'INVITE_CREATED'
+  | 'INVITE_ACCEPTED'
+  | 'INVITE_REVOKED'
+  | 'SECRET_SET'
+  | 'SECRET_DELETED'
+  | 'SALES_TARGET_UPSERTED'
+  | 'SALES_TARGET_DELETED';
+
+export interface OrgAuditEntry {
+  id: string;
+  event: OrgAuditEvent;
+  actor_id?: string | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  detail?: string | null;
+  created_at: string;
+}
+
 export interface OrgMembership {
   organization: {
     id: string;

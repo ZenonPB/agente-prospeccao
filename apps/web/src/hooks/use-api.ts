@@ -562,6 +562,14 @@ export function useDeleteOrgSecret() {
   });
 }
 
+export function useOrgAuditLog(orgId?: string, event?: string) {
+  return useQuery({
+    queryKey: ["org", orgId, "audit-log", event ?? "all"],
+    queryFn: () => orgsApi.listAuditLog(orgId as string, event),
+    enabled: !!orgId,
+  });
+}
+
 export function useImportCsv() {
   const queryClient = useQueryClient();
   return useMutation({

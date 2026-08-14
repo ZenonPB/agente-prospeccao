@@ -40,6 +40,7 @@ import {
 import { useOrgMembership, useOrgMembers, usePatchMemberSalesRole, useRemoveMember, useTransferOwnership, useLeaveOrganization } from '@/hooks/use-api';
 import { InvitesManager } from '@/components/configuracoes/invites-manager';
 import { SalesTargetsManager } from '@/components/configuracoes/sales-targets-manager';
+import { OrgAuditLog } from '@/components/configuracoes/org-audit-log';
 import { PageHeader } from '@/components/ui/page-header';
 import type { SalesRole } from '@/types';
 
@@ -364,6 +365,8 @@ export default function MembrosPage() {
           )}
         </CardContent>
       </Card>
+
+      {orgId && <OrgAuditLog orgId={orgId} />}
     </div>
   );
 }

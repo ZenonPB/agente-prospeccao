@@ -462,6 +462,14 @@ export const orgsApi = {
 
   getUsage: (orgId: string) =>
     request<{ usage: import("@/types").ProviderUsageItem[]; alert: boolean }>(`/api/orgs/${orgId}/usage`),
+
+  listAuditLog: (orgId: string, event?: string, limit?: number) =>
+    request<{ entries: import("@/types").OrgAuditEntry[] }>(`/api/orgs/${orgId}/audit-log`, {
+      params: {
+        ...(event ? { event } : {}),
+        ...(limit !== undefined ? { limit: String(limit) } : {}),
+      },
+    }),
 };
 
 export interface AnalyticsOverview {
