@@ -1,4 +1,4 @@
-"""Testes do módulo de SLA / leads parados (roadmap-vendas 4.10)."""
+"""Testes do módulo de SLA / leads parados."""
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 

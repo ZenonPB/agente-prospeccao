@@ -1,4 +1,4 @@
-"""Testes do router de template — overlap de tokens (item 1.2)."""
+"""Testes do router de template — overlap de tokens."""
 from services.template_router import token_overlap
 
 

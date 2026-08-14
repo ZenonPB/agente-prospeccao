@@ -1,4 +1,4 @@
-"""Testes das novas fontes de contato (roadmap-vendas 4.7).
+"""Testes das novas fontes de contato.
 
 Cobrem as funções puras de extração/desofuscação e a precedência de e-mail
 (Hunter → site → busca → CNPJ → heurística) sem rede e sem banco.

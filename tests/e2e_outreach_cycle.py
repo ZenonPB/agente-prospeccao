@@ -1,4 +1,4 @@
-"""E2E do ciclo completo de outreach (roadmap-vendas 4.15).
+"""E2E do ciclo completo de outreach.
 
 Roda contra um Postgres REAL (`E2E_DATABASE_URL`). Cria uma org/campanha/lead
 temporários e exercita o fluxo ponta a ponta com as integrações externas

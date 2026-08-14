@@ -1,4 +1,4 @@
-"""Testes do rastreamento de abertura/clique (roadmap-vendas 4.2).
+"""Testes do rastreamento de abertura/clique.
 
 Cobrem o construtor de HTML rastreado (`email_service._build_html_tracked`) e
 os handlers das rotas públicas (`routes/tracking`) com `db` fake — sem banco.

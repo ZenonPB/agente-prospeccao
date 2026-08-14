@@ -1,4 +1,4 @@
-"""Testes do warmup/throttling e remetente dedicado (roadmap-vendas 4.3).
+"""Testes do warmup/throttling e remetente dedicado.
 
 Cobrem as funções puras que conduzem o throttle do `run_due`:
 - `_org_daily_limit` — teto diário por org (fallback global);

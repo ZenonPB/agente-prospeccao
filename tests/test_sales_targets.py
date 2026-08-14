@@ -1,4 +1,4 @@
-"""Testes das metas de vendas por consultor (roadmap-vendas 4.9)."""
+"""Testes das metas de vendas por consultor."""
 from src.services.analytics_service import AnalyticsService
 
 

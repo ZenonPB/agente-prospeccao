@@ -1,4 +1,4 @@
-"""Testes do LinkedIn assistido (roadmap-vendas 4.22).
+"""Testes do LinkedIn assistido.
 
 Cobrem a extração/validação de URL de perfil, a montagem das consultas
 sugeridas (padrão e via playbook do template) e a persistência da associação
