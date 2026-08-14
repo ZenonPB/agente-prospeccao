@@ -202,18 +202,20 @@ funciona; ownership transferível.
 administrativos: convite criado/aceito/revogado, papel alterado, membro removido,
 chave BYOK alterada. Dá rastreabilidade para a diretoria e conformidade.
 
-**Status — Entregue (2026-08-14, `feat/org-audit-backend`):**
-- Tabela nova `org_audit_log` + enum `OrgAuditEvent` (14 eventos: ORG_*, MEMBER_*,
-  INVITE_*, SECRET_*, SALES_TARGET_*) — migration `bff05fb7eb01` (backend only).
-- `org_audit_service.py`: `log_org_event` (actor denormalizado: membro pode ser
-  removido depois) + `list_org_audit`; **nunca grava valor de secret** — só
-  `key_name` no `target_id`.
-- Instrumentado em: `orgs.py` (create/rename/settings, sales_role, remove/leave/
-  transfer-owner, secrets, sales-targets) e `invites.py` (create/accept/accept-
-  register/revoke).
-- `GET /orgs/{org_id}/audit-log?event=&limit=` — MANAGER/owner/admin, ordenado
-  desc, filtro por evento.
-- Testes: `tests/test_org_audit.py` (7) — suíte em **188 passed**.
+**Status — Entregue (2026-08-14):**
+- **Backend (`feat/org-audit-backend`):** tabela nova `org_audit_log` + enum
+  `OrgAuditEvent` (14 eventos: ORG_*, MEMBER_*, INVITE_*, SECRET_*,
+  SALES_TARGET_*) — migration `bff05fb7eb01`; `org_audit_service.py`
+  (`log_org_event` com actor denormalizado + `list_org_audit`, **nunca grava
+  valor de secret** — só `key_name`); instrumentado em `orgs.py` e `invites.py`;
+  `GET /orgs/{org_id}/audit-log?event=&limit=` (MANAGER/owner/admin). Testes:
+  `tests/test_org_audit.py` (7).
+- **Frontend (`feat/org-audit-ui`):** tabela "Auditoria de acessos" em
+  `/configuracoes/membros` (filtro por evento, Quando/Evento/Quem/Detalhe,
+  labels PT-BR, badge por categoria) + `orgsApi.listAuditLog`/`useOrgAuditLog`/
+  tipos `OrgAuditEvent`/`OrgAuditEntry`. Acessível a owner/admin (página
+  membros é owner/admin-only); MANAGER tem o endpoint por API, falta UI própria
+  para ele (decisão de produto).
 
 #### 3.3.5 Papel de venda para "gestor da equipe" ✅/🟡 (parcial)
 
@@ -899,8 +901,10 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   auto-`PERDIDO` no encerramento da cadência (dia 14 sem resposta →
   `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
   entrada + saída automáticas. Ver §10 C9.
-- **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
-  auditoria de acessos, LinkedIn **4.23–4.25**) → P3 (4.18–4.21, 4.26–4.27).
+- **Backlog pendente (⬜ do §5):** LinkedIn **4.23–4.25** (P2) → P3
+  (4.18–4.21, 4.26–4.27). Pendências abertas de itens concluídos: 4.17
+  (bottom-nav opcional, DnD em touchscreen, validação em device real) e 3.3.4
+  (tabela de auditoria na UI para MANAGER — decisão de produto, §3.3.4).
 - **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão
   fechada — template de categoria "Aplicações Web / ERP" no seed (sem terceiro
   perfil). Ver §10 C5.

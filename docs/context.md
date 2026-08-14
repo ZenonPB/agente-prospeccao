@@ -921,6 +921,19 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >      chama `send_invite_email` com link `{APP_BASE_URL}/aceitar-convite`) —
 >      antes o docstring dizia que enviava, mas nenhum e-mail saía.
 >    - Testes `tests/test_email_templates.py` (5) — suíte em **193 passed**.
+>
+> 18. **Sessão 2026-08-14 — UI da auditoria 3.3.4 (`feat/org-audit-ui`):** fecha
+>    o ciclo do item 3.3.4 (o backend veio na sessão 16):
+>    - `orgsApi.listAuditLog` + hook `useOrgAuditLog` + tipos `OrgAuditEvent`/
+>      `OrgAuditEntry`; componente `OrgAuditLog` (filtro por evento, tabela
+>      Quando/Evento/Quem/Detalhe, estados de carga/erro/vazio) montado em
+>      `/configuracoes/membros`. `tsc --noEmit`, `eslint` e `build` limpos.
+>    - `docs/agents.md` reescrito como runbook completo ("/init melhorado"):
+>      fluxo graphify-first, matriz de skills por tarefa, convenções, regras de
+>      negócio, verificação por camada, DoD e pitfalls operacionais.
+>    - **Decisão de produto em aberto:** a página `/configuracoes/membros` é
+>      owner/admin-only; MANAGER acessa `GET /orgs/{id}/audit-log` por API mas
+>      não tem a tabela na UI (expor para MANAGER = decisão separada).
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 
