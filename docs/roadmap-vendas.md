@@ -572,7 +572,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   Contatos: consultas copiáveis, busca externa, colar URL e "Validar e salvar";
   badge "Associado manualmente"). Testes: `tests/test_linkedin_assist.py` (8).
 
-#### 4.23 LinkedIn da empresa (company page) ⬜ (P2, S, gratuito)
+#### 4.23 LinkedIn da empresa (company page) ✅ (P2, S, gratuito)
 
 - **Hoje:** só o LinkedIn da pessoa; a **página da empresa** (`/company/<slug>`)
   não é descoberta nem exibida.
@@ -582,6 +582,17 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   no pitch.
 - **Aceite:** a empresa prospectada tem a página da empresa localizada e
   clicável (valida o alvo além do decisor).
+- **Entregue (2026-08-14, `feat/linkedin-empresa`):**
+  - Migration `d4e5f6a7b8c9` — `leads.company_linkedin_url` (String 255).
+  - `ContactEnrichmentService`: busca passiva `"<empresa>" linkedin`
+    (DuckDuckGo→Bing) + helpers puros `extract_linkedin_company_slug` e
+    `pick_linkedin_company_url` (overlap do slug com o nome da empresa,
+    mínimo 1 termo — nunca aceita company page sem relação). Roda uma vez por
+    lead no enriquecimento.
+  - API: exposto em `_lead_summary` e no `identity` do pitch one-pager.
+  - UI: "Empresa no LinkedIn" (link clicável) em "Informações do Lead" e no
+    card de Identidade do Pitch One-Pager.
+  - Testes `tests/test_linkedin_company.py` (5) — suíte em **204 passed**.
 
 #### 4.24 Match semântico do LinkedIn (status derivado) ✅ (P2, S, gratuito)
 
@@ -674,7 +685,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ⬜ |
 | 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
 | C5 | Aplicações web/ERP (template seed de categoria) | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-14 |
-| 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ⬜ |
+| 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ✅ Entregue 2026-08-14 |
 | 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ✅ Entregue 2026-08-14 |
 | 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
 | 4.26 | Sinal de Instagram no ICP/scoring | LinkedIn | P3 | M | gratuito | 4.6 | ⬜ |
@@ -917,7 +928,7 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   auto-`PERDIDO` no encerramento da cadência (dia 14 sem resposta →
   `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
   entrada + saída automáticas. Ver §10 C9.
-- **Backlog pendente (⬜ do §5):** LinkedIn **4.23** e **4.25** (P2) → P3
+- **Backlog pendente (⬜ do §5):** LinkedIn **4.25** (P2) → P3
   (4.18–4.21, 4.26–4.27). Pendências abertas de itens concluídos: 4.17
   (bottom-nav opcional, DnD em touchscreen, validação em device real).
 - **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão

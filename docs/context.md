@@ -963,6 +963,19 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >      owner/admin.
 >    - **Limpeza:** docstrings das migrations sem referências a Fase/Item/
 >      Roadmap/sprint (só texto; `revision`/código intactos).
+>
+> 22. **Sessão 2026-08-14 — 4.23 LinkedIn da empresa (company page)
+>    (`feat/linkedin-empresa`):**
+>    - Migration `d4e5f6a7b8c9` — `leads.company_linkedin_url` (aplicada no
+>      Postgres local).
+>    - `ContactEnrichmentService`: busca passiva `"<empresa>" linkedin`
+>      (DuckDuckGo→Bing) no enriquecimento + helpers puros
+>      `extract_linkedin_company_slug` / `pick_linkedin_company_url` (exige
+>      overlap mínimo de 1 termo — nunca associa company page sem relação).
+>    - API: `company_linkedin_url` em `_lead_summary` e no `identity` do pitch.
+>    - UI: link "Empresa no LinkedIn" em "Informações do Lead" e no card de
+>      Identidade do Pitch One-Pager.
+>    - Testes `tests/test_linkedin_company.py` (5) — suíte em **204 passed**.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 
