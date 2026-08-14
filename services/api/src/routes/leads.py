@@ -24,6 +24,7 @@ from services.cnpj_service import CnpjService  # noqa: E402
 from services.outreach_service import OutreachService  # noqa: E402
 from src.services.pitch_service import build_pitch_one_pager, build_site_audit  # noqa: E402
 from src.services.linkedin_assist_service import linkedin_match_status  # noqa: E402
+from services.enrichment_ts import freshness_snapshot, read_stamps  # noqa: E402
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -204,6 +205,7 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
             "created_at": enrichment.created_at.isoformat() if enrichment.created_at else None,
             "updated_at": enrichment.updated_at.isoformat() if enrichment.updated_at else None,
         } if enrichment else None,
+        "enrichment_freshness": freshness_snapshot(read_stamps(lead)),
     })
     return summary
 

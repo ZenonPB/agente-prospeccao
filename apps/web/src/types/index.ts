@@ -99,6 +99,11 @@ export interface Lead {
   google_rating_count?: number;
   google_maps_uri?: string;
   company_linkedin_url?: string;
+  enrichment_freshness?: {
+    linkedin?: 'fresh' | 'stale' | null;
+    site?: 'fresh' | 'stale' | null;
+    reviews?: 'fresh' | 'stale' | null;
+  };
   status: LeadStatus;
   qualification_score: number;
   qualification_reason?: string;

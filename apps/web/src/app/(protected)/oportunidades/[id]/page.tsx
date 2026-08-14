@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, AlertTriangle, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { OutreachMessages, ContactItem } from '@/types/index';
+import { OutreachMessages, ContactItem, Lead } from '@/types/index';
 import { useState } from 'react';
 
 const primaryNeedLabels: Record<string, string> = {
@@ -53,6 +53,16 @@ const LINKEDIN_MATCH_META: Record<NonNullable<ContactItem['linkedin_match_status
   NEEDS_REVIEW: { label: 'Revisar', className: 'border-amber-200 bg-amber-50 text-amber-700' },
   VERIFIED: { label: 'Confirmado', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
 };
+
+// Fontes de enriquecimento com dados fora do TTL (para o aviso de dados antigos).
+function staleEnrichmentLabel(freshness?: Lead['enrichment_freshness']): string[] {
+  if (!freshness) return [];
+  const out: string[] = [];
+  if (freshness.linkedin === 'stale') out.push('LinkedIn');
+  if (freshness.site === 'stale') out.push('análise do site');
+  if (freshness.reviews === 'stale') out.push('avaliações do Google');
+  return out;
+}
 
 // Proveniência do e-mail do decisor (onde foi encontrado).
 const emailSourceLabels: Record<string, string> = {
@@ -275,6 +285,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const [convNotes, setConvNotes] = useState('');
   const [associateContact, setAssociateContact] = useState<ContactItem | null>(null);
   const registerConversion = useRegisterConversion();
+  const staleEnrichment = staleEnrichmentLabel(lead?.enrichment_freshness);
 
   const copyToClipboard = (text: string, message: string) => {
     navigator.clipboard.writeText(text);
@@ -468,6 +479,12 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span>Encontrado em {new Date(lead.created_at).toLocaleDateString('pt-BR')}</span>
                 </div>
+                {staleEnrichment.length > 0 && (
+                  <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-700">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>{staleEnrichment.join(', ')} — dados antigos</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
