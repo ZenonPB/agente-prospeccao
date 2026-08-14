@@ -440,6 +440,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                     </a>
                   </div>
                 )}
+                {lead.company_linkedin_url && (
+                  <div className="flex items-center gap-3">
+                    <LinkedInIcon className="h-4 w-4 text-primary" />
+                    <a href={lead.company_linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                      Empresa no LinkedIn
+                    </a>
+                  </div>
+                )}
                 {lead.phone && (
                   <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
