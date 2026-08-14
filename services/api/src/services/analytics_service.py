@@ -778,6 +778,99 @@ class AnalyticsService:
             current_threshold=current_threshold,
         )
 
+    # ---------------------------------------------------------------- A/B
+    def message_variants(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+    ) -> dict:
+        """Desempenho por variante A/B de cadência.
+
+        Soma, por variante (FollowUp.variant) da org no período:
+        - `sent`: etapas efetivamente enviadas.
+        - `opened`: mensagens com `opened_at` registrado.
+        - `clicked`: mensagens com `clicked_at` registrado.
+        - `responded`: leads cujo status atual é RESPONDIDO/REUNIAO_MARCADA/
+          REUNIAO_FEITA/PROPOSTA_ENVIADA — proxy grosseiro mas útil para
+          comparar A/B sem dupla contagem.
+        """
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+
+        fu_base = (
+            self.db.query(FollowUp)
+            .join(Lead, FollowUp.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                FollowUp.variant.isnot(None),
+            )
+        )
+        if f:
+            fu_base = fu_base.filter(FollowUp.scheduled_at >= f)
+        if t:
+            fu_base = fu_base.filter(FollowUp.scheduled_at <= t)
+        rows = fu_base.with_entities(
+            FollowUp.variant,
+            FollowUp.lead_id,
+            FollowUp.tracking_token,
+            FollowUp.status,
+        ).all()
+
+        responded_statuses = {
+            LeadStatus.RESPONDIDO.value,
+            LeadStatus.REUNIAO_MARCADA.value,
+            LeadStatus.REUNIAO_FEITA.value,
+            LeadStatus.PROPOSTA_ENVIADA.value,
+        }
+        lead_status_sub = {
+            str(lid): st
+            for lid, st in self.db.query(Lead.id, Lead.status)
+            .filter(Lead.organization_id == self.org_id)
+            .all()
+        }
+
+        token_open = {
+            t for (t,) in self.db.query(Message.tracking_token)
+            .filter(Message.tracking_token.isnot(None), Message.opened_at.isnot(None))
+            .all()
+        }
+        token_click = {
+            t for (t,) in self.db.query(Message.tracking_token)
+            .filter(Message.tracking_token.isnot(None), Message.clicked_at.isnot(None))
+            .all()
+        }
+
+        by_variant: dict = {}
+        for variant, lead_id, token, status in rows:
+            v = (variant or "").strip().upper() or "(sem variante)"
+            bucket = by_variant.setdefault(v, {
+                "variant": v,
+                "sent": 0,
+                "opened": 0,
+                "clicked": 0,
+                "responded": 0,
+            })
+            sent_status = status.value if status else None
+            if sent_status == "SENT":
+                bucket["sent"] += 1
+                if token and token in token_open:
+                    bucket["opened"] += 1
+                if token and token in token_click:
+                    bucket["clicked"] += 1
+                if lead_status_sub.get(str(lead_id)) in responded_statuses:
+                    bucket["responded"] += 1
+
+        variants = []
+        for v in sorted(by_variant.keys()):
+            row = by_variant[v]
+            sent = row["sent"] or 0
+            row["open_rate"] = round((row["opened"] / sent) * 100, 1) if sent else 0
+            row["click_rate"] = round((row["clicked"] / sent) * 100, 1) if sent else 0
+            row["response_rate"] = round((row["responded"] / sent) * 100, 1) if sent else 0
+            variants.append(row)
+
+        return {"variants": variants}
+
 
 def compute_threshold_candidates(
     scored: list,

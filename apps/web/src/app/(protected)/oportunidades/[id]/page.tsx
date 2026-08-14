@@ -10,7 +10,7 @@ import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { whatsAppLink } from '@/lib/utils';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick, useUpdateCadenceStep } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { OutreachMessages, ContactItem, Lead } from '@/types/index';
+import { OutreachMessages, OutreachVariant, ContactItem, Lead } from '@/types/index';
 import { useState } from 'react';
 
 const primaryNeedLabels: Record<string, string> = {
@@ -273,6 +273,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const { data: lead, isLoading } = useLead(params.id);
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
+  const updateStepMutation = useUpdateCadenceStep();
   const enrichContacts = useEnrichContacts();
   const recordWhatsApp = useRecordWhatsAppClick();
 
@@ -302,6 +303,37 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Falha ao gerar mensagens com IA.');
       }
+    }
+  };
+
+  const handleGenerateVariants = async () => {
+    if (!lead) return;
+    try {
+      const msgs = await generateMessagesMutation.mutateAsync({
+        id: lead.id,
+        variants: true,
+      });
+      setGeneratedMessages(msgs);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao gerar variantes A/B.');
+    }
+  };
+
+  const applyVariantToStep = async (step: 'OPENING' | 'FOLLOWUP_1' | 'FOLLOWUP_2' | 'CLOSING', variant: OutreachMessages) => {
+    if (!lead) return;
+    try {
+      await updateStepMutation.mutateAsync({
+        id: lead.id,
+        step,
+        data: {
+          variant: (variant as OutreachVariant).label || 'A',
+          subject: variant.subject,
+          content: step === 'OPENING' ? variant.body_opening : variant[step.toLowerCase() as 'followup_1' | 'followup_2' | 'closing'],
+        },
+      });
+      toast.success(`Etapa ${step} atualizada com variante ${(variant as OutreachVariant).label || 'A'}.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao aplicar variante.');
     }
   };
 
@@ -949,6 +981,70 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </p>
             </div>
           ) : generatedMessages ? (
+            <>
+              {generatedMessages.variants && generatedMessages.variants.length >= 2 && (
+                <div className="mb-4 rounded-md border border-dashed border-primary/30 bg-primary/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Variantes A/B geradas</p>
+                      <p className="text-xs text-muted-foreground">
+                        Escolha uma variante para abrir/finalizar a cadência. A versão escolhida fica registrada
+                        como variante e aparece nas métricas de resposta.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleGenerateVariants}
+                      disabled={generateMessagesMutation.isPending}
+                    >
+                      {generateMessagesMutation.isPending ? (
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      ) : null}
+                      Regerar
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {generatedMessages.variants.map((variant) => (
+                      <div
+                        key={variant.label}
+                        className="rounded-md border bg-background p-3 space-y-2"
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Variante {variant.label}
+                        </p>
+                        <p className="text-xs font-medium">Assunto: {variant.subject}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-3">{variant.rationale}</p>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={updateStepMutation.isPending}
+                          onClick={() => {
+                            void applyVariantToStep('OPENING', variant);
+                          }}
+                        >
+                          Usar abertura
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!generatedMessages.variants && (
+                <div className="mb-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleGenerateVariants}
+                    disabled={generateMessagesMutation.isPending}
+                  >
+                    {generateMessagesMutation.isPending ? (
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    ) : null}
+                    Gerar variantes A/B
+                  </Button>
+                </div>
+              )}
             <Tabs defaultValue="email" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="email">E-mail</TabsTrigger>
@@ -1032,6 +1128,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 )}
               </TabsContent>
             </Tabs>
+            </>
           ) : (
             <div className="text-center py-6">
               <p className="text-sm text-muted-foreground mb-4">Nenhuma mensagem gerada ainda.</p>

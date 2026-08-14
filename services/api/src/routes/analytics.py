@@ -153,6 +153,22 @@ def threshold_suggestion(
     )
 
 
+@router.get("/message-variants")
+def message_variants(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Desempenho por variante A/B de cadência (etapas com `variant`).
+
+    Para cada variante (A/B/...), mostra: etapas enviadas, abertas,
+    clicadas e que receberam resposta (status do lead virou RESPONDIDO/
+    REUNIAO_MARCADA/etc. após o envio da etapa). Útil para a UI comparar
+    o vencedor do A/B.
+    """
+    return analytics.message_variants(from_date=from_date, to_date=to_date)
+
+
 @router.get("/export/pdf")
 def export_pdf(
     from_date: Optional[str] = Query(None, alias="from"),

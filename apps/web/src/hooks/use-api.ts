@@ -246,9 +246,42 @@ export function useInvalidateJobs() {
 }
 
 export function useGenerateMessages() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, channel }: { id: string; channel?: "EMAIL" | "WHATSAPP" }) =>
-      leadsApi.generateMessages(id, channel),
+    mutationFn: ({
+      id,
+      channel,
+      variants,
+      forceRegenerate,
+    }: {
+      id: string;
+      channel?: "EMAIL" | "WHATSAPP";
+      variants?: boolean;
+      forceRegenerate?: boolean;
+    }) =>
+      leadsApi.generateMessages(id, channel, { variants, force_regenerate: forceRegenerate }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-cadence", variables.id] });
+    },
+  });
+}
+
+export function useUpdateCadenceStep() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      step,
+      data,
+    }: {
+      id: string;
+      step: "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE";
+      data: { variant?: string; subject?: string; content?: string };
+    }) => leadsApi.updateCadenceStep(id, step, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-cadence", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["analytics", "message-variants"] });
+    },
   });
 }
 
@@ -432,6 +465,13 @@ export function useAnalyticsThresholdSuggestion(period?: AnalyticsPeriod) {
   return useQuery({
     queryKey: ["analytics", "threshold-suggestion", period],
     queryFn: () => analyticsApi.thresholdSuggestion(period),
+  });
+}
+
+export function useAnalyticsMessageVariants(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "message-variants", period],
+    queryFn: () => analyticsApi.messageVariants(period),
   });
 }
 

@@ -623,6 +623,9 @@ class FollowUp(Base):
     # Token de tracking: mesma chave usada em `messages.tracking_token` para
     # expor abertura/clique no painel de cadência.
     tracking_token = Column(String(64))
+    # Rótulo da variante A/B escolhida para esta etapa (ex.: "A"/"B"). Permite
+    # medir resposta por variante via `GET /api/analytics/message-variants`.
+    variant = Column(String(32))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="follow_ups")

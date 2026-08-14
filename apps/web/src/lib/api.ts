@@ -136,10 +136,24 @@ export const leadsApi = {
       body: JSON.stringify({ assigned_to_id: assignedToId }),
     }),
 
-  generateMessages: (id: string, channel: "EMAIL" | "WHATSAPP" = "EMAIL") =>
+  generateMessages: (
+    id: string,
+    channel: "EMAIL" | "WHATSAPP" = "EMAIL",
+    options?: { variants?: boolean; force_regenerate?: boolean },
+  ) =>
     request<OutreachMessages>(`/api/leads/${id}/generate-messages`, {
       method: "POST",
-      body: JSON.stringify({ channel }),
+      body: JSON.stringify({ channel, variants: options?.variants, force_regenerate: options?.force_regenerate }),
+    }),
+
+  updateCadenceStep: (
+    id: string,
+    step: "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE",
+    data: { variant?: string; subject?: string; content?: string },
+  ) =>
+    request<OutreachMessages>(`/api/leads/${id}/cadence/step/${step}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
     }),
 
   getPitch: (id: string) =>
@@ -622,6 +636,11 @@ export const analyticsApi = {
 
   thresholdSuggestion: (params?: { from?: string; to?: string }) =>
     request<import("@/types").ThresholdSuggestion>("/api/analytics/threshold-suggestion", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  messageVariants: (params?: { from?: string; to?: string }) =>
+    request<import("@/types").MessageVariants>("/api/analytics/message-variants", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 

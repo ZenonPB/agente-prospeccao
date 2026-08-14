@@ -335,6 +335,10 @@ export interface ScoringResult {
   evidence: EvidenceItem[];
 }
 
+export interface OutreachVariant extends OutreachMessages {
+  label: string;
+}
+
 export interface OutreachMessages {
   subject: string;
   body_opening: string;
@@ -343,6 +347,8 @@ export interface OutreachMessages {
   closing: string;
   whatsapp_short: string;
   rationale: string;
+  variants?: OutreachVariant[];
+  playbook_applied?: boolean;
 }
 
 export interface Issue {
@@ -473,4 +479,19 @@ export interface ThresholdSuggestion {
   rationale: string;
   leads_considered: number;
   converted_total: number;
+}
+
+export interface MessageVariantStats {
+  variant: string;
+  sent: number;
+  opened: number;
+  clicked: number;
+  responded: number;
+  open_rate: number;
+  click_rate: number;
+  response_rate: number;
+}
+
+export interface MessageVariants {
+  variants: MessageVariantStats[];
 }

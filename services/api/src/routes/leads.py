@@ -61,6 +61,7 @@ class EnrichContactsRequest(BaseModel):
 class GenerateMessagesRequest(BaseModel):
     channel: str = "EMAIL"  # EMAIL | WHATSAPP — afeta foco de retorno hoje
     force_regenerate: bool = False
+    variants: bool = False  # True pede duas sequências A/B em uma única chamada
 
 
 class RecordWhatsAppClickRequest(BaseModel):
@@ -655,6 +656,7 @@ async def generate_messages(
     lead_dict = _build_lead_dict(lead, db)
     result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
+        generate_variants=body.variants,
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
@@ -1095,6 +1097,7 @@ def _follow_up_dict(fu: FollowUp, db: Session) -> dict:
         "attempts": fu.attempts or 0,
         "opened_at": opened_at.isoformat() if opened_at else None,
         "clicked_at": clicked_at.isoformat() if clicked_at else None,
+        "variant": fu.variant,
     }
 
 
@@ -1210,6 +1213,68 @@ async def start_lead_cadence(
         "auto_send": bool(_org.auto_send_email),
         "follow_ups": [_follow_up_dict(f, db) for f in follow_ups],
     }
+
+
+class UpdateCadenceStepRequest(BaseModel):
+    """Atualiza uma etapa da cadência (escolha de variante A/B + conteúdo)."""
+    variant: Optional[str] = Field(None, max_length=32)
+    subject: Optional[str] = Field(None, max_length=255)
+    content: Optional[str] = None
+
+
+@router.patch("/{lead_id}/cadence/step/{step}")
+def update_cadence_step(
+    lead_id: str,
+    step: str,
+    body: UpdateCadenceStepRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Atualiza uma etapa da cadência (escolha de variante A/B ou edição
+    manual). Não dispara envio — o consultor usa `/cadence/send/{step}`.
+
+    `variant` é a etiqueta (ex.: "A"/"B") marcada após o consultor escolher
+    qual das alternativas geradas pelo endpoint `/generate-messages` será
+    usada. `subject`/`content` permitem edição inline antes do envio.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    try:
+        fstep = FollowUpStep(step)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Etapa inválida: {step}")
+
+    fu = db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.step == fstep,
+    ).order_by(FollowUp.created_at.desc()).first()
+    if not fu:
+        raise HTTPException(status_code=404, detail="Etapa de cadência não encontrada")
+    if fu.status == FollowUpStatus.SENT:
+        raise HTTPException(
+            status_code=400,
+            detail="Etapa já enviada — não é possível alterar variante/conteúdo",
+        )
+
+    if body.variant is not None:
+        fu.variant = body.variant.strip().upper()[:32] or None
+    if body.subject is not None:
+        fu.subject = body.subject.strip()[:255] or None
+    if body.content is not None:
+        fu.content = body.content
+
+    db.commit()
+    db.refresh(fu)
+    return _follow_up_dict(fu, db)
 
 
 @router.post("/{lead_id}/cadence/send/{step}")
