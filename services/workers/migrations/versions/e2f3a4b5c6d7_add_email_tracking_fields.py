@@ -4,7 +4,7 @@ Revision ID: e2f3a4b5c6d7
 Revises: d8e9f0a2b3c4
 Create Date: 2026-08-05
 
-Roadmap de vendas 4.2 — rastreamento de abertura e clique:
+Rastreamento de abertura e clique:
 - `messages.tracking_token` (unique) — token do pixel/redirect por envio.
 - `messages.opened_at` / `messages.clicked_at` — quando abriu/clicou.
 - `follow_ups.tracking_token` — liga a etapa da cadência ao `Message`

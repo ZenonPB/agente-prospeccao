@@ -213,15 +213,23 @@ chave BYOK alterada. Dá rastreabilidade para a diretoria e conformidade.
 - **Frontend (`feat/org-audit-ui`):** tabela "Auditoria de acessos" em
   `/configuracoes/membros` (filtro por evento, Quando/Evento/Quem/Detalhe,
   labels PT-BR, badge por categoria) + `orgsApi.listAuditLog`/`useOrgAuditLog`/
-  tipos `OrgAuditEvent`/`OrgAuditEntry`. Acessível a owner/admin (página
-  membros é owner/admin-only); MANAGER tem o endpoint por API, falta UI própria
-  para ele (decisão de produto).
+  tipos `OrgAuditEvent`/`OrgAuditEntry`.
+- **Acesso (2026-08-14, `feat/linkedin-match-semantico`):** a página
+  `/configuracoes/membros` passou a aceitar **MANAGER** — a tabela de auditoria
+  fica visível para MANAGER/owner/admin (decisão fechada, ver §3.3.5).
 
-#### 3.3.5 Papel de venda para "gestor da equipe" ✅/🟡 (parcial)
+#### 3.3.5 Papel de venda para "gestor da equipe" ✅ (decisão fechada 2026-08-14)
 
-`MANAGER` já vê todos os leads e o BI de consultores. Falta apenas (a) permitir
-que MANAGER gerencie `sales_role` dos membros (hoje só owner/admin) — decisão de
-produto, e (b) metas (§4.6). Manter como está até decidir.
+`MANAGER` já vê todos os leads e o BI de consultores. Decisão:
+- **(a)** MANAGER agora pode **definir o `sales_role`** dos membros (`PATCH
+  /members/{user_id}` aceita MANAGER+, além de owner/admin) — cabe ao gestor
+  montar a equipe. Convites, remoção, transferência de ownership, chaves BYOK e
+  metas de venda **continuam owner/admin-only**.
+- **(b)** Metas de venda (§4.9): listagem MANAGER+/owner, gravação owner/admin
+  — mantido o status atual.
+
+**Regra preservada:** o CONSULTOR continua autônomo (cria/gerencia campanhas) —
+nada desta decisão restringe isso.
 
 ---
 
@@ -575,7 +583,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 - **Aceite:** a empresa prospectada tem a página da empresa localizada e
   clicável (valida o alvo além do decisor).
 
-#### 4.24 Match semântico do LinkedIn (status derivado) ⬜ (P2, S, gratuito)
+#### 4.24 Match semântico do LinkedIn (status derivado) ✅ (P2, S, gratuito)
 
 - **Hoje:** só `linkedin_confidence` numérico; não há o "encontramos a pessoa
   certa?" como estado separado do score comercial.
@@ -585,6 +593,14 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   abaixo do limiar.
 - **Aceite:** o consultor distingue em 1 clique "perfil certo" de "candidato a
   revisar", sem interpretar número.
+- **Entregue (2026-08-14, `feat/linkedin-match-semantico`):**
+  - `linkedin_match_status(url, source, confidence)` puro em
+    `linkedin_assist_service` — `search:*` → VERIFIED; `manual` com conf ≥ 90 →
+    VERIFIED / conf < 90 → NEEDS_REVIEW; `heuristic` → CANDIDATE; sem URL →
+    NOT_FOUND; fonte desconhecida usa conf ≥ 90 como limiar.
+  - exposto em `_contact_to_dict` (`GET /leads/{id}`); badge semântico na aba
+    Contatos (Confirmado / Revisar / Candidato) no lugar do limiar de 50%.
+  - Testes `tests/test_linkedin_match_status.py` (6) — suíte em **199 passed**.
 
 #### 4.25 Estado do enriquecimento + TTL ⬜ (P2, M, gratuito)
 
@@ -659,7 +675,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
 | C5 | Aplicações web/ERP (template seed de categoria) | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-14 |
 | 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ⬜ |
-| 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ⬜ |
+| 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ✅ Entregue 2026-08-14 |
 | 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
 | 4.26 | Sinal de Instagram no ICP/scoring | LinkedIn | P3 | M | gratuito | 4.6 | ⬜ |
 | 4.27 | Separação Company/Person (3 entidades) | LinkedIn | P3 | L | gratuito | — | ⬜ |
@@ -901,10 +917,9 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   auto-`PERDIDO` no encerramento da cadência (dia 14 sem resposta →
   `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
   entrada + saída automáticas. Ver §10 C9.
-- **Backlog pendente (⬜ do §5):** LinkedIn **4.23–4.25** (P2) → P3
+- **Backlog pendente (⬜ do §5):** LinkedIn **4.23** e **4.25** (P2) → P3
   (4.18–4.21, 4.26–4.27). Pendências abertas de itens concluídos: 4.17
-  (bottom-nav opcional, DnD em touchscreen, validação em device real) e 3.3.4
-  (tabela de auditoria na UI para MANAGER — decisão de produto, §3.3.4).
+  (bottom-nav opcional, DnD em touchscreen, validação em device real).
 - **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão
   fechada — template de categoria "Aplicações Web / ERP" no seed (sem terceiro
   perfil). Ver §10 C5.

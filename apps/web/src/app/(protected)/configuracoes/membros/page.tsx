@@ -89,6 +89,7 @@ export default function MembrosPage() {
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const myRole = membership?.membership?.role;
   const canManage = myRole === 'OWNER' || myRole === 'ADMIN';
+  const canSetRole = canManage || membership?.membership?.sales_role === 'MANAGER';
 
   if (loadingMembership) {
     return <MembersLoading />;
@@ -100,9 +101,9 @@ export default function MembrosPage() {
     );
   }
 
-  if (!canManage) {
+  if (!canSetRole) {
     return (
-      <AccessDenied message="Apenas o dono ou um administrador da organização pode gerenciar os papéis da equipe." />
+      <AccessDenied message="Apenas gestores (MANAGER), o dono ou um administrador podem ver a equipe." />
     );
   }
 
@@ -175,9 +176,9 @@ export default function MembrosPage() {
         }
       />
 
-      <InvitesManager />
+      {canManage && <InvitesManager />}
 
-      {orgId && <SalesTargetsManager orgId={orgId} members={members} />}
+      {canManage && orgId && <SalesTargetsManager orgId={orgId} members={members} />}
 
       <Card>
         <CardHeader>
@@ -249,7 +250,7 @@ export default function MembrosPage() {
                       </TableCell>
                       <TableCell>{orgRoleBadge(member.role)}</TableCell>
                       <TableCell>
-                        {canManage ? (
+                        {canSetRole ? (
                           <div className="flex items-center gap-2">
                             <Select
                               value={member.sales_role}

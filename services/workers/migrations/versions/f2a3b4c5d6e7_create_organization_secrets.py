@@ -4,7 +4,7 @@ Revision ID: f2a3b4c5d6e7
 Revises: e1f2a3b4c5d6
 Create Date: 2026-08-05
 
-Fase 3.5 (BYOK — bring your own key):
+BYOK (bring your own key):
 - `organization_secrets` — chaves de API próprias por organização
   (`GOOGLE_API_KEY` / `GROQ_API_KEY`), criptografadas em repouso.
 - Unique em (organization_id, key_name).

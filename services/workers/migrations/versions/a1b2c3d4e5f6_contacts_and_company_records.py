@@ -1,10 +1,10 @@
-"""add contacts and company_records tables (sprint 1: decisor + CNPJ)
+"""add contacts and company_records tables (decisor + CNPJ)
 
 Revision ID: a1b2c3d4e5f6
 Revises: c4a1f2e8b9d0
 Create Date: 2026-07-09 20:00:00.000000
 
-Sprint 1 — Decisor e CNPJ:
+Decisor e CNPJ:
 - Tabela `contacts` com decisor(s) do lead (sócio/administrador via Receita).
   Lead puede ter múltiplos; um está marcado is_primary=True.
 - Tabela `company_records` (1:1 com lead) — snapshot cadastral da Receita:

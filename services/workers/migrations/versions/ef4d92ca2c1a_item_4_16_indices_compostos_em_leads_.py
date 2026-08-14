@@ -1,4 +1,4 @@
-"""item 4.16 - indices compostos em leads (org, status, score)
+"""indices compostos em leads (org, status, score)
 
 Revision ID: ef4d92ca2c1a
 Revises: 6204e37105bf
@@ -19,7 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     # Índices compostos que cobrem os filtros mais usados na listagem/paginação
-    # server-side (item 4.16): org + status + score e org + status + data.
+    # server-side: org + status + score e org + status + data.
     op.create_index('ix_leads_org_status_created', 'leads', ['organization_id', 'status', 'created_at'], unique=False)
     op.create_index('ix_leads_org_status_score', 'leads', ['organization_id', 'status', 'qualification_score'], unique=False)
 

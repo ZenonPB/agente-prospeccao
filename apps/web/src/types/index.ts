@@ -58,6 +58,7 @@ export interface ContactItem {
   email_verified_at?: string;
   linkedin_url?: string;
   linkedin_confidence?: number;
+  linkedin_match_status?: 'NOT_FOUND' | 'CANDIDATE' | 'NEEDS_REVIEW' | 'VERIFIED';
   is_primary?: boolean;
   source?: string;
   raw_data?: unknown;

@@ -4,7 +4,7 @@ Revision ID: 9a7b6c5d4e3f2
 Revises: 8e3c88135f1b
 Create Date: 2026-08-01
 
-Fase A (multi-tenant) — A1 + A2:
+Multi-tenant — isolamento por organização:
 - Nova tabela `organizations` (workspace que agrupa usuários e isola dados).
 - Nova tabela `organization_members` (vínculo user<->org com papel).
 - Nova tabela `invites` (convite por e-mail para ingressar na org).

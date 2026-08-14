@@ -4,7 +4,7 @@ Revision ID: b2c3d4e5f6a7b
 Revises: 8a1b2c3d4e5f6
 Create Date: 2026-08-01
 
-Item 2.1 (papéis de venda):
+Papéis de venda:
 - `organization_members.sales_role` (enum CONSULTOR/ANALYST/MANAGER,
   default CONSULTOR) — papel de venda POR organização: o que o membro
   enxerga/faz (próprio funil vs BI/leitura total).

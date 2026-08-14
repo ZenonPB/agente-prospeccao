@@ -4,7 +4,7 @@ Revision ID: 7d4e5f6a8b9c0
 Revises: 6b3c2a1d9e8f4
 Create Date: 2026-08-01
 
-Fase 1.3 (geração de template sob demanda):
+Geração de template sob demanda:
 - `campaign_scoring_templates.is_generated` (bool, default false) — distingue
   templates criados por IA dos seeds manuais.
 - `campaign_scoring_templates.organization_id` (FK organizations, nullable) —

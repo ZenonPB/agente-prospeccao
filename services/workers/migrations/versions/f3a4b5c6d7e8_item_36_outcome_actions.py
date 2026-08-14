@@ -4,7 +4,7 @@ Revision ID: f3a4b5c6d7e8
 Revises: f2a3b4c5d6e7
 Create Date: 2026-08-03
 
-Fase 3.6 (feedback conversão -> score):
+Feedback de conversão -> score:
 - Novos valores `PROPOSAL_SENT` e `LOST` no enum `lead_activity_action` (trilha).
   Permitem registrar o outcome comercial ao marcar PROPOSTA_ENVIADA / PERDIDO.
 """

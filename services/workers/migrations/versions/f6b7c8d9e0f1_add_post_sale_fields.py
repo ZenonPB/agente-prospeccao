@@ -4,7 +4,7 @@ Revision ID: f6b7c8d9e0f1
 Revises: f5a6b7c8d9e0
 Create Date: 2026-08-06
 
-Roadmap-leads C.3 — pós-venda (largar a planilha):
+Pós-venda (contato pós-cliente + FollowUpStep.POST_SALE):
 - `leads.post_sale_contacted_at` (DateTime) — DATA CONTATO PÓS-VENDA;
 - `leads.post_sale_channel` (enum `post_sale_channel`: WHATSAPP/EMAIL) — canal;
 - `follow_up_step` ganha o valor `POST_SALE` para o acompanhamento pós-cliente

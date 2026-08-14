@@ -4,7 +4,7 @@ Revision ID: d8e9f0a2b3c4
 Revises: c7d8e9f0a1b2
 Create Date: 2026-08-05
 
-Roadmap de vendas 4.6 — reputação no Google como sinal de scoring:
+Reputação no Google como sinal de scoring:
 - `leads.google_rating` (Float, nullable) — nota 0–5 da Places API.
 - `leads.google_rating_count` (Integer, nullable) — nº de avaliações.
 - `leads.google_maps_uri` (String 255, nullable) — link do perfil no Maps.

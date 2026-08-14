@@ -191,12 +191,13 @@ def patch_member_sales_role(
     body: PatchMemberSalesRoleRequest,
     db: Session = Depends(get_db),
     _org: Organization = Depends(get_user_organization),
-    actor: OrganizationMember = Depends(require_org_admin),
+    actor: OrganizationMember = Depends(require_manager()),
 ):
     """Define o papel de venda (CONSULTOR/ANALYST/MANAGER) de um membro.
 
-    Apenas owner/admin da organização. O `sales_role` é POR
-    organização — não vaza entre workspaces.
+    Gestores (MANAGER) e owner/admin. O `sales_role` é POR organização —
+    não vaza entre workspaces. Remoção/transferência de membros permanece
+    owner/admin-only.
     """
     if str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")

@@ -4,7 +4,7 @@ Revision ID: e1f2a3b4c5d6
 Revises: c3d4e5f6a7b8c
 Create Date: 2026-08-05
 
-Fase 3.4 (contato de decisor email + LinkedIn):
+Contato de decisor (e-mail + LinkedIn):
 - `contacts.linkedin_url` (String 255, nullable) — URL do perfil LinkedIn do decisor.
 - `contacts.linkedin_confidence` (Integer, default 0) — confiança 0-100 do perfil.
 - Novo valor `CONTACT_ENRICHED` no enum `lead_activity_action` (trilha).

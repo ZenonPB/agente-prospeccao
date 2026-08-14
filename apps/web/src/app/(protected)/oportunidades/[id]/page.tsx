@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, ShieldCheck, ShieldAlert, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -43,6 +43,16 @@ function formatPrimaryNeed(value?: string): string {
   if (!value) return 'Sem necessidade identificada';
   return primaryNeedLabels[value] || value;
 }
+
+// Estado de match do LinkedIn derivado da fonte/confiança (ver
+// linkedin_match_status na API). NOT_FOUND não ganha badge — o avatar
+// "Não encontrado" já aparece no bloco.
+const LINKEDIN_MATCH_META: Record<NonNullable<ContactItem['linkedin_match_status']>, { label: string; className: string }> = {
+  NOT_FOUND: { label: 'Não encontrado', className: '' },
+  CANDIDATE: { label: 'Candidato', className: 'border-slate-200 bg-slate-50 text-slate-600' },
+  NEEDS_REVIEW: { label: 'Revisar', className: 'border-amber-200 bg-amber-50 text-amber-700' },
+  VERIFIED: { label: 'Confirmado', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+};
 
 // Proveniência do e-mail do decisor (onde foi encontrado).
 const emailSourceLabels: Record<string, string> = {
@@ -658,17 +668,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.linkedin_url || '', 'Link do LinkedIn copiado.')} aria-label="Copiar LinkedIn">
                               <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                             </Button>
-                            {contact.linkedin_confidence != null && contact.linkedin_confidence < 50 ? (
-                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
-                                <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />
-                                Não validado
+                            {contact.linkedin_match_status && contact.linkedin_match_status !== 'NOT_FOUND' ? (
+                              <Badge variant="outline" className={`text-[10px] font-normal gap-1 ${LINKEDIN_MATCH_META[contact.linkedin_match_status].className}`}>
+                                {contact.linkedin_match_status === 'VERIFIED' && <ShieldCheck className="h-3 w-3 text-emerald-500" aria-hidden="true" />}
+                                {contact.linkedin_match_status === 'NEEDS_REVIEW' && <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />}
+                                {contact.linkedin_match_status === 'CANDIDATE' && <UserCheck className="h-3 w-3 text-slate-500" aria-hidden="true" />}
+                                {LINKEDIN_MATCH_META[contact.linkedin_match_status].label}
                               </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-[10px] font-normal gap-1">
-                                <ShieldCheck className="h-3 w-3 text-emerald-500" aria-hidden="true" />
-                                Perfil validado
-                              </Badge>
-                            )}
+                            ) : null}
                             {formatLinkedinSource(contact.raw_data) && (
                               <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
                                 {formatLinkedinSource(contact.raw_data)}
