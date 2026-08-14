@@ -96,7 +96,7 @@ export function CampaignList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-medium">Todas as Campanhas</h3>
         <Link href="/campanhas/nova">
           <Button className="h-10">

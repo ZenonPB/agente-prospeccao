@@ -327,7 +327,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
           </div>
           <p className="text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {whatsAppLink(lead.whatsapp || lead.phone) && (
             <Button
               variant="outline"
@@ -528,7 +528,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
             <CardContent className="space-y-6">
               {enrichment ? (
                 <>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div className="text-center">
                       <p className="text-2xl">{enrichment.ssl_ok ? '✅' : '❌'}</p>
                       <p className="text-sm font-medium mt-1">Certificado SSL</p>
