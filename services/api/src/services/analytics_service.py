@@ -1,4 +1,4 @@
-"""Serviço de analytics (BI) — Item 2.2 do roadmap.
+"""Serviço de analytics (BI).
 
 Todas as consultas são **org-scoped** (isolamento cross-tenant) e usadas
 exclusivamente por ANALYST/MANAGER (owner/admin). Não expõem leads de outras
@@ -9,7 +9,7 @@ Fonte de dados:
 - `Conversion` (fechados, ticket, quem fechou)
 - `LeadActivity` (timeline de reuniões via STATUS_CHANGED → REUNIAO_MARCADA)
 - `OrganizationMember` (consultores da org)
-- `FollowUp`/`Message` (funil ponta-a-ponta 4.11 — 1º contato e resposta)
+- `FollowUp`/`Message` (funil ponta-a-ponta — 1º contato e resposta)
 """
 from datetime import datetime, timezone
 from typing import Optional
@@ -54,7 +54,7 @@ STAGE_WIN_RATES = {
 }
 
 # ---------------------------------------------------------------------------
-# Funil ponta-a-ponta (roadmap-vendas 4.11) — achados → fechamento.
+# Funil ponta-a-ponta — achados → fechamento.
 #
 # Cada etapa é "pelo menos": um lead que respondeu também foi prospectado e
 # foi achado. Além do status atual (que sai da frente quando o lead vira
@@ -83,7 +83,7 @@ FUNNEL_STAGES = [
 
 
 def build_funnel_stages(counts: dict) -> list:
-    """Converte contagens por etapa no funil 4.11 ordenado, com conversão
+    """Converte contagens por etapa no funil ponta-a-ponta ordenado, com conversão
     entre etapas e participação sobre o total (função pura — testável)."""
     total = counts.get("achados", 0)
     stages = []
@@ -190,7 +190,7 @@ class AnalyticsService:
         ]
 
         # Leads com conversão (fechados) na org — usado p/ cruzar taxa de acerto
-        # do score por faixa (Item 3.6.2).
+        # do score por faixa.
         converted_sub = (
             self.db.query(Lead.id)
             .join(Conversion, Conversion.lead_id == Lead.id)
@@ -217,7 +217,7 @@ class AnalyticsService:
                 ) if band_count else 0,
             })
 
-        # Forecast resumo para o overview (item 4.8)
+        # Forecast resumo para o overview
         open_leads = base.filter(Lead.status.in_(list(STAGE_WIN_RATES.keys()))).all()
         pipeline_val = sum(float(l.value or 0) for l in open_leads)
         forecast_val = sum(float(l.value or 0) * STAGE_WIN_RATES.get(l.status, 0.0) for l in open_leads)
@@ -238,7 +238,7 @@ class AnalyticsService:
             "meeting_rate": round((meetings / qualified * 100), 1) if qualified else 0,
             "funnel": funnel,
             "leads_by_score_band": score_bands,
-            # Funil interno de negociação (roadmap-leads C.3): estágio
+            # Funil interno de negociação: estágio
             # RD/ORÇAMENTO/RP e resultado de contrato APROVADO/REPROVADO/EM_ANÁLISE.
             "negotiation_distribution": [
                 {"stage": s.value, "count": base.filter(Lead.negotiation_stage == s).count()}
@@ -250,7 +250,7 @@ class AnalyticsService:
             ],
         }
 
-    # ---------------------------------------------------------------- funnel 4.11
+    # ---------------------------------------------------------------- funnel ponta-a-ponta
     def funnel(
         self,
         from_date: Optional[str] = None,
@@ -258,7 +258,7 @@ class AnalyticsService:
         campaign_id: Optional[str] = None,
         consultant_id: Optional[str] = None,
     ) -> dict:
-        """Funil ponta-a-ponta (roadmap-vendas 4.11, pedido da diretoria).
+        """Funil ponta-a-ponta (achados → fechamento).
 
         Etapas: achados → prospectados (1º contato) → responderam → reunião
         diagnóstica → fecharam. Filtra por período/campanha/consultor sobre a
@@ -350,7 +350,7 @@ class AnalyticsService:
 
     def consultants(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> list:
         """Métricas por consultor: atribuídos, contatados, reuniões, propostas,
-        convertidos, conversão % e atingimento da meta mensal (item 4.9)."""
+        convertidos, conversão % e atingimento da meta mensal."""
         month = self._target_month(from_date, to_date)
         targets = self._targets_by_user(month)
         members = (
@@ -426,7 +426,7 @@ class AnalyticsService:
                 "proposals_sent": proposals,
                 "converted_leads": converted,
                 "conversion_rate": round((converted / assigned * 100), 1) if assigned else 0,
-                # Item 4.9 — metas mensais e atingimento (%).
+                # Metas mensais e atingimento (%).
                 "revenue_realized": round(revenue, 2),
                 "meetings_target": meetings_target,
                 "revenue_target": revenue_target,
@@ -680,7 +680,7 @@ class AnalyticsService:
 
     # ---------------------------------------------------------------- forecast
     def forecast(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:
-        """Forecast ponderado por estágio do funil (Item 4.8).
+        """Forecast ponderado por estágio do funil.
 
         Calcula o valor total do pipeline aberto, o forecast ponderado pela
         probabilidade de conversão de cada estágio e a receita já realizada.

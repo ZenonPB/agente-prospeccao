@@ -17,7 +17,7 @@ FIELD_MASK = ",".join([
     "places.nationalPhoneNumber",
     "places.formattedAddress",
     "places.primaryTypeDisplayName",
-    # Reputação online (roadmap-vendas 4.6): nota e nº de avaliações viram
+    # Reputação online: nota e nº de avaliações viram
     # evidência de scoring (negócio mal avaliado = oportunidade p/ serviços).
     "places.rating",
     "places.userRatingCount",
@@ -123,7 +123,7 @@ class GooglePlacesService:
         que já possuem leads salvos, sem gastar páginas da API com
         resultados já conhecidos.
 
-        Item 4.14 (cotas): com `db` + `organization_id`, verifica a cota
+        Cotas: com `db` + `organization_id`, verifica a cota
         diária de `GOOGLE_API_KEY` antes de cada página (fail-closed) e
         contabiliza uma chamada por página bem-sucedida.
 

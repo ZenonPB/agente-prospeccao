@@ -1,4 +1,4 @@
-"""Geração do relatório executivo em PDF — Item 2.3 do roadmap.
+"""Geração do relatório executivo em PDF (WeasyPrint).
 
 Renderiza um relatório **completo/detalhado** via WeasyPrint (HTML→PDF):
 visão executiva, funil, por campanha, por consultor, top leads, geo e
@@ -8,7 +8,7 @@ Notas:
 - No Windows, o WeasyPrint exige o runtime GTK/Pango. Detectamos o diretório
   dos DLLs (`GTK3-Runtime Win64`, `Gtk-Runtime`) e o adicionamos ao search
   path antes do import. Em Linux/macOS o runtime é instalado pelo sistema.
-- Cache em memória do HTML agregado (item 2.3.4) para não recalcular em cada
+- Cache em memória do HTML agregado para não recalcular em cada
   export. TTL padrão 5 minutos.
 """
 import html
@@ -134,7 +134,7 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
             "</tr>"
         )
 
-    # ---------- funil ponta-a-ponta (item 4.11) ----------
+    # ---------- funil ponta-a-ponta ----------
     funnel_e2e_rows = ""
     max_e2e = max([s.get("count", 0) for s in funnel_e2e] or [0])
     for stage in funnel_e2e:

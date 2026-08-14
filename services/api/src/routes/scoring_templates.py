@@ -17,7 +17,7 @@ class Signal(BaseModel):
 
 
 class Playbook(BaseModel):
-    """Playbook de outreach por vertical (item 3.8)."""
+    """Playbook de outreach por vertical."""
     hooks: List[str] = Field(default_factory=list)
     subject_ideas: List[str] = Field(default_factory=list)
     objections: List[dict] = Field(default_factory=list)
@@ -114,7 +114,7 @@ def list_scoring_templates(
 
     - `scope=all`   → globais (organization_id NULL) + da org do usuário.
     - `scope=global` → apenas globais/seeds.
-    - `scope=org`   → apenas os da org do usuário (inclui gerados, item 1.3).
+    - `scope=org`   → apenas os da org do usuário (inclui gerados).
 
     `search` filtra por service_label (accent-insensitive via ILIKE).
     """
@@ -206,8 +206,8 @@ def patch_scoring_template(
 ):
     """Atualiza um template da org do usuário (ou global, se compartilhado).
 
-    Usado tanto para o editor de sinais no wizard (item 1.5.2) quanto para a
-    revisão humana de templates gerados (item 1.5.4) — o usuário pode editar
+    Usado tanto para o editor de sinais no wizard quanto para a
+    revisão humana de templates gerados — o usuário pode editar
     sinais/flags/instruções antes de ativar em massa.
     """
     tmpl = db.query(CampaignScoringTemplate).filter(

@@ -1,4 +1,4 @@
-"""Inbound email — processa respostas e pedidos de STOP (item 3.3 da auditoria).
+"""Inbound email — processa respostas e pedidos de STOP.
 
 Quando a org usa um provedor de inbound (Postmark/SendGrid inbound parse,
 IMAP poll, etc.) apontando para `POST /api/webhooks/email/inbound`, este

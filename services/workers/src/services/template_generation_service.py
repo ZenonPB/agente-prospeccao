@@ -1,4 +1,4 @@
-"""TemplateGenerationService — gera critérios de scoring sob demanda (Fase 1.3).
+"""TemplateGenerationService — gera critérios de scoring sob demanda.
 
 Quando o `template_router` retorna `GENERATE_NEW` (vertical sem template
 existente), este serviço pede à LLM que defina os critérios de qualificação

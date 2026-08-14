@@ -79,7 +79,7 @@ async def run_pipeline(
                 analysis_profile = campaign.analysis_profile or AnalysisProfile.WEB_PRESENCE
                 if not query and not reanalyze_only:
                     if campaign.places_query:
-                        # Query sugerida pelo agente (item 1.4) — prioridade.
+                        # Query sugerida pelo agente — prioridade.
                         query = campaign.places_query
                     else:
                         parts = []
@@ -94,7 +94,7 @@ async def run_pipeline(
         if not query:
             query = "empresas"
 
-        # --- Resolução de chaves por organização (BYOK, item 3.5) ---
+        # --- Resolução de chaves por organização (BYOK) ---
         # Org com secret próprio usa a própria chave; senão, pool global.
         keys = await SecretService.resolve_all(
             db, str(campaign.organization_id) if campaign else None,
@@ -102,7 +102,7 @@ async def run_pipeline(
         goog_key = keys.get("GOOGLE_API_KEY")
         groq_key = keys.get("GROQ_API_KEY")
 
-        # --- Fase 1: Coleta (pulada em reanalyze_only) ---
+        # --- Coleta (pulada em reanalyze_only) ---
         collected_count = 0
         if reanalyze_only:
             yield {"type": "log", "message": "Modo reanálise: pulando coleta, reusando leads existentes", "timestamp": _ts()}
@@ -229,7 +229,7 @@ async def run_pipeline(
                     city=item.get("city"),
                     state=item.get("state"),
                     country=item.get("country", "Brasil"),
-                    # Reputação no Google (roadmap-vendas 4.6) — sinal de scoring.
+                    # Reputação no Google — sinal de scoring.
                     google_rating=item.get("rating"),
                     google_rating_count=item.get("rating_count"),
                     google_maps_uri=item.get("maps_uri"),
@@ -252,7 +252,7 @@ async def run_pipeline(
             yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 50}
 
-        # --- Fase 2: Análise por perfil ---
+        # --- Análise por perfil ---
         is_web_presence = analysis_profile == AnalysisProfile.WEB_PRESENCE
         profile_label = "técnica" if is_web_presence else "de negócio"
 
@@ -350,9 +350,9 @@ async def run_pipeline(
             db.flush()
         else:
             leads_query = leads_query.filter(Lead.status == LeadStatus.NOVO)
-            # roadmap-leads P4/S4: em campanhas web, leads SEM site são o público-alvo
+            # Em campanhas web, leads SEM site são o público-alvo
             # (compradores de site) — NÃO filtrar por website. O orquestrador roteia
-            # lead sem site para o scoring business (enrichment_orchestrator item 4.2).
+            # lead sem site para o scoring business.
             if campaign:
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
             else:
@@ -447,7 +447,7 @@ async def run_pipeline(
 
             db.commit()
 
-        # --- Fase 3: Enriquecimento automático de decisores (email + LinkedIn) ---
+        # --- Enriquecimento automático de decisores (email + LinkedIn) ---
         # Apenas leads QUALIFICADOS (score >= 60) entram na fila de outreach;
         # enriquecer contatos melhora a taxa de contato. Busca passiva.
         if not reanalyze_only:

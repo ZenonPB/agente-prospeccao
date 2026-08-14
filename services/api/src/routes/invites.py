@@ -1,6 +1,6 @@
 """Rotas de convites — criar, listar, aceitar, revogar.
 
-Fase A4/A5: owner/admin convidam usuários para sua organização por e-mail.
+Owner/admin convidam usuários para sua organização por e-mail.
 O convite gera um token que o convidado usa para aceitar.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -61,7 +61,7 @@ class AcceptInviteRequest(BaseModel):
 
 
 class AcceptRegisterRequest(BaseModel):
-    """Cadastro + aceite no mesmo fluxo (roadmap-vendas 3.3.2).
+    """Cadastro + aceite no mesmo fluxo.
 
     Para quem ainda não tem conta: cria o usuário com o e-mail do convite e já
     o adiciona à organização em um único passo.
@@ -215,7 +215,7 @@ def check_invite(
     """Resolve um convite por token (público, sem auth) para a página de aceite.
 
     Informa o e-mail do convite, a organização e se já existe conta — o
-    frontend decide entre login ou cadastro no próprio aceite (3.3.2).
+    frontend decide entre login ou cadastro no próprio aceite.
     """
     invite = db.query(Invite).filter(Invite.token == token).first()
     if not invite:
@@ -241,7 +241,7 @@ def accept_register(
     body: AcceptRegisterRequest,
     db: Session = Depends(get_db),
 ):
-    """Cadastra o convidado + aceita o convite em um único passo (3.3.2).
+    """Cadastra o convidado + aceita o convite em um único passo.
 
     Válido apenas quando o e-mail do convite ainda não tem conta. Cria o
     usuário (sem workspace pessoal — ele cai direto na org do convite) e já

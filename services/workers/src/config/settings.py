@@ -26,12 +26,12 @@ class Settings(BaseSettings):
     # Sem a chave, o enriquecimento de e-mail usa fallback gratuito (CNPJ + heurística).
     HUNTER_API_KEY: str = Field("", description='Chave opcional da API Hunter.io')
 
-    # Chave mestre para criptografia dos secrets BYOK (item 3.5).
+    # Chave mestre para criptografia dos secrets BYOK.
     # Deve ser um token Fernet (base64 de 32 bytes). Se vazio, deriva-se uma
     # chave determinística do DATABASE_URL (adequado só para desenvolvimento).
     SECRETS_ENCRYPTION_KEY: str = Field("", description='Chave Fernet para organization_secrets')
 
-    # Item 4.14 — teto diário de chamadas por provedor (default do pool global).
+    # Teto diário de chamadas por provedor (default do pool global).
     # A org pode sobrescrever por provedor via `organizations.api_quota`.
     PROVIDER_DAILY_QUOTA: dict = Field(
         default_factory=lambda: {

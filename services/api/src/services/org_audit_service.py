@@ -1,4 +1,4 @@
-"""Serviço de auditoria de membros e acessos da organização (3.3.4).
+"""Serviço de auditoria de membros e acessos da organização.
 
 Grava `OrgAuditLog` para eventos administrativos (convite criado/aceito/
 revogado, papel alterado, membro removido/saída, transferência de ownership,

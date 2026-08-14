@@ -7,7 +7,7 @@ Provedores (em ordem de precedência, com fallback transparente):
   CNPJA_API_KEY opcional via settings. Usada quando BrasilAPI está instável
   ou para dados adicionais (regime tributário etc).
 
-Não há busca reversa por nome neste sprint — a descoberta do CNPJ a partir
+Não há busca reversa por nome — a descoberta do CNPJ a partir
 do Google Places é responsabilidade futura (Hunter/Google dorks). Hoje o
 vendedor cola o CNPJ manualmente na página do lead.
 
@@ -60,7 +60,7 @@ def is_valid_cnpj(cnpj: str) -> bool:
 
 
 def mask_cpf(cpf: Optional[str]) -> Optional[str]:
-    """Mascara CPF para persistência (item 4.7): minimização de dados
+    """Mascara CPF para persistência: minimização de dados
     pessoais — guardamos só os 3 primeiros e 2 últimos dígitos."""
     if not cpf:
         return None

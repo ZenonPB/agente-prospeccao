@@ -3,7 +3,7 @@
 Uses SMTP via stdlib. Falls back to logging in development when SMTP
 is not configured (dry-run), and fails loudly in production.
 
-Changes from the audit (fix/go-live-prep):
+Changes:
 - `EmailSendResult` distingue envio/bounce permanente/erro transitório.
 - Headers de threading (`Message-ID`, `In-Reply-To`, `References`) para
   respostas formarem thread.
@@ -103,12 +103,12 @@ def send_email(
     """Envia e-mail transacional via SMTP.
 
     `from_email`/`from_name`: remetente (default: settings). Permite remetente
-    por org (item 4.1 da auditoria).
+    por org.
     `in_reply_to`/`references`: headers de threading — follow-ups apontam para
     o Message-ID da etapa anterior da cadência.
     `tracking_token`: se a base de tracking estiver configurada
-    (settings.TRACKING_BASE_URL), injeta pixel de abertura e links rastreados
-    (4.2). Sem base, o envio sai só em texto (tracking desativado).
+    (settings.TRACKING_BASE_URL), injeta pixel de abertura e links rastreados.
+    Sem base, o envio sai só em texto (tracking desativado).
     """
     from_email = from_email or settings.SMTP_FROM_EMAIL
     from_name = from_name or settings.SMTP_FROM_NAME

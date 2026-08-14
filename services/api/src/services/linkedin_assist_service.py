@@ -1,4 +1,4 @@
-"""Serviço de LinkedIn assistido (roadmap-vendas 4.22).
+"""Serviço de LinkedIn assistido (pesquisa + associação manual).
 
 Quando a busca passiva não encontra o decisor, o consultor precisa de um
 fluxo guiado: consultas prontas, atalho de busca externa e associação manual
@@ -28,7 +28,7 @@ from services.contact_enrichment_service import LINKEDIN_ALIAS_RE  # noqa: E402
 logger = logging.getLogger(__name__)
 
 # Papéis padrão usados nas consultas sugeridas quando o template não define
-# `playbook.linkedin_queries` (item 4.22).
+# `playbook.linkedin_queries`.
 DEFAULT_ROLE_QUERIES = [
     "fundador", "sócio", "diretor", "CEO", "head", "gerente",
 ]

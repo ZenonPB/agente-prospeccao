@@ -1,6 +1,6 @@
 """Serviço de organização — criação de workspace e helpers de acesso.
 
-Fase A (multi-tenant): concentra a lógica de criação de organização pessoal
+Concentra a lógica de criação de organização pessoal
 no registro e helpers de verificação de acesso usados nas rotas.
 """
 import re
@@ -106,7 +106,7 @@ def create_organization(
     owner_user: User,
     email_from: str | None = None,
 ) -> Organization:
-    """Cria uma organização com o usuário como OWNER (roadmap-vendas 3.3.1).
+    """Cria uma organização com o usuário como OWNER.
 
     Usado para criar workspaces dedicados (ex.: "AlphaMek") além do pessoal do
     registro. O owner recebe `sales_role=MANAGER` (acesso total de leitura/BI)
@@ -146,7 +146,7 @@ def unassign_user_leads_in_org(
     actor_user_id: uuid.UUID | None = None,
     reason: str = "Membro desligado da organização",
 ) -> int:
-    """Desatribui todos os leads de um usuário dentro de uma organização (roadmap 3.3.3)."""
+    """Desatribui todos os leads de um usuário dentro de uma organização."""
     leads = db.query(Lead).filter(
         Lead.organization_id == org_id,
         Lead.assigned_to_id == user_id,

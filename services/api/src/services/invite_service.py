@@ -1,6 +1,6 @@
 """Serviço de convites — criação, validação, aceite.
 
-Fase A4/A5: permite que owner/admin convidem usuários para sua organização
+Permite que owner/admin convidem usuários para sua organização
 por e-mail. O token do convite é enviado por e-mail e usado na aceitação.
 """
 import secrets

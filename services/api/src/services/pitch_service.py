@@ -1,4 +1,4 @@
-"""Pitch one-pager + site audit legível — Item 2.5 do roadmap.
+"""Pitch one-pager + site audit legível para o vendedor.
 
 Consolida dados dispersos do lead (scoring, enriquecimento técnico, company
 record, campanha) em dois artefatos narrativos:

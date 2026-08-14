@@ -1,4 +1,4 @@
-"""Serviço de trilha de atividades do lead (Fase X1).
+"""Serviço de trilha de atividades do lead.
 
 Concentra a gravação de `LeadActivity` para todas as mudanças relevantes
 (atribuição, status, mensagem, contato, reunião, conversão). Usado pelas
@@ -80,7 +80,7 @@ def log_status_change(
 def semantic_action_for(status: LeadStatus) -> Optional[LeadActivityAction]:
     """Mapeia um status de destino para a action comercial correspondente.
 
-    Item 3.6: além da `STATUS_CHANGED` genérica, status com significado
+    Além da `STATUS_CHANGED` genérica, status com significado
     comercial gravam uma action específica na trilha — base para o dashboard
     "taxa de acerto do score" (conversão por faixa) e para calibrar threshold.
     Retorna `None` para status sem significado de outcome.

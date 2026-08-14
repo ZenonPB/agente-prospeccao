@@ -40,7 +40,7 @@ class PatchMemberSalesRoleRequest(BaseModel):
 
 
 class CreateOrgRequest(BaseModel):
-    """Cria um novo workspace (roadmap-vendas 3.3.1)."""
+    """Cria um novo workspace."""
     name: str = Field(..., min_length=2, max_length=255)
     email_from: Optional[str] = Field(None, max_length=255)
 
@@ -88,14 +88,14 @@ def get_my_org(
             "name": member.organization.name if member.organization else None,
             "slug": member.organization.slug if member.organization else None,
             "auto_send_email": bool(member.organization.auto_send_email) if member.organization else False,
-            # Item 4.3 — throttling & remetente dedicado: expõe o teto diário,
+            # Throttling & remetente dedicado: expõe o teto diário,
             # a janela de espalhamento e quantos envios já foram hoje.
             "daily_email_limit": member.organization.daily_email_limit if member.organization else None,
             "send_window_start": member.organization.send_window_start if member.organization else None,
             "send_window_end": member.organization.send_window_end if member.organization else None,
             "sends_today": sends_today(db, member.organization_id)[0] if member.organization else 0,
             "email_from": member.organization.email_from if member.organization else None,
-            # Item 4.10 — SLA de leads parados (dias).
+            # SLA de leads parados (dias).
             "sla_qualified_no_contact_days": member.organization.sla_qualified_no_contact_days if member.organization else None,
             "sla_responded_no_next_action_days": member.organization.sla_responded_no_next_action_days if member.organization else None,
             "sla_opened_no_response_days": member.organization.sla_opened_no_response_days if member.organization else None,
@@ -114,7 +114,7 @@ def create_org(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Cria uma nova organização (roadmap-vendas 3.3.1).
+    """Cria uma nova organização.
 
     O usuário logado vira OWNER (sales_role MANAGER). Slugs são derivados do
     nome e tornados únicos automaticamente.
@@ -195,7 +195,7 @@ def patch_member_sales_role(
 ):
     """Define o papel de venda (CONSULTOR/ANALYST/MANAGER) de um membro.
 
-    Item 2.1.4: apenas owner/admin da organização. O `sales_role` é POR
+    Apenas owner/admin da organização. O `sales_role` é POR
     organização — não vaza entre workspaces.
     """
     if str(actor.organization_id) != org_id:
@@ -236,7 +236,7 @@ def remove_member(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Remove um membro da organização e desatribui seus leads (roadmap 3.3.3).
+    """Remove um membro da organização e desatribui seus leads.
 
     - Owner não pode ser removido (deve transferir ownership antes).
     - Admins não podem remover a si mesmos por este endpoint (usam /leave).
@@ -292,7 +292,7 @@ def transfer_org_ownership(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Transfere a propriedade (OWNER) da organização para outro membro (roadmap 3.3.3)."""
+    """Transfere a propriedade (OWNER) da organização para outro membro."""
     import uuid
     actor = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == org_id,
@@ -336,7 +336,7 @@ def leave_org(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Permite que um membro saia da organização (roadmap 3.3.3)."""
+    """Permite que um membro saia da organização."""
     import uuid
     member = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == org_id,
@@ -377,7 +377,7 @@ def list_org_secrets(
 ):
     """Lista as chaves BYOK configuradas pela organização (sem expor valores).
 
-    Item 3.5: retorna apenas quais `key_name` estão definidas, para a UI
+    Retorna apenas quais `key_name` estão definidas, para a UI
     marcar como "configurado" sem nunca exibir o segredo.
     """
     if str(actor.organization_id) != org_id:
@@ -454,16 +454,16 @@ async def delete_org_secret(
 
 class PatchOrgSettingsRequest(BaseModel):
     auto_send_email: Optional[bool] = None
-    # Item 4.3 — throttling: teto diário e janela de espalhamento (HH:MM).
+    # Throttling: teto diário e janela de espalhamento (HH:MM).
     daily_email_limit: Optional[int] = None
     send_window_start: Optional[str] = None
     send_window_end: Optional[str] = None
     email_from: Optional[str] = None
-    # Item 4.10 — SLA de leads parados (dias).
+    # SLA de leads parados (dias).
     sla_qualified_no_contact_days: Optional[int] = None
     sla_responded_no_next_action_days: Optional[int] = None
     sla_opened_no_response_days: Optional[int] = None
-    # Item 4.14 — teto diário por provedor (BYOK vs pool). Ex.: {"GROQ_API_KEY": 500}.
+    # Teto diário por provedor (BYOK vs pool). Ex.: {"GROQ_API_KEY": 500}.
     api_quota: Optional[Dict[str, int]] = None
 
 
@@ -487,7 +487,7 @@ def patch_org_settings(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Atualiza configurações da organização (item 3.7).
+    """Atualiza configurações da organização.
 
     `auto_send_email` liga/desliga o envio automático de follow-ups da cadência
     (default: humano-no-loop). Apenas owner/admin da org.
@@ -567,7 +567,7 @@ def rename_org(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Renomeia a organização (roadmap-vendas 3.3.1, owner/admin)."""
+    """Renomeia a organização (owner/admin)."""
     if str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
 
@@ -590,7 +590,7 @@ def rename_org(
 
 
 class UpsertSalesTargetRequest(BaseModel):
-    """Meta mensal de vendas para um consultor (roadmap-vendas 4.9)."""
+    """Meta mensal de vendas para um consultor."""
     user_id: str = Field(..., min_length=1)
     month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     meetings_target: int = Field(0, ge=0, le=1000)
@@ -617,7 +617,7 @@ def list_sales_targets(
     _user: User = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
-    """Lista as metas de vendas da organização (roadmap-vendas 4.9).
+    """Lista as metas de vendas da organização.
 
     MANAGER/ANALYST/owner/admin podem consultar. Se `month` for omitido,
     retorna o mês atual (YYYY-MM).
@@ -646,7 +646,7 @@ def upsert_sales_target(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Cria/atualiza a meta mensal de um consultor (roadmap-vendas 4.9).
+    """Cria/atualiza a meta mensal de um consultor.
 
     Upsert por `(organization_id, user_id, month)`. Owner/admin apenas.
     """
@@ -691,7 +691,7 @@ def delete_sales_target(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Remove uma meta mensal de vendas (roadmap-vendas 4.9). Owner/admin."""
+    """Remove uma meta mensal de vendas. Owner/admin."""
     if str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
 
@@ -718,7 +718,7 @@ def get_org_usage(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
-    """Medidor de cotas diárias da org por provedor (roadmap-vendas 4.14).
+    """Medidor de cotas diárias da org por provedor.
 
     Retorna o uso de hoje por `key_name` (usado/limite/restante/%) e o flag
     `alert` quando qualquer provedor passou de 80% do teto. MANAGER+/owner/admin.

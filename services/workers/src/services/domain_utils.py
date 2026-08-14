@@ -32,7 +32,7 @@ _SOCIAL_DOMAINS = {
 
 # Herramentas de design / link que NÃO são o site da empresa — o negócio usa o
 # link só para divulgação/solicitação de pedido (ex.: Canva). Tratados como
-# "sem site próprio" (roadmap-leads P3 / S3).
+# "sem site próprio".
 _TOOL_DOMAINS = {
     "canva.com",
     "canva.link",
