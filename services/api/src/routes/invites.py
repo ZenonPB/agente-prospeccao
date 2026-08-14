@@ -25,7 +25,9 @@ from src.auth.dependencies import (
     require_org_admin,
 )
 from src.auth.security import hash_password, create_access_token
+from src.config.settings import settings
 from src.services import invite_service
+from src.services.email_service import send_invite_email
 from src.services.org_audit_service import log_org_event
 
 router = APIRouter(tags=["invites"])
@@ -128,6 +130,15 @@ def create_invite(
     )
     db.commit()
     db.refresh(invite)
+
+    invited_by = db.query(User).filter(User.id == actor.user_id).first()
+    accept_link = f"{settings.APP_BASE_URL}/aceitar-convite?token={invite.token}"
+    send_invite_email(
+        to_email=invite.email,
+        org_name=org.name or "nova organização",
+        accept_link=accept_link,
+        invited_by_name=invited_by.name if invited_by else "",
+    )
     
     return _invite_dict(invite)
 

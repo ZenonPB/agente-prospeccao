@@ -26,6 +26,10 @@ from typing import List, Optional
 from urllib.parse import quote
 
 from src.config.settings import settings
+from src.services.email_templates import (
+    render_outreach_email,
+    render_transactional_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +66,15 @@ def _message_id_from(result: Optional[str], hostname: str = "agente-prospeccao.c
     return make_msgid(domain=hostname)
 
 
-def _build_html_tracked(body: str, base_url: str, token: str) -> str:
-    """Constrói a parte HTML do e-mail com links rastreados e pixel de abertura."""
+def _build_html_tracked(
+    body: str,
+    base_url: str,
+    token: str,
+    sender_name: str = "Agente Prospecção",
+    sender_email: str = "",
+) -> str:
+    """Constrói a parte HTML do e-mail de cadência com links rastreados,
+    pixel de abertura e o template da marca (outreach discreto)."""
     redirect = "{base}/c/{tok}?url={url}"
     def _rewrite(match: "re.Match[str]") -> str:
         original = match.group(0)
@@ -72,15 +83,16 @@ def _build_html_tracked(body: str, base_url: str, token: str) -> str:
 
     escaped = html.escape(body, quote=False)
     tracked = _URL_RE.sub(_rewrite, escaped)
-    paragraphs = "\n".join(f"<p>{p}</p>" for p in tracked.splitlines() or [""])
+    paragraphs = "\n".join(f"<p style=\"margin:0 0 14px 0;\">{p}</p>" for p in tracked.splitlines() or [""])
     pixel = (
         f'<img src="{base_url.rstrip("/")}/t/{html.escape(token)}" '
         'width="1" height="1" alt="" style="display:none"/>'
     )
-    return (
-        "<!DOCTYPE html><html><body "
-        'style="font-family:sans-serif;line-height:1.5;color:#222">'
-        f"\n{paragraphs}\n{pixel}\n</body></html>"
+    return render_outreach_email(
+        f"{paragraphs}\n{pixel}",
+        sender_name=sender_name,
+        sender_email=sender_email,
+        preheader=re.sub(r"\s+", " ", body).strip()[:80],
     )
 
 
@@ -99,6 +111,7 @@ def send_email(
     references: Optional[List[str]] = None,
     message_id: Optional[str] = None,
     tracking_token: Optional[str] = None,
+    html_body: Optional[str] = None,
 ) -> EmailSendResult:
     """Envia e-mail transacional via SMTP.
 
@@ -108,7 +121,8 @@ def send_email(
     o Message-ID da etapa anterior da cadência.
     `tracking_token`: se a base de tracking estiver configurada
     (settings.TRACKING_BASE_URL), injeta pixel de abertura e links rastreados.
-    Sem base, o envio sai só em texto (tracking desativado).
+    `html_body`: parte HTML pronta (templates transacionais). Sem tracking, o
+    envio sai só em texto.
     """
     from_email = from_email or settings.SMTP_FROM_EMAIL
     from_name = from_name or settings.SMTP_FROM_NAME
@@ -126,12 +140,13 @@ def send_email(
         to_email, subject, body,
         from_email=from_email, from_name=from_name,
         in_reply_to=in_reply_to, references=references, message_id=message_id,
-        tracking_token=tracking_token,
+        tracking_token=tracking_token, html_body=html_body,
     )
 
 
-def send_password_reset_email(to_email: str, reset_link: str, user_name: str) -> bool:
-    """Send password reset email via SMTP, or dry-run log in dev."""
+def send_password_reset_email(to_email: str, reset_link: str, user_name: str, from_email: Optional[str] = None, from_name: Optional[str] = None) -> bool:
+    """Envia e-mail de redefinição de senha (template transacional), ou
+    dry-run em dev."""
     subject = "Redefinição de senha - Agente Prospecção"
     body = f"""Olá {user_name},
 
@@ -148,12 +163,85 @@ Se você não solicitou esta alteração, ignore este e-mail.
 Atenciosamente,
 Equipe Agente Prospecção
 """
+    html_body = render_transactional_email(
+        title="Redefinição de senha",
+        body_html=(
+            f"<p style=\"margin:0 0 14px 0;\">Olá {html.escape(user_name)},</p>"
+            "<p style=\"margin:0 0 14px 0;\">Recebemos uma solicitação para "
+            "redefinir a senha da sua conta. Clique no botão abaixo para "
+            "definir uma nova senha.</p>"
+        ),
+        cta_label="Definir nova senha",
+        cta_url=reset_link,
+        fallback_url=reset_link,
+        footnote=(
+            f"Este link expira em {settings.RESET_TOKEN_EXPIRY_HOURS} "
+            "horas. Se você não solicitou esta alteração, basta ignorar "
+            "este e-mail."
+        ),
+        preheader="Redefina a senha da sua conta",
+    )
 
     if _is_smtp_configured():
-        result = _send_smtp(to_email, subject, body)
+        result = _send_smtp(
+            to_email, subject, body,
+            from_email=from_email or settings.SMTP_FROM_EMAIL,
+            from_name=from_name or settings.SMTP_FROM_NAME,
+            html_body=html_body,
+        )
         return result.sent
 
     logger.info("[DRY-RUN PASSWORD RESET] to=%s (link enviado em produção pelo SMTP)", to_email)
+    return True
+
+
+def send_invite_email(
+    to_email: str,
+    org_name: str,
+    accept_link: str,
+    invited_by_name: str = "",
+    from_email: Optional[str] = None,
+    from_name: Optional[str] = None,
+) -> bool:
+    """Envia convite para entrar na organização (template transacional)."""
+    subject = f"Você foi convidado para {org_name}"
+    body = f"""Você foi convidado para participar da organização {org_name} no Agente Prospecção.
+
+Para aceitar o convite, acesse:
+
+{accept_link}
+
+O convite expira em 7 dias.
+
+Atenciosamente,
+Equipe Agente Prospecção
+"""
+    by = f" por {html.escape(invited_by_name)}" if invited_by_name else ""
+    html_body = render_transactional_email(
+        title=f"Convite para {html.escape(org_name)}",
+        body_html=(
+            f"<p style=\"margin:0 0 14px 0;\">Você foi convidado{by} para "
+            "participar da organização do Agente Prospecção. Ao aceitar, você "
+            "passa a gerenciar leads, campanhas e relatórios junto com a "
+            "equipe.</p>"
+        ),
+        cta_label="Aceitar convite",
+        cta_url=accept_link,
+        fallback_url=accept_link,
+        footnote="Este convite expira em 7 dias.",
+        preheader=f"Você foi convidado para {org_name}",
+    )
+
+    if _is_smtp_configured():
+        result = _send_smtp(
+            to_email, subject, body,
+            from_email=from_email or settings.SMTP_FROM_EMAIL,
+            from_name=from_name or settings.SMTP_FROM_NAME,
+            html_body=html_body,
+        )
+        return result.sent
+
+    logger.info("[DRY-RUN INVITE] to=%s org=%s", to_email, org_name)
     return True
 
 
@@ -188,6 +276,7 @@ def _send_smtp(
     references: Optional[List[str]] = None,
     message_id: Optional[str] = None,
     tracking_token: Optional[str] = None,
+    html_body: Optional[str] = None,
 ) -> EmailSendResult:
     """Send email via SMTP, with threading headers and bounce classification."""
     mid = _message_id_from(message_id)
@@ -209,8 +298,14 @@ def _send_smtp(
     # Tracking 4.2: com token e base pública configurada, anexa a parte HTML
     # (pixel de abertura + links rastreados). Sem isso, só texto (compat).
     tracking_base = _html_enabled()
-    if tracking_token and tracking_base:
-        msg.attach(MIMEText(_build_html_tracked(body, tracking_base, tracking_token), "html", "utf-8"))
+    if html_body is not None:
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+    elif tracking_token and tracking_base:
+        msg.attach(MIMEText(
+            _build_html_tracked(body, tracking_base, tracking_token,
+                                sender_name=from_name, sender_email=from_email),
+            "html", "utf-8",
+        ))
 
     try:
         with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as server:
