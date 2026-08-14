@@ -23,6 +23,7 @@ sys.path.insert(0, _workers_path)
 from services.cnpj_service import CnpjService  # noqa: E402
 from services.outreach_service import OutreachService  # noqa: E402
 from src.services.pitch_service import build_pitch_one_pager, build_site_audit  # noqa: E402
+from src.services.linkedin_assist_service import linkedin_match_status  # noqa: E402
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -79,6 +80,11 @@ def _contact_to_dict(c: Contact) -> dict:
         "email_verified_at": c.email_verified_at.isoformat() if getattr(c, "email_verified_at", None) else None,
         "linkedin_url": c.linkedin_url,
         "linkedin_confidence": c.linkedin_confidence,
+        "linkedin_match_status": linkedin_match_status(
+            c.linkedin_url,
+            (c.raw_data or {}).get("linkedin_source") if isinstance(c.raw_data, dict) else None,
+            c.linkedin_confidence,
+        ),
         "is_primary": c.is_primary,
         "source": c.source,
         "raw_data": c.raw_data,

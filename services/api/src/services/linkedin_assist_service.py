@@ -76,6 +76,33 @@ def extract_linkedin_username(url: str) -> Optional[str]:
     return username
 
 
+def linkedin_match_status(
+    url: Optional[str],
+    source: Optional[str],
+    confidence: Optional[int],
+) -> str:
+    """Deriva o estado de match do LinkedIn a partir de fonte e confiança.
+
+    - NOT_FOUND: sem perfil associado.
+    - CANDIDATE: URL inferida por heurística (pode não ser a pessoa certa).
+    - NEEDS_REVIEW: candidato para revisão humana (associação manual com
+      confiança baixa ou fonte desconhecida).
+    - VERIFIED: perfil corroborado (encontrado por busca nome+empresa ou
+      associação manual validada).
+    """
+    if not url:
+        return "NOT_FOUND"
+    src = (source or "").lower()
+    conf = int(confidence or 0)
+    if src.startswith("manual"):
+        return "VERIFIED" if conf >= 90 else "NEEDS_REVIEW"
+    if src.startswith("search"):
+        return "VERIFIED"
+    if src == "heuristic":
+        return "CANDIDATE"
+    return "VERIFIED" if conf >= 90 else "NEEDS_REVIEW"
+
+
 class LinkedInAssistService:
     """Validação passiva e persistência do perfil associado manualmente."""
 
