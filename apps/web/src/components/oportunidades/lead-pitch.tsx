@@ -164,6 +164,14 @@ function PitchCard({ pitch }: { pitch: PitchOnePager }) {
                 <a href={identity.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">{identity.website}</a>
               </div>
             )}
+            {identity.company_linkedin_url && (
+              <div className="flex items-center gap-2 ml-6">
+                <LinkedInIcon className="h-3.5 w-3.5 text-primary" />
+                <a href={identity.company_linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                  Empresa no LinkedIn
+                </a>
+              </div>
+            )}
           </CardContent>
         </Card>
 

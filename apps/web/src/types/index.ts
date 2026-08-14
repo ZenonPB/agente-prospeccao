@@ -95,6 +95,10 @@ export interface Lead {
   city: string;
   state?: string;
   country: string;
+  google_rating?: number;
+  google_rating_count?: number;
+  google_maps_uri?: string;
+  company_linkedin_url?: string;
   status: LeadStatus;
   qualification_score: number;
   qualification_reason?: string;
@@ -366,6 +370,8 @@ export interface PitchOnePager {
     website?: string;
     phone?: string;
     email?: string;
+    google_maps_uri?: string;
+    company_linkedin_url?: string;
     cnpj?: string;
     razao_social?: string;
     nome_fantasia?: string;

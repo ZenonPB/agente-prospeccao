@@ -133,6 +133,7 @@ def _lead_summary(lead: Lead) -> dict:
         "google_rating": lead.google_rating,
         "google_rating_count": lead.google_rating_count,
         "google_maps_uri": lead.google_maps_uri,
+        "company_linkedin_url": lead.company_linkedin_url,
         "status": lead.status.value if lead.status else None,
         "qualification_score": lead.qualification_score,
         "qualification_reason": lead.qualification_reason,

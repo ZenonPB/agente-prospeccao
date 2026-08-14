@@ -476,6 +476,9 @@ class Lead(Base):
     google_rating = Column(Float)
     google_rating_count = Column(Integer)
     google_maps_uri = Column(String(255))
+    # Página da empresa no LinkedIn (linkedin.com/company/<slug>), localizada
+    # por busca passiva durante o enriquecimento.
+    company_linkedin_url = Column(String(255))
     # Campos de trabalho do consultor.
     notes = Column(Text)
     next_action_at = Column(DateTime(timezone=True))

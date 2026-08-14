@@ -64,6 +64,12 @@ def _sanitize_raw(raw: Any) -> Optional[Dict[str, Any]]:
 
 
 LINKEDIN_ALIAS_RE = re.compile(r"^([a-zA-Z0-9-]+)$", re.IGNORECASE)
+# Página de empresa (linkedin.com/company/<slug>) — usado na busca passiva
+# do perfil institucional durante o enriquecimento.
+LINKEDIN_COMPANY_RE = re.compile(
+    r"(?:https?://)?(?:[a-z0-9-]+\.)*linkedin\.com/company/([a-zA-Z0-9-]+)(?=[/?#]|$)",
+    re.IGNORECASE,
+)
 GENERIC_EMAIL_PREFIXES = ("contato", "comercial", "info", "contato@", "sac",
                           "vendas", "geral", "admin", "rh", "financeiro")
 HUNTER_SEARCH_URL = "https://api.hunter.io/v2/domain-search"
@@ -200,6 +206,47 @@ def _is_valid_linkedin_username(username: str) -> bool:
     return bool(username) and bool(LINKEDIN_ALIAS_RE.match(username))
 
 
+def extract_linkedin_company_slug(url: Optional[str]) -> Optional[str]:
+    """Extrai o slug de uma URL de company page (linkedin.com/company/<slug>)."""
+    if not url:
+        return None
+    m = LINKEDIN_COMPANY_RE.search(url.strip())
+    if not m:
+        return None
+    slug = m.group(1)
+    if not _is_valid_linkedin_username(slug):
+        return None
+    return slug
+
+
+def pick_linkedin_company_url(urls: List[str], company_name: str) -> Optional[str]:
+    """Escolhe a company page com o slug mais parecido com o nome da empresa.
+
+    Exige ao menos um termo do nome da empresa no slug (overlap > 0) para não
+    aceitar qualquer company page; retorna a URL normalizada
+    (`https://www.linkedin.com/company/<slug>`) ou None quando não há
+    resultado aproveitável.
+    """
+    target = _slugify_username(company_name or "")
+    if not target:
+        return None
+    parts = set(target.split("-"))
+    scored = []
+    for u in urls:
+        slug = extract_linkedin_company_slug(u)
+        if not slug:
+            continue
+        u_parts = set(re.sub(r"[^a-z0-9-]", "", slug).split("-"))
+        overlap = len(parts & u_parts)
+        if overlap == 0:
+            continue
+        scored.append((overlap, len(slug), f"https://www.linkedin.com/company/{slug}"))
+    if not scored:
+        return None
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return scored[0][2]
+
+
 def _build_linkedin_candidates(name: str) -> List[str]:
     """Monta URLs prováveis do perfil LinkedIn — variantes comuns."""
     slug = _slugify_username(name)
@@ -268,6 +315,10 @@ class ContactEnrichmentService:
             site_phones: List[str] = []
             if lead.website:
                 site_emails, site_phones = await self._emails_from_site(client, lead)
+
+            # Página institutional da empresa (LinkedIn) — busca passiva única.
+            if not lead.company_linkedin_url:
+                lead.company_linkedin_url = await self._linkedin_company_from_search(client, lead)
 
             for contact in existing[:max_contacts]:
                 await self._enrich_email(client, contact, lead, site_emails, site_phones)
@@ -711,6 +762,52 @@ class ContactEnrichmentService:
 
         # 2) Rate-limit/nenhuma evidência → NUNCA assume perfil se não foi confirmado passivamente
         return None, 0
+
+    async def _linkedin_company_from_search(
+        self, client: httpx.AsyncClient, lead: Lead,
+    ) -> Optional[str]:
+        """Busca passiva pela página da empresa (`"<empresa>" linkedin`).
+
+        Extrai `linkedin.com/company/<slug>` dos resultados e escolhe o slug
+        com maior overlap com o nome da empresa. Sem scraping — apenas o que
+        o buscador indexou. Retorna a URL normalizada ou None.
+        """
+        company = (lead.company_name or "").strip()
+        if not company or lead.company_linkedin_url:
+            return None
+
+        query = f'"{company}" linkedin'
+        cache_key = hashlib.md5(query.encode()).hexdigest()
+        cached = self._http_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        for engine, params in (
+            ("duckduckgo", {"q": query, "kl": "br-pt"}),
+            ("bing", {"q": query, "count": 10, "mkt": "pt-BR"}),
+        ):
+            try:
+                url = (
+                    "https://html.duckduckgo.com/html/"
+                    if engine == "duckduckgo"
+                    else "https://www.bing.com/search"
+                )
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    continue
+                found = pick_linkedin_company_url(
+                    re.findall(r"https?://[^\s\"'<>]+", resp.text), company,
+                )
+                if found:
+                    self._http_cache[cache_key] = found
+                    return found
+            except Exception as e:
+                logger.debug(
+                    "Busca company page (%s) falhou para %s: %s", engine, company, e,
+                )
+
+        self._http_cache[cache_key] = None
+        return None
 
     # ------------------------------------------------------------------ #
     # Confidence e serialização
