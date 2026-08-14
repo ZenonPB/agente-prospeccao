@@ -35,6 +35,7 @@ import httpx
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
 from database.models import Contact, ContactRole, Lead, LeadStatus  # noqa: E402
+from services import enrichment_ts  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -316,8 +317,14 @@ class ContactEnrichmentService:
             if lead.website:
                 site_emails, site_phones = await self._emails_from_site(client, lead)
 
+            # TTL do LinkedIn: dentro de 30d não refaz a busca passiva
+            # (não muda o estado do candidato — evita re-requisições).
+            linkedin_fresh = enrichment_ts.is_fresh(
+                enrichment_ts.get_stamp(lead, "linkedin"), "linkedin",
+            )
+
             # Página institutional da empresa (LinkedIn) — busca passiva única.
-            if not lead.company_linkedin_url:
+            if not lead.company_linkedin_url and not linkedin_fresh:
                 lead.company_linkedin_url = await self._linkedin_company_from_search(client, lead)
 
             for contact in existing[:max_contacts]:
@@ -327,6 +334,9 @@ class ContactEnrichmentService:
                 await self._enrich_linkedin(client, contact, lead)
                 contact.confidence = self._recalc_confidence(contact)
                 results.append(self._contact_to_dict(contact))
+
+            if not linkedin_fresh:
+                enrichment_ts.stamp(lead, "linkedin")
 
         db.flush()
         return results
@@ -643,6 +653,9 @@ class ContactEnrichmentService:
         self, client: httpx.AsyncClient, contact: Contact, lead: Lead,
     ) -> None:
         if contact.linkedin_url:
+            return
+        # TTL do LinkedIn: dentro de 30d não refaz a busca passiva.
+        if enrichment_ts.is_fresh(enrichment_ts.get_stamp(lead, "linkedin"), "linkedin"):
             return
 
         url, confidence, source = await self._linkedin_from_search(client, contact, lead)
