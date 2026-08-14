@@ -289,7 +289,7 @@ export function LeadList() {
         <Button
           variant={presetFilter === 'all' ? 'default' : 'outline'}
           size="sm"
-          className="h-8 rounded-full text-xs font-medium"
+          className="h-9 rounded-full text-xs font-medium sm:h-8"
           onClick={() => handlePreset('all')}
         >
           Todos os leads
@@ -297,7 +297,7 @@ export function LeadList() {
         <Button
           variant={presetFilter === 'hot' ? 'default' : 'outline'}
           size="sm"
-          className="h-8 rounded-full text-xs font-medium"
+          className="h-9 rounded-full text-xs font-medium sm:h-8"
           onClick={() => handlePreset('hot')}
         >
           🔥 Leads Quentes (80+)
@@ -305,7 +305,7 @@ export function LeadList() {
         <Button
           variant={presetFilter === 'qualified' ? 'default' : 'outline'}
           size="sm"
-          className="h-8 rounded-full text-xs font-medium"
+          className="h-9 rounded-full text-xs font-medium sm:h-8"
           onClick={() => handlePreset('qualified')}
         >
           ✅ Aptos para Contato
@@ -314,7 +314,7 @@ export function LeadList() {
           <Button
             variant={presetFilter === 'my_leads' ? 'default' : 'outline'}
             size="sm"
-            className="h-8 rounded-full text-xs font-medium"
+            className="h-9 rounded-full text-xs font-medium sm:h-8"
             onClick={() => handlePreset('my_leads')}
           >
             👤 Meus Leads
@@ -374,7 +374,7 @@ export function LeadList() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8"
+            className="h-9 sm:h-8"
             onClick={() => bulkAssign(currentUserId!, 'você')}
             disabled={!currentUserId}
           >
@@ -383,7 +383,7 @@ export function LeadList() {
           </Button>
           {canAssignOthers && (
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-8" />}>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-9 sm:h-8" />}>
                 <User className="mr-1.5 h-3.5 w-3.5" />
                 Atribuir para
               </DropdownMenuTrigger>
@@ -402,7 +402,7 @@ export function LeadList() {
             </DropdownMenu>
           )}
           <Select onValueChange={(v) => v && bulkStatus(v as string)}>
-            <SelectTrigger className="h-8 w-auto">
+            <SelectTrigger className="h-9 w-auto sm:h-8">
               <SelectValue>
                 {(value) => bulkStatusOptions.find((o) => o.value === value)?.label ?? 'Mover para...'}
               </SelectValue>
@@ -416,7 +416,7 @@ export function LeadList() {
           <Button
             variant="outline"
             size="sm"
-            className="h-8"
+            className="h-9 sm:h-8"
             onClick={() => {
               exportSelectedCsv(selectedLeads, 'leads-selecionados.csv');
               clearSelection();
@@ -425,7 +425,7 @@ export function LeadList() {
             <Download className="mr-1.5 h-3.5 w-3.5" />
             Exportar CSV
           </Button>
-          <Button variant="ghost" size="sm" className="h-8" onClick={clearSelection}>
+          <Button variant="ghost" size="sm" className="h-9 sm:h-8" onClick={clearSelection}>
             <X className="mr-1.5 h-3.5 w-3.5" />
             Limpar
           </Button>
@@ -486,7 +486,7 @@ export function LeadList() {
                     }`}
                   >
                     <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
+<div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="flex min-w-0 items-start gap-2 pr-2">
                           <input
                             type="checkbox"
@@ -505,7 +505,7 @@ export function LeadList() {
                             <p className="text-sm text-muted-foreground">{lead.category || 'Sem categoria'}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                           {lead.priority && priorityBadgeConfig[lead.priority] && (
                             <Badge className={`${priorityBadgeConfig[lead.priority].color} text-xs`}>
                               <span className="mr-1">{priorityBadgeConfig[lead.priority].emoji}</span>

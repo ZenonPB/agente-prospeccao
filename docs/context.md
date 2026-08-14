@@ -883,6 +883,18 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >      (C2/C3 — 56 leads) e reanalisar os 18 leads `NOVO` por rate-limit
 >      (seed + `POST /campaigns/{id}/reanalyze`). Comandos documentados no
 >      `roadmap-vendas.md §11`.
+> 15. **Sessão 2026-08-14 — 4.17 mobile-first portado p/ `main`
+>    (`feat/mobile-first-4-17`):**
+>    - **Porta seletiva** do commit original (baseado no PR #68) sobre `main`
+>      atual — só a parte responsiva útil; os assets/auth-shell (já entregues
+>      no PR #76) e o hunk de regressão do `sortByOptions` foram **excluídos**.
+>    - Arquivos: `ui/dialog` (max-h+scroll), `ui/tabs` (overflow/w-max),
+>      `kanban-board` (touch targets 44px + flex-wrap + dica mobile),
+>      `lead-list` (presets/ações `h-9 sm:h-8` + flex-wrap), `campanhas/[id]`,
+>      `oportunidades/[id]`, `campaign-list`, `brazil-state-map`.
+>    - Verificação: `npm run lint`, `npx tsc --noEmit` e `npm run build` limpos.
+>    - Pendente (próximo ciclo): bottom-nav opcional, DnD em touchscreen,
+>      validação em device real.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

@@ -255,9 +255,12 @@ export function KanbanBoard() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="hidden text-sm font-medium text-muted-foreground sm:block">
           Arraste os cartões entre as colunas para atualizar o status do funil
+        </p>
+        <p className="text-sm font-medium text-muted-foreground sm:hidden">
+          Toque num cartão para abrir e atualizar o status
         </p>
         {slaAlertsCount > 0 && (
           <div className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -412,7 +415,7 @@ export function KanbanBoard() {
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
                                   <span>{Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
@@ -434,7 +437,7 @@ export function KanbanBoard() {
                                      <Button
                                        variant="ghost"
                                        size="icon"
-                                       className="h-6 w-6 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                       className="h-9 w-9 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-6 sm:w-6"
                                        disabled={recordWhatsApp.isPending}
                                        onClick={(e) => {
                                          e.stopPropagation();
@@ -468,7 +471,7 @@ export function KanbanBoard() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-6 gap-1 px-2 text-[11px]"
+                                      className="h-9 gap-1.5 px-3 text-xs sm:h-6 sm:gap-1 sm:px-2 sm:text-[11px]"
                                       disabled={assignLead.isPending && assignLead.variables?.id === lead.id}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -490,7 +493,7 @@ export function KanbanBoard() {
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-6 w-6"
+                                            className="h-9 w-9 sm:h-6 sm:w-6"
                                             onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
                                             aria-label="Atribuir lead"
                                           >

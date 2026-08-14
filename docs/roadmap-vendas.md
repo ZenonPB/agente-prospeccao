@@ -489,12 +489,28 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   paginação server-side no kanban e na lista de leads + índices compostos
   `(organization_id, status, qualification_score)` (migration `ca2c1a...`).
 
-#### 4.17 Frontend mobile-first ⬜ (M, gratuito)
+#### 4.17 Frontend mobile-first 🟡 entregue no branch (M, gratuito)
 
 - **Proposta:** revisar kanban/tabelas/mapas para o celular (consultor trabalha
   no WhatsApp no celular; EJ tem rotatividade e quem trabalha em campo).
 - **Aceite:** principais fluxos (ver leads, abrir WhatsApp, mudar status)
   utilizáveis no celular.
+- **Status — portado p/ `main` (2026-08-14, `feat/mobile-first-4-17`):**
+  - Sistema: `DialogContent` com `max-h-[calc(100dvh-2rem)]` + `overflow-y-auto`
+    (conteúdo longo não estoura a tela); `TabsList` com `w-max`/`mx-auto`/
+    `justify-start` (scroll lateral sem cortar o início).
+  - Kanban `/vendas`: touch targets 44px (WhatsApp, atribuir, "Atribuir a mim")
+    via `sm:`; rodapé do card com `flex-wrap`; dica mobile "toque no cartão
+    para atualizar o status".
+  - Lista de leads: presets/ações em massa com alvo de toque maior; badges do
+    card quebram linha em 320px.
+  - Detalhe do lead: análise do site em 1 coluna no mobile; ações do header com
+    `flex-wrap`.
+  - Campanhas: header e linhas de leads responsivos; lista com header wrap.
+  - Mapa (`/relatorios`): altura responsiva (`h-[300px] sm:h-[440px]`).
+  - Verificação: `npm run lint`, `npx tsc --noEmit` e `npm run build` limpos.
+  - **Pendente (próximo ciclo):** bottom-nav opcional, refinamento de DnD em
+    touchscreen e validação em device real.
 
 ---
 
@@ -619,7 +635,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
-| 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | ⬜ |
+| 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | 🟡 entregue no branch (2026-08-14) |
 | 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ⬜ |
 | 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ⬜ |
 | 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ⬜ |
