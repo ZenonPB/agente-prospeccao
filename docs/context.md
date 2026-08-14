@@ -947,6 +947,22 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    passou a usar "leads parados", "Prazos de atendimento" e o badge
 >    "Parado há Xd". Identificadores de código/API (`sla_*`, `SlaAlertItem`,
 >    endpoints) ficam inalterados por contrato de dados.
+>
+> 21. **Sessão 2026-08-14 — 4.24 match semântico + fechamento 3.3.4/3.3.5
+>    (`feat/linkedin-match-semantico`):**
+>    - **4.24:** `linkedin_match_status(url, source, confidence)` (puro, em
+>      `linkedin_assist_service`) → NOT_FOUND/CANDIDATE/NEEDS_REVIEW/VERIFIED;
+>      exposto em `_contact_to_dict`; badge semântico na aba Contatos
+>      (Confirmado/Revisar/Candidato) no lugar do limiar de 50%. Testes (6) —
+>      suíte em **199 passed**.
+>    - **3.3.5 (decisão):** MANAGER define `sales_role` (`PATCH /members/{id}`
+>      agora `require_manager`); convites/remoção/transferência/chaves/metas
+>      continuam owner/admin-only.
+>    - **3.3.4 (decisão):** `/configuracoes/membros` liberada para MANAGER —
+>      vê membros + auditoria; cria convites/metas e ações admin ficam só para
+>      owner/admin.
+>    - **Limpeza:** docstrings das migrations sem referências a Fase/Item/
+>      Roadmap/sprint (só texto; `revision`/código intactos).
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 
