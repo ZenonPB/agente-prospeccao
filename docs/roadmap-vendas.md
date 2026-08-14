@@ -87,7 +87,7 @@ Síntese do que já funciona e deve ser **preservado**:
 - **LinkedIn passivo** (`contact_enrichment_service.py`): busca "nome+empresa
   linkedin" (DuckDuckGo→Bing), heurística validada por índice, `linkedin_confidence`;
   sem API oficial (SNAP fechada para novos parceiros) — o resto da evolução
-  LinkedIn está no backlog (itens 4.22–4.27).
+  LinkedIn está no backlog (itens 4.26–4.27).
 
 > **Não mexer (regra preservada):** o **CONSULTOR cria e gerencia campanhas
 > próprias** — é autônomo para prospectar o que e onde decidir. Qualquer
@@ -613,13 +613,27 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     Contatos (Confirmado / Revisar / Candidato) no lugar do limiar de 50%.
   - Testes `tests/test_linkedin_match_status.py` (6) — suíte em **199 passed**.
 
-#### 4.25 Estado do enriquecimento + TTL ⬜ (P2, M, gratuito)
+#### 4.25 Estado do enriquecimento + TTL ✅ (P2, M, gratuito)
 
 - **Hoje:** `last_contacted_at` existe, mas não há estado/TTL por lead para
   evitar re-pesquisar os mesmos padrões repetidamente.
 - **Proposta:** `last_enriched_at`/estado por lead com TTL (candidato LinkedIn
   30d, site 7d, reviews 24h) e depreciação indicada na página do lead.
 - **Aceite:** re-enriquecer não refaz busca dentro do TTL (idempotência + cache).
+- **Entregue (2026-08-14, `feat/enrichment-ttl`):**
+  - Migration `e6f7a8b9c0d1` — `leads.enrichment_timestamps` (JSONB por fonte).
+  - `services/enrichment_ts.py` (workers, fonte única): `TTL_HOURS`
+    (linkedin 30d · site 7d · reviews 24h), `read_stamps`/`get_stamp`/`stamp`,
+    `is_fresh` e `freshness_snapshot`.
+  - **Gate real (LinkedIn):** `ContactEnrichmentService` não re-busca
+    LinkedIn (pessoa/empresa) dentro de 30d e carimba ao buscar.
+  - **Carimbos:** `enrichment_orchestrator` marca `site` após análise técnica
+    e `reviews` quando há rating do Google.
+  - **API:** `enrichment_freshness` (fresh/stale/never por fonte) no detalhe
+    do lead.
+  - **UI:** aviso "Dados antigos" (LinkedIn/análise do site/avaliações) em
+    "Informações do Lead" quando a fonte passou do TTL.
+  - Testes `tests/test_enrichment_ttl.py` (5) — suíte em **209 passed**.
 
 #### 4.26 Sinal de Instagram no ICP/scoring ⬜ (P3, M, gratuito)
 
@@ -687,7 +701,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | C5 | Aplicações web/ERP (template seed de categoria) | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-14 |
 | 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ✅ Entregue 2026-08-14 |
 | 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ✅ Entregue 2026-08-14 |
-| 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
+| 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ✅ Entregue 2026-08-14 |
 | 4.26 | Sinal de Instagram no ICP/scoring | LinkedIn | P3 | M | gratuito | 4.6 | ⬜ |
 | 4.27 | Separação Company/Person (3 entidades) | LinkedIn | P3 | L | gratuito | — | ⬜ |
 
@@ -928,8 +942,8 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   auto-`PERDIDO` no encerramento da cadência (dia 14 sem resposta →
   `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
   entrada + saída automáticas. Ver §10 C9.
-- **Backlog pendente (⬜ do §5):** LinkedIn **4.25** (P2) → P3
-  (4.18–4.21, 4.26–4.27). Pendências abertas de itens concluídos: 4.17
+- **Backlog pendente (⬜ do §5):** P3 (4.18–4.21, 4.26–4.27).
+  Pendências abertas de itens concluídos: 4.17
   (bottom-nav opcional, DnD em touchscreen, validação em device real).
 - **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão
   fechada — template de categoria "Aplicações Web / ERP" no seed (sem terceiro
