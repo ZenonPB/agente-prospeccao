@@ -132,6 +132,27 @@ def timeline(
     return {"timeline": analytics.timeline(group_by=group_by, from_date=from_date, to_date=to_date)}
 
 
+@router.get("/threshold-suggestion")
+def threshold_suggestion(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+    org: Organization = Depends(get_user_organization),
+):
+    """Sugere um limiar QUALIFICADO/DESQUALIFICADO calibrado pela org.
+
+    Apenas ANALYST/MANAGER (owner/admin) leem. A UI exibe o threshold atual
+    da org + o sugerido com a lista de candidatos (precisão/revisão/F1) e
+    deixa o owner/admin aplicar manualmente em `/api/orgs/{id}`.
+    """
+    current = org.qualification_threshold or 60
+    return analytics.suggest_qualification_threshold(
+        current_threshold=current,
+        from_date=from_date,
+        to_date=to_date,
+    )
+
+
 @router.get("/export/pdf")
 def export_pdf(
     from_date: Optional[str] = Query(None, alias="from"),

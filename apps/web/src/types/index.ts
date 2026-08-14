@@ -209,6 +209,8 @@ export interface OrgMembership {
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;
+    // Limiar QUALIFICADO/DESQUALIFICADO configurável por org.
+    qualification_threshold?: number;
   };
   membership: {
     role: OrgRole;
@@ -453,4 +455,22 @@ export interface ForecastData {
   open_leads_count: number;
   pipeline_by_stage: ForecastStageItem[];
   lost_reasons_breakdown: LostReasonItem[];
+}
+
+export interface ThresholdCandidate {
+  threshold: number;
+  qualified: number;
+  qualified_converted: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+export interface ThresholdSuggestion {
+  recommended_threshold: number;
+  current_threshold: number;
+  candidates: ThresholdCandidate[];
+  rationale: string;
+  leads_considered: number;
+  converted_total: number;
 }

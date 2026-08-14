@@ -441,6 +441,7 @@ export const orgsApi = {
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;
+    qualification_threshold?: number;
     api_quota?: Record<string, number>;
   }) =>
     request<{
@@ -455,6 +456,7 @@ export const orgsApi = {
       sla_qualified_no_contact_days?: number;
       sla_responded_no_next_action_days?: number;
       sla_opened_no_response_days?: number;
+      qualification_threshold?: number;
     }>(
       `/api/orgs/${orgId}`,
       { method: "PATCH", body: JSON.stringify(data) },
@@ -615,6 +617,11 @@ export const analyticsApi = {
 
   forecast: (params?: { from?: string; to?: string }) =>
     request<import("@/types").ForecastData>("/api/analytics/forecast", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  thresholdSuggestion: (params?: { from?: string; to?: string }) =>
+    request<import("@/types").ThresholdSuggestion>("/api/analytics/threshold-suggestion", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 

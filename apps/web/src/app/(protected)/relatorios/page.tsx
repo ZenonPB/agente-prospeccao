@@ -13,6 +13,7 @@ import { ForecastCard } from '@/components/relatorios/forecast-card';
 import { ConsultantsCard, CampaignsCard, TopLeadsCard, ListCardSkeleton } from '@/components/relatorios/list-cards';
 import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-map';
 import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline-card';
+import { ThresholdCard } from '@/components/relatorios/threshold-card';
 import { ReportControls, downloadBlob } from '@/components/relatorios/report-controls';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { toast } from 'sonner';
@@ -102,6 +103,7 @@ export default function RelatoriosPage() {
           {overviewQ.data && <ExecutiveKpis overview={overviewQ.data} />}
           {forecastQ.data && <ForecastCard forecast={forecastQ.data} />}
           {funnelQ.data && <FunnelEndToEndCard funnel={funnelQ.data} />}
+          {canView && <ThresholdCard period={period} />}
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-6">

@@ -428,6 +428,13 @@ export function useAnalyticsForecast(period?: AnalyticsPeriod) {
   });
 }
 
+export function useAnalyticsThresholdSuggestion(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "threshold-suggestion", period],
+    queryFn: () => analyticsApi.thresholdSuggestion(period),
+  });
+}
+
 export function useExportAnalyticsPdf() {
   return useMutation({
     mutationFn: (period?: AnalyticsPeriod) => analyticsApi.exportPdf(period),
@@ -723,6 +730,7 @@ export function usePatchOrgSettings() {
       sla_qualified_no_contact_days?: number;
       sla_responded_no_next_action_days?: number;
       sla_opened_no_response_days?: number;
+      qualification_threshold?: number;
       api_quota?: Record<string, number>;
     } }) =>
       orgsApi.patchSettings(orgId, data),
@@ -730,6 +738,7 @@ export function usePatchOrgSettings() {
       queryClient.invalidateQueries({ queryKey: ["org", "me"] });
       queryClient.invalidateQueries({ queryKey: ["orgs", "me"] });
       queryClient.invalidateQueries({ queryKey: ["orgs", variables.orgId, "usage"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics", "threshold-suggestion"] });
     },
   });
 }

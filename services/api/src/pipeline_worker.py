@@ -448,7 +448,9 @@ async def run_pipeline(
             db.commit()
 
         # --- Enriquecimento automático de decisores (email + LinkedIn) ---
-        # Apenas leads QUALIFICADOS (score >= 60) entram na fila de outreach;
+        # Apenas leads QUALIFICADOS (score >= threshold da org) entram na fila
+        # de outreach; enriquecer contatos melhora a taxa de contato. Busca
+        # passiva. O threshold é aplicado em `enrichment_orchestrator` por org.
         # enriquecer contatos melhora a taxa de contato. Busca passiva.
         if not reanalyze_only:
             yield {

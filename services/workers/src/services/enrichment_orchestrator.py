@@ -23,6 +23,7 @@ from database.models import (
     LeadPriority,
     Enrichment,
     AnalysisProfile,
+    Organization,
 )
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
@@ -52,6 +53,18 @@ async def process_single_lead(
     """
     enrichment: Optional[Enrichment] = None
     scoring_data: Optional[Dict[str, Any]] = None
+
+    # Threshold por org: lido uma vez e passado a `_persist_scoring`.
+    # Default 60 mantém o comportamento histórico se a org não tiver config.
+    qualification_threshold = 60
+    if lead.organization_id:
+        org = (
+            db.query(Organization)
+            .filter(Organization.id == lead.organization_id)
+            .first()
+        )
+        if org and org.qualification_threshold is not None:
+            qualification_threshold = org.qualification_threshold
 
     # Decisão: usar análise técnica? O template pode dizer 'não' mesmo que a
     # campanha esteja marcada como WEB_PRESENCE originalmente.
@@ -138,7 +151,7 @@ async def process_single_lead(
     if lead.google_rating is not None or lead.google_rating_count is not None:
         enrichment_ts.stamp(lead, "reviews")
 
-    _persist_scoring(lead, scoring_data, enrichment)
+    _persist_scoring(lead, scoring_data, enrichment, qualification_threshold)
 
     if scoring_data:
         logger.info(
@@ -162,8 +175,14 @@ def _persist_scoring(
     lead: Lead,
     scoring_data: Optional[Dict[str, Any]],
     enrichment: Optional[Enrichment],
+    qualification_threshold: int = 60,
 ) -> None:
-    """Aplica scoring_data ao Lead (e enriquece Enrichment com issues_found)."""
+    """Aplica scoring_data ao Lead (e enriquece Enrichment com issues_found).
+
+    `qualification_threshold` é o limiar por org para QUALIFICADO/
+    DESQUALIFICADO. Default 60 mantém compatibilidade com o comportamento
+    histórico. Score == threshold → QUALIFICADO (>=).
+    """
     if not scoring_data:
         return
 
@@ -197,7 +216,7 @@ def _persist_scoring(
             for e in evidence
         ]
 
-    if lead.qualification_score >= 60:
+    if lead.qualification_score >= qualification_threshold:
         lead.status = LeadStatus.QUALIFICADO
     else:
         lead.status = LeadStatus.DESQUALIFICADO

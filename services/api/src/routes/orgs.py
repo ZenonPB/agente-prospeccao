@@ -99,6 +99,7 @@ def get_my_org(
             "sla_qualified_no_contact_days": member.organization.sla_qualified_no_contact_days if member.organization else None,
             "sla_responded_no_next_action_days": member.organization.sla_responded_no_next_action_days if member.organization else None,
             "sla_opened_no_response_days": member.organization.sla_opened_no_response_days if member.organization else None,
+            "qualification_threshold": member.organization.qualification_threshold if member.organization else None,
         },
         "membership": {
             "role": member.role.name if member.role else None,
@@ -464,6 +465,8 @@ class PatchOrgSettingsRequest(BaseModel):
     sla_qualified_no_contact_days: Optional[int] = None
     sla_responded_no_next_action_days: Optional[int] = None
     sla_opened_no_response_days: Optional[int] = None
+    # Limiar QUALIFICADO/DESQUALIFICADO aplicado pelo orquestrador (1-100).
+    qualification_threshold: Optional[int] = None
     # Teto diário por provedor (BYOK vs pool). Ex.: {"GROQ_API_KEY": 500}.
     api_quota: Optional[Dict[str, int]] = None
 
@@ -526,6 +529,10 @@ def patch_org_settings(
         if not 1 <= body.sla_opened_no_response_days <= 120:
             raise HTTPException(status_code=400, detail="sla_opened_no_response_days deve estar entre 1 e 120")
         org.sla_opened_no_response_days = body.sla_opened_no_response_days
+    if body.qualification_threshold is not None:
+        if not 1 <= body.qualification_threshold <= 100:
+            raise HTTPException(status_code=400, detail="qualification_threshold deve estar entre 1 e 100")
+        org.qualification_threshold = body.qualification_threshold
     if body.api_quota is not None:
         from services.secret_service import KEY_NAMES
         valid_keys = set(KEY_NAMES)
@@ -557,6 +564,7 @@ def patch_org_settings(
         "sla_qualified_no_contact_days": org.sla_qualified_no_contact_days,
         "sla_responded_no_next_action_days": org.sla_responded_no_next_action_days,
         "sla_opened_no_response_days": org.sla_opened_no_response_days,
+        "qualification_threshold": org.qualification_threshold,
     }
 
 

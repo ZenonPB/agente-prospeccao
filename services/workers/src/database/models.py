@@ -165,6 +165,9 @@ class Organization(Base):
     sla_qualified_no_contact_days = Column(Integer, default=5, nullable=False, server_default="5")
     sla_responded_no_next_action_days = Column(Integer, default=2, nullable=False, server_default="2")
     sla_opened_no_response_days = Column(Integer, default=2, nullable=False, server_default="2")
+    # Limiar QUALIFICADO/DESQUALIFICADO aplicado em `_persist_scoring`.
+    # Calibrável por org via `PATCH /api/orgs/{id}` (sugestão via analytics).
+    qualification_threshold = Column(Integer, default=60, nullable=False, server_default="60")
     # Teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
     # default do settings (`PROVIDER_DAILY_QUOTA`). Ex.: {"GROQ_API_KEY": 500}.
     api_quota = Column(JSONB, default=dict)
