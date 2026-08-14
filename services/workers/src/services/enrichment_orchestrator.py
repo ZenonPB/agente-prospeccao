@@ -26,6 +26,7 @@ from database.models import (
 )
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
+from services import enrichment_ts
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,13 @@ async def process_single_lead(
             db=db,
             organization_id=str(lead.organization_id) if lead.organization_id else None,
         )
+
+    # Carimba quando cada fonte de análise foi atualizada (site/reviews).
+    # O TTL do LinkedIn é carimbado pelo ContactEnrichmentService.
+    if use_technical_report and enrichment is not None:
+        enrichment_ts.stamp(lead, "site")
+    if lead.google_rating is not None or lead.google_rating_count is not None:
+        enrichment_ts.stamp(lead, "reviews")
 
     _persist_scoring(lead, scoring_data, enrichment)
 

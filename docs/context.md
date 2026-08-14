@@ -976,6 +976,21 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    - UI: link "Empresa no LinkedIn" em "Informações do Lead" e no card de
 >      Identidade do Pitch One-Pager.
 >    - Testes `tests/test_linkedin_company.py` (5) — suíte em **204 passed**.
+>
+> 23. **Sessão 2026-08-14 — 4.25 estado do enriquecimento + TTL**
+>    (`feat/enrichment-ttl`):
+>    - Migration `e6f7a8b9c0d1` — `leads.enrichment_timestamps` (JSONB por
+>      fonte: linkedin/site/reviews). Aplicada no Postgres local.
+>    - `services/enrichment_ts.py` (fonte única, workers): `TTL_HOURS`
+>      (LinkedIn 30d · site 7d · reviews 24h), `read/get/stamp`, `is_fresh` e
+>      `freshness_snapshot`.
+>    - Gate real de idempotência: contato/empresa LinkedIn não re-busca dentro
+>      de 30d (TTL); orquestrador carimba `site` (pós análise técnica) e
+>      `reviews` (quando há rating).
+>    - API: `enrichment_freshness` (fresh/stale/never) no detalhe do lead;
+>      UI: aviso "Dados antigos" (LinkedIn/análise do site/avaliações) em
+>      "Informações do Lead".
+>    - Testes `tests/test_enrichment_ttl.py` (5) — suíte em **209 passed**.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

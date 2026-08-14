@@ -479,6 +479,9 @@ class Lead(Base):
     # Página da empresa no LinkedIn (linkedin.com/company/<slug>), localizada
     # por busca passiva durante o enriquecimento.
     company_linkedin_url = Column(String(255))
+    # Timestamps por fonte do enriquecimento (JSONB {"linkedin", "site",
+    # "reviews"} em ISO) — alimenta o TTL e a indicação de dados antigos.
+    enrichment_timestamps = Column(JSONB)
     # Campos de trabalho do consultor.
     notes = Column(Text)
     next_action_at = Column(DateTime(timezone=True))
