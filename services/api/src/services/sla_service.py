@@ -1,4 +1,4 @@
-"""Serviço de SLA e lembretes para leads parados (roadmap-vendas 4.10).
+"""Serviço de SLA e lembretes para leads parados.
 
 Regras configuráveis por organização (`Organization.sla_*_days`) que
 alimentam o painel "Ações de hoje" e os alertas do kanban:

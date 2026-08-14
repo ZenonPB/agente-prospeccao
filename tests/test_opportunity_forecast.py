@@ -1,4 +1,4 @@
-"""Testes do módulo de forecast e oportunidade (roadmap-vendas 4.8)."""
+"""Testes do módulo de forecast e oportunidade."""
 from src.db.models import LostReason, LeadStatus
 from src.services.analytics_service import STAGE_WIN_RATES
 

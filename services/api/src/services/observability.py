@@ -1,4 +1,4 @@
-"""Logs estruturados de eventos de negócio (roadmap-vendas 4.15).
+"""Logs estruturados de eventos de negócio.
 
 Os eventos de cadência/abertura/opt-out são emitidos aqui num formato estável
 `event=<name> key=value ...` em uma linha única, permitindo grep e ingestão em

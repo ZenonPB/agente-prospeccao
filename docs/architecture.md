@@ -118,6 +118,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | GET/PUT/DELETE | `/orgs/{org_id}/secrets/{key_name}` | BYOK (org admin) — só expõe `configured` |
 | GET/PUT | `/orgs/{org_id}/sales-targets` · `DELETE /orgs/{org_id}/sales-targets/{id}` | Metas mensais por consultor (4.9): listar (MANAGER+), upsert/remover (owner/admin) |
 | PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end`, `sla_*` (prazos SLA p/ alerts — 4.10) |
+| GET | `/orgs/{org_id}/audit-log` | Auditoria de eventos administrativos (3.3.4): convites, papéis, membros, secrets, metas — MANAGER/owner/admin, filtro por `event` |
 
 ### Campanhas
 | Método | Rota | Descrição |
@@ -240,6 +241,9 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
 - **messages / analysis_profiles** — registros de envio e perfis de análise.
 - **sales_targets** — metas mensais por consultor (4.9): `month` "YYYY-MM",
   `meetings_target`, `revenue_target`; unique `(organization_id, user_id, month)`.
+- **org_audit_log** (3.3.4) — trilha de eventos administrativos da org
+  (convites, papéis, membros, secrets, metas) com actor denormalizado;
+  `event` enum `org_audit_event`; nunca grava valor de secret.
 
 ## Scheduler & Tarefas Assíncronas
 

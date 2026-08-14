@@ -42,4 +42,6 @@ from database.models import (
     PostSaleChannel,
     LostReason,
     SalesTarget,
+    OrgAuditLog,
+    OrgAuditEvent,
 )

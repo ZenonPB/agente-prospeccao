@@ -1,4 +1,4 @@
-"""Testes das funções puras do importador de CSV (item 2.1/4.3).
+"""Testes das funções puras do importador de CSV.
 
 Não tocam o banco — cobrem sanitização, place_id determinístico e mapeamento
 de cabeçalhos.
@@ -51,7 +51,7 @@ def test_normalize_import_website_mantem_site_proprio():
 
 def test_normalize_import_website_anula_sem_site_proprio():
     # Ferramenta (Canva/WhatsApp), rede social e marketplace = "sem site próprio"
-    # (roadmap-leads S3 no caminho CSV) — o lead não deve ser tratado como "tem site".
+    # (caminho CSV) — o lead não deve ser tratado como "tem site".
     assert normalize_import_website("canva.link/artigo") is None
     assert normalize_import_website("https://api.whatsapp.com/send?phone=55") is None
     assert normalize_import_website("https://www.instagram.com/loja") is None

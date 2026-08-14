@@ -1,4 +1,4 @@
-"""Testes do utilitário de normalização de domínio (item 4.3)."""
+"""Testes do utilitário de normalização de domínio."""
 from services.domain_utils import is_social_domain, normalize_domain
 
 

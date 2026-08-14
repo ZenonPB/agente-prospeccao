@@ -38,7 +38,7 @@ from database.models import Contact, ContactRole, Lead, LeadStatus  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-# Validação de sintaxe de e-mail (item 3.6) — simples e sem dependência nova.
+# Validação de sintaxe de e-mail — simples e sem dependência nova.
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 
 
@@ -56,7 +56,7 @@ _SENSITIVE_RAW_KEYS = (
 
 def _sanitize_raw(raw: Any) -> Optional[Dict[str, Any]]:
     """Remove campos pessoais sensíveis do payload cru antes de persistir
-    (item 4.7 — minimização de dados: CPF/faixa etária não são necessários para
+    (minimização de dados: CPF/faixa etária não são necessários para
     o fluxo de vendas)."""
     if not isinstance(raw, dict):
         return raw
@@ -69,7 +69,7 @@ GENERIC_EMAIL_PREFIXES = ("contato", "comercial", "info", "contato@", "sac",
 HUNTER_SEARCH_URL = "https://api.hunter.io/v2/domain-search"
 HUNTER_FINDER_URL = "https://api.hunter.io/v2/email-finder"
 
-# Item 4.7 — mais fontes de contato além da Receita:
+# Mais fontes de contato além da Receita:
 # - `_EMAIL_FIND_RE`: extração de e-mails em texto livre (sem âncoras), com
 #   de-ofuscação de padrões comuns (' [at] ', '(dot)', entidades HTML).
 # - `_PHONE_FIND_RE`: telefones BR públicos (com DDD) nas páginas de contato.
@@ -219,7 +219,7 @@ class ContactEnrichmentService:
         self.hunter_key: Optional[str] = getattr(settings, "HUNTER_API_KEY", None) or None
         self._http_cache: Dict[str, Optional[str]] = {}
         self._linkedin_validated: Dict[str, bool] = {}
-        # Item 4.7 — cache das páginas do site (home + contato) p/ não refetch
+        # Cache das páginas do site (home + contato) p/ não refetch
         # na mesma rodada (até 3 paths por lead por enriquecimento).
         self._site_cache: Dict[str, Optional[str]] = {}
 
@@ -261,7 +261,7 @@ class ContactEnrichmentService:
 
         results: List[Dict[str, Any]] = []
         async with self._create_client() as client:
-            # Item 4.7 — e-mails/telefones públicos do site (página de contato)
+            # E-mails/telefones públicos do site (página de contato)
             # são buscados UMA vez por lead e reaproveitados por todos os
             # contatos (evita N requisições por decisor).
             site_emails: List[str] = []
@@ -342,7 +342,7 @@ class ContactEnrichmentService:
             db.add(generic)
             contacts.append(generic)
 
-        # Item 4.7 — e-mail/telefone cadastral da empresa (Receita) como fonte
+        # E-mail/telefone cadastral da empresa (Receita) como fonte
         # extra de contato. Ficam em `raw_data`/`phone` para o `_enrich_email`
         # consumir na precedência (site → busca → CNPJ) e auditoria.
         if contacts and company_email:
@@ -358,12 +358,12 @@ class ContactEnrichmentService:
         return contacts
 
     # ------------------------------------------------------------------ #
-    # E-mail: Hunter → site (contato) → busca → CNPJ → heurística (item 4.7)
+    # E-mail: Hunter → site (contato) → busca → CNPJ → heurística
     # ------------------------------------------------------------------ #
     async def _emails_from_site(
         self, client: httpx.AsyncClient, lead: Lead,
     ) -> Tuple[List[str], List[str]]:
-        """E-mails/telefones publicados no site (página de contato) — item 4.7.
+        """E-mails/telefones publicados no site (página de contato).
 
         GET passivo da home + caminhos comuns de contato (`/contato`,
         `/fale-conosco`, `/contact`); extrai `mailto:`/e-mails e telefones em
@@ -406,7 +406,7 @@ class ContactEnrichmentService:
     async def _mail_to_company(
         self, client: httpx.AsyncClient, contact: Contact, lead: Lead,
     ) -> Tuple[Optional[str], int, str]:
-        """Busca passiva por '<nome> ''<empresa>' email em buscador (item 4.7).
+        """Busca passiva por '<nome> ''<empresa>' email em buscador.
 
         Reusa a infraestrutura da busca de LinkedIn (DuckDuckGo HTML → Bing).
         Só roda quando o site não divulgou e-mail — limita requisições por rodada.
@@ -490,7 +490,7 @@ class ContactEnrichmentService:
             contact.email = heuristic_email
             if not contact.source or contact.source.startswith("cnpj"):
                 contact.source = f"{contact.source or 'cnpj_receita'}:heuristic"
-            # Item 3.6: e-mail adivinhado é marcado como não verificado — nunca
+            # E-mail adivinhado é marcado como não verificado — nunca
             # deve cruzar o gate de outreach automático (confidence >= 50).
             contact.raw_data = {
                 **(contact.raw_data or {}),
@@ -512,7 +512,7 @@ class ContactEnrichmentService:
     async def _verify_email(
         self, client: httpx.AsyncClient, contact: Contact,
     ) -> None:
-        """Verifica a entregabilidade passiva do e-mail (roadmap 4.1).
+        """Verifica a entregabilidade passiva do e-mail.
 
         - E-mail **heurístico** (adivinhado) NUNCA é marcado verificado: mesmo
           que o domínio tenha MX, o padrão `nome.sobrenome@dominio` não foi
@@ -718,7 +718,7 @@ class ContactEnrichmentService:
     def _recalc_confidence(self, contact: Contact) -> int:
         """Confiança agregada: base do contato + bônus de canais confirmados.
 
-        Item 3.6 (auditoria): e-mail heurístico (adivinhado, `email_source ==
+        E-mail heurístico (adivinhado, `email_source ==
         "heuristic"`) NUNCA deixa a confiança cruzar o gate de outreach
         automático (>= 50) — o agregado é limitado a 40 para o humano decidir.
         """

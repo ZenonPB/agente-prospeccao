@@ -1,7 +1,7 @@
 """CampaignBriefService — interpreta um brief em linguagem natural e devolve
 os campos estruturados para criar uma campanha de prospecção.
 
-Item 1.4: o usuário descreve o que quer prospectar em PT-BR ("quero vender
+O usuário descreve o que quer prospectar em PT-BR ("quero vender
 landing pages para clínicas de psicologia em Araraquara") e a IA devolve o
 campo a campo:
 

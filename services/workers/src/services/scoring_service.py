@@ -483,7 +483,7 @@ def extract_business_facts(
         facts.append(f"Website URL: {website}")
     if segment_hint:
         facts.append(f"Segmento declarado na campanha: {segment_hint}")
-    # Reputação no Google (roadmap-vendas 4.6) — dor observável: negócio
+    # Reputação no Google — dor observável: negócio
     # mal avaliado = oportunidade (interpretação do template decide o sinal).
     if google_rating is not None:
         count = f" com {int(google_rating_count)} avaliações" if google_rating_count else ""
@@ -539,7 +539,7 @@ class AIScoringService:
         if not isinstance(evidence, list):
             evidence = []
 
-        # Item 4.6 (auditoria): evidência com origem "inferência LLM" não é
+        # Evidência com origem "inferência LLM" não é
         # fact — não deve chegar ao outreach como "facto" (risco de citar
         # alucinação em e-mail frio). Mantém apenas o que é fundamentado em
         # relatório técnico, dados cadastrais ou contexto da campanha.
@@ -722,7 +722,7 @@ class AIScoringService:
             technical_facts=[],
             business_facts=business_facts,
         )
-        # Guard determinístico de presença de site (item 4.2): sem site → remove
+        # Guard determinístico de presença de site: sem site → remove
         # evidências que afirmem que o lead TEM site.
         return await self._call_groq(
             prompt, has_website=bool(website), db=db,

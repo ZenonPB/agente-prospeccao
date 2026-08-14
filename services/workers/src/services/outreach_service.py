@@ -298,7 +298,7 @@ class OutreachService:
               company_record (dict), contacts[] (com primary em [0]), email.
             context_service / context_segment: contexto da campanha.
             playbook: dict opcional com hooks/subject_ideas/objections por
-              vertical (item 3.8) — injetado no prompt para mensagens
+              vertical — injetado no prompt para mensagens
               variarem conforme o serviço/segmento.
 
         Returns:

@@ -1,8 +1,8 @@
-"""Testes do seed do template de Aplicações Web / ERP (C5 do roadmap-vendas).
+"""Testes do seed do template de Aplicações Web / ERP.
 
 C5: para vender aplicações web completas / sistemas ERP, o perfil de análise é o
 mesmo `web_presence` — o que muda são os critérios (sinais) do template. A
-decisão registrada no roadmap foi **criar template de categoria** (seed) em vez
+decisão registrada foi **criar template de categoria** (seed) em vez
 de um terceiro perfil. Estes testes garantem que o seed carrega a estrutura
 certa sem depender de banco.
 """

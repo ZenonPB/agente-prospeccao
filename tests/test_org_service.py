@@ -1,4 +1,4 @@
-"""Testes do onboarding multi-org (roadmap-vendas 3.3.1).
+"""Testes do onboarding multi-org.
 
 Cobrem a lógica pura de criação de organização: slugificação do nome e a
 criação de org manual com o usuário como OWNER (sales_role MANAGER).

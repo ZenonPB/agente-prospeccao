@@ -1,4 +1,4 @@
-"""Testes do módulo pós-venda (roadmap-leads C.3).
+"""Testes do módulo pós-venda.
 
 Cobrem a lógica de dados do pós-venda: o canal (WHATSAPP/EMAIL) e a etapa
 `POST_SALE` da cadência reutilizada como lembrete pós-cliente pelo mesmo motor

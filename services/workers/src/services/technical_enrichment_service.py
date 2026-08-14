@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class TechnicalEnrichmentService:
     def __init__(self):
-        # Item 4.8 (auditoria): NÃO sondar caminhos de segredos (.env, .git,
+        # NÃO sondar caminhos de segredos (.env, .git,
         # wp-config.php, /admin/...) — isso é varredura ativa e contradiz a
         # postura 100% passiva (Lei 12.737/2012). Mantemos apenas arquivos que
         # qualquer visitante público acessa (SEO standard).
@@ -303,7 +303,7 @@ class TechnicalEnrichmentService:
         """Verifica a existência de arquivos públicos de SEO (robots/sitemap).
 
         100% passivo — são os arquivos que qualquer visitante acessa. Não
-        sonda segredos/caminhos internos (item 4.8 / Lei 12.737/2012).
+        sonda segredos/caminhos internos (Lei 12.737/2012).
         """
         exposed_paths = []
         async with self._create_client() as client:
@@ -394,7 +394,7 @@ class TechnicalEnrichmentService:
             for issue in report["ux"].get("issues", []):
                 report["warnings"].append(f"UX/Conversão: {issue}")
 
-            # Checagem de arquivos públicos de SEO (robots/sitemap) — item 4.8:
+            # Checagem de arquivos públicos de SEO (robots/sitemap):
             # sem varredura de caminhos sensíveis (.env, .git, admin/).
             report["exposed_paths"] = await self._check_public_paths(website_url)
             if report["exposed_paths"]:

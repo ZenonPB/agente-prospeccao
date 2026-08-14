@@ -1,4 +1,4 @@
-"""Rastreamento de abertura e clique de e-mails (roadmap-vendas 4.2).
+"""Rastreamento de abertura e clique de e-mails.
 
 Rotas **públicas** (sem auth — o cliente de e-mail do destinatário as acessa):
 - `GET /t/{token}` — pixel 1×1 transparente; grava `Message.opened_at`.

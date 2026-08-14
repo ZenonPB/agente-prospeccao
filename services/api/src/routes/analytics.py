@@ -1,4 +1,4 @@
-"""Rotas de Analytics (BI) — Item 2.2 do roadmap.
+"""Rotas de Analytics (BI).
 
 Todos os endpoints são **ANALYST/MANAGER-only** (owner/admin passam) e
 **org-scoped**: o serviço filtra por `organization_id` da org do usuário.
@@ -6,7 +6,7 @@ Consultor (CONSULTOR) recebe 403 — não acessa relatórios.
 
 Endpoints:
 - `GET /api/analytics/overview`      — KPIs, funil, conversão, resposta, score
-- `GET /api/analytics/funnel`        — funil ponta-a-ponta (4.11, pedido da diretoria)
+- `GET /api/analytics/funnel`        — funil ponta-a-ponta
 - `GET /api/analytics/consultants`   — desempenho por consultor
 - `GET /api/analytics/leads-ranking` — top leads (score/conversão/criação)
 - `GET /api/analytics/geo`           — agregação por cidade/UF (heatmap/mapa)
@@ -56,7 +56,7 @@ def funnel(
     consultant_id: Optional[str] = Query(None),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    """Funil ponta-a-ponta (item 4.11) — achados → fechamento.
+    """Funil ponta-a-ponta — achados → fechamento.
 
     Aceita filtros opcionais de campanha e consultor além do período.
     """

@@ -11,7 +11,7 @@ from scripts.fix_generated_web_templates import _has_presence_positive
 
 
 def test_detecta_presenca_online_como_positivo():
-    # Assinatura do template corrompido do roadmap: presença online = positivo.
+    # Assinatura do template corrompido: presença online = positivo.
     tmpl = SimpleNamespace(positive_signals=[
         {"label": "Presença Online", "description": "Clínica com site próprio ou perfil em redes sociais"},
     ])

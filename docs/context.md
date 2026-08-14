@@ -895,6 +895,32 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    - Verificação: `npm run lint`, `npx tsc --noEmit` e `npm run build` limpos.
 >    - Pendente (próximo ciclo): bottom-nav opcional, DnD em touchscreen,
 >      validação em device real.
+> 16. **Sessão 2026-08-14 — auditoria de membros e acessos (3.3.4)
+>    (`feat/org-audit-backend`, backend only):**
+>    - Tabela `org_audit_log` + enum `OrgAuditEvent` (14 eventos) — migration
+>      `bff05fb7eb01` aplicada.
+>    - `org_audit_service`: `log_org_event` (actor denormalizado) +
+>      `list_org_audit`; nunca grava valor de secret (só `key_name`).
+>    - Instrumentado em `orgs.py` (create/rename/settings, sales_role,
+>      remove/leave/transfer-owner, secrets, sales-targets) e `invites.py`.
+>    - `GET /orgs/{org_id}/audit-log` — MANAGER/owner/admin, filtro por evento.
+>    - Testes `tests/test_org_audit.py` (7) — suíte em **188 passed**.
+>    - Pendente: UI da tabela de auditoria em `/configuracoes/membros` (PR
+>      futuro), limpeza de comentários/docstrings com etiquetas de roadmap.
+>
+> 17. **Sessão 2026-08-14 — templates de e-mail com identidade AlphaMec**
+>    (`feat/org-audit-backend`, backend only):
+>    - Novo `services/api/src/services/email_templates.py` — shell HTML padrão
+>      da indústria (tabelas 600px, preheader, CSS inline + dark mode via
+>      `prefers-color-scheme`/`[data-ogsc]`, botão CTA com fallback MSO/Outlook,
+>      typo system-stack) com a paleta vinho `#910001/#4c0000`, marca do radar.
+>    - **Cadência/outreach** (`_build_html_tracked`) agora usa template discreto
+>      com assinatura do remetente — antes era `<p>` sem marca.
+>    - **Reset de senha** ganhou HTML transacional com CTA.
+>    - **Convite** passou a ser **enviado de fato** (`POST /orgs/{org_id}/invites`
+>      chama `send_invite_email` com link `{APP_BASE_URL}/aceitar-convite`) —
+>      antes o docstring dizia que enviava, mas nenhum e-mail saía.
+>    - Testes `tests/test_email_templates.py` (5) — suíte em **193 passed**.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

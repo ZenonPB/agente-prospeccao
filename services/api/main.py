@@ -40,7 +40,7 @@ async def _cadence_scheduler_loop():
             db = SessionLocal()
             try:
                 from src.services.cadence_service import run_due
-                # SMTP é síncrono — roda fora do event loop (item 5.3).
+                # SMTP é síncrono — roda fora do event loop.
                 sent, deferred = await asyncio.to_thread(run_due, db)
                 if sent or deferred:
                     logger.info(

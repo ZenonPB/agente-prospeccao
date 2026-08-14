@@ -1,4 +1,4 @@
-"""Testes do medidor de cotas por provedor/org (roadmap-vendas 4.14)."""
+"""Testes do medidor de cotas por provedor/org."""
 from datetime import datetime, timezone
 
 from database.models import Organization, ProviderUsage

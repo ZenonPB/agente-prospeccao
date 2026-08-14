@@ -1,4 +1,4 @@
-"""Testes do roadmap-vendas 4.6 — reputação do Google como sinal de scoring.
+"""Testes do uso da reputação do Google como sinal de scoring.
 
 Cobrem a extração (places `_parse_lead`) e a montagem do fact de reputação no
 `scoring_service.extract_business_facts`. Sem rede — funções puras.

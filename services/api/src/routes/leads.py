@@ -27,7 +27,7 @@ from src.services.pitch_service import build_pitch_one_pager, build_site_audit  
 router = APIRouter(prefix="/leads", tags=["leads"])
 
 # Status em que faz sentido registrar o funil interno de negociação
-# (RD/ORÇAMENTO/RP) — a fase comercial entre responder e fechar (C.3).
+# (RD/ORÇAMENTO/RP) — a fase comercial entre responder e fechar.
 NEGOTIATION_STATUSES = {
     LeadStatus.RESPONDIDO,
     LeadStatus.REUNIAO_MARCADA,
@@ -42,7 +42,7 @@ class UpdateLeadStatusRequest(BaseModel):
 
 
 class UpdateLeadRequest(BaseModel):
-    """Campos de trabalho do consultor (item 4.4 da auditoria + 4.8 forecast)."""
+    """Campos de trabalho do consultor + forecast (valor/previsão)."""
     notes: Optional[str] = None
     whatsapp: Optional[str] = None
     next_action_at: Optional[str] = None  # ISO datetime (tz-aware) ou null
@@ -202,7 +202,7 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
 
 
 def _can_access_lead(member: OrganizationMember, lead: Lead) -> bool:
-    """True se o membro pode ver/editar o lead (regra 2.1.3).
+    """True se o membro pode ver/editar o lead (escopo do consultor).
 
     - ANALYST/MANAGER: acesso total.
     - CONSULTOR: apenas o próprio funil ou leads não atribuídos.
@@ -321,7 +321,7 @@ def list_sla_alerts(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Alertas de SLA / leads parados (roadmap-vendas 4.10).
+    """Alertas de SLA / leads parados.
 
     Regras configuráveis por org: QUALIFICADO sem contato há N dias,
     RESPONDIDO sem próximo passo há N dias e lead que abriu mas não
@@ -359,7 +359,7 @@ def update_lead_status(
         status_from=previous,
         detail=f"{previous.value if previous else '?'} → {body.status.value}",
     )
-    # Item 3.6: grava também a action comercial correspondente (ex.: REUNIAO_MARCADA
+    # Grava também a action comercial correspondente (ex.: REUNIAO_MARCADA
     # -> MEETING_SCHEDULED, PROPOSTA_ENVIADA -> PROPOSAL_SENT, PERDIDO -> LOST).
     semantic = semantic_action_for(body.status)
     if semantic:
@@ -440,7 +440,7 @@ def update_lead(
     user: User = Depends(get_current_user),
 ):
     """Atualiza campos de trabalho do consultor: notas, WhatsApp, próxima ação,
-    último contato (item 4.4). Requer acesso ao lead (regra 2.1.3)."""
+    último contato. Requer acesso ao lead (escopo do consultor)."""
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
         Lead.organization_id == _org.id,
@@ -488,7 +488,7 @@ def assign_lead(
     - `assigned_to_id` deve ser um usuário da mesma org (valida).
     - `null` desatribui o lead.
     - Registra ASSIGNED/UNASSIGNED na trilha.
-    - CONSULTOR pode se auto-atribuir um lead não atribuído (regra 2.1.3);
+    - CONSULTOR pode se auto-atribuir um lead não atribuído;
       não pode mexer em lead de outro consultor.
     """
     lead = db.query(Lead).filter(
@@ -718,7 +718,7 @@ def get_linkedin_queries(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Consultas sugeridas para achar o decisor no LinkedIn (item 4.22).
+    """Consultas sugeridas para achar o decisor no LinkedIn.
 
     Gera `"<empresa>" <papel> linkedin` a partir do nome da empresa (padrão
     ou `playbook.linkedin_queries` do template da campanha) e devolve um
@@ -766,7 +766,7 @@ async def associate_contact_linkedin(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Associa manualmente um perfil LinkedIn a um decisor (item 4.22).
+    """Associa manualmente um perfil LinkedIn a um decisor.
 
     Valida o formato da URL e a existência passiva no índice de busca; grava
     `linkedin_source="manual:<user_id>"` com confidence 90 (validado) ou 60
@@ -821,7 +821,7 @@ class RegisterConversionRequest(BaseModel):
 
 
 class UpdateNegotiationRequest(BaseModel):
-    """Funil interno de negociação (roadmap-leads C.3 — largar a planilha).
+    """Funil interno de negociação (RD/ORÇAMENTO/RP).
 
     `negotiation_stage`: RD | ORÇAMENTO | RP (progride da demonstração à
     proposta); `contract_outcome`: APROVADO | REPROVADO | EM_ANALISE. `null`
@@ -832,7 +832,7 @@ class UpdateNegotiationRequest(BaseModel):
 
 
 class RegisterPostSaleRequest(BaseModel):
-    """Pós-venda (roadmap-leads C.3): canal do 1º contato pós-cliente e lembrete.
+    """Pós-venda: canal do 1º contato pós-cliente e lembrete.
 
     `channel` é o canal do contato (WhatsApp/E-mail). `subject`/`content`, se
     informados, criam um lembrete de acompanhamento pós-cliente que roda pelo
@@ -855,7 +855,7 @@ def register_conversion(
 ):
     """Registra a conversão (venda fechada) de um lead.
 
-    Item 3.6.1: cria um registro em `conversions` (base do dashboard
+    Cria um registro em `conversions` (base do dashboard
     "taxa de acerto do score" e das métricas de receita) e grava a action
     `CONVERTED` na trilha do lead. `time_to_close_days` é derivado de
     `created_at` do lead.
@@ -889,7 +889,7 @@ def register_conversion(
     )
     db.add(conversion)
 
-    # Contrato fechado ⇒ resultado final APROVADO (roadmap-leads C.3).
+    # Contrato fechado ⇒ resultado final APROVADO.
     lead.contract_outcome = ContractOutcome.APROVADO
     lead.outcome_date = conversion.converted_at or datetime.now(timezone.utc)
 
@@ -925,7 +925,7 @@ def update_negotiation(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Registra o funil interno de negociação (roadmap-leads C.3).
+    """Registra o funil interno de negociação.
 
     Só faz sentido quando o lead está na fase comercial (RESPONDIDO em diante
     até PROPOSTA_ENVIADA). `negotiation_stage` e `contract_outcome` podem ser
@@ -987,7 +987,7 @@ def register_post_sale(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Registra o 1º contato de pós-venda (roadmap-leads C.3).
+    """Registra o 1º contato de pós-venda.
 
     Só faz sentido para leads já convertidos (há `Conversion`). Grava a data e o
     canal, registra a action `POST_SALE` na trilha e agenda um lembrete de
@@ -1097,7 +1097,7 @@ def get_lead_cadence(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Lista as etapas da cadência (dia 0/3/7/14) de um lead (item 3.7)."""
+    """Lista as etapas da cadência (dia 0/3/7/14) de um lead."""
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
         Lead.organization_id == _org.id,
@@ -1131,7 +1131,7 @@ async def start_lead_cadence(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Gera e agenda a cadência (dia 0/3/7/14) de um lead (item 3.7).
+    """Gera e agenda a cadência (dia 0/3/7/14) de um lead.
 
     Gera a sequência via OutreachService (com playbook da vertical) e cria as
     etapas em `follow_ups`. Envio efetivo depende do modo da org: humano
@@ -1189,10 +1189,10 @@ async def start_lead_cadence(
         user_id=str(_user.id) if _user else None,
     )
 
-    # Item 3.7: NENHUM envio automático aqui. O scheduler (`run_due`) envia
+    # NENHUM envio automático aqui. O scheduler (`run_due`) envia
     # cada etapa quando `scheduled_at` vence (dia 0/3/7/14) apenas para orgs
     # com `auto_send_email`. Enviar o ciclo inteiro de uma vez queimava a
-    # entregabilidade (bug fix/go-live 2.3).
+    # entregabilidade.
 
     consume_quota(db, str(_org.id), "GROQ_API_KEY")
     return {
@@ -1212,7 +1212,7 @@ def send_cadence_step(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Envia manualmente uma etapa da cadência (humano-no-loop, item 3.7).
+    """Envia manualmente uma etapa da cadência (humano-no-loop).
 
     O consultor envia pela UI (abertura/follow-up 1/2/encerramento) quando
     estiver pronto. O envio automático só ocorre se a org opt-in.
@@ -1292,7 +1292,7 @@ def record_whatsapp_click(
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Registra acionamento do WhatsApp e retorna link wa.me formatado (Item 4.5)."""
+    """Registra acionamento do WhatsApp e retorna link wa.me formatado."""
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
         Lead.organization_id == _org.id,

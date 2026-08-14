@@ -1,4 +1,4 @@
-"""Testes de gestão de membros (roadmap-vendas 3.3.3).
+"""Testes de gestão de membros.
 
 Testa a desatribuição automática de leads quando um membro é removido ou sai
 da organização, além das validações de ownership.

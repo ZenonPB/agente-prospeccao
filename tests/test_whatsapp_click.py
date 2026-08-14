@@ -1,4 +1,4 @@
-"""Testes do fluxo WhatsApp de 1 clique + registro na trilha (Item 4.5)."""
+"""Testes do fluxo WhatsApp de 1 clique + registro na trilha."""
 from src.db.models import LeadActivityAction
 from src.routes.leads import _format_whatsapp_url
 

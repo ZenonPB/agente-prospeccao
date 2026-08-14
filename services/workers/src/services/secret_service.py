@@ -1,4 +1,4 @@
-"""SecretService — chaves de API por organização (BYOK, item 3.5).
+"""SecretService — chaves de API por organização (BYOK).
 
 Responsabilidades:
 - Criptografar/descriptografar valores de `organization_secrets` em repouso

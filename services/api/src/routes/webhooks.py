@@ -1,4 +1,4 @@
-"""Webhooks públicos — inbound de e-mail (item 3.3).
+"""Webhooks públicos — inbound de e-mail.
 
 A rota não exige autenticação do usuário (o provedor de inbound chama via
 HTTP), mas valida um segredo compartilhado em `X-Webhook-Secret`

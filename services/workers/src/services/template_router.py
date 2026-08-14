@@ -1,13 +1,13 @@
-"""Router de template de scoring contextual (Fase 1.2).
+"""Router de template de scoring contextual.
 
 Substitui o antigo `load_scoring_template` do enrichment_orchestrator (que
-foi removido como código morto — item 5.5 da auditoria): quando o match
+foi removido como código morto): quando o match
 exato (case-insensitive) falha — caso comum para verticais novas — decide
 entre:
 
 1. Um template existente por aproximação (token/contains overlap).
 2. Classificação por LLM entre os labels existentes.
-3. Sinal `GENERATE_NEW` (consumido pelo TemplateGenerationService, item 1.3)
+3. Sinal `GENERATE_NEW` (consumido pelo TemplateGenerationService)
    para criar critérios sob demanda — nada hardcoded.
 
 Modelo: Groq Llama 3.1 8B (classificação barata e rápida; não é geração de
@@ -270,7 +270,7 @@ async def route_scoring_template(
                 route, label = ROUTE_GENERIC, None
 
         if route == ROUTE_GENERATE_NEW:
-            # Item 1.3 consome este sinal para criar o template.
+            # TemplateGenerationService consome este sinal para criar o template.
             return {
                 "template": _serialize(generic) if generic else None,
                 "route": ROUTE_GENERATE_NEW,
@@ -296,7 +296,7 @@ async def get_playbook_for_campaign(
     explicit_template_id: Optional[str] = None,
     api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Resolve o template da campanha e retorna o playbook de outreach (item 3.8).
+    """Resolve o template da campanha e retorna o playbook de outreach.
 
     Reusa `route_scoring_template` (exact → fuzzy → LLM → genérico) para achar
     o template mais próximo e devolve seu `playbook` (hooks/subject_ideas/

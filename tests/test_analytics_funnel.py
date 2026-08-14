@@ -1,4 +1,4 @@
-"""Testes do funil ponta-a-ponta (roadmap-vendas 4.11).
+"""Testes do funil ponta-a-ponta.
 
 Cobertura unitária (sem banco): definição das etapas, conjuntos de status e a
 função pura `build_funnel_stages` (conversão entre etapas + participação).

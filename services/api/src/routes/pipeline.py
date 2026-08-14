@@ -55,7 +55,7 @@ async def start_pipeline(
     campanha usando o scoring contextual novo (útil para leads analizados
     pelo pipeline legado específico de web).
 
-    Rate-limited (item 4.5): 20/min por IP; `max_leads` limitado a 200.
+    Rate-limited: 20/min por IP; `max_leads` limitado a 200.
     """
     if not body.query and not body.campaign_id:
         raise HTTPException(

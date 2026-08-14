@@ -1,6 +1,6 @@
 """Rotas de convites — criar, listar, aceitar, revogar.
 
-Fase A4/A5: owner/admin convidam usuários para sua organização por e-mail.
+Owner/admin convidam usuários para sua organização por e-mail.
 O convite gera um token que o convidado usa para aceitar.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,6 +17,7 @@ from src.db.models import (
     Invite,
     OrganizationRole,
     SalesRole,
+    OrgAuditEvent,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -24,7 +25,10 @@ from src.auth.dependencies import (
     require_org_admin,
 )
 from src.auth.security import hash_password, create_access_token
+from src.config.settings import settings
 from src.services import invite_service
+from src.services.email_service import send_invite_email
+from src.services.org_audit_service import log_org_event
 
 router = APIRouter(tags=["invites"])
 
@@ -59,7 +63,7 @@ class AcceptInviteRequest(BaseModel):
 
 
 class AcceptRegisterRequest(BaseModel):
-    """Cadastro + aceite no mesmo fluxo (roadmap-vendas 3.3.2).
+    """Cadastro + aceite no mesmo fluxo.
 
     Para quem ainda não tem conta: cria o usuário com o e-mail do convite e já
     o adiciona à organização em um único passo.
@@ -119,8 +123,22 @@ def create_invite(
         role=body.role,
         sales_role=body.sales_role,
     )
+    log_org_event(
+        db, org.id, OrgAuditEvent.INVITE_CREATED, actor=actor,
+        target_type="invite", target_id=body.email.lower(),
+        detail=f"role={body.role.value} sales_role={body.sales_role.value}",
+    )
     db.commit()
     db.refresh(invite)
+
+    invited_by = db.query(User).filter(User.id == actor.user_id).first()
+    accept_link = f"{settings.APP_BASE_URL}/aceitar-convite?token={invite.token}"
+    send_invite_email(
+        to_email=invite.email,
+        org_name=org.name or "nova organização",
+        accept_link=accept_link,
+        invited_by_name=invited_by.name if invited_by else "",
+    )
     
     return _invite_dict(invite)
 
@@ -152,7 +170,11 @@ def accept_invite(
     o e-mail do usuário. Cria a membership na organização do convite.
     """
     member = invite_service.accept_invite(db, body.token, user)
-    
+    log_org_event(
+        db, member.organization_id, OrgAuditEvent.INVITE_ACCEPTED, actor=user,
+        target_type="invite", target_id=user.email,
+    )
+    db.commit()
     return {
         "message": "Convite aceito com sucesso",
         "organization": {
@@ -188,7 +210,11 @@ def revoke_invite(
         raise HTTPException(status_code=404, detail="Convite não encontrado")
     
     invite_service.revoke_invite(db, invite.id)
-    
+    log_org_event(
+        db, org.id, OrgAuditEvent.INVITE_REVOKED, actor=actor,
+        target_type="invite", target_id=invite.email,
+    )
+    db.commit()
     return {"message": "Convite revogado com sucesso"}
 
 
@@ -200,7 +226,7 @@ def check_invite(
     """Resolve um convite por token (público, sem auth) para a página de aceite.
 
     Informa o e-mail do convite, a organização e se já existe conta — o
-    frontend decide entre login ou cadastro no próprio aceite (3.3.2).
+    frontend decide entre login ou cadastro no próprio aceite.
     """
     invite = db.query(Invite).filter(Invite.token == token).first()
     if not invite:
@@ -226,7 +252,7 @@ def accept_register(
     body: AcceptRegisterRequest,
     db: Session = Depends(get_db),
 ):
-    """Cadastra o convidado + aceita o convite em um único passo (3.3.2).
+    """Cadastra o convidado + aceita o convite em um único passo.
 
     Válido apenas quando o e-mail do convite ainda não tem conta. Cria o
     usuário (sem workspace pessoal — ele cai direto na org do convite) e já
@@ -257,6 +283,11 @@ def accept_register(
     db.flush()
 
     member = invite_service.accept_invite(db, body.token, user)
+    log_org_event(
+        db, member.organization_id, OrgAuditEvent.INVITE_ACCEPTED, actor=user,
+        target_type="invite", target_id=user.email,
+    )
+    db.commit()
     token = create_access_token({"sub": str(user.id), "email": user.email})
 
     return {

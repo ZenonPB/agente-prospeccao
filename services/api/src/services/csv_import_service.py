@@ -60,11 +60,10 @@ def clean_url(url: Optional[str]) -> Optional[str]:
 def normalize_import_website(url: Optional[str]) -> Optional[str]:
     """Limpa a URL e a anula se apontar para rede social/ferramenta/marketplace.
 
-    roadmap-leads S3 (caminho CSV): site que aponta p/ rede social (Instagram),
-    ferramenta (Canva/WhatsApp) ou marketplace NÃO é site próprio. Anular mantém
-    o lead como "sem site" (score business em campanhas web) e evita
-    enriquecimento técnico errado (P3) — mesmo comportamento de
-    places_service.search_places (coleta).
+    Site que aponta p/ rede social (Instagram), ferramenta (Canva/WhatsApp) ou
+    marketplace NÃO é site próprio. Anular mantém o lead como "sem site" (score
+    business em campanhas web) e evita enriquecimento técnico errado — mesmo
+    comportamento de places_service.search_places (coleta).
     """
     website = clean_url(url)
     if is_social_domain(website):

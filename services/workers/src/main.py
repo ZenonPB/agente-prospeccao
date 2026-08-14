@@ -33,7 +33,7 @@ async def run_lead_collection(
 
     Usa o mesmo fluxo do `pipeline_worker` da API (dedupe por place_id,
     company_name+website e normalized_domain). `organization_id` é obrigatório
-    a partir da Fase A (multi-tenant).
+    (multi-tenant).
     """
     places_service = GooglePlacesService()
     db = SessionLocal()

@@ -1,4 +1,4 @@
-"""Testes do threading completo dos follow-ups (roadmap-vendas 4.4).
+"""Testes do threading completo dos follow-ups.
 
 Cobrem a lógica da montagem da cadeia `References` em `_thread_headers`
 com um `db` fake (sem banco): as etapas anteriores devem acumular todos os

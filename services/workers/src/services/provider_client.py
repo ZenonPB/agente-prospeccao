@@ -1,4 +1,4 @@
-"""Cliente compartilhado para provedores externos (item 5.1 da auditoria).
+"""Cliente compartilhado para provedores externos.
 
 Concentra num só módulo o que estava espalhado por ~12 serviços:
 
@@ -85,7 +85,7 @@ async def groq_json_chat(
     - Payload com `response_format: json_object`.
     - Loga erro com HTTP status (sem vazar o corpo inteiro).
     - Aplica backoff simples em 429/5xx (uma retentativa).
-    - Item 4.14 (cotas): se `db` + `organization_id` forem informados, verifica
+    - Cotas: se `db` + `organization_id` forem informados, verifica
       a cota diária ANTES de chamar (fail-closed: estourada → None) e contabiliza
       uma chamada após cada resposta 200.
     """
@@ -188,7 +188,7 @@ def _parse_json_content(content: Optional[str]) -> Optional[Dict[str, Any]]:
 def quota_ok(
     db, organization_id: Optional[str], key_name: str = "GROQ_API_KEY", n: int = 1,
 ) -> bool:
-    """Fail-closed: True se a org ainda tem cota diária para o provedor (4.14).
+    """Fail-closed: True se a org ainda tem cota diária para o provedor.
 
     Sem `db`/`organization_id` → sem medição (jobs legados/scripts manuais).
     """
@@ -201,7 +201,7 @@ def quota_ok(
 def consume_quota(
     db, organization_id: Optional[str], key_name: str = "GROQ_API_KEY", n: int = 1,
 ) -> None:
-    """Contabiliza `n` chamadas da org no provedor hoje (4.14)."""
+    """Contabiliza `n` chamadas da org no provedor hoje."""
     if db is None or organization_id is None:
         return
     from services.quota_service import QuotaService

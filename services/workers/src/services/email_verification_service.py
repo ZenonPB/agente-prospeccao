@@ -1,7 +1,7 @@
 """EmailVerificationService — verificação passiva de entregabilidade de e-mail.
 
-Item 4.1 do roadmap de vendas (Fase 0 — entregabilidade). Reduz bounce e
-protege a reputação do domínio antes de qualquer envio de cadência.
+Reduz bounce e protege a reputação do domínio antes de qualquer envio de
+cadência.
 
 O que é verificado (100% passivo — Lei 12.737/2012):
 1. **Sintaxe** — o endereço tem formato válido.
@@ -13,7 +13,7 @@ O que é verificado (100% passivo — Lei 12.737/2012):
 O que NÃO é verificado aqui (fora de escopo por exigir ação não-passiva):
 - **Catch-all**: detectar exigiria conversa SMTP (`RCPT TO` com um localpart
   aleatório) — isso é um probe no servidor alvo, fora da política do projeto.
-  Fica como item futuro do roadmap com decisão explícita de produto.
+  Fica como item futuro com decisão explícita de produto.
 - **Caixa individual**: só um SMTP handshake comprovaria a caixa; não passivo.
 
 Retorno sempre "fail-closed": qualquer incerteza (DNS indisponível, timeout)

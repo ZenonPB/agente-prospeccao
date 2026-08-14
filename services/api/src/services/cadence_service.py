@@ -1,4 +1,4 @@
-"""CadenceService — cadência de follow-up de um lead (item 3.7).
+"""CadenceService — cadência de follow-up de um lead.
 
 Sequência dia 0/3/7/14 (`FollowUpStep`), conforme `docs/business-rules.md`.
 O conteúdo das etapas é gerado pelo `OutreachService` (ou fornecido no
@@ -11,10 +11,10 @@ Envio:
   (`run_due`) envia quando `scheduled_at` vence, respeitando `opt_out`.
 - Leads com `opt_out` têm etapas pendentes marcadas `SKIPPED` e nunca
   recebem envio automático (do-not-contact).
-- Bounce (item 3.2): falha transitória (4xx/rede) re-tenta até
+- Bounce: falha transitória (4xx/rede) re-tenta até
   `MAX_ATTEMPTS`; bounce permanente (5xx) marca a etapa `CANCELLED` e
   suprime o endereço em `email_suppressions`.
-- Threading (item 4.1/4.4): cada follow-up referencia o `Message-ID` da etapa
+- Threading: cada follow-up referencia o `Message-ID` da etapa
   anterior e a **cadeia completa** de `Message-ID`s em `References`, para as
   respostas formarem conversa (o que os clients de e-mail exigem).
 
@@ -140,7 +140,7 @@ def send_step(
 
     lead = db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
     # Envio automático (scheduler, sem user_id) exige e-mail verificado — um
-    # e-mail heurístico (adivinhado, item 3.6) nunca vai sozinho.
+    # e-mail heurístico (adivinhado) nunca vai sozinho.
     require_verified = user_id is None
     to_email = _recipient_email(lead, require_verified=require_verified)
     if not to_email:
@@ -164,7 +164,7 @@ def send_step(
         db.commit()
         return False
 
-    # Remetente (item 4.3): por consultor → org → global. O consultor que
+    # Remetente: por consultor → org → global. O consultor que
     # "dono" do lead envia do próprio e-mail da org, preservando a reputação.
     org = None
     if lead and lead.organization_id:
@@ -315,7 +315,7 @@ def mark_opt_out(db: Session, lead: Lead) -> None:
 
 
 def _resolve_from_email(db: Session, lead: Optional[Lead], org: Optional[Organization]) -> Optional[str]:
-    """Resolve o remetente de um envio (item 4.3), em ordem de precedência:
+    """Resolve o remetente de um envio, em ordem de precedência:
 
     1. `OrganizationMember.email_from` do consultor que é dono do lead
        (remetente dedicado — preserva a reputação individual do vendedor);
@@ -400,7 +400,7 @@ def run_due(db: Session) -> Tuple[int, int]:
 
     Rodado periodicamente pelo scheduler (main.py). Respeita:
     - opt-out e `email_verified` (via `send_step`);
-    - **throttling (item 4.3)**: teto diário por org (`daily_email_limit`),
+    - **throttling**: teto diário por org (`daily_email_limit`),
       janela de espalhamento (`send_window_start/end`) e teto por hora;
     - etapas que não couberem no orçamento do dia/hora **permanecem PENDING**
       (são postergadas para a próxima poll — nunca marcadas como falha).
@@ -474,7 +474,7 @@ def _recipient_email(lead: Optional[Lead], require_verified: bool = False) -> Op
     for c in lead.contacts or []:
         if not c.email:
             continue
-        # Roadmap 4.1: envio automático (scheduler) exige e-mail com
+        # Envio automático (scheduler) exige e-mail com
         # entregabilidade passiva confirmada (`email_verified`). E-mail
         # heurístico/não verificado só sai por ação humana explícita.
         if require_verified and not getattr(c, "email_verified", False):

@@ -1,4 +1,4 @@
-"""QuotaService — medidor de cotas diárias por provedor/org (item 4.14).
+"""QuotaService — medidor de cotas diárias por provedor/org.
 
 Contabiliza o uso de Google Places e Groq por organização e por dia, contra
 um limite configurável:
@@ -7,7 +7,7 @@ um limite configurável:
 
 O gate é fail-closed: quando `remaining(key) <= 0`, o provider NÃO chama e o
 caller trata como falha/fallback — no scoring isso mantém o lead NOVO para
-reprocesso (item 4.10/C2), no Places avisa "cota esgotada".
+reprocesso, no Places avisa "cota esgotada".
 """
 import logging
 from datetime import datetime, timezone

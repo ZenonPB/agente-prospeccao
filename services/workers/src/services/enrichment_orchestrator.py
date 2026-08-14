@@ -47,7 +47,7 @@ async def process_single_lead(
       O orchestrator caller é responsável por carregá-lo uma vez por campanha
       e repassar ao batch.
     - allow_business_fallback: mantido para compatibilidade de assinatura —
-      hoje o scoring business roda sempre para lead sem site (item 4.2).
+      hoje o scoring business roda sempre para lead sem site.
     """
     enrichment: Optional[Enrichment] = None
     scoring_data: Optional[Dict[str, Any]] = None
@@ -105,13 +105,13 @@ async def process_single_lead(
     else:
         # Perfil business_opportunity (ou template alinhou para skipar técnico).
         #
-        # Item 4.2 (auditoria): lead sem site em campanha WEB_PRESENCE NÃO é
+        # Lead sem site em campanha WEB_PRESENCE NÃO é
         # desqualificado sem score — para quem vende sites, empresa sem site é
         # público-alvo. Faz scoring business (categoria/cidade/estado + sinais
         # do template). O LLM decide o fito.
         if not lead.website and analysis_profile == AnalysisProfile.WEB_PRESENCE:
             logger.info(
-                "Lead '%s' sem website (web_presence) — scoring business (item 4.2).",
+                "Lead '%s' sem website (web_presence) — scoring business.",
                 lead.company_name,
             )
 

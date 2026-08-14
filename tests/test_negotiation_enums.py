@@ -1,4 +1,4 @@
-"""Testes do funil de negociação (roadmap-leads C.3).
+"""Testes do funil de negociação.
 
 Validam os enums e a regra conservada: o funil interno (RD/ORÇAMENTO/RP) e o
 resultado do contrato (APROVADO/REPROVADO/EM_ANÁLISE) — que espelham a planilha

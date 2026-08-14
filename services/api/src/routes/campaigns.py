@@ -61,7 +61,7 @@ class SuggestSegmentRequest(BaseModel):
 
 class PatchCampaignRequest(BaseModel):
     """Atualização parcial de campanha — usado para vincular o template de
-    scoring escolhido no wizard (item 1.5.3) e ajustar os alvos."""
+    scoring escolhido no wizard e ajustar os alvos."""
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     target_service: Optional[str] = Field(None, max_length=255)
     target_segment: Optional[str] = Field(None, max_length=100)
@@ -91,7 +91,7 @@ def list_campaigns(
     total = query.count()
     campaigns = query.order_by(Campaign.created_at.desc()).offset(offset).limit(limit).all()
 
-    # N+1 fix (item 5.4): agrega lead_count + avg_score de todos os leads das
+    # N+1: agrega lead_count + avg_score de todos os leads das
     # campanhas da página numa única query GROUP BY.
     campaign_ids = [c.id for c in campaigns]
     stats = {}
@@ -219,7 +219,7 @@ async def create_campaign_from_brief(
 ):
     """Interpreta um brief em linguagem natural e devolve a campanha sugerida.
 
-    Item 1.4: o usuário descreve o que quer prospectar ("quero vender landing
+    O usuário descreve o que quer prospectar ("quero vender landing
     pages para clínicas de psicologia em Araraquara") e a IA devolve os campos
     estruturados (name, target_service, target_segment, target_city,
     target_state, analysis_profile, places_query) + rationale.
@@ -321,7 +321,7 @@ def patch_campaign(
     """Atualiza parcialmente uma campanha da org do usuário.
 
     `scoring_template_id` vincula o template de critérios escolhido no wizard
-    (item 1.5.3) — o pipeline passa a usar o template explícito em vez de
+    — o pipeline passa a usar o template explícito em vez de
     rotear. Valida que o template pertence à org ou é global.
     """
     campaign = db.query(Campaign).filter(
@@ -355,7 +355,7 @@ def patch_campaign(
     if "analysis_profile" in updates:
         campaign.analysis_profile = updates["analysis_profile"]
 
-    # Item 3.1 (auditoria): pausar/retomar/arquivar pelo menu da campanha.
+    # Pausar/retomar/arquivar pelo menu da campanha.
     if updates.get("status") is not None:
         from src.db.models import CampaignStatus
         try:
@@ -421,7 +421,7 @@ async def reanalyze_campaign(
     return {"job_id": str(job.id), "status": "queued", "leads_to_reanalyze": lead_count}
 
 
-# Limites de segurança do upload (item 4.5): 10 MB e 10.000 linhas.
+# Limites de segurança do upload: 10 MB e 10.000 linhas.
 MAX_CSV_BYTES = 10 * 1024 * 1024
 MAX_CSV_ROWS = 10_000
 

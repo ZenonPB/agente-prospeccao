@@ -22,7 +22,7 @@ class LeadStatus(enum.Enum):
     PERDIDO = "PERDIDO"
 
 class NegotiationStage(enum.Enum):
-    """Funil interno de negociação da planilha (roadmap-parts C.3).
+    """Funil interno de negociação.
 
     RD (reunião de demonstração) → ORÇAMENTO → RP (reunião de proposta).
     Etapas comerciais entre o lead responder e o fechamento.
@@ -43,7 +43,7 @@ class PostSaleChannel(enum.Enum):
     EMAIL = "EMAIL"
 
 class LostReason(enum.Enum):
-    """Motivo de perda do lead (roadmap-vendas 4.8)."""
+    """Motivo de perda do lead."""
     PRECO = "PRECO"
     PRAZO = "PRAZO"
     NAO_RESPONDEU = "NAO_RESPONDEU"
@@ -102,7 +102,7 @@ class MessageChannel(enum.Enum):
     LINKEDIN = "LINKEDIN"
 
 class FollowUpStep(enum.Enum):
-    """Etapas da cadência de follow-up (item 3.7) — regras de business-rules.
+    """Etapas da cadência de follow-up — regras de business-rules.
 
     Dia 0 (abertura) → dia 3 (follow-up 1) → dia 7 (follow-up 2) → dia 14
     (encerramento). O `day_offset` é usado para agendar `scheduled_at`.
@@ -111,7 +111,7 @@ class FollowUpStep(enum.Enum):
     FOLLOWUP_1 = "FOLLOWUP_1"
     FOLLOWUP_2 = "FOLLOWUP_2"
     CLOSING = "CLOSING"
-    # Pós-venda (roadmap-leads C.3): acompanhamento pós-cliente usando o mesmo
+    # Pós-venda: acompanhamento pós-cliente usando o mesmo
     # motor da cadência (scheduler `run_due` + `send_step`).
     POST_SALE = "POST_SALE"
 
@@ -147,25 +147,25 @@ class Organization(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(120), unique=True, nullable=False)
-    # Item 3.7 — envio automático de follow-ups (opt-in). Default: humano-no-loop.
+    # Envio automático de follow-ups (opt-in). Default: humano-no-loop.
     # Só com esta flag o scheduler envia e-mails quando a cadência vence.
     auto_send_email = Column(Boolean, default=False, nullable=False, server_default="false")
-    # Item 4.1 — remetente próprio da org (ex.: vendas@empresa.com.br). Se vazio,
+    # Remetente próprio da org (ex.: vendas@empresa.com.br). Se vazio,
     # usa o remetente global do settings (SMTP_FROM_EMAIL).
     email_from = Column(String(255))
-    # Item 4.3 — throttling de envio automático: teto diário de e-mails da org
+    # Throttling de envio automático: teto diário de e-mails da org
     # (warmup/warm). O scheduler `run_due` nunca ultrapassa este limite no dia.
     daily_email_limit = Column(Integer, default=40, nullable=False, server_default="40")
-    # Item 4.3 — janela de espalhamento dos envios automáticos (HH:MM, ex. "09:00"
+    # Janela de espalhamento dos envios automáticos (HH:MM, ex. "09:00"
     # e "17:00"). Fora da janela, o scheduler posterga as etapas (fica PENDING).
     send_window_start = Column(String(5), default="09:00", nullable=False, server_default="09:00")
     send_window_end = Column(String(5), default="17:00", nullable=False, server_default="17:00")
-    # Item 4.10 — SLA e lembretes para leads parados (dias). Regras configuráveis
+    # SLA e lembretes para leads parados (dias). Regras configuráveis
     # por org que alimentam o painel "Ações de hoje" e os alertas do kanban.
     sla_qualified_no_contact_days = Column(Integer, default=5, nullable=False, server_default="5")
     sla_responded_no_next_action_days = Column(Integer, default=2, nullable=False, server_default="2")
     sla_opened_no_response_days = Column(Integer, default=2, nullable=False, server_default="2")
-    # Item 4.14 — teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
+    # Teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
     # default do settings (`PROVIDER_DAILY_QUOTA`). Ex.: {"GROQ_API_KEY": 500}.
     api_quota = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -190,9 +190,9 @@ class OrganizationMember(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
-    # Papel de venda por organização (item 2.1): CONSULTOR/ANALYST/MANAGER.
+    # Papel de venda por organização: CONSULTOR/ANALYST/MANAGER.
     sales_role = Column(Enum(SalesRole, name='sales_role', create_type=True, values_callable=lambda e: [m.value for m in e]), default=SalesRole.CONSULTOR)
-    # Item 4.3 — remetente dedicado por consultor (ex.: rapha@alphamec.com.br).
+    # Remetente dedicado por consultor (ex.: rapha@alphamec.com.br).
     # Preserva a reputação individual de cada vendedor no envio automático.
     # Se vazio, usa `organizations.email_from`; se este for vazio, o global.
     email_from = Column(String(255))
@@ -227,7 +227,7 @@ class Invite(Base):
 
 
 class SalesTarget(Base):
-    """Meta de vendas mensal por consultor (roadmap-vendas 4.9).
+    """Meta de vendas mensal por consultor.
 
     Define quanto cada consultor deve produzir no mês (`month` "YYYY-MM"):
     meta de reuniões e meta de receita. O BI (`/analytics/consultants`) cruza
@@ -254,7 +254,7 @@ class SalesTarget(Base):
 
 
 class OrganizationSecret(Base):
-    """Chaves de API próprias da organização (BYOK — item 3.5).
+    """Chaves de API próprias da organização (BYOK).
 
     Quando preenchidas, os workers usam a chave da org em vez do pool global
     (settings), evitando consumir a quota compartilhada. O valor é criptografado
@@ -281,7 +281,7 @@ class OrganizationSecret(Base):
 
 
 class ProviderUsage(Base):
-    """Medidor diário de uso de provedores externos por org/key (item 4.14).
+    """Medidor diário de uso de provedores externos por org/key.
 
     Contabiliza chamadas (Google Places e Groq) por organização e por dia,
     contra um limite configurável (`organizations.api_quota` ou o default do
@@ -304,6 +304,53 @@ class ProviderUsage(Base):
 
     def __repr__(self):
         return f"<ProviderUsage(org='{self.organization_id}', key='{self.key_name}', date={self.usage_date}, count={self.count})>"
+
+
+class OrgAuditEvent(enum.Enum):
+    """Eventos administrativos da organização registrados no audit log."""
+    ORG_CREATED = "ORG_CREATED"
+    ORG_RENAMED = "ORG_RENAMED"
+    ORG_SETTINGS_UPDATED = "ORG_SETTINGS_UPDATED"
+    MEMBER_ROLE_CHANGED = "MEMBER_ROLE_CHANGED"
+    MEMBER_REMOVED = "MEMBER_REMOVED"
+    MEMBER_LEFT = "MEMBER_LEFT"
+    OWNER_TRANSFERRED = "OWNER_TRANSFERRED"
+    INVITE_CREATED = "INVITE_CREATED"
+    INVITE_ACCEPTED = "INVITE_ACCEPTED"
+    INVITE_REVOKED = "INVITE_REVOKED"
+    SECRET_SET = "SECRET_SET"
+    SECRET_DELETED = "SECRET_DELETED"
+    SALES_TARGET_UPSERTED = "SALES_TARGET_UPSERTED"
+    SALES_TARGET_DELETED = "SALES_TARGET_DELETED"
+
+
+class OrgAuditLog(Base):
+    """Trilha de eventos administrativos da organização.
+
+    Dá rastreabilidade à diretoria (quem convidou, mudou papel, removeu
+    membro, alterou chave/metas). `actor_name`/`actor_email` são gravados
+    junto porque o membro pode ser removido depois.
+    """
+    __tablename__ = "org_audit_log"
+    __table_args__ = (
+        Index("ix_org_audit_log_org_created", "organization_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    actor_name = Column(String(255))
+    actor_email = Column(String(255))
+    event = Column(Enum(OrgAuditEvent, name='org_audit_event', create_type=True), nullable=False)
+    target_type = Column(String(60))
+    target_id = Column(String(60))
+    detail = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization")
+    actor = relationship("User")
+
+    def __repr__(self):
+        return f"<OrgAuditLog(org='{self.organization_id}', event='{self.event.value}', at={self.created_at})>"
 
 
 class User(Base):
@@ -337,7 +384,7 @@ class Campaign(Base):
     scoring_template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=True)
     target_state = Column(String(2))
     target_country = Column(String(100))
-    # Query otimizada para o Google Places, sugerida pelo agente (item 1.4).
+    # Query otimizada para o Google Places.
     # Quando presente, o pipeline usa esta query em vez de montar uma
     # automaticamente a partir de target_segment/city/state.
     places_query = Column(String(255))
@@ -377,12 +424,12 @@ class CampaignScoringTemplate(Base):
     requires_business_data = Column(Boolean, default=True)
     # Instruções extras, free-text, injetadas no prompt.
     extra_instructions = Column(Text)
-    # Playbook de outreach por vertical (item 3.8): hooks de abordagem,
+    # Playbook de outreach por vertical: hooks de abordagem,
     # ideias de assunto e objeções do decisor — injetados no OutreachService
     # para mensagens variarem por serviço/segmento.
     playbook = Column(JSONB, default=dict)
     is_active = Column(Boolean, default=True)
-    # Template gerado por IA sob demanda (item 1.3) — distingue de seeds manuais.
+    # Template gerado por IA sob demanda — distingue de seeds manuais.
     is_generated = Column(Boolean, default=False, server_default="false")
     # Org dona do template (NULL = global/seed); templates gerados são por org.
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
@@ -401,8 +448,8 @@ class Lead(Base):
         UniqueConstraint("organization_id", "place_id", name="uq_leads_org_place_id"),
         UniqueConstraint("organization_id", "cnpj", name="uq_leads_org_cnpj"),
         UniqueConstraint("organization_id", "normalized_domain", name="uq_leads_org_normalized_domain"),
-        # Item 4.16 (paginação server-side): índices compostos que cobrem os
-        # filtros mais usados — org + status (+ score) e org + status + data.
+        # Índices compostos que cobrem os filtros mais usados —
+        # org + status (+ score) e org + status + data.
         Index("ix_leads_org_status_score", "organization_id", "status", "qualification_score"),
         Index("ix_leads_org_status_created", "organization_id", "status", "created_at"),
     )
@@ -424,26 +471,26 @@ class Lead(Base):
     city = Column(String(100), nullable=False)
     state = Column(String(100))
     country = Column(String(100))
-    # Reputação no Google (roadmap-vendas 4.6) — sinal de oportunidade para
+    # Reputação no Google — sinal de oportunidade para
     # serviços: nota baixa + nº de avaliações expõem a dor mais óbvia de um lead.
     google_rating = Column(Float)
     google_rating_count = Column(Integer)
     google_maps_uri = Column(String(255))
-    # Campos de trabalho do consultor (item 4.4 da auditoria).
+    # Campos de trabalho do consultor.
     notes = Column(Text)
     next_action_at = Column(DateTime(timezone=True))
     last_contacted_at = Column(DateTime(timezone=True))
-    # Funil interno de negociação (roadmap-parts C.3 — largar a planilha):
+    # Funil interno de negociação:
     # `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
     # (APROVADO/REPROVADO/EM_ANÁLISE) + `outcome_date` (quando foi marcado).
     negotiation_stage = Column(Enum(NegotiationStage, name='negotiation_stage', create_type=True), nullable=True)
     contract_outcome = Column(Enum(ContractOutcome, name='contract_outcome', create_type=True), nullable=True)
     outcome_date = Column(DateTime(timezone=True), nullable=True)
-    # Pós-venda (roadmap-leads C.3): data do 1º contato pós-cliente e canal
+    # Pós-venda: data do 1º contato pós-cliente e canal
     # (planilha Alphamec: "DATA CONTATO PÓS-VENDA" + "PÓS VENDA POR").
     post_sale_contacted_at = Column(DateTime(timezone=True), nullable=True)
     post_sale_channel = Column(Enum(PostSaleChannel, name='post_sale_channel', create_type=True), nullable=True)
-    # Forecast e oportunidade (roadmap-vendas 4.8): ticket estimado, data de fechamento e motivo de perda
+    # Forecast e oportunidade: ticket estimado, data de fechamento e motivo de perda
     value = Column(Numeric(12, 2), nullable=True)
     expected_close_date = Column(DateTime(timezone=True), nullable=True)
     lost_reason = Column(Enum(LostReason, name='lost_reason', create_type=True), nullable=True)
@@ -466,12 +513,12 @@ class Lead(Base):
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
     campaign = relationship("Campaign", back_populates="leads")
 
-    # Atribuição a consultor de vendas (Fase X1 — desempenho por consultor).
+    # Atribuição a consultor de vendas (desempenho por consultor).
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     assigned_at = Column(DateTime(timezone=True), nullable=True)
     assigned_to = relationship("User", foreign_keys=[assigned_to_id])
 
-    # Opt-out (item 3.7): lead pediu para não receber mais mensagens.
+    # Opt-out: lead pediu para não receber mais mensagens.
     # Cadências pendentes são canceladas/puladas e nenhum envio automático ocorre.
     opt_out = Column(Boolean, default=False, nullable=False, server_default="false")
 
@@ -523,7 +570,7 @@ class Message(Base):
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
     responded_at = Column(DateTime(timezone=True))
     is_response = Column(Boolean, default=False) 
-    # Tracking de abertura/clique (roadmap-vendas 4.2) — pixel + redirect.
+    # Tracking de abertura/clique — pixel + redirect.
     tracking_token = Column(String(64), unique=True, nullable=True)
     opened_at = Column(DateTime(timezone=True))
     clicked_at = Column(DateTime(timezone=True))
@@ -534,7 +581,7 @@ class Message(Base):
         return f"<Message(id='{self.id}', lead_id='{self.lead_id}', channel='{self.channel.value}')>"
 
 class FollowUp(Base):
-    """Etapa da cadência de follow-up de um lead (item 3.7).
+    """Etapa da cadência de follow-up de um lead.
 
     Sequência dia 0/3/7/14 (`FollowUpStep`): abertura + 2 follow-ups +
     encerramento, conforme `docs/business-rules.md`. O conteúdo é a mensagem
@@ -560,7 +607,7 @@ class FollowUp(Base):
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
     sent_at = Column(DateTime(timezone=True))
     status = Column(Enum(FollowUpStatus, name='follow_up_status', create_type=True), default=FollowUpStatus.PENDING)
-    # Item 3.2 — contagem de tentativas (transitórias) e Message-ID do último
+    # Contagem de tentativas (transitórias) e Message-ID do último
     # envio (para threading dos follow-ups seguintes).
     attempts = Column(Integer, default=0, nullable=False, server_default="0")
     message_id = Column(String(255))
@@ -576,7 +623,7 @@ class FollowUp(Base):
 
 
 class EmailSuppression(Base):
-    """Endereços de e-mail com bounce permanente (5xx). Item 3.2 da auditoria.
+    """Endereços de e-mail com bounce permanente (5xx).
 
     Um endereço que queimou uma vez não é re-tentado em nenhuma cadência até
     ser removido manualmente — protege a reputação do domínio remetente.
@@ -617,12 +664,12 @@ class Contact(Base):
     phone = Column(String(50))
     document_cpf = Column(String(20))
     confidence = Column(Integer, default=0)
-    # Roadmap 4.1 — verificação passiva de entregabilidade do e-mail (MX + blocklist).
+    # Verificação passiva de entregabilidade do e-mail (MX + blocklist).
     # `email_verified=True` só após MX presente; e-mail heurístico/descartável
     # ou sem MX fica False e nunca cruza o gate de envio automático.
     email_verified = Column(Boolean, nullable=False, server_default="false", default=False)
     email_verified_at = Column(DateTime(timezone=True))
-    # Fase 3.4 — canal LinkedIn do decisor (busca passiva + validação HEAD).
+    # Canal LinkedIn do decisor (busca passiva + validação HEAD).
     linkedin_url = Column(String(255))
     linkedin_confidence = Column(Integer, default=0)
     is_primary = Column(Boolean, default=False)
@@ -679,7 +726,7 @@ class Conversion(Base):
     outreach_message_used = Column(Text)
     time_to_close_days = Column(Integer)
     notes = Column(Text)
-    # Quem vendeu/fechou e quem trabalhava o lead no momento (Fase X1).
+    # Quem vendeu/fechou e quem trabalhava o lead no momento.
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
@@ -690,10 +737,10 @@ class Conversion(Base):
 
 
 class LeadActivityAction(enum.Enum):
-    """Ações registradas na trilha do lead (Fase X1).
+    """Ações registradas na trilha do lead.
 
     Além da `STATUS_CHANGED` genérica, o endpoint de status grava uma action
-    semântica quando o destino tem significado comercial (Item 3.6):
+    semântica quando o destino tem significado comercial:
     `CONTACTED`, `RESPONDED`, `MEETING_SCHEDULED`, `PROPOSAL_SENT`, `LOST`.
     Conversão fecha o ciclo com `CONVERTED`.
     """

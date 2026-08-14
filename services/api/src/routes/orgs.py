@@ -14,6 +14,7 @@ from src.db.models import (
     SalesRole,
     OrganizationSecret,
     SalesTarget,
+    OrgAuditEvent,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -29,6 +30,7 @@ if _workers_path not in sys.path:
 from services.secret_service import SecretService, KEY_NAMES  # noqa: E402
 from src.services.cadence_service import sends_today  # noqa: E402
 from src.services.org_service import create_organization, unassign_user_leads_in_org  # noqa: E402
+from src.services.org_audit_service import log_org_event, list_org_audit  # noqa: E402
 
 router = APIRouter(prefix="/orgs", tags=["orgs"])
 
@@ -38,7 +40,7 @@ class PatchMemberSalesRoleRequest(BaseModel):
 
 
 class CreateOrgRequest(BaseModel):
-    """Cria um novo workspace (roadmap-vendas 3.3.1)."""
+    """Cria um novo workspace."""
     name: str = Field(..., min_length=2, max_length=255)
     email_from: Optional[str] = Field(None, max_length=255)
 
@@ -86,14 +88,14 @@ def get_my_org(
             "name": member.organization.name if member.organization else None,
             "slug": member.organization.slug if member.organization else None,
             "auto_send_email": bool(member.organization.auto_send_email) if member.organization else False,
-            # Item 4.3 — throttling & remetente dedicado: expõe o teto diário,
+            # Throttling & remetente dedicado: expõe o teto diário,
             # a janela de espalhamento e quantos envios já foram hoje.
             "daily_email_limit": member.organization.daily_email_limit if member.organization else None,
             "send_window_start": member.organization.send_window_start if member.organization else None,
             "send_window_end": member.organization.send_window_end if member.organization else None,
             "sends_today": sends_today(db, member.organization_id)[0] if member.organization else 0,
             "email_from": member.organization.email_from if member.organization else None,
-            # Item 4.10 — SLA de leads parados (dias).
+            # SLA de leads parados (dias).
             "sla_qualified_no_contact_days": member.organization.sla_qualified_no_contact_days if member.organization else None,
             "sla_responded_no_next_action_days": member.organization.sla_responded_no_next_action_days if member.organization else None,
             "sla_opened_no_response_days": member.organization.sla_opened_no_response_days if member.organization else None,
@@ -112,12 +114,13 @@ def create_org(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Cria uma nova organização (roadmap-vendas 3.3.1).
+    """Cria uma nova organização.
 
     O usuário logado vira OWNER (sales_role MANAGER). Slugs são derivados do
     nome e tornados únicos automaticamente.
     """
     org = create_organization(db, name=body.name, owner_user=user, email_from=body.email_from)
+    log_org_event(db, org.id, OrgAuditEvent.ORG_CREATED, actor=user, target_type="org", detail=org.name)
     db.commit()
     db.refresh(org)
     return {
@@ -192,7 +195,7 @@ def patch_member_sales_role(
 ):
     """Define o papel de venda (CONSULTOR/ANALYST/MANAGER) de um membro.
 
-    Item 2.1.4: apenas owner/admin da organização. O `sales_role` é POR
+    Apenas owner/admin da organização. O `sales_role` é POR
     organização — não vaza entre workspaces.
     """
     if str(actor.organization_id) != org_id:
@@ -210,7 +213,12 @@ def patch_member_sales_role(
         # Permitido, mas preserva ownership.
         pass
 
+    detail = f"{target.sales_role.value if target.sales_role else '-'} -> {body.sales_role.value}"
     target.sales_role = body.sales_role
+    log_org_event(
+        db, org_id, OrgAuditEvent.MEMBER_ROLE_CHANGED, actor=actor,
+        target_type="member", target_id=user_id, detail=f"sales_role: {detail}",
+    )
     db.commit()
     db.refresh(target)
     return _member_dict(target)
@@ -228,7 +236,7 @@ def remove_member(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Remove um membro da organização e desatribui seus leads (roadmap 3.3.3).
+    """Remove um membro da organização e desatribui seus leads.
 
     - Owner não pode ser removido (deve transferir ownership antes).
     - Admins não podem remover a si mesmos por este endpoint (usam /leave).
@@ -268,6 +276,10 @@ def remove_member(
         actor_user_id=actor.user_id,
         reason="Membro desvinculado da organização por um administrador",
     )
+    log_org_event(
+        db, org_id, OrgAuditEvent.MEMBER_REMOVED, actor=actor,
+        target_type="member", target_id=user_id, detail=target.user.email if target.user else None,
+    )
     db.delete(target)
     db.commit()
     return {"removed": True, "user_id": user_id, "org_id": org_id}
@@ -280,7 +292,7 @@ def transfer_org_ownership(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Transfere a propriedade (OWNER) da organização para outro membro (roadmap 3.3.3)."""
+    """Transfere a propriedade (OWNER) da organização para outro membro."""
     import uuid
     actor = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == org_id,
@@ -305,6 +317,11 @@ def transfer_org_ownership(
     actor.role = OrganizationRole.ADMIN
     target.role = OrganizationRole.OWNER
     target.sales_role = SalesRole.MANAGER
+    log_org_event(
+        db, org_id, OrgAuditEvent.OWNER_TRANSFERRED, actor=actor,
+        target_type="member", target_id=body.new_owner_user_id,
+        detail=f"novo owner: {target.user.email if target.user else ''}",
+    )
     db.commit()
     return {
         "transferred": True,
@@ -319,7 +336,7 @@ def leave_org(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Permite que um membro saia da organização (roadmap 3.3.3)."""
+    """Permite que um membro saia da organização."""
     import uuid
     member = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == org_id,
@@ -341,6 +358,7 @@ def leave_org(
         actor_user_id=user.id,
         reason="Membro saiu espontaneamente da organização",
     )
+    log_org_event(db, org_id, OrgAuditEvent.MEMBER_LEFT, actor=user, target_type="member", target_id=str(user.id))
     db.delete(member)
     db.commit()
     return {"left": True, "org_id": org_id, "user_id": str(user.id)}
@@ -359,7 +377,7 @@ def list_org_secrets(
 ):
     """Lista as chaves BYOK configuradas pela organização (sem expor valores).
 
-    Item 3.5: retorna apenas quais `key_name` estão definidas, para a UI
+    Retorna apenas quais `key_name` estão definidas, para a UI
     marcar como "configurado" sem nunca exibir o segredo.
     """
     if str(actor.organization_id) != org_id:
@@ -399,6 +417,11 @@ async def put_org_secret(
         raise HTTPException(status_code=400, detail=f"key_name inválido: {normalized}")
 
     await SecretService.set_org_secret(db, org_id, normalized, body.value)
+    log_org_event(
+        db, org_id, OrgAuditEvent.SECRET_SET, actor=actor,
+        target_type="secret", target_id=normalized,
+    )
+    db.commit()
     return {"key_name": normalized, "configured": True}
 
 
@@ -421,21 +444,26 @@ async def delete_org_secret(
     removed = await SecretService.delete_org_secret(db, org_id, normalized)
     if not removed:
         raise HTTPException(status_code=404, detail="Secret não configurado")
+    log_org_event(
+        db, org_id, OrgAuditEvent.SECRET_DELETED, actor=actor,
+        target_type="secret", target_id=normalized,
+    )
+    db.commit()
     return {"key_name": normalized, "configured": False}
 
 
 class PatchOrgSettingsRequest(BaseModel):
     auto_send_email: Optional[bool] = None
-    # Item 4.3 — throttling: teto diário e janela de espalhamento (HH:MM).
+    # Throttling: teto diário e janela de espalhamento (HH:MM).
     daily_email_limit: Optional[int] = None
     send_window_start: Optional[str] = None
     send_window_end: Optional[str] = None
     email_from: Optional[str] = None
-    # Item 4.10 — SLA de leads parados (dias).
+    # SLA de leads parados (dias).
     sla_qualified_no_contact_days: Optional[int] = None
     sla_responded_no_next_action_days: Optional[int] = None
     sla_opened_no_response_days: Optional[int] = None
-    # Item 4.14 — teto diário por provedor (BYOK vs pool). Ex.: {"GROQ_API_KEY": 500}.
+    # Teto diário por provedor (BYOK vs pool). Ex.: {"GROQ_API_KEY": 500}.
     api_quota: Optional[Dict[str, int]] = None
 
 
@@ -459,7 +487,7 @@ def patch_org_settings(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Atualiza configurações da organização (item 3.7).
+    """Atualiza configurações da organização.
 
     `auto_send_email` liga/desliga o envio automático de follow-ups da cadência
     (default: humano-no-loop). Apenas owner/admin da org.
@@ -506,6 +534,13 @@ def patch_org_settings(
             if not 1 <= int(value) <= 1_000_000:
                 raise HTTPException(status_code=400, detail=f"limite inválido para {key}")
         org.api_quota = dict(body.api_quota)
+
+    changed = body.model_dump(exclude_unset=True, exclude_none=True)
+    if changed:
+        log_org_event(
+            db, org_id, OrgAuditEvent.ORG_SETTINGS_UPDATED, actor=actor,
+            target_type="org", detail=", ".join(sorted(changed.keys())),
+        )
     db.commit()
     db.refresh(org)
 
@@ -532,7 +567,7 @@ def rename_org(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Renomeia a organização (roadmap-vendas 3.3.1, owner/admin)."""
+    """Renomeia a organização (owner/admin)."""
     if str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
 
@@ -541,6 +576,10 @@ def rename_org(
         raise HTTPException(status_code=404, detail="Organização não encontrada")
 
     org.name = body.name.strip()
+    log_org_event(
+        db, org_id, OrgAuditEvent.ORG_RENAMED, actor=actor,
+        target_type="org", detail=org.name,
+    )
     db.commit()
     db.refresh(org)
     return {
@@ -551,7 +590,7 @@ def rename_org(
 
 
 class UpsertSalesTargetRequest(BaseModel):
-    """Meta mensal de vendas para um consultor (roadmap-vendas 4.9)."""
+    """Meta mensal de vendas para um consultor."""
     user_id: str = Field(..., min_length=1)
     month: str = Field(..., pattern=r"^\d{4}-\d{2}$")
     meetings_target: int = Field(0, ge=0, le=1000)
@@ -578,7 +617,7 @@ def list_sales_targets(
     _user: User = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
-    """Lista as metas de vendas da organização (roadmap-vendas 4.9).
+    """Lista as metas de vendas da organização.
 
     MANAGER/ANALYST/owner/admin podem consultar. Se `month` for omitido,
     retorna o mês atual (YYYY-MM).
@@ -607,7 +646,7 @@ def upsert_sales_target(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Cria/atualiza a meta mensal de um consultor (roadmap-vendas 4.9).
+    """Cria/atualiza a meta mensal de um consultor.
 
     Upsert por `(organization_id, user_id, month)`. Owner/admin apenas.
     """
@@ -635,6 +674,10 @@ def upsert_sales_target(
             revenue_target=body.revenue_target,
         )
         db.add(target)
+    log_org_event(
+        db, org_id, OrgAuditEvent.SALES_TARGET_UPSERTED, actor=actor,
+        target_type="target", target_id=str(target.user_id), detail=f"{body.month}",
+    )
     db.commit()
     db.refresh(target)
     return _sales_target_dict(target)
@@ -648,7 +691,7 @@ def delete_sales_target(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Remove uma meta mensal de vendas (roadmap-vendas 4.9). Owner/admin."""
+    """Remove uma meta mensal de vendas. Owner/admin."""
     if str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
 
@@ -660,6 +703,10 @@ def delete_sales_target(
         raise HTTPException(status_code=404, detail="Meta não encontrada")
 
     db.delete(target)
+    log_org_event(
+        db, org_id, OrgAuditEvent.SALES_TARGET_DELETED, actor=actor,
+        target_type="target", target_id=target_id, detail=target.month,
+    )
     db.commit()
     return {"deleted": True, "target_id": target_id}
 
@@ -671,7 +718,7 @@ def get_org_usage(
     _org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
-    """Medidor de cotas diárias da org por provedor (roadmap-vendas 4.14).
+    """Medidor de cotas diárias da org por provedor.
 
     Retorna o uso de hoje por `key_name` (usado/limite/restante/%) e o flag
     `alert` quando qualquer provedor passou de 80% do teto. MANAGER+/owner/admin.
@@ -684,3 +731,42 @@ def get_org_usage(
     usage = QuotaService.usage_for_org(db, org_id)
     alert = any(u["pct"] >= 80 for u in usage)
     return {"usage": usage, "alert": alert}
+
+
+@router.get("/{org_id}/audit-log")
+def list_org_audit_log(
+    org_id: str,
+    event: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_manager()),
+):
+    """Lista a auditoria de eventos administrativos da org (MANAGER/owner/admin).
+
+    Filtra por `event` (valor do enum) e ordena do mais recente para o mais
+    antigo. Não expõe valores de secret — apenas `key_name` no target_id.
+    """
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    entries = list_org_audit(
+        db, org_id, event=OrgAuditEvent(event) if event else None, limit=limit,
+    )
+
+    return {
+        "entries": [
+            {
+                "id": str(e.id),
+                "event": e.event.value,
+                "actor_id": str(e.actor_id) if e.actor_id else None,
+                "actor_name": e.actor_name,
+                "actor_email": e.actor_email,
+                "target_type": e.target_type,
+                "target_id": e.target_id,
+                "detail": e.detail,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in entries
+        ]
+    }

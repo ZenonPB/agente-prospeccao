@@ -1,4 +1,4 @@
-# API FastAPI — container de produção (item 3.4 da auditoria)
+# API FastAPI — container de produção
 # Build context: raiz do repositório (services/ api e workers compartilham código).
 FROM python:3.12-slim
 

@@ -196,11 +196,24 @@ de EJ é alta).
 **Aceite:** remover consultor desatribui leads automaticamente; sair da org
 funciona; ownership transferível.
 
-#### 3.3.4 Auditoria de membros e acessos ⬜ (P2)
+#### 3.3.4 Auditoria de membros e acessos ✅ (P2)
 
 **Proposta:** registrar em `lead_activities` (ou tabela `org_audit_log`) eventos
 administrativos: convite criado/aceito/revogado, papel alterado, membro removido,
 chave BYOK alterada. Dá rastreabilidade para a diretoria e conformidade.
+
+**Status — Entregue (2026-08-14, `feat/org-audit-backend`):**
+- Tabela nova `org_audit_log` + enum `OrgAuditEvent` (14 eventos: ORG_*, MEMBER_*,
+  INVITE_*, SECRET_*, SALES_TARGET_*) — migration `bff05fb7eb01` (backend only).
+- `org_audit_service.py`: `log_org_event` (actor denormalizado: membro pode ser
+  removido depois) + `list_org_audit`; **nunca grava valor de secret** — só
+  `key_name` no `target_id`.
+- Instrumentado em: `orgs.py` (create/rename/settings, sales_role, remove/leave/
+  transfer-owner, secrets, sales-targets) e `invites.py` (create/accept/accept-
+  register/revoke).
+- `GET /orgs/{org_id}/audit-log?event=&limit=` — MANAGER/owner/admin, ordenado
+  desc, filtro por evento.
+- Testes: `tests/test_org_audit.py` (7) — suíte em **188 passed**.
 
 #### 3.3.5 Papel de venda para "gestor da equipe" ✅/🟡 (parcial)
 
@@ -636,7 +649,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | 🟡 entregue no branch (2026-08-14) |
-| 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ⬜ |
+| 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-14 |
 | 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ⬜ |
 | 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ⬜ |
 | 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | ⬜ |

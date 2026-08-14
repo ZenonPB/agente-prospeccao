@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # não é aceito silenciosamente — envio falha em vez de "fingir" que funcionou.
     ENVIRONMENT: str = Field("development", description="development | production")
 
-    # Cadence scheduler (item 3.7.2) — intervalo do poll de follow-ups vencidos.
+    # Cadence scheduler — intervalo do poll de follow-ups vencidos.
     CADENCE_POLL_SECONDS: int = Field(60, description='Segundos entre verificações de follow-ups vencidos')
 
     # Re-enfileiramento de leads PERDIDO (business-rules): carência em dias para
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # por vez — a fila respeita o pacing da Groq (rate-limit).
     JOB_POLL_SECONDS: int = Field(5, description='Segundos entre verificações de Jobs PENDING')
 
-    # Item 4.3 — throttling: teto diário de envios automáticos por org quando a
+    # Throttling: teto diário de envios automáticos por org quando a
     # org não define o próprio `daily_email_limit`. A janela de espalhamento
     # também é configurável por org (`send_window_start/end`, HH:MM no fuso do
     # servidor); este é apenas o fallback de teto diário.
@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = Field("noreply@agente-prospeccao.com", description='E-mail remetente')
     SMTP_FROM_NAME: str = Field("Agente Prospecção", description='Nome do remetente')
 
-    # Inbound email (item 3.3) — segredo compartilhado com o provedor de
+    # Inbound email — segredo compartilhado com o provedor de
     # inbound (Postmark/SendGrid). Vazio = webhook desativado (404).
     EMAIL_WEBHOOK_SECRET: str = Field("", description='Segredo do webhook de inbound (resposta/STOP)')
 

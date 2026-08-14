@@ -1,4 +1,4 @@
-"""Correção cirúrgica de dados (S5 do roadmap-leads, sem reset do banco).
+"""Correção cirúrgica de dados (sem reset do banco).
 
 Problema: templates `campaign_scoring_templates` gerados por IA **antes** da
 regra de inversão (commit 43d874c / main) para serviços digitais podem ter em
