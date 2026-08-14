@@ -174,6 +174,8 @@ embarcado zonky) e `scripts/dev.ps1 start|stop|status|restart` (ou `.cmd`).
 - `apps/web/AGENTS.md` tem regras próprias do Next 16 (breaking changes) — ler
   antes de editar aquele pacote.
 - Nunca inventar APIs/endpoints — consultar docs reais.
+- **Comentários "humanos" e concisos:** sem citar item de roadmap/fase/sessão/
+  data/PR no código, docstrings ou textos da UI — rastreio fica só em `docs/`.
 
 ## Scoring / regras de negócio
 

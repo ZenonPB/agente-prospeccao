@@ -89,6 +89,12 @@ Regras transversais:
   probe, injeção, autenticação forçada, varredura de paths sensíveis.
 - Nunca inventar API/endpoints/schemas — consultar os routes reais.
 - Nem pensar em commitar `.env` ou chaves; referenciar por nome de env var.
+- **Comentários humanos, concisos e só quando explicam o *porquê*.** Proibido
+  citar em código, comentários, docstrings ou **textos da UI**: item de
+  roadmap ("Item 4.x", "Fase X.Y"), sessão/data de entrega, número de PR/
+  branch/ticket. Comentários não narram o que o código fez, não auto-elogiam,
+  não trazem retrospectiva. Rastreio de roadmap é assunto de `docs/`, nunca do
+  código.
 
 ---
 

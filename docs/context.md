@@ -934,6 +934,13 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    - **Decisão de produto em aberto:** a página `/configuracoes/membros` é
 >      owner/admin-only; MANAGER acessa `GET /orgs/{id}/audit-log` por API mas
 >      não tem a tabela na UI (expor para MANAGER = decisão separada).
+>
+> 19. **Sessão 2026-08-14 — limpeza de comentários de rastreio:** removidas de
+>    código/UI/testes as referências a itens de roadmap ("Item 4.x", "Fase X.Y",
+>    "(4.2)", "roadmap-leads C.3"), datas de entrega e numerações — comentários
+>    viraram concisos e descritivos. Migrations **não** foram tocadas (regra).
+>    Regra nova gravada no `docs/agents.md` §3 e no `AGENTS.md` (proibido
+>    rastreio de item/sessão/PR em comentários, docstrings e textos da UI).
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 
