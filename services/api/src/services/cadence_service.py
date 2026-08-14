@@ -270,7 +270,7 @@ def _thread_headers(
     Retorna (in_reply_to, references):
     - in_reply_to = Message-ID da etapa mais recente já enviada;
     - references  = **toda a cadeia** de Message-IDs anteriores (em ordem),
-      que é o que o Gmail/exchange exigem para agrupar a conversa (4.4).
+      que é o que o Gmail/Exchange exigem para agrupar a conversa.
     Retorna (None, None) se não houver etapa anterior enviada.
     """
     if not lead_id or step == FollowUpStep.OPENING:

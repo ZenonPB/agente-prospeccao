@@ -64,13 +64,13 @@ export interface ContactItem {
   created_at?: string;
 }
 
-// Item 4.22 — consulta sugerida para achar o decisor no LinkedIn.
+// Consulta sugerida para achar o decisor no LinkedIn.
 export interface LinkedinQuery {
   label: string;
   query: string;
 }
 
-// Item 4.14 — medidor de cotas diárias por provedor/org.
+// Medidor de cotas diárias por provedor/org.
 export interface ProviderUsageItem {
   key_name: string;
   used: number;
@@ -79,7 +79,7 @@ export interface ProviderUsageItem {
   pct: number;
 }
 
-// Funil interno de negociação (roadmap-leads C.3 — largar a planilha).
+// Funil interno de negociação (RD → Orçamento → RP).
 export type NegotiationStage = 'RD' | 'ORCAMENTO' | 'RP';
 export type ContractOutcome = 'APROVADO' | 'REPROVADO' | 'EM_ANALISE';
 
@@ -154,19 +154,48 @@ export interface OrganizationMember {
   created_at?: string;
 }
 
+// Auditoria de membros e acessos (org_audit_log).
+export type OrgAuditEvent =
+  | 'ORG_CREATED'
+  | 'ORG_RENAMED'
+  | 'ORG_SETTINGS_UPDATED'
+  | 'MEMBER_ROLE_CHANGED'
+  | 'MEMBER_REMOVED'
+  | 'MEMBER_LEFT'
+  | 'OWNER_TRANSFERRED'
+  | 'INVITE_CREATED'
+  | 'INVITE_ACCEPTED'
+  | 'INVITE_REVOKED'
+  | 'SECRET_SET'
+  | 'SECRET_DELETED'
+  | 'SALES_TARGET_UPSERTED'
+  | 'SALES_TARGET_DELETED';
+
+export interface OrgAuditEntry {
+  id: string;
+  event: OrgAuditEvent;
+  actor_id?: string | null;
+  actor_name?: string | null;
+  actor_email?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  detail?: string | null;
+  created_at: string;
+}
+
 export interface OrgMembership {
   organization: {
     id: string;
     name?: string;
     slug?: string;
     auto_send_email?: boolean;
-    // Item 4.3 — throttling & remetente dedicado.
+    // Throttling & remetente dedicado.
     daily_email_limit?: number;
     send_window_start?: string;
     send_window_end?: string;
     sends_today?: number;
     email_from?: string;
-    // Item 4.10 — SLA de leads parados (dias).
+    // Prazos de leads parados (dias).
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;

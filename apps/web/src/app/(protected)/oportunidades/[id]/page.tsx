@@ -44,7 +44,7 @@ function formatPrimaryNeed(value?: string): string {
   return primaryNeedLabels[value] || value;
 }
 
-// Item 4.7 — proveniência do e-mail do decisor (onde foi encontrado).
+// Proveniência do e-mail do decisor (onde foi encontrado).
 const emailSourceLabels: Record<string, string> = {
   hunter: 'Hunter',
   site: 'Site',
@@ -64,7 +64,7 @@ function formatEmailSource(rawData: unknown): string | null {
   return emailSourceLabels[source] || source;
 }
 
-// Item 4.22 — perfil associado manualmente pelo consultor.
+// Perfil associado manualmente pelo consultor.
 function formatLinkedinSource(rawData: unknown): string | null {
   if (typeof rawData !== 'object' || rawData === null) return null;
   const source = (rawData as Record<string, unknown>).linkedin_source;

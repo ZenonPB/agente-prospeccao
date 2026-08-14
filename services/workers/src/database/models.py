@@ -611,7 +611,7 @@ class FollowUp(Base):
     # envio (para threading dos follow-ups seguintes).
     attempts = Column(Integer, default=0, nullable=False, server_default="0")
     message_id = Column(String(255))
-    # Token de tracking (4.2): liga a etapa à `messages.tracking_token` para
+    # Token de tracking: mesma chave usada em `messages.tracking_token` para
     # expor abertura/clique no painel de cadência.
     tracking_token = Column(String(64))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

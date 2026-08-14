@@ -1,4 +1,4 @@
-"""Testes da classificação de falhas SMTP — bounce permanente vs transitório (3.2)."""
+"""Testes da classificação de falhas SMTP — bounce permanente vs transitório."""
 import smtplib
 
 from src.services.email_service import _classify_error

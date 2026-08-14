@@ -21,7 +21,7 @@ interface FunnelItem {
   color: string;
 }
 
-// Item 4.10: tipos explícitos para o click do BarChart e o tooltip (sem `any`).
+// Tipos explícitos para o click do BarChart e o tooltip (sem any).
 interface FunnelClickPayload {
   activePayload?: Array<{ payload?: { name?: string } }>;
 }

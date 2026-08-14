@@ -126,8 +126,8 @@ export function KanbanBoard() {
     [data?.leads]
   );
 
-  // Item 4.10 — notificação de SLA no kanban: mapeia alerta por lead e
-  // conta por coluna (coluna do status do alerta).
+  // Alerta de leads parados por lead: mapeia o alerta e o conta por coluna
+  // (coluna do status do alerta).
   const slaByLead = useMemo(() => {
     const map: Record<string, SlaAlertItem> = {};
     (slaData?.alerts || []).forEach((alert) => {
@@ -265,7 +265,7 @@ export function KanbanBoard() {
         {slaAlertsCount > 0 && (
           <div className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
             <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-            {slaAlertsCount} lead{slaAlertsCount !== 1 ? 's' : ''} parado{slaAlertsCount !== 1 ? 's' : ''} (SLA)
+            {slaAlertsCount} lead{slaAlertsCount !== 1 ? 's' : ''} parado{slaAlertsCount !== 1 ? 's' : ''}
           </div>
         )}
       </div>
@@ -288,7 +288,7 @@ export function KanbanBoard() {
                       <Badge
                         variant="outline"
                         className="gap-1 border-red-200 bg-red-50 px-1.5 text-[11px] font-semibold text-red-700"
-                        title="Leads parados (SLA) nesta etapa"
+                        title="Leads parados nesta etapa"
                       >
                         <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                         {slaCountByColumn[column.id]}
@@ -378,7 +378,7 @@ export function KanbanBoard() {
                                     title={slaByLead[lead.id].alert_label}
                                   >
                                     <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                                    SLA há {slaByLead[lead.id].days_since}d
+                                    Parado há {slaByLead[lead.id].days_since}d
                                   </Badge>
                                 </div>
                               )}

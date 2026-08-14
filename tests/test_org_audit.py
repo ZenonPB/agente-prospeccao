@@ -1,4 +1,4 @@
-"""Testes da auditoria de membros e acessos da organização (3.3.4).
+"""Testes da auditoria de membros e acessos da organização.
 
 Cobrem a lógica pura do `org_audit_service`: gravação de eventos com actor/
 target/detail, não-exposição de valor de secret e filtro por evento na listagem.

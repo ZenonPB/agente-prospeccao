@@ -921,6 +921,32 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >      chama `send_invite_email` com link `{APP_BASE_URL}/aceitar-convite`) —
 >      antes o docstring dizia que enviava, mas nenhum e-mail saía.
 >    - Testes `tests/test_email_templates.py` (5) — suíte em **193 passed**.
+>
+> 18. **Sessão 2026-08-14 — UI da auditoria 3.3.4 (`feat/org-audit-ui`):** fecha
+>    o ciclo do item 3.3.4 (o backend veio na sessão 16):
+>    - `orgsApi.listAuditLog` + hook `useOrgAuditLog` + tipos `OrgAuditEvent`/
+>      `OrgAuditEntry`; componente `OrgAuditLog` (filtro por evento, tabela
+>      Quando/Evento/Quem/Detalhe, estados de carga/erro/vazio) montado em
+>      `/configuracoes/membros`. `tsc --noEmit`, `eslint` e `build` limpos.
+>    - `docs/agents.md` reescrito como runbook completo ("/init melhorado"):
+>      fluxo graphify-first, matriz de skills por tarefa, convenções, regras de
+>      negócio, verificação por camada, DoD e pitfalls operacionais.
+>    - **Decisão de produto em aberto:** a página `/configuracoes/membros` é
+>      owner/admin-only; MANAGER acessa `GET /orgs/{id}/audit-log` por API mas
+>      não tem a tabela na UI (expor para MANAGER = decisão separada).
+>
+> 19. **Sessão 2026-08-14 — limpeza de comentários de rastreio:** removidas de
+>    código/UI/testes as referências a itens de roadmap ("Item 4.x", "Fase X.Y",
+>    "(4.2)", "roadmap-leads C.3"), datas de entrega e numerações — comentários
+>    viraram concisos e descritivos. Migrations **não** foram tocadas (regra).
+>    Regra nova gravada no `docs/agents.md` §3 e no `AGENTS.md` (proibido
+>    rastreio de item/sessão/PR em comentários, docstrings e textos da UI).
+>
+> 20. **Sessão 2026-08-14 — nomenclatura de UI ("SLA" → PT-BR):** removida a
+>    sigla "SLA" dos textos visíveis (kanban, "Ações de hoje", Configurações):
+>    passou a usar "leads parados", "Prazos de atendimento" e o badge
+>    "Parado há Xd". Identificadores de código/API (`sla_*`, `SlaAlertItem`,
+>    endpoints) ficam inalterados por contrato de dados.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

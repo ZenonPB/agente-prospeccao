@@ -174,14 +174,14 @@ export function TodayActions() {
               <div className="mb-2 flex items-center justify-between">
                 <p className="flex items-center gap-1.5 text-sm font-medium">
                   <AlertTriangle className="h-4 w-4 text-red-500" aria-hidden="true" />
-                  Leads parados (SLA)
+                  Leads parados
                 </p>
                 <Badge variant="destructive" className="text-xs">
                   {slaAlerts.length}
                 </Badge>
               </div>
               {slaAlerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum lead parado (SLA) — tudo em dia.</p>
+                <p className="text-sm text-muted-foreground">Nenhum lead parado — tudo em dia.</p>
               ) : (
                 <div className="space-y-2">
                   {slaAlerts.map((alert) => (
