@@ -941,6 +941,12 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    viraram concisos e descritivos. Migrations **não** foram tocadas (regra).
 >    Regra nova gravada no `docs/agents.md` §3 e no `AGENTS.md` (proibido
 >    rastreio de item/sessão/PR em comentários, docstrings e textos da UI).
+>
+> 20. **Sessão 2026-08-14 — nomenclatura de UI ("SLA" → PT-BR):** removida a
+>    sigla "SLA" dos textos visíveis (kanban, "Ações de hoje", Configurações):
+>    passou a usar "leads parados", "Prazos de atendimento" e o badge
+>    "Parado há Xd". Identificadores de código/API (`sla_*`, `SlaAlertItem`,
+>    endpoints) ficam inalterados por contrato de dados.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

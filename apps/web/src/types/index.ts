@@ -195,7 +195,7 @@ export interface OrgMembership {
     send_window_end?: string;
     sends_today?: number;
     email_from?: string;
-    // SLA de leads parados (dias).
+    // Prazos de leads parados (dias).
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;

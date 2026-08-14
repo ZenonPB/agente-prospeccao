@@ -331,7 +331,7 @@ export default function ConfiguracoesPage() {
       {/* Envio de follow-ups (item 3.7) */}
       <OrgSendSettings />
 
-      {/* SLA de leads parados (item 4.10) */}
+      {/* Prazos de leads parados */}
       <OrgSlaSettings />
     </div>
   );

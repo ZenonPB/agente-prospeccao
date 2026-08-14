@@ -39,7 +39,7 @@ function SlaForm({
 
   const handleSave = async () => {
     if (!validDays(qualified) || !validDays(responded) || !validDays(opened)) {
-      toast.error("Os valores de SLA devem ser inteiros entre 1 e 120 dias.");
+      toast.error("Os prazos devem ser inteiros entre 1 e 120 dias.");
       return;
     }
     setPending(true);
@@ -52,9 +52,9 @@ function SlaForm({
           sla_opened_no_response_days: Number(opened),
         },
       });
-      toast.success("Configurações de SLA salvas.");
+      toast.success("Prazos de atendimento salvos.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao salvar SLA.");
+      toast.error(error instanceof Error ? error.message : "Erro ao salvar os prazos.");
     } finally {
       setPending(false);
     }
@@ -64,7 +64,7 @@ function SlaForm({
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex items-center gap-2">
         <Clock className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-medium">SLA de leads parados</p>
+        <p className="text-sm font-medium">Prazos de atendimento</p>
       </div>
       <p className="text-xs text-muted-foreground">
         Regras que alimentam o painel &quot;Ações de hoje&quot;. Um lead que cruza o
@@ -117,7 +117,7 @@ function SlaForm({
       <div className="pt-1">
         <Button size="sm" disabled={pending} onClick={handleSave}>
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          Salvar SLA
+          Salvar prazos
         </Button>
       </div>
     </div>
@@ -135,7 +135,7 @@ export function OrgSlaSettings() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Clock className="h-5 w-5 text-muted-foreground" />
-          SLA de leads parados
+          Prazos de atendimento
         </CardTitle>
         <CardDescription>
           Lembretes automáticos para leads que ficam esquecidos
