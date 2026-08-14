@@ -101,7 +101,7 @@
 - `score_factors[]` (±), `evidence[]` (severidade), `priority` (HOT/WARM/COLD), `executive_summary`
 - Frontend: EvidenceCard com fatores +/− coloridos, prioridade com badge
 - Migration `c4a1f2e8b9d0` + tabela `campaign_scoring_templates`
-- 6 templates seedados: Desenvolvimento de Sites, SEO/Marketing Digital, Eng. Mecânica, Automação Industrial, Consultoria Empresarial, Genérico
+- 7 templates seedados: Desenvolvimento de Sites, SEO/Marketing Digital, Aplicações Web/ERP, Eng. Mecânica, Automação Industrial, Consultoria Empresarial, Genérico
 
 **Gerar mensagens de outreach:**
 - `apps/web/src/types/index.ts` — `OutreachMessages` interface
@@ -869,6 +869,20 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    - **Próximo passo:** rodar seed (`python -m src.seeds.scoring_templates`) e
 >      **"Reanalisar leads"** na campanha para pontuar os 18 leads que ficaram
 >      `NOVO` por rate-limit antes do deploy desta correção.
+> 14. **Sessão 2026-08-14 — pendências operacionais + C5
+>    (`feat/erp-webapps-template-seed`):**
+>    - **C5 fechado:** template de categoria **"Aplicações Web / ERP"** no seed
+>      (mesmo perfil `web_presence`; sinais de processo manual/planilha vs.
+>      portal/painel/API). Seed reaplicado → **7 templates ativos**. Testes
+>      `tests/test_erp_template_seed.py` (5); suíte em **181 passed**.
+>    - **Validação de fluxo (base local, 0 leads):** `reprocess_stuck_leads
+>      --apply --fix-site-evidence` roda limpo (0 leads — no-op); seed OK.
+>    - **PENDENTE na base real** (chaves `GROQ_API_KEY`/`GOOGLE_API_KEY` e dados
+>      não disponíveis nesta máquina): rodar
+>      `python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence`
+>      (C2/C3 — 56 leads) e reanalisar os 18 leads `NOVO` por rate-limit
+>      (seed + `POST /campaigns/{id}/reanalyze`). Comandos documentados no
+>      `roadmap-vendas.md §11`.
 
 ### Item 4.11 — Funil ponta-a-ponta ✅ (2026-08-12)
 

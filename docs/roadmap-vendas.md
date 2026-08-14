@@ -626,6 +626,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | ⬜ |
 | 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ⬜ |
 | 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
+| C5 | Aplicações web/ERP (template seed de categoria) | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-14 |
 | 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ⬜ |
 | 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ⬜ |
 | 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ⬜ |
@@ -824,25 +825,25 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Verificação:** `tests/test_cadence_close.py` (12). Regra documentada em
   `business-rules.md` (funil + cadência) já atualizada.
 
-### C5 · Suporte a aplicações web completas / ERP 🟡 decisão aberta
+### C5 · Suporte a aplicações web completas / ERP ✅ (2026-08-14)
+
 - **Pergunta do usuário:** o sistema "só suporta landing pages"? Para vender
   aplicações web completas ou sistemas ERP a análise precisa ser diferente.
-- **Hoje:** 2 perfis — `web_presence` (análise técnica do site) e
-  `business_opportunity` (sem análise técnica). Quem vende ERP/web apps usa
-  `web_presence`: a análise técnica já cobre presença/stack/performance do site
-  do lead; os **critérios** (sinais positivos/negativos) são editáveis por
-  template (`CampaignScoringTemplate`), então a categoria é configurável.
-- **Recomendação (2026-08-11):** **criar templates de categoria** ("Aplicações
-  web/ERP") em vez de um terceiro perfil. Motivo: o motor já separa perfil
-  (o *que* analisar) de template (os *critérios*). ERP/web apps são o MESMO perfil
-  `web_presence` (analisar o site do prospecto); o que muda são os sinais — adicionar
-  no template: positivos = "site institucional/landing (sem função) para quem vende
-  sistema", "sem área logada/portal", "processo manual/planilha"; negativos =
-  "painel/área do cliente presente", "menção a integrações/API", "portal do
-  aluno/cliente ativo". Sem código novo — só um seed de template.
-- **Decisão pendente:** validar com a EJ se basta a abordagem acima (criar o seed
-  de template + descrever na UI) ou se quer um **terceiro perfil** de análise.
-  Registrado para decisão da diretoria antes de implementar.
+- **Decisão (2026-08-14):** **criar template de categoria** ("Aplicações Web / ERP"),
+  conforme recomendação — sem terceiro perfil. O motor já separa perfil (o *que*
+  analisar) de template (os *critérios*); ERP/web apps usam o MESMO perfil
+  `web_presence` (analisar o site do prospecto), mudando apenas os sinais.
+- **Entregue:** seed novo em `scoring_templates.py` — `service_label="Aplicações
+  Web / ERP"` (`requires_technical_report=True`): positivos = "Site institucional
+  / landing sem função", "Sem área logada / portal do cliente", "Processo manual
+  / planilha", "Crescimento sem sistema"; negativos = "Painel / área do cliente
+  presente", "Menção a integrações/API", "Portal do aluno/cliente ativo";
+  `extra_instructions` com regra anti-desqualificação (processo manual =
+  público-alvo, nunca desqualificar por site desatualizado) + playbook de
+  outreach. Seed reaplicado (7 templates ativos). Testes
+  `tests/test_erp_template_seed.py` (5) — suíte em **181 passed**.
+- Router resolve: `aplicações web` casa fuzzy; `ERP`/`sistemas` pela etapa LLM
+  (com `GROQ_API_KEY`) ou exact/fuzzy em `target_segment`.
 
 ---
 
@@ -871,5 +872,19 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   entrada + saída automáticas. Ver §10 C9.
 - **Backlog pendente (⬜ do §5):** P2 restante (**4.17** mobile-first, **3.3.4**
   auditoria de acessos, LinkedIn **4.23–4.25**) → P3 (4.18–4.21, 4.26–4.27).
-- **Decisão aberta:** C5 (ERP/web apps) — recomendação registrada no §10; decidir
-  antes de fechar o próximo ciclo de UI.
+- **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão
+  fechada — template de categoria "Aplicações Web / ERP" no seed (sem terceiro
+  perfil). Ver §10 C5.
+- **Pendências operacionais (2026-08-14):** base local vazia (0 leads) e chaves
+  `GROQ_API_KEY`/`GOOGLE_API_KEY` sem valor — o reprocessamento (C2/C3, 56 leads)
+  e a reanálise dos 18 leads `NOVO` (rate-limit pré-PR #77) devem ser executados
+  na **base real**:
+  ```bash
+  # 1. Reprocessar presos + evidência de site errada (C2/C3)
+  cd services/workers && source venv/bin/activate
+  python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence
+
+  # 2. Reanalisar os 18 leads NOVO por rate-limit (PR #77) — re-pontua com template
+  python -m src.seeds.scoring_templates        # idempotente, garante seeds atuais
+  # ... depois, na API/UI: "Reanalisar leads" na campanha (POST /campaigns/{id}/reanalyze)
+  ```
