@@ -1,7 +1,7 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
-import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, ConsultantPlaybook } from "@/types";
+import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, ConsultantPlaybook, LeadDuplicate } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -177,6 +177,9 @@ export const leadsApi = {
     request<{ deleted: boolean; id: string }>(`/api/playbooks/${id}`, {
       method: "DELETE",
     }),
+
+  getDuplicates: (id: string) =>
+    request<{ matches: LeadDuplicate[]; count: number }>(`/api/leads/${id}/duplicates`),
 
   getPitch: (id: string) =>
     request<PitchOnePager>(`/api/leads/${id}/pitch`),

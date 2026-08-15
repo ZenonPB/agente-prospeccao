@@ -313,6 +313,15 @@ export function useDeletePlaybook() {
   });
 }
 
+export function useLeadDuplicates(id: string) {
+  return useQuery({
+    queryKey: ["lead-duplicates", id],
+    queryFn: () => leadsApi.getDuplicates(id),
+    enabled: !!id,
+    staleTime: 60_000,
+  });
+}
+
 export function useOrgMembership() {
   return useQuery({
     queryKey: ["org", "me"],

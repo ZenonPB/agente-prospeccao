@@ -515,3 +515,9 @@ export interface ConsultantPlaybook {
   created_at?: string | null;
   updated_at?: string | null;
 }
+
+export interface LeadDuplicate {
+  lead_id: string;
+  company_name?: string | null;
+  matched_by: string[];
+}

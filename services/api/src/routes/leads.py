@@ -567,6 +567,69 @@ def assign_lead(
     }
 
 
+@router.get("/{lead_id}/duplicates")
+def get_lead_duplicates(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Lista leads da mesma organização que provavelmente são o mesmo
+    contato/empresa (CNPJ, domínio, e-mail ou LinkedIn compartilhados).
+
+    Visibilidade do item 4.27 (versão pragmática): a unificação real
+    exigiria o modelo Company/Person/Employment — adiada por enquanto.
+    Aqui só detectamos e exibimos o aviso na UI do lead.
+    """
+    from src.services.duplicate_detection_service import find_duplicate_signals
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    candidates = (
+        db.query(Lead)
+        .filter(
+            Lead.organization_id == _org.id,
+            Lead.id != lead.id,
+        )
+        .all()
+    )
+    target_contacts = (
+        db.query(Contact).filter(Contact.lead_id == lead.id).all()
+    )
+    others_payload = []
+    for c in candidates:
+        contacts = db.query(Contact).filter(Contact.lead_id == c.id).all()
+        others_payload.append({
+            "id": c.id,
+            "company_name": c.company_name,
+            "cnpj": c.cnpj,
+            "normalized_domain": c.normalized_domain,
+            "contacts": [
+                {"email": ct.email, "linkedin_url": ct.linkedin_url}
+                for ct in contacts
+            ],
+        })
+    target_payload = {
+        "id": lead.id,
+        "company_name": lead.company_name,
+        "cnpj": lead.cnpj,
+        "normalized_domain": lead.normalized_domain,
+        "contacts": [
+            {"email": ct.email, "linkedin_url": ct.linkedin_url}
+            for ct in target_contacts
+        ],
+    }
+    matches = find_duplicate_signals(target_payload, others_payload)
+    return {"matches": matches, "count": len(matches)}
+
+
 @router.get("/{lead_id}")
 def get_lead(
     lead_id: str,

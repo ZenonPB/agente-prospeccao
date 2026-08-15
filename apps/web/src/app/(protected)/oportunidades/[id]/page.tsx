@@ -10,7 +10,7 @@ import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { whatsAppLink } from '@/lib/utils';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick, useUpdateCadenceStep, useCreatePlaybook } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick, useUpdateCadenceStep, useCreatePlaybook, useLeadDuplicates } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
@@ -271,6 +271,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const params = use(props.params);
   const router = useRouter();
   const { data: lead, isLoading } = useLead(params.id);
+  const duplicatesQ = useLeadDuplicates(params.id);
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
   const updateStepMutation = useUpdateCadenceStep();
@@ -379,6 +380,32 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
   return (
     <div className="space-y-6">
+      {duplicatesQ.data && duplicatesQ.data.count > 0 && (
+        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <p className="font-medium text-amber-800 dark:text-amber-300">
+              Possível duplicata ({duplicatesQ.data.count} lead{duplicatesQ.data.count === 1 ? '' : 's'} na mesma organização)
+            </p>
+            <ul className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-400">
+              {duplicatesQ.data.matches.slice(0, 3).map((m) => (
+                <li key={m.lead_id} className="flex flex-wrap items-center gap-x-2">
+                  <Link
+                    href={`/oportunidades/${m.lead_id}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {m.company_name || m.lead_id}
+                  </Link>
+                  <span className="text-xs">— {m.matched_by.join(', ')}</span>
+                </li>
+              ))}
+              {duplicatesQ.data.count > 3 && (
+                <li className="text-xs">+ {duplicatesQ.data.count - 3} outros</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Link href="/oportunidades">
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
