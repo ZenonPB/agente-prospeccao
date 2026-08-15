@@ -10,7 +10,7 @@ import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { whatsAppLink } from '@/lib/utils';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick, useUpdateCadenceStep } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick, useUpdateCadenceStep, useCreatePlaybook } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
@@ -274,6 +274,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
   const updateStepMutation = useUpdateCadenceStep();
+  const createPlaybookMutation = useCreatePlaybook();
   const enrichContacts = useEnrichContacts();
   const recordWhatsApp = useRecordWhatsAppClick();
 
@@ -334,6 +335,23 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       toast.success(`Etapa ${step} atualizada com variante ${(variant as OutreachVariant).label || 'A'}.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Falha ao aplicar variante.');
+    }
+  };
+
+  const saveToPlaybook = async (subject: string, body: string) => {
+    if (!subject.trim() || !body.trim()) {
+      toast.error('Mensagem sem assunto/corpo — nada para salvar.');
+      return;
+    }
+    try {
+      await createPlaybookMutation.mutateAsync({
+        vertical: lead?.category || undefined,
+        subject: subject.trim(),
+        body,
+      });
+      toast.success('Mensagem salva no playbook da organização.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao salvar no playbook.');
     }
   };
 
@@ -1065,9 +1083,19 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   <p className="text-sm text-muted-foreground mb-2">Corpo da mensagem:</p>
                   <div className="flex items-center space-x-2">
                     <Textarea value={generatedMessages.body_opening} readOnly rows={8} />
-                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(generatedMessages.body_opening, 'Corpo do e-mail copiado!')}>
-                      Copiar
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(generatedMessages.body_opening, 'Corpo do e-mail copiado!')}>
+                        Copiar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => saveToPlaybook(generatedMessages.subject, generatedMessages.body_opening)}
+                        disabled={createPlaybookMutation.isPending}
+                      >
+                        Salvar no playbook
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">Gerado com base nas evidências reais do lead</p>

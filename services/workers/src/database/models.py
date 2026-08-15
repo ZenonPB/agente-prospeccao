@@ -262,6 +262,33 @@ class SalesTarget(Base):
         return f"<SalesTarget(org='{self.organization_id}', user='{self.user_id}', month='{self.month}')>"
 
 
+class ConsultantPlaybook(Base):
+    """Mensagem que funcionou, anotada pelo próprio consultor.
+
+    Cada registro guarda um subject + body que o autor considera útil
+    reutilizar naquela vertical. Outros consultores da org podem ler
+    (ver e copiar), mas só o autor ou admin edita/remove. É diferente
+    do `CampaignScoringTemplate` (que define como pontuar) e dos
+    `playbook` embutidos no template (que alimentam a LLM).
+    """
+    __tablename__ = "consultant_playbooks"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    vertical = Column(String(120))
+    subject = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    tags = Column(JSONB)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+    author = relationship("User")
+
+    def __repr__(self):
+        return f"<ConsultantPlaybook(id='{self.id}', author='{self.author_id}', vertical='{self.vertical}')>"
+
+
 class OrganizationSecret(Base):
     """Chaves de API próprias da organização (BYOK).
 

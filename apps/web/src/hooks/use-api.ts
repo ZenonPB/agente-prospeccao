@@ -285,6 +285,34 @@ export function useUpdateCadenceStep() {
   });
 }
 
+export function usePlaybooks(params?: { vertical?: string; author_id?: string; limit?: number }) {
+  return useQuery({
+    queryKey: ["playbooks", params],
+    queryFn: () => leadsApi.listPlaybooks(params),
+  });
+}
+
+export function useCreatePlaybook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { vertical?: string; subject: string; body: string; tags?: string[] }) =>
+      leadsApi.createPlaybook(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["playbooks"] });
+    },
+  });
+}
+
+export function useDeletePlaybook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.deletePlaybook(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["playbooks"] });
+    },
+  });
+}
+
 export function useOrgMembership() {
   return useQuery({
     queryKey: ["org", "me"],

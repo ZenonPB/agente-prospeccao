@@ -499,3 +499,17 @@ export interface MessageVariantStats {
 export interface MessageVariants {
   variants: MessageVariantStats[];
 }
+
+export interface ConsultantPlaybook {
+  id: string;
+  organization_id: string;
+  author_id: string;
+  author_name?: string | null;
+  author_email?: string | null;
+  vertical?: string | null;
+  subject: string;
+  body: string;
+  tags: string[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}

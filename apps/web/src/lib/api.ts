@@ -1,7 +1,7 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
-import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem } from "@/types";
+import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, ConsultantPlaybook } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -154,6 +154,28 @@ export const leadsApi = {
     request<OutreachMessages>(`/api/leads/${id}/cadence/step/${step}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    }),
+
+  listPlaybooks: (params?: { vertical?: string; author_id?: string; limit?: number }) =>
+    request<{ items: ConsultantPlaybook[] }>("/api/playbooks", {
+      params: params as Record<string, string | number | undefined>,
+    }),
+
+  createPlaybook: (data: { vertical?: string; subject: string; body: string; tags?: string[] }) =>
+    request<ConsultantPlaybook>("/api/playbooks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updatePlaybook: (id: string, data: Partial<{ vertical: string; subject: string; body: string; tags: string[] }>) =>
+    request<ConsultantPlaybook>(`/api/playbooks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deletePlaybook: (id: string) =>
+    request<{ deleted: boolean; id: string }>(`/api/playbooks/${id}`, {
+      method: "DELETE",
     }),
 
   getPitch: (id: string) =>
