@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from src.db.models import Lead, LeadStatus, Campaign, Contact, ContactRole
-from services.domain_utils import normalize_domain, is_social_domain
+from services.domain_utils import normalize_domain, is_social_domain, is_instagram_url, extract_instagram_url
 
 
 HEADER_ALIASES = {
@@ -31,6 +31,7 @@ HEADER_ALIASES = {
     "category": ["category", "categoria", "ramo", "segmento", "nicho"],
     "contact_name": ["contact_name", "contato", "nome_contato", "decisor", "responsavel"],
     "linkedin": ["linkedin", "perfil_linkedin", "linkedin_url"],
+    "instagram": ["instagram", "instagram_url", "perfil_instagram", "ig"],
 }
 
 
@@ -160,6 +161,13 @@ class CsvImportService:
             email = row_data.get("email")
             contact_name = row_data.get("contact_name")
             linkedin = row_data.get("linkedin")
+            # Instagram: prioriza coluna própria; cai pro website se for IG; ou
+            # extrai por regex de qualquer texto livre da linha.
+            instagram_url = (
+                row_data.get("instagram")
+                or (extract_instagram_url(website) if website else None)
+                or extract_instagram_url(name)
+            )
             city = row_data.get("city") or campaign.target_city
             state = row_data.get("state") or campaign.target_state
             address = row_data.get("address")
@@ -199,6 +207,7 @@ class CsvImportService:
                 address=address,
                 cnpj=cnpj,
                 category=category,
+                instagram_url=instagram_url,
                 status=LeadStatus.NOVO,
             )
 

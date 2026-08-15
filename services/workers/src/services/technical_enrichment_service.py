@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 import asyncio
 import time
 
+from services.domain_utils import extract_instagram_url
+
 logger = logging.getLogger(__name__)
 
 class TechnicalEnrichmentService:
@@ -399,6 +401,15 @@ class TechnicalEnrichmentService:
             report["exposed_paths"] = await self._check_public_paths(website_url)
             if report["exposed_paths"]:
                 report["warnings"].append(f"Arquivos públicos presentes: {', '.join(report['exposed_paths'])}")
+
+            # Presença social detectada no HTML — destaque para Instagram
+            # (sinal de atividade digital sem site próprio).
+            if html_content:
+                ig = extract_instagram_url(html_content)
+                if ig:
+                    report["social_links"] = {"instagram": ig}
+                else:
+                    report["social_links"] = {}
 
         except Exception as e:
             report["errors"].append(f"Erro inesperado durante o enriquecimento: {e}")

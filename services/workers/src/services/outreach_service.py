@@ -171,6 +171,8 @@ def _extract_facts_for_prompt(lead: Dict[str, Any]) -> List[str]:
         facts.append(f"Localização: {lead['city']}, {lead.get('state') or ''}")
     if lead.get("website"):
         facts.append(f"Site: {lead['website']}")
+    if lead.get("instagram_url"):
+        facts.append(f"Instagram ativo: {lead['instagram_url']}")
 
     for ev in (lead.get("evidence") or [])[:8]:
         title = ev.get("title") or ""

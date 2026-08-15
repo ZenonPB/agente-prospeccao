@@ -101,6 +101,12 @@ async def process_single_lead(
             )
             db.add(enrichment)
 
+        # Instagram detectado no HTML (passivo) — salva no lead quando ainda
+        # não estava preenchido pela coleta.
+        social_links = technical_report.get("social_links") or {}
+        if not lead.instagram_url and social_links.get("instagram"):
+            lead.instagram_url = social_links["instagram"]
+
         scoring_data = await scoring_service.score_lead(
             technical_report,
             target_service=campaign_target_service,

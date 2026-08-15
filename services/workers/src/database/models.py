@@ -515,6 +515,10 @@ class Lead(Base):
     # Página da empresa no LinkedIn (linkedin.com/company/<slug>), localizada
     # por busca passiva durante o enriquecimento.
     company_linkedin_url = Column(String(255))
+    # Perfil do Instagram do negócio (canonicalizado via domain_utils).
+    # Sinal de presença/atividade digital — exibido no pitch e considerado
+    # pelo scoring (item 4.26).
+    instagram_url = Column(String(255))
     # Timestamps por fonte do enriquecimento (JSONB {"linkedin", "site",
     # "reviews"} em ISO) — alimenta o TTL e a indicação de dados antigos.
     enrichment_timestamps = Column(JSONB)

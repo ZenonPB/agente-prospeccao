@@ -157,6 +157,7 @@ async def run_pipeline(
                     category=item.get("cnae_description") or campaign.target_segment,
                     city=item.get("city") or target_city,
                     state=item.get("state") or target_state,
+                    instagram_url=item.get("instagram_url"),
                     status=LeadStatus.NOVO,
                     campaign_id=campaign.id if campaign else None,
                 )

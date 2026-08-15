@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, AlertTriangle, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, AlertTriangle, Trophy, MessageCircle, Save, Sparkles, Camera } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -506,6 +506,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                     <LinkedInIcon className="h-4 w-4 text-primary" />
                     <a href={lead.company_linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
                       Empresa no LinkedIn
+                    </a>
+                  </div>
+                )}
+                {lead.instagram_url && (
+                  <div className="flex items-center gap-3">
+                    <Camera className="h-4 w-4 text-pink-600" />
+                    <a href={lead.instagram_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                      Perfil no Instagram
                     </a>
                   </div>
                 )}

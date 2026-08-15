@@ -99,6 +99,7 @@ export interface Lead {
   google_rating_count?: number;
   google_maps_uri?: string;
   company_linkedin_url?: string;
+  instagram_url?: string;
   enrichment_freshness?: {
     linkedin?: 'fresh' | 'stale' | null;
     site?: 'fresh' | 'stale' | null;
@@ -388,7 +389,8 @@ export interface PitchOnePager {
     phone?: string;
     email?: string;
     google_maps_uri?: string;
-    company_linkedin_url?: string;
+  company_linkedin_url?: string;
+  instagram_url?: string;
     cnpj?: string;
     razao_social?: string;
     nome_fantasia?: string;
