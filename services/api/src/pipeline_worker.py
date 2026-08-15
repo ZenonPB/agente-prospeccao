@@ -36,6 +36,50 @@ def _ts() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _dispatch_lead_created_webhooks(db: Session, org_id: str, lead_ids: list[str]) -> None:
+    """Dispara webhook `lead.created` para cada lead recém-criado.
+
+    Usa `asyncio.create_task` porque este pipeline é gerenciado por um
+    loop asyncio (jobs consumer / WebSocket). Os tokens de tracking são
+    independentes — o disparo é fire-and-forget.
+    """
+    if not org_id or not lead_ids:
+        return
+    from src.services.webhook_outbound_service import (
+        _dispatch_webhook,
+        build_webhook_payload,
+        build_webhook_headers,
+    )
+    from src.db.models import Organization as OrgModel
+
+    org_obj = db.query(OrgModel).filter(OrgModel.id == org_id).first()
+    if not org_obj or not org_obj.webhook_url:
+        return
+    fresh_leads = (
+        db.query(Lead)
+        .filter(Lead.id.in_(lead_ids), Lead.organization_id == org_id)
+        .all()
+    )
+    for fresh in fresh_leads:
+        payload = build_webhook_payload(
+            "lead.created",
+            {
+                "lead_id": str(fresh.id),
+                "company_name": fresh.company_name,
+                "city": fresh.city,
+                "state": fresh.state,
+                "category": fresh.category,
+                "instagram_url": fresh.instagram_url,
+                "campaign_id": str(fresh.campaign_id) if fresh.campaign_id else None,
+                "created_at": fresh.created_at.isoformat() if fresh.created_at else None,
+            },
+        )
+        headers = build_webhook_headers(org_obj.webhook_secret, "lead.created")
+        asyncio.create_task(
+            _dispatch_webhook(str(org_obj.webhook_url), payload, headers),
+        )
+
+
 async def run_pipeline(
     job_id: str,
     query: str | None = None,
@@ -104,6 +148,7 @@ async def run_pipeline(
 
         # --- Coleta (pulada em reanalyze_only) ---
         collected_count = 0
+        cnae_created_ids: list[str] = []
         if reanalyze_only:
             yield {"type": "log", "message": "Modo reanálise: pulando coleta, reusando leads existentes", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 50}
@@ -162,40 +207,15 @@ async def run_pipeline(
                     campaign_id=campaign.id if campaign else None,
                 )
                 db.add(new_lead)
+                db.commit()
+                if new_lead.id is not None:
+                    cnae_created_ids.append(str(new_lead.id))
                 collected_count += 1
 
-                db.commit()
                 yield {"type": "log", "message": f"{collected_count} novos leads por CNAE salvos", "timestamp": _ts()}
-                org_id = campaign.organization_id if campaign else None
-                if org_id and collected_count > 0:
-                    from src.services.webhook_outbound_service import _dispatch_webhook, build_webhook_payload, build_webhook_headers
-                    from src.db.models import Organization as OrgModel
-                    org_obj = db.query(OrgModel).filter(OrgModel.id == org_id).first()
-                    if org_obj and org_obj.webhook_url:
-                        recent = (
-                            db.query(Lead)
-                            .filter(Lead.organization_id == org_id)
-                            .order_by(Lead.created_at.desc())
-                            .limit(collected_count)
-                            .all()
-                        )
-                        for fresh in recent:
-                            payload = build_webhook_payload(
-                                "lead.created",
-                                {
-                                    "lead_id": str(fresh.id),
-                                    "company_name": fresh.company_name,
-                                    "city": fresh.city,
-                                    "state": fresh.state,
-                                    "category": fresh.category,
-                                    "campaign_id": str(fresh.campaign_id) if fresh.campaign_id else None,
-                                    "created_at": fresh.created_at.isoformat() if fresh.created_at else None,
-                                },
-                            )
-                            headers = build_webhook_headers(org_obj.webhook_secret, "lead.created")
-                            asyncio.create_task(
-                                _dispatch_webhook(str(org_obj.webhook_url), payload, headers),
-                            )
+
+            org_id = campaign.organization_id if campaign else None
+            _dispatch_lead_created_webhooks(db, org_id, cnae_created_ids)
         else:
             yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 0}
@@ -215,6 +235,7 @@ async def run_pipeline(
             existing_ids_set = set(existing_ids)
 
             yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
+            places_created_ids: list[str] = []
 
             results = await places_service.search_places(
                 query,
@@ -264,10 +285,12 @@ async def run_pipeline(
                     google_rating=item.get("rating"),
                     google_rating_count=item.get("rating_count"),
                     google_maps_uri=item.get("maps_uri"),
+                    instagram_url=item.get("instagram_url"),
                     campaign_id=campaign.id if campaign else None,
                     status=LeadStatus.NOVO,
                 )
                 db.add(new_lead)
+                places_created_ids.append(str(new_lead.id) if new_lead.id is not None else None)
                 collected_count += 1
 
                 yield {
@@ -280,6 +303,9 @@ async def run_pipeline(
                 yield {"type": "progress", "step": "coleta", "percent": min(percent, 50)}
 
             db.commit()
+            places_created_ids = [lid for lid in places_created_ids if lid]
+            org_id = campaign.organization_id if campaign else None
+            _dispatch_lead_created_webhooks(db, org_id, places_created_ids)
             yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 50}
 

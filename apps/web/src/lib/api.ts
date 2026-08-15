@@ -151,7 +151,7 @@ export const leadsApi = {
     step: "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE",
     data: { variant?: string; subject?: string; content?: string },
   ) =>
-    request<OutreachMessages>(`/api/leads/${id}/cadence/step/${step}`, {
+    request<FollowUpItem>(`/api/leads/${id}/cadence/step/${step}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),

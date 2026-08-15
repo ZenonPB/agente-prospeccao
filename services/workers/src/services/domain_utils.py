@@ -122,8 +122,12 @@ _INSTAGRAM_RE = re.compile(
     r"(?:https?://)?(?:www\.)?instagram\.com/(?P<handle>@?[A-Za-z0-9._]{1,30})/?",
     re.IGNORECASE,
 )
+# Handle puro precedido por `@`. Sem ponto — handles de Instagram podem ter
+# `.`, mas o bare-fallback em texto livre precisa rejeitar e-mails (que sempre
+# têm `.` no domínio). URLs explícitas continuam sendo reconhecidas pela
+# regex acima.
 _INSTAGRAM_BARE_HANDLE_RE = re.compile(
-    r"(?<![A-Za-z0-9._-])@(?P<handle>[A-Za-z0-9._]{2,30})(?![A-Za-z0-9._-])",
+    r"(?<![A-Za-z0-9._-])@(?P<handle>[A-Za-z0-9_]{2,30})(?![A-Za-z0-9._-])",
 )
 
 

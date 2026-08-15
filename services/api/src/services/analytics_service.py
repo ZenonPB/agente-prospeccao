@@ -831,12 +831,22 @@ class AnalyticsService:
 
         token_open = {
             t for (t,) in self.db.query(Message.tracking_token)
-            .filter(Message.tracking_token.isnot(None), Message.opened_at.isnot(None))
+            .join(Lead, Message.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Message.tracking_token.isnot(None),
+                Message.opened_at.isnot(None),
+            )
             .all()
         }
         token_click = {
             t for (t,) in self.db.query(Message.tracking_token)
-            .filter(Message.tracking_token.isnot(None), Message.clicked_at.isnot(None))
+            .join(Lead, Message.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Message.tracking_token.isnot(None),
+                Message.clicked_at.isnot(None),
+            )
             .all()
         }
 
@@ -882,7 +892,15 @@ def compute_threshold_candidates(
     Função pura — testável sem banco. Recebe os dados já lidos pelo service.
     Retorna a recomendação, candidatos (30–90 passo 5) com precisão/revisão/F1,
     e a `rationale` exibida na UI.
+
+    Guarda de volume: se o histórico for pequeno (poucos leads ou zero
+    conversões), a métrica F1 é ruidosa e a "recomendação" pode ser
+    enganosa. Nesses casos mantemos o limiar atual e devolvemos uma
+    `rationale` explicando o motivo.
     """
+    MIN_LEADS = 5
+    MIN_CONVERSIONS = 1
+
     if not scored:
         return {
             "recommended_threshold": current_threshold,
@@ -895,6 +913,20 @@ def compute_threshold_candidates(
 
     total = len(scored)
     total_converted = sum(1 for _, lid in scored if lid in converted_ids)
+
+    if total < MIN_LEADS or total_converted < MIN_CONVERSIONS:
+        return {
+            "recommended_threshold": current_threshold,
+            "current_threshold": current_threshold,
+            "candidates": [],
+            "rationale": (
+                f"Volume insuficiente para calibrar ({total} leads e "
+                f"{total_converted} conversões no período; mínimo "
+                f"{MIN_LEADS}/{MIN_CONVERSIONS}). Mantenha o limiar atual."
+            ),
+            "leads_considered": total,
+            "converted_total": total_converted,
+        }
 
     candidates: list = []
     best_threshold = current_threshold
@@ -916,7 +948,8 @@ def compute_threshold_candidates(
             "recall": round(recall * 100, 1),
             "f1": round(f1 * 100, 1),
         })
-        if f1 > best_f1:
+        # Empate de F1 prefere o limiar atual para evitar "saltos" sem evidência.
+        if f1 > best_f1 or (f1 == best_f1 and threshold == current_threshold):
             best_f1 = f1
             best_threshold = threshold
 
