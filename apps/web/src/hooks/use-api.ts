@@ -771,6 +771,9 @@ export function usePatchOrgSettings() {
       sla_responded_no_next_action_days?: number;
       sla_opened_no_response_days?: number;
       qualification_threshold?: number;
+      webhook_url?: string | null;
+      webhook_secret?: string | null;
+      scheduling_url?: string | null;
       api_quota?: Record<string, number>;
     } }) =>
       orgsApi.patchSettings(orgId, data),

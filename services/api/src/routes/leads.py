@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -346,6 +346,7 @@ def list_sla_alerts(
 def update_lead_status(
     lead_id: str,
     body: UpdateLeadStatusRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
@@ -380,6 +381,21 @@ def update_lead_status(
         )
     db.commit()
     db.refresh(lead)
+
+    from src.services.webhook_outbound_service import enqueue_webhook
+    enqueue_webhook(
+        background_tasks, db, lead.organization_id,
+        event="lead.status_changed",
+        data={
+            "lead_id": str(lead.id),
+            "company_name": lead.company_name,
+            "previous_status": previous.value if previous else None,
+            "status": lead.status.value,
+            "lost_reason": lead.lost_reason.value if lead.lost_reason else None,
+            "changed_by": str(user.id) if user else None,
+            "changed_at": (lead.updated_at or datetime.now(timezone.utc)).isoformat(),
+        },
+    )
 
     return {
         "id": str(lead.id),
@@ -657,6 +673,7 @@ async def generate_messages(
     result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
         generate_variants=body.variants,
+        scheduling_url=_org.scheduling_url,
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
@@ -859,6 +876,7 @@ class RegisterPostSaleRequest(BaseModel):
 def register_conversion(
     lead_id: str,
     body: RegisterConversionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
@@ -916,6 +934,21 @@ def register_conversion(
     )
     db.commit()
     db.refresh(conversion)
+
+    from src.services.webhook_outbound_service import enqueue_webhook
+    enqueue_webhook(
+        background_tasks, db, lead.organization_id,
+        event="conversion.created",
+        data={
+            "conversion_id": str(conversion.id),
+            "lead_id": str(lead.id),
+            "company_name": lead.company_name,
+            "service_sold": conversion.service_sold,
+            "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
+            "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,
+            "converted_by": str(user.id) if user else None,
+        },
+    )
 
     return {
         "id": str(conversion.id),

@@ -211,6 +211,10 @@ export interface OrgMembership {
     sla_opened_no_response_days?: number;
     // Limiar QUALIFICADO/DESQUALIFICADO configurável por org.
     qualification_threshold?: number;
+    // Webhook genérico de saída + link de agendamento.
+    webhook_url?: string | null;
+    webhook_configured?: boolean;
+    scheduling_url?: string | null;
   };
   membership: {
     role: OrgRole;

@@ -163,8 +163,38 @@ async def run_pipeline(
                 db.add(new_lead)
                 collected_count += 1
 
-            db.commit()
-            yield {"type": "log", "message": f"{collected_count} novos leads por CNAE salvos", "timestamp": _ts()}
+                db.commit()
+                yield {"type": "log", "message": f"{collected_count} novos leads por CNAE salvos", "timestamp": _ts()}
+                org_id = campaign.organization_id if campaign else None
+                if org_id and collected_count > 0:
+                    from src.services.webhook_outbound_service import _dispatch_webhook, build_webhook_payload, build_webhook_headers
+                    from src.db.models import Organization as OrgModel
+                    org_obj = db.query(OrgModel).filter(OrgModel.id == org_id).first()
+                    if org_obj and org_obj.webhook_url:
+                        recent = (
+                            db.query(Lead)
+                            .filter(Lead.organization_id == org_id)
+                            .order_by(Lead.created_at.desc())
+                            .limit(collected_count)
+                            .all()
+                        )
+                        for fresh in recent:
+                            payload = build_webhook_payload(
+                                "lead.created",
+                                {
+                                    "lead_id": str(fresh.id),
+                                    "company_name": fresh.company_name,
+                                    "city": fresh.city,
+                                    "state": fresh.state,
+                                    "category": fresh.category,
+                                    "campaign_id": str(fresh.campaign_id) if fresh.campaign_id else None,
+                                    "created_at": fresh.created_at.isoformat() if fresh.created_at else None,
+                                },
+                            )
+                            headers = build_webhook_headers(org_obj.webhook_secret, "lead.created")
+                            asyncio.create_task(
+                                _dispatch_webhook(str(org_obj.webhook_url), payload, headers),
+                            )
         else:
             yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 0}

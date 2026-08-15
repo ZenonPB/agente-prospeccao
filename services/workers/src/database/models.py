@@ -168,6 +168,12 @@ class Organization(Base):
     # Limiar QUALIFICADO/DESQUALIFICADO aplicado em `_persist_scoring`.
     # Calibrável por org via `PATCH /api/orgs/{id}` (sugestão via analytics).
     qualification_threshold = Column(Integer, default=60, nullable=False, server_default="60")
+    # URL pública que recebe eventos de lead (POST JSON). Vazio = sem webhook.
+    webhook_url = Column(String(255))
+    # Segredo compartilhado enviado em X-Webhook-Secret — consumidor valida.
+    webhook_secret = Column(String(64))
+    # Link de agendamento (Cal.com/Calendly). Injetado no outreach como CTA.
+    scheduling_url = Column(String(255))
     # Teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
     # default do settings (`PROVIDER_DAILY_QUOTA`). Ex.: {"GROQ_API_KEY": 500}.
     api_quota = Column(JSONB, default=dict)

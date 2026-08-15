@@ -216,12 +216,15 @@ def build_prompt(
     context_segment: str = "",
     playbook: Optional[Dict[str, Any]] = None,
     generate_variants: bool = False,
+    scheduling_url: Optional[str] = None,
 ) -> str:
     lines: List[str] = []
 
     lines.append("== CONTEXTO DA EMPRESA QUE PROSPECTA ==")
     lines.append(f"Serviço que vendemos: {context_service or '(não informado)'}")
     lines.append(f"Segmento prospectado: {context_segment or '(não informado)'}")
+    if scheduling_url:
+        lines.append(f"Link de agendamento oficial (ofereça como CTA preferencial quando fizer sentido): {scheduling_url}")
     lines.append("")
 
     if playbook:
@@ -343,6 +346,7 @@ class OutreachService:
         context_segment: str = "",
         playbook: Optional[Dict[str, Any]] = None,
         generate_variants: bool = False,
+        scheduling_url: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Gera subject + 4 mensagens + variação WhatsApp + rationale.
 
@@ -362,6 +366,8 @@ class OutreachService:
             generate_variants: se True, pede duas sequências alternativas
               numa única chamada (a mesma `temperature=0.7` introduz a
               variação naturalmente).
+            scheduling_url: link de agendamento da org (Cal.com/Calendly)
+              injetado como CTA preferencial quando presente.
 
         Returns:
             Dict normalizado (single) ou com chave `variants` (multi) ou
@@ -370,6 +376,7 @@ class OutreachService:
         prompt = build_prompt(
             lead, context_service, context_segment, playbook,
             generate_variants=generate_variants,
+            scheduling_url=scheduling_url,
         )
         # Variantes dobram o tamanho do JSON pedido — sobem o limite.
         max_tokens = 6000 if generate_variants else 3200
