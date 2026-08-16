@@ -96,6 +96,7 @@ export const leadsApi = {
     search?: string;
     min_score?: number;
     assigned?: string;
+    consultant_id?: string;
     next_action_before?: string;
     limit?: number;
     offset?: number;
@@ -552,6 +553,60 @@ export interface AnalyticsConsultant {
   revenue_target: number;
   meetings_attainment: number | null;
   revenue_attainment: number | null;
+  // KPIs da planilha Alphamec (roadmap-leads C.2).
+  pitch_sent: number;
+  responded_leads: number;
+  pitch_rate: number;
+  response_rate: number;
+  contracts_approved: number;
+  contracts_total: number;
+  contract_approval_rate: number;
+  ticket_medio: number;
+  ticket_count: number;
+  avg_cadence_days: number;
+  cadence_days_n: number;
+  avg_close_days: number;
+  close_days_n: number;
+  negotiation_distribution: { stage: string; count: number }[];
+  contracts_by_outcome: { outcome: string; count: number }[];
+  channel_distribution: { channel: string; count: number }[];
+}
+
+export interface ConsultantActivity {
+  id: string;
+  action: string;
+  detail?: string | null;
+  status_from?: string | null;
+  status_to?: string | null;
+  user_id?: string | null;
+  created_at: string | null;
+  lead_id: string;
+  company_name: string;
+}
+
+export interface AnalyticsConsultantDetail {
+  user_id: string;
+  name: string;
+  email: string;
+  sales_role: string | null;
+  assigned_leads: number;
+  pitch_sent: number;
+  responded_leads: number;
+  pitch_rate: number;
+  response_rate: number;
+  contracts_approved: number;
+  contracts_total: number;
+  contract_approval_rate: number;
+  ticket_medio: number;
+  ticket_count: number;
+  avg_cadence_days: number;
+  cadence_days_n: number;
+  avg_close_days: number;
+  close_days_n: number;
+  negotiation_distribution: { stage: string; count: number }[];
+  contracts_by_outcome: { outcome: string; count: number }[];
+  channel_distribution: { channel: string; count: number }[];
+  funnel: AnalyticsFunnel;
 }
 
 export interface SalesTarget {
@@ -639,6 +694,19 @@ export const analyticsApi = {
     request<{ consultants: AnalyticsConsultant[] }>("/api/analytics/consultants", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
+
+  consultantDetail: (userId: string, params?: { from?: string; to?: string }) =>
+    request<AnalyticsConsultantDetail>(`/api/analytics/consultants/${userId}`, {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  consultantActivity: (userId: string, params?: { limit?: number }) =>
+    request<{ activities: ConsultantActivity[] }>(
+      `/api/analytics/consultants/${userId}/activity`,
+      {
+        params: params as Record<string, string | number | boolean | undefined>,
+      },
+    ),
 
   leadsRanking: (params?: { sort_by?: "score" | "converted" | "created"; campaign_id?: string; from?: string; to?: string; limit?: number }) =>
     request<{ sort_by: string; items: AnalyticsRankingItem[] }>("/api/analytics/leads-ranking", {

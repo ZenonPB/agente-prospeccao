@@ -23,9 +23,11 @@ from src.db.models import (
     Campaign,
     Conversion,
     FollowUp,
+    FollowUpStep,
     LeadActivity,
     LeadActivityAction,
     Message,
+    MessageChannel,
     User,
     OrganizationMember,
     NegotiationStage,
@@ -319,6 +321,170 @@ class AnalyticsService:
         return {"total_leads": counts["achados"], "funnel": build_funnel_stages(counts)}
 
     # ---------------------------------------------------------------- consultants
+    def _consultant_planilha(
+        self,
+        user_id: str,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        assigned_leads: Optional[int] = None,
+    ) -> dict:
+        """KPIs da planilha Alphamec (roadmap-leads C.2) para um consultor.
+
+        Efetua consultas específicas do usuário: pitch enviado (abertura da
+        cadência), respostas (inbound), estágio de negociação, resultado do
+        contrato, ticket médio, tempo de cadência e de fechamento e canal de
+        contato. Tudo org-scoped (leads atribuídos ao consultor).
+        """
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+        uid = user_id
+
+        # Abertura (pitch) efetivamente enviada.
+        pitch_q = (
+            self.db.query(func.count(FollowUp.id))
+            .join(Lead, FollowUp.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Lead.assigned_to_id == uid,
+                FollowUp.step == FollowUpStep.OPENING,
+                FollowUp.sent_at.isnot(None),
+            )
+        )
+        if f:
+            pitch_q = pitch_q.filter(FollowUp.sent_at >= f)
+        if t:
+            pitch_q = pitch_q.filter(FollowUp.sent_at <= t)
+        pitch_sent = pitch_q.scalar() or 0
+
+        # Respostas via inbound (`Message.is_response`), leads distintos.
+        resp_q = (
+            self.db.query(func.count(func.distinct(Message.lead_id)))
+            .join(Lead, Message.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Lead.assigned_to_id == uid,
+                Message.is_response.is_(True),
+            )
+        )
+        if f:
+            resp_q = resp_q.filter(Message.sent_at >= f)
+        if t:
+            resp_q = resp_q.filter(Message.sent_at <= t)
+        responded_leads = resp_q.scalar() or 0
+
+        # Estágio de negociação e resultado de contrato — sobre a carteira.
+        leads = self._leads(from_date, to_date, user_id=uid).all()
+        contract_outcomes = {o.value: 0 for o in ContractOutcome}
+        negotiation = {s.value: 0 for s in NegotiationStage}
+        for lead in leads:
+            if lead.contract_outcome:
+                contract_outcomes[lead.contract_outcome.value] += 1
+            if lead.negotiation_stage:
+                negotiation[lead.negotiation_stage.value] += 1
+        contracts_total = sum(contract_outcomes.values())
+        contracts_approved = contract_outcomes.get(ContractOutcome.APROVADO.value, 0)
+
+        # Conversões: ticket médio + tempo de fechamento.
+        conv_rows = (
+            self.db.query(Conversion.contract_value, Conversion.time_to_close_days)
+            .join(Lead, Conversion.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                or_(Lead.assigned_to_id == uid, Conversion.user_id == uid),
+            )
+            .all()
+        )
+        ticket_sum = sum(float(c) or 0 for c, _ in conv_rows)
+        ticket_count = len(conv_rows)
+        close_days = [int(d) for _, d in conv_rows if d]
+
+        # Cadência: intervalo abertura → resposta por lead (média).
+        pitch_by_lead = {
+            str(lid): sent_at
+            for lid, sent_at in (
+                self.db.query(FollowUp.lead_id, func.min(FollowUp.sent_at))
+                .join(Lead, FollowUp.lead_id == Lead.id)
+                .filter(
+                    Lead.organization_id == self.org_id,
+                    Lead.assigned_to_id == uid,
+                    FollowUp.step == FollowUpStep.OPENING,
+                    FollowUp.sent_at.isnot(None),
+                )
+                .group_by(FollowUp.lead_id)
+                .all()
+            )
+        }
+        responded_by_lead = {
+            str(lid): resp_at
+            for lid, resp_at in (
+                self.db.query(Message.lead_id, func.min(Message.sent_at))
+                .join(Lead, Message.lead_id == Lead.id)
+                .filter(
+                    Lead.organization_id == self.org_id,
+                    Lead.assigned_to_id == uid,
+                    Message.is_response.is_(True),
+                )
+                .group_by(Message.lead_id)
+                .all()
+            )
+        }
+        cadence_days = [
+            interval_days(pitch_at, responded_by_lead[lid])
+            for lid, pitch_at in pitch_by_lead.items()
+            if lid in responded_by_lead
+        ]
+
+        # Canal de contato: distribuição das mensagens enviadas.
+        channel_dist = {c.value: 0 for c in MessageChannel}
+        for channel, count in (
+            self.db.query(Message.channel, func.count(Message.id))
+            .join(Lead, Message.lead_id == Lead.id)
+            .filter(Lead.organization_id == self.org_id, Lead.assigned_to_id == uid)
+            .group_by(Message.channel)
+            .all()
+        ):
+            if channel:
+                channel_dist[channel.value] = count
+
+        if assigned_leads is None:
+            assigned_leads = (
+                self.db.query(func.count(Lead.id))
+                .filter(Lead.organization_id == self.org_id, Lead.assigned_to_id == uid)
+                .scalar()
+                or 0
+            )
+
+        kpis = build_planilha_kpis(
+            assigned_leads=assigned_leads,
+            pitch_sent=pitch_sent,
+            responded_leads=responded_leads,
+            contracts_approved=contracts_approved,
+            contracts_total=contracts_total,
+            ticket_sum=ticket_sum,
+            ticket_count=ticket_count,
+            cadence_days=cadence_days,
+            close_days=close_days,
+        )
+        return {
+            **kpis,
+            "pitch_sent": pitch_sent,
+            "responded_leads": responded_leads,
+            "contracts_approved": contracts_approved,
+            "contracts_total": contracts_total,
+            "ticket_count": ticket_count,
+            "cadence_days_n": len(cadence_days),
+            "close_days_n": len(close_days),
+            "negotiation_distribution": [
+                {"stage": k, "count": v} for k, v in negotiation.items()
+            ],
+            "contracts_by_outcome": [
+                {"outcome": k, "count": v} for k, v in contract_outcomes.items()
+            ],
+            "channel_distribution": [
+                {"channel": k, "count": v} for k, v in channel_dist.items()
+            ],
+        }
+
     def _target_month(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> str:
         """Resolve o mês ("YYYY-MM") da meta conforme o período consultado.
 
@@ -416,6 +582,10 @@ class AnalyticsService:
             meetings_target = tgt["meetings_target"]
             revenue_target = tgt["revenue_target"]
 
+            planilha = self._consultant_planilha(
+                uid, from_date=from_date, to_date=to_date, assigned_leads=assigned,
+            )
+
             result.append({
                 "user_id": uid,
                 "name": user.name,
@@ -432,10 +602,98 @@ class AnalyticsService:
                 "revenue_target": revenue_target,
                 "meetings_attainment": round((meetings / meetings_target * 100), 1) if meetings_target else None,
                 "revenue_attainment": round((revenue / revenue_target * 100), 1) if revenue_target else None,
+                # KPIs da planilha Alphamec (roadmap-leads C.2).
+                **planilha,
             })
 
         result.sort(key=lambda r: r["converted_leads"], reverse=True)
         return result
+
+    def consultant_detail(
+        self,
+        user_id: str,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Perfil de um consultor: KPIs da planilha + funil ponta-a-ponta.
+
+        Usado na tela `/relatorios/consultores/[id]`. Retorna `None` quando o
+        usuário não é membro ativo da org (o caller responde 404).
+        """
+        row = (
+            self.db.query(OrganizationMember, User)
+            .join(User, OrganizationMember.user_id == User.id)
+            .filter(
+                OrganizationMember.organization_id == self.org_id,
+                User.id == user_id,
+            )
+            .first()
+        )
+        if row is None:
+            return None
+        member, user = row
+
+        assigned = (
+            self.db.query(func.count(Lead.id))
+            .filter(Lead.organization_id == self.org_id, Lead.assigned_to_id == user.id)
+            .scalar()
+            or 0
+        )
+        planilha = self._consultant_planilha(
+            str(user.id), from_date=from_date, to_date=to_date, assigned_leads=assigned,
+        )
+        funnel = self.funnel(
+            from_date=from_date, to_date=to_date, consultant_id=str(user.id),
+        )
+        return {
+            "user_id": str(user.id),
+            "name": user.name,
+            "email": user.email,
+            "sales_role": member.sales_role.value if member.sales_role else None,
+            "assigned_leads": assigned,
+            **planilha,
+            "funnel": funnel,
+        }
+
+    def consultant_activity(
+        self,
+        user_id: str,
+        limit: int = 50,
+    ) -> list:
+        """Trilha recente de um consultor.
+
+        Atividades (LeadActivity) dos leads atribuídos a ele OU executadas por
+        ele — org-scoped, mais recentes primeiro. Compõe a aba "Atividades" do
+        perfil do consultor.
+        """
+        rows = (
+            self.db.query(LeadActivity, Lead)
+            .join(Lead, LeadActivity.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                or_(
+                    Lead.assigned_to_id == user_id,
+                    LeadActivity.user_id == user_id,
+                ),
+            )
+            .order_by(LeadActivity.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "id": str(activity.id),
+                "action": activity.action.value,
+                "detail": activity.detail,
+                "status_from": activity.status_from.value if activity.status_from else None,
+                "status_to": activity.status_to.value if activity.status_to else None,
+                "user_id": str(activity.user_id) if activity.user_id else None,
+                "created_at": activity.created_at.isoformat() if activity.created_at else None,
+                "lead_id": str(activity.lead_id),
+                "company_name": lead.company_name,
+            }
+            for activity, lead in rows
+        ]
 
     # ---------------------------------------------------------------- leads ranking
     def leads_ranking(
@@ -934,4 +1192,62 @@ def compute_threshold_candidates(
         "rationale": rationale,
         "leads_considered": total,
         "converted_total": total_converted,
+    }
+
+
+# ---------------------------------------------------------------------------
+# KPIs da planilha Alphamec por consultor (roadmap-leads C.2).
+# Funções puras — testáveis sem banco.
+# ---------------------------------------------------------------------------
+
+def compute_rate(part: float, whole: float) -> float:
+    """Porcentagem (0–100, 1 casa) de `part` sobre `whole`. 0 quando `whole` é 0."""
+    return round(part / whole * 100, 1) if whole else 0.0
+
+
+def mean(values: list) -> float:
+    """Média aritmética simples (0 quando lista vazia)."""
+    return sum(values) / len(values) if values else 0.0
+
+
+def interval_days(start, end) -> int:
+    """Dias decorridos entre `start` e `end` (mínimo 0; tolera naive/None).
+
+    Usado para cadência (pitch → resposta) e avaliação do tempo de ciclo.
+    """
+    if not start or not end:
+        return 0
+    s = start if getattr(start, "tzinfo", None) else start.replace(tzinfo=timezone.utc)
+    e = end if getattr(end, "tzinfo", None) else end.replace(tzinfo=timezone.utc)
+    return max(0, int((e - s).total_seconds() // 86400))
+
+
+def build_planilha_kpis(
+    *,
+    assigned_leads: int,
+    pitch_sent: int,
+    responded_leads: int,
+    contracts_approved: int,
+    contracts_total: int,
+    ticket_sum: float,
+    ticket_count: int,
+    cadence_days: list,
+    close_days: list,
+) -> dict:
+    """Compacta os KPIs da planilha em um dict pronto para a UI.
+
+    - `pitch_rate`: % de leads de carteira com abertura (pitch) enviada.
+    - `response_rate`: % de pitches enviados que receberam resposta.
+    - `contract_approval_rate`: % de contratos registrados aprovados.
+    - `ticket_medio`: média dos valores de conversão.
+    - `avg_cadence_days`: média do intervalo pitch → resposta (dias).
+    - `avg_close_days`: média do `Conversion.time_to_close_days`.
+    """
+    return {
+        "pitch_rate": compute_rate(pitch_sent, assigned_leads),
+        "response_rate": compute_rate(responded_leads, pitch_sent),
+        "contract_approval_rate": compute_rate(contracts_approved, contracts_total),
+        "ticket_medio": round(ticket_sum / ticket_count, 2) if ticket_count else 0.0,
+        "avg_cadence_days": round(mean(cadence_days), 1) if cadence_days else 0.0,
+        "avg_close_days": round(mean(close_days), 1) if close_days else 0.0,
     }

@@ -77,6 +77,37 @@ def consultants(
     return {"consultants": analytics.consultants(from_date=from_date, to_date=to_date)}
 
 
+@router.get("/consultants/{user_id}")
+def consultant_detail(
+    user_id: str,
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Perfil de um consultor (ANALYST/MANAGER-only): KPIs da planilha +
+    funil ponta-a-ponta dele. 404 se o usuário não é membro da org."""
+    detail = analytics.consultant_detail(
+        str(user_id), from_date=from_date, to_date=to_date,
+    )
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Consultor não encontrado")
+    return detail
+
+
+@router.get("/consultants/{user_id}/activity")
+def consultant_activity(
+    user_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Trilha recente do consultor (atividades dos leads dele + ações dele)."""
+    return {
+        "activities": analytics.consultant_activity(
+            str(user_id), limit=limit,
+        )
+    }
+
+
 @router.get("/forecast")
 def forecast(
     from_date: Optional[str] = Query(None, alias="from"),
