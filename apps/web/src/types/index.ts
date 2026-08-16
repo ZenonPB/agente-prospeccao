@@ -99,6 +99,7 @@ export interface Lead {
   google_rating_count?: number;
   google_maps_uri?: string;
   company_linkedin_url?: string;
+  instagram_url?: string;
   enrichment_freshness?: {
     linkedin?: 'fresh' | 'stale' | null;
     site?: 'fresh' | 'stale' | null;
@@ -209,6 +210,12 @@ export interface OrgMembership {
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;
+    // Limiar QUALIFICADO/DESQUALIFICADO configurável por org.
+    qualification_threshold?: number;
+    // Webhook genérico de saída + link de agendamento.
+    webhook_url?: string | null;
+    webhook_configured?: boolean;
+    scheduling_url?: string | null;
   };
   membership: {
     role: OrgRole;
@@ -333,6 +340,10 @@ export interface ScoringResult {
   evidence: EvidenceItem[];
 }
 
+export interface OutreachVariant extends OutreachMessages {
+  label: string;
+}
+
 export interface OutreachMessages {
   subject: string;
   body_opening: string;
@@ -341,6 +352,8 @@ export interface OutreachMessages {
   closing: string;
   whatsapp_short: string;
   rationale: string;
+  variants?: OutreachVariant[];
+  playbook_applied?: boolean;
 }
 
 export interface Issue {
@@ -376,7 +389,8 @@ export interface PitchOnePager {
     phone?: string;
     email?: string;
     google_maps_uri?: string;
-    company_linkedin_url?: string;
+  company_linkedin_url?: string;
+  instagram_url?: string;
     cnpj?: string;
     razao_social?: string;
     nome_fantasia?: string;
@@ -453,4 +467,57 @@ export interface ForecastData {
   open_leads_count: number;
   pipeline_by_stage: ForecastStageItem[];
   lost_reasons_breakdown: LostReasonItem[];
+}
+
+export interface ThresholdCandidate {
+  threshold: number;
+  qualified: number;
+  qualified_converted: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+export interface ThresholdSuggestion {
+  recommended_threshold: number;
+  current_threshold: number;
+  candidates: ThresholdCandidate[];
+  rationale: string;
+  leads_considered: number;
+  converted_total: number;
+}
+
+export interface MessageVariantStats {
+  variant: string;
+  sent: number;
+  opened: number;
+  clicked: number;
+  responded: number;
+  open_rate: number;
+  click_rate: number;
+  response_rate: number;
+}
+
+export interface MessageVariants {
+  variants: MessageVariantStats[];
+}
+
+export interface ConsultantPlaybook {
+  id: string;
+  organization_id: string;
+  author_id: string;
+  author_name?: string | null;
+  author_email?: string | null;
+  vertical?: string | null;
+  subject: string;
+  body: string;
+  tags: string[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface LeadDuplicate {
+  lead_id: string;
+  company_name?: string | null;
+  matched_by: string[];
 }

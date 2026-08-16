@@ -5,12 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, AlertTriangle, Trophy, MessageCircle, Save, Sparkles } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, MapPin, Calendar, Globe, Loader2, Copy, UserPlus, UserCheck, ShieldCheck, ShieldAlert, AlertTriangle, Trophy, MessageCircle, Save, Sparkles, Camera } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { whatsAppLink } from '@/lib/utils';
-import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick } from '@/hooks/use-api';
+import { useLead, useUpdateLeadStatus, useGenerateMessages, useEnrichContacts, useRegisterConversion, useUpdateLead, useRecordWhatsAppClick, useUpdateCadenceStep, useCreatePlaybook, useLeadDuplicates } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
 import { LeadPitchTab } from '@/components/oportunidades/lead-pitch';
@@ -21,7 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { OutreachMessages, ContactItem, Lead } from '@/types/index';
+import { OutreachMessages, OutreachVariant, ContactItem, Lead } from '@/types/index';
 import { useState } from 'react';
 
 const primaryNeedLabels: Record<string, string> = {
@@ -271,8 +271,11 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const params = use(props.params);
   const router = useRouter();
   const { data: lead, isLoading } = useLead(params.id);
+  const duplicatesQ = useLeadDuplicates(params.id);
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
+  const updateStepMutation = useUpdateCadenceStep();
+  const createPlaybookMutation = useCreatePlaybook();
   const enrichContacts = useEnrichContacts();
   const recordWhatsApp = useRecordWhatsAppClick();
 
@@ -305,6 +308,54 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
     }
   };
 
+  const handleGenerateVariants = async () => {
+    if (!lead) return;
+    try {
+      const msgs = await generateMessagesMutation.mutateAsync({
+        id: lead.id,
+        variants: true,
+      });
+      setGeneratedMessages(msgs);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao gerar variantes A/B.');
+    }
+  };
+
+  const applyVariantToStep = async (step: 'OPENING' | 'FOLLOWUP_1' | 'FOLLOWUP_2' | 'CLOSING', variant: OutreachMessages) => {
+    if (!lead) return;
+    try {
+      await updateStepMutation.mutateAsync({
+        id: lead.id,
+        step,
+        data: {
+          variant: (variant as OutreachVariant).label || 'A',
+          subject: variant.subject,
+          content: step === 'OPENING' ? variant.body_opening : variant[step.toLowerCase() as 'followup_1' | 'followup_2' | 'closing'],
+        },
+      });
+      toast.success(`Etapa ${step} atualizada com variante ${(variant as OutreachVariant).label || 'A'}.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao aplicar variante.');
+    }
+  };
+
+  const saveToPlaybook = async (subject: string, body: string) => {
+    if (!subject.trim() || !body.trim()) {
+      toast.error('Mensagem sem assunto/corpo — nada para salvar.');
+      return;
+    }
+    try {
+      await createPlaybookMutation.mutateAsync({
+        vertical: lead?.category || undefined,
+        subject: subject.trim(),
+        body,
+      });
+      toast.success('Mensagem salva no playbook da organização.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Falha ao salvar no playbook.');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -329,6 +380,32 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
   return (
     <div className="space-y-6">
+      {duplicatesQ.data && duplicatesQ.data.count > 0 && (
+        <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+          <div className="flex-1">
+            <p className="font-medium text-amber-800 dark:text-amber-300">
+              Possível duplicata ({duplicatesQ.data.count} lead{duplicatesQ.data.count === 1 ? '' : 's'} na mesma organização)
+            </p>
+            <ul className="mt-1 space-y-0.5 text-amber-700 dark:text-amber-400">
+              {duplicatesQ.data.matches.slice(0, 3).map((m) => (
+                <li key={m.lead_id} className="flex flex-wrap items-center gap-x-2">
+                  <Link
+                    href={`/oportunidades/${m.lead_id}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {m.company_name || m.lead_id}
+                  </Link>
+                  <span className="text-xs">— {m.matched_by.join(', ')}</span>
+                </li>
+              ))}
+              {duplicatesQ.data.count > 3 && (
+                <li className="text-xs">+ {duplicatesQ.data.count - 3} outros</li>
+              )}
+            </ul>
+          </div>
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Link href="/oportunidades">
           <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
@@ -456,6 +533,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                     <LinkedInIcon className="h-4 w-4 text-primary" />
                     <a href={lead.company_linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
                       Empresa no LinkedIn
+                    </a>
+                  </div>
+                )}
+                {lead.instagram_url && (
+                  <div className="flex items-center gap-3">
+                    <Camera className="h-4 w-4 text-pink-600" />
+                    <a href={lead.instagram_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate">
+                      Perfil no Instagram
                     </a>
                   </div>
                 )}
@@ -949,6 +1034,70 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </p>
             </div>
           ) : generatedMessages ? (
+            <>
+              {generatedMessages.variants && generatedMessages.variants.length >= 2 && (
+                <div className="mb-4 rounded-md border border-dashed border-primary/30 bg-primary/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Variantes A/B geradas</p>
+                      <p className="text-xs text-muted-foreground">
+                        Escolha uma variante para abrir/finalizar a cadência. A versão escolhida fica registrada
+                        como variante e aparece nas métricas de resposta.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleGenerateVariants}
+                      disabled={generateMessagesMutation.isPending}
+                    >
+                      {generateMessagesMutation.isPending ? (
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      ) : null}
+                      Regerar
+                    </Button>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {generatedMessages.variants.map((variant) => (
+                      <div
+                        key={variant.label}
+                        className="rounded-md border bg-background p-3 space-y-2"
+                      >
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Variante {variant.label}
+                        </p>
+                        <p className="text-xs font-medium">Assunto: {variant.subject}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-3">{variant.rationale}</p>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={updateStepMutation.isPending}
+                          onClick={() => {
+                            void applyVariantToStep('OPENING', variant);
+                          }}
+                        >
+                          Usar abertura
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!generatedMessages.variants && (
+                <div className="mb-4 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleGenerateVariants}
+                    disabled={generateMessagesMutation.isPending}
+                  >
+                    {generateMessagesMutation.isPending ? (
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                    ) : null}
+                    Gerar variantes A/B
+                  </Button>
+                </div>
+              )}
             <Tabs defaultValue="email" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="email">E-mail</TabsTrigger>
@@ -969,9 +1118,19 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   <p className="text-sm text-muted-foreground mb-2">Corpo da mensagem:</p>
                   <div className="flex items-center space-x-2">
                     <Textarea value={generatedMessages.body_opening} readOnly rows={8} />
-                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(generatedMessages.body_opening, 'Corpo do e-mail copiado!')}>
-                      Copiar
-                    </Button>
+                    <div className="flex flex-col gap-1">
+                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(generatedMessages.body_opening, 'Corpo do e-mail copiado!')}>
+                        Copiar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => saveToPlaybook(generatedMessages.subject, generatedMessages.body_opening)}
+                        disabled={createPlaybookMutation.isPending}
+                      >
+                        Salvar no playbook
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">Gerado com base nas evidências reais do lead</p>
@@ -1032,6 +1191,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 )}
               </TabsContent>
             </Tabs>
+            </>
           ) : (
             <div className="text-center py-6">
               <p className="text-sm text-muted-foreground mb-4">Nenhuma mensagem gerada ainda.</p>

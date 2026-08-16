@@ -113,3 +113,48 @@ def is_social_domain(url: str | None) -> bool:
     if not domain:
         return False
     return _is_non_own_website_domain(domain)
+
+
+# Captura URL canônica de perfil do Instagram em texto livre (site/HTML).
+# Aceita com/sem scheme, com/sem `www.`, com/sem trailing slash, com `@` ou
+# apenas o handle. Ex.: "Veja nosso @habitusacademia", "https://instagram.com/HabitusAcademia".
+_INSTAGRAM_RE = re.compile(
+    r"(?:https?://)?(?:www\.)?instagram\.com/(?P<handle>@?[A-Za-z0-9._]{1,30})/?",
+    re.IGNORECASE,
+)
+_INSTAGRAM_BARE_HANDLE_RE = re.compile(
+    r"(?<![A-Za-z0-9._-])@(?P<handle>[A-Za-z0-9._]{2,30})(?![A-Za-z0-9._-])",
+)
+
+
+def extract_instagram_url(text: str | None) -> str | None:
+    """Extrai a URL canônica de um perfil do Instagram presente em texto.
+
+    Ordem de preferência:
+    1. URL completa (`https://instagram.com/<handle>`).
+    2. Handle puro precedido por `@`.
+
+    Retorna a URL normalizada (`https://instagram.com/<handle>` sem `@`,
+    sem trailing slash) ou None se nada relevante for encontrado.
+    """
+    if not text:
+        return None
+    match = _INSTAGRAM_RE.search(text)
+    if match:
+        handle = match.group("handle").lstrip("@").strip("/")
+        if handle:
+            return f"https://instagram.com/{handle}"
+    bare = _INSTAGRAM_BARE_HANDLE_RE.search(text)
+    if bare:
+        handle = bare.group("handle").strip("/")
+        if handle:
+            return f"https://instagram.com/{handle}"
+    return None
+
+
+def is_instagram_url(url: str | None) -> bool:
+    """True se a URL aponta para um perfil do Instagram."""
+    domain = _clean_domain(url)
+    if not domain:
+        return False
+    return domain == "instagram.com" or domain.endswith(".instagram.com")

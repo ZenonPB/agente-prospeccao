@@ -635,7 +635,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     "Informações do Lead" quando a fonte passou do TTL.
   - Testes `tests/test_enrichment_ttl.py` (5) — suíte em **209 passed**.
 
-#### 4.26 Sinal de Instagram no ICP/scoring ⬜ (P3, M, gratuito)
+#### 4.26 Sinal de Instagram no ICP/scoring ✅ (P3, M, gratuito) — entregue 2026-08-14
 
 - **Hoje:** "Instagram ativo" é um dos sinais mais fortes de dor/oportunidade na
   spec (§13/§27/§31), mas não é coletado.
@@ -643,8 +643,13 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   followers visíveis) → evidência no scoring + fato no pitch.
 - **Aceite:** leads com Instagram ativo e sem site sobem de score com
   justificativa.
+- **Entregue:** detecção em três fontes (Places, scan passivo do HTML, CSV)
+  com `Lead.instagram_url` + helpers `extract_instagram_url`/`is_instagram_url`
+  em `domain_utils`. Aparece no pitch e como fato no prompt do outreach.
+  Followers não são capturados (leitura passiva não confiável); só presença
+  + link.
 
-#### 4.27 Separação Company/Person ⬜ (P3, L, gratuito — decisão de produto)
+#### 4.27 Separação Company/Person 🟡 (P3, L, gratuito — decisão de produto) — subset pragmático
 
 - **Hoje:** modelo lead-centrado com contatos embutidos; a mesma empresa entre
   leads não é normalizada.
@@ -652,21 +657,29 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   Lead = oportunidade) com dedupe por LinkedIn-id/e-mail/nome+empresa e
   histórico de emprego.
 - **Aceite:** mesma empresa/pessoa reaproveitada entre campanhas sem duplicata.
+- **Subset entregue 2026-08-14:** `GET /api/leads/{id}/duplicates` detecta
+  matches prováveis por CNPJ, domínio normalizado, e-mail ou LinkedIn de
+  contato. UI exibe banner âmbar com os critérios. O refactor para
+  Company/Person/Employment fica adiado (alto risco para uma branch) — ver
+  ADR em `docs/decisions.md`.
 
 ---
 
-### P3 — Entrega 7 · Aprofundamento (quando a operação crescer)
+### P3 — Entrega 7 · Aprofundamento ✅ (entregue 2026-08-14)
 
-- **4.18 Ajuste automático de threshold por org** — com volume de conversões,
-  calibrar o limiar QUALIFICADO/DESQUALIFICADO por org com base na taxa de
-  conversão por faixa (base já existe em `analytics`).
-- **4.19 A/B e variação de mensagens** — variações de subject/CTA por rodada e
-  medição de resposta por variante.
-- **4.20 Integrações externas** — Google Agenda/Cal.com para marcar reunião;
-  n8n/webhook genérico para exportar; importação de leads de planilhas
-  compartilhadas do Drive.
-- **4.21 Playbooks por consultor** — repositório de mensagens que funcionaram por
-  vertical, anotado pelo próprio time.
+- **4.18 Ajuste automático de threshold por org** — entregue: campo por org
+  (`qualification_threshold`, default 60), aplicado em `_persist_scoring`,
+  sugestão manual via `/api/analytics/threshold-suggestion` (F1 por faixa).
+- **4.19 A/B e variação de mensagens** — entregue: variantes A/B em uma
+  única chamada Groq, `FollowUp.variant` + endpoint `PATCH /cadence/step/{step}`
+  + medição em `/api/analytics/message-variants` + UI vencedora em `/relatorios`.
+- **4.20 Integrações externas** — subset entregue: webhook genérico de saída
+  (eventos `lead.created`/`lead.status_changed`/`conversion.created`) +
+  `scheduling_url` injetado como CTA preferencial no outreach.
+  **Drive/Sheets via OAuth adiado** — registrado em `docs/decisions.md`.
+- **4.21 Playbooks por consultor** — entregue: tabela `consultant_playbooks`
+  + CRUD `/api/playbooks` + UI em `/configuracoes` + botão "Salvar no playbook"
+  no modal de mensagens do lead.
 
 ---
 
@@ -693,17 +706,17 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | 🟡 entregue no branch (2026-08-14) |
 | 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-14 |
-| 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ⬜ |
-| 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ⬜ |
-| 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | ⬜ |
-| 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ⬜ |
+| 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ✅ Entregue 2026-08-14 |
+| 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ✅ Entregue 2026-08-14 |
+| 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | 🟡 subset (Drive adiado) |
+| 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ✅ Entregue 2026-08-14 |
 | 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
 | C5 | Aplicações web/ERP (template seed de categoria) | Dados | P1 | S | gratuito | — | ✅ Entregue 2026-08-14 |
 | 4.23 | LinkedIn da empresa (company page) | LinkedIn | P2 | S | gratuito | 4.7 | ✅ Entregue 2026-08-14 |
 | 4.24 | Match semântico (linkedin_match_status + badges) | LinkedIn | P2 | S | gratuito | 4.22 | ✅ Entregue 2026-08-14 |
 | 4.25 | Estado do enriquecimento + TTL | LinkedIn | P2 | M | gratuito | 4.24 | ✅ Entregue 2026-08-14 |
-| 4.26 | Sinal de Instagram no ICP/scoring | LinkedIn | P3 | M | gratuito | 4.6 | ⬜ |
-| 4.27 | Separação Company/Person (3 entidades) | LinkedIn | P3 | L | gratuito | — | ⬜ |
+| 4.26 | Sinal de Instagram no ICP/scoring | LinkedIn | P3 | M | gratuito | 4.6 | ✅ Entregue 2026-08-14 |
+| 4.27 | Separação Company/Person (3 entidades) | LinkedIn | P3 | L | gratuito | — | 🟡 subset pragmático (decisão adiada) |
 
 **Legenda de esforço:** S < 1 dia · M 1-3 dias · L > 1 semana.
 

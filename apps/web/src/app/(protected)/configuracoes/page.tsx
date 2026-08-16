@@ -17,6 +17,8 @@ import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
 import { OrgSlaSettings } from '@/components/configuracoes/org-sla-settings';
 import { OrgQuotaCard } from '@/components/configuracoes/org-quota-card';
 import { OrgNameCard } from '@/components/configuracoes/org-name-card';
+import { OrgIntegrationsCard } from '@/components/configuracoes/org-integrations-card';
+import { PlaybooksCard } from '@/components/configuracoes/playbooks-card';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTheme } from '@/components/theme-provider';
@@ -333,6 +335,12 @@ export default function ConfiguracoesPage() {
 
       {/* Prazos de leads parados */}
       <OrgSlaSettings />
+
+      {/* Integrações (4.20) */}
+      <OrgIntegrationsCard />
+
+      {/* Playbooks por consultor (4.21) */}
+      <PlaybooksCard />
     </div>
   );
 }

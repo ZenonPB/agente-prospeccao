@@ -737,3 +737,199 @@ class AnalyticsService:
             "pipeline_by_stage": by_stage,
             "lost_reasons_breakdown": lost_reasons,
         }
+
+    # ---------------------------------------------------------------- threshold
+    def suggest_qualification_threshold(
+        self,
+        current_threshold: int = 60,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+    ) -> dict:
+        """Sugere um limiar QUALIFICADO/DESQUALIFICADO com base no histórico
+        da org. Avalia thresholds candidatos de 30 a 90 (passo 5) e escolhe
+        o que maximiza a pontuação F1 sobre os leads convertidos vs. todos os
+        qualificados.
+
+        Lê leads pontuados + conversões da org no período e delega o cálculo
+        para `compute_threshold_candidates` (pura, testável sem DB).
+        """
+        base = self._leads(from_date, to_date).filter(
+            Lead.qualification_score.isnot(None),
+        )
+        rows = base.with_entities(
+            Lead.qualification_score,
+            Lead.id.label("lead_id"),
+        ).all()
+        scored = [(int(r.qualification_score or 0), str(r.lead_id)) for r in rows]
+
+        converted_sub = (
+            self.db.query(Conversion.lead_id)
+            .join(Lead, Conversion.lead_id == Lead.id)
+            .filter(Lead.organization_id == self.org_id)
+            .subquery()
+        )
+        converted_ids = {
+            r[0] for r in self.db.query(converted_sub.c.lead_id).all()
+        }
+
+        return compute_threshold_candidates(
+            scored=scored,
+            converted_ids=converted_ids,
+            current_threshold=current_threshold,
+        )
+
+    # ---------------------------------------------------------------- A/B
+    def message_variants(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+    ) -> dict:
+        """Desempenho por variante A/B de cadência.
+
+        Soma, por variante (FollowUp.variant) da org no período:
+        - `sent`: etapas efetivamente enviadas.
+        - `opened`: mensagens com `opened_at` registrado.
+        - `clicked`: mensagens com `clicked_at` registrado.
+        - `responded`: leads cujo status atual é RESPONDIDO/REUNIAO_MARCADA/
+          REUNIAO_FEITA/PROPOSTA_ENVIADA — proxy grosseiro mas útil para
+          comparar A/B sem dupla contagem.
+        """
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+
+        fu_base = (
+            self.db.query(FollowUp)
+            .join(Lead, FollowUp.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                FollowUp.variant.isnot(None),
+            )
+        )
+        if f:
+            fu_base = fu_base.filter(FollowUp.scheduled_at >= f)
+        if t:
+            fu_base = fu_base.filter(FollowUp.scheduled_at <= t)
+        rows = fu_base.with_entities(
+            FollowUp.variant,
+            FollowUp.lead_id,
+            FollowUp.tracking_token,
+            FollowUp.status,
+        ).all()
+
+        responded_statuses = {
+            LeadStatus.RESPONDIDO.value,
+            LeadStatus.REUNIAO_MARCADA.value,
+            LeadStatus.REUNIAO_FEITA.value,
+            LeadStatus.PROPOSTA_ENVIADA.value,
+        }
+        lead_status_sub = {
+            str(lid): st
+            for lid, st in self.db.query(Lead.id, Lead.status)
+            .filter(Lead.organization_id == self.org_id)
+            .all()
+        }
+
+        token_open = {
+            t for (t,) in self.db.query(Message.tracking_token)
+            .filter(Message.tracking_token.isnot(None), Message.opened_at.isnot(None))
+            .all()
+        }
+        token_click = {
+            t for (t,) in self.db.query(Message.tracking_token)
+            .filter(Message.tracking_token.isnot(None), Message.clicked_at.isnot(None))
+            .all()
+        }
+
+        by_variant: dict = {}
+        for variant, lead_id, token, status in rows:
+            v = (variant or "").strip().upper() or "(sem variante)"
+            bucket = by_variant.setdefault(v, {
+                "variant": v,
+                "sent": 0,
+                "opened": 0,
+                "clicked": 0,
+                "responded": 0,
+            })
+            sent_status = status.value if status else None
+            if sent_status == "SENT":
+                bucket["sent"] += 1
+                if token and token in token_open:
+                    bucket["opened"] += 1
+                if token and token in token_click:
+                    bucket["clicked"] += 1
+                if lead_status_sub.get(str(lead_id)) in responded_statuses:
+                    bucket["responded"] += 1
+
+        variants = []
+        for v in sorted(by_variant.keys()):
+            row = by_variant[v]
+            sent = row["sent"] or 0
+            row["open_rate"] = round((row["opened"] / sent) * 100, 1) if sent else 0
+            row["click_rate"] = round((row["clicked"] / sent) * 100, 1) if sent else 0
+            row["response_rate"] = round((row["responded"] / sent) * 100, 1) if sent else 0
+            variants.append(row)
+
+        return {"variants": variants}
+
+
+def compute_threshold_candidates(
+    scored: list,
+    converted_ids: set,
+    current_threshold: int = 60,
+) -> dict:
+    """Calcula o threshold ótimo a partir de (score, lead_id) e ids convertidos.
+
+    Função pura — testável sem banco. Recebe os dados já lidos pelo service.
+    Retorna a recomendação, candidatos (30–90 passo 5) com precisão/revisão/F1,
+    e a `rationale` exibida na UI.
+    """
+    if not scored:
+        return {
+            "recommended_threshold": current_threshold,
+            "current_threshold": current_threshold,
+            "candidates": [],
+            "rationale": "Sem leads pontuados no período — mantenha o limiar atual.",
+            "leads_considered": 0,
+            "converted_total": 0,
+        }
+
+    total = len(scored)
+    total_converted = sum(1 for _, lid in scored if lid in converted_ids)
+
+    candidates: list = []
+    best_threshold = current_threshold
+    best_f1 = -1.0
+    for threshold in range(30, 95, 5):
+        qualified = [lid for s, lid in scored if s >= threshold]
+        qualified_converted = sum(1 for lid in qualified if lid in converted_ids)
+        precision = (qualified_converted / len(qualified)) if qualified else 0.0
+        recall = (qualified_converted / total_converted) if total_converted else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall) > 0 else 0.0
+        )
+        candidates.append({
+            "threshold": threshold,
+            "qualified": len(qualified),
+            "qualified_converted": qualified_converted,
+            "precision": round(precision * 100, 1),
+            "recall": round(recall * 100, 1),
+            "f1": round(f1 * 100, 1),
+        })
+        if f1 > best_f1:
+            best_f1 = f1
+            best_threshold = threshold
+
+    rationale = (
+        f"Limiar {best_threshold} maximiza o F1 do funil da org no "
+        f"período ({round(best_f1 * 100, 1)}% sobre {total} leads e "
+        f"{total_converted} conversões)."
+    )
+    return {
+        "recommended_threshold": best_threshold,
+        "current_threshold": current_threshold,
+        "candidates": candidates,
+        "rationale": rationale,
+        "leads_considered": total,
+        "converted_total": total_converted,
+    }

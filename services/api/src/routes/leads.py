@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -61,6 +61,7 @@ class EnrichContactsRequest(BaseModel):
 class GenerateMessagesRequest(BaseModel):
     channel: str = "EMAIL"  # EMAIL | WHATSAPP — afeta foco de retorno hoje
     force_regenerate: bool = False
+    variants: bool = False  # True pede duas sequências A/B em uma única chamada
 
 
 class RecordWhatsAppClickRequest(BaseModel):
@@ -135,6 +136,7 @@ def _lead_summary(lead: Lead) -> dict:
         "google_rating_count": lead.google_rating_count,
         "google_maps_uri": lead.google_maps_uri,
         "company_linkedin_url": lead.company_linkedin_url,
+        "instagram_url": lead.instagram_url,
         "status": lead.status.value if lead.status else None,
         "qualification_score": lead.qualification_score,
         "qualification_reason": lead.qualification_reason,
@@ -345,6 +347,7 @@ def list_sla_alerts(
 def update_lead_status(
     lead_id: str,
     body: UpdateLeadStatusRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
@@ -379,6 +382,21 @@ def update_lead_status(
         )
     db.commit()
     db.refresh(lead)
+
+    from src.services.webhook_outbound_service import enqueue_webhook
+    enqueue_webhook(
+        background_tasks, db, lead.organization_id,
+        event="lead.status_changed",
+        data={
+            "lead_id": str(lead.id),
+            "company_name": lead.company_name,
+            "previous_status": previous.value if previous else None,
+            "status": lead.status.value,
+            "lost_reason": lead.lost_reason.value if lead.lost_reason else None,
+            "changed_by": str(user.id) if user else None,
+            "changed_at": (lead.updated_at or datetime.now(timezone.utc)).isoformat(),
+        },
+    )
 
     return {
         "id": str(lead.id),
@@ -549,6 +567,69 @@ def assign_lead(
     }
 
 
+@router.get("/{lead_id}/duplicates")
+def get_lead_duplicates(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Lista leads da mesma organização que provavelmente são o mesmo
+    contato/empresa (CNPJ, domínio, e-mail ou LinkedIn compartilhados).
+
+    Visibilidade do item 4.27 (versão pragmática): a unificação real
+    exigiria o modelo Company/Person/Employment — adiada por enquanto.
+    Aqui só detectamos e exibimos o aviso na UI do lead.
+    """
+    from src.services.duplicate_detection_service import find_duplicate_signals
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    candidates = (
+        db.query(Lead)
+        .filter(
+            Lead.organization_id == _org.id,
+            Lead.id != lead.id,
+        )
+        .all()
+    )
+    target_contacts = (
+        db.query(Contact).filter(Contact.lead_id == lead.id).all()
+    )
+    others_payload = []
+    for c in candidates:
+        contacts = db.query(Contact).filter(Contact.lead_id == c.id).all()
+        others_payload.append({
+            "id": c.id,
+            "company_name": c.company_name,
+            "cnpj": c.cnpj,
+            "normalized_domain": c.normalized_domain,
+            "contacts": [
+                {"email": ct.email, "linkedin_url": ct.linkedin_url}
+                for ct in contacts
+            ],
+        })
+    target_payload = {
+        "id": lead.id,
+        "company_name": lead.company_name,
+        "cnpj": lead.cnpj,
+        "normalized_domain": lead.normalized_domain,
+        "contacts": [
+            {"email": ct.email, "linkedin_url": ct.linkedin_url}
+            for ct in target_contacts
+        ],
+    }
+    matches = find_duplicate_signals(target_payload, others_payload)
+    return {"matches": matches, "count": len(matches)}
+
+
 @router.get("/{lead_id}")
 def get_lead(
     lead_id: str,
@@ -655,6 +736,8 @@ async def generate_messages(
     lead_dict = _build_lead_dict(lead, db)
     result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
+        generate_variants=body.variants,
+        scheduling_url=_org.scheduling_url,
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
@@ -857,6 +940,7 @@ class RegisterPostSaleRequest(BaseModel):
 def register_conversion(
     lead_id: str,
     body: RegisterConversionRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
@@ -914,6 +998,21 @@ def register_conversion(
     )
     db.commit()
     db.refresh(conversion)
+
+    from src.services.webhook_outbound_service import enqueue_webhook
+    enqueue_webhook(
+        background_tasks, db, lead.organization_id,
+        event="conversion.created",
+        data={
+            "conversion_id": str(conversion.id),
+            "lead_id": str(lead.id),
+            "company_name": lead.company_name,
+            "service_sold": conversion.service_sold,
+            "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
+            "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,
+            "converted_by": str(user.id) if user else None,
+        },
+    )
 
     return {
         "id": str(conversion.id),
@@ -1061,6 +1160,7 @@ def _build_lead_dict(lead: Lead, db: Session) -> dict:
         "city": lead.city,
         "state": lead.state,
         "website": lead.website,
+        "instagram_url": lead.instagram_url,
         "evidence": lead.evidence,
         "primary_need": lead.primary_need,
         "pitch_angle": lead.pitch_angle,
@@ -1095,6 +1195,7 @@ def _follow_up_dict(fu: FollowUp, db: Session) -> dict:
         "attempts": fu.attempts or 0,
         "opened_at": opened_at.isoformat() if opened_at else None,
         "clicked_at": clicked_at.isoformat() if clicked_at else None,
+        "variant": fu.variant,
     }
 
 
@@ -1210,6 +1311,68 @@ async def start_lead_cadence(
         "auto_send": bool(_org.auto_send_email),
         "follow_ups": [_follow_up_dict(f, db) for f in follow_ups],
     }
+
+
+class UpdateCadenceStepRequest(BaseModel):
+    """Atualiza uma etapa da cadência (escolha de variante A/B + conteúdo)."""
+    variant: Optional[str] = Field(None, max_length=32)
+    subject: Optional[str] = Field(None, max_length=255)
+    content: Optional[str] = None
+
+
+@router.patch("/{lead_id}/cadence/step/{step}")
+def update_cadence_step(
+    lead_id: str,
+    step: str,
+    body: UpdateCadenceStepRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Atualiza uma etapa da cadência (escolha de variante A/B ou edição
+    manual). Não dispara envio — o consultor usa `/cadence/send/{step}`.
+
+    `variant` é a etiqueta (ex.: "A"/"B") marcada após o consultor escolher
+    qual das alternativas geradas pelo endpoint `/generate-messages` será
+    usada. `subject`/`content` permitem edição inline antes do envio.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    try:
+        fstep = FollowUpStep(step)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Etapa inválida: {step}")
+
+    fu = db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.step == fstep,
+    ).order_by(FollowUp.created_at.desc()).first()
+    if not fu:
+        raise HTTPException(status_code=404, detail="Etapa de cadência não encontrada")
+    if fu.status == FollowUpStatus.SENT:
+        raise HTTPException(
+            status_code=400,
+            detail="Etapa já enviada — não é possível alterar variante/conteúdo",
+        )
+
+    if body.variant is not None:
+        fu.variant = body.variant.strip().upper()[:32] or None
+    if body.subject is not None:
+        fu.subject = body.subject.strip()[:255] or None
+    if body.content is not None:
+        fu.content = body.content
+
+    db.commit()
+    db.refresh(fu)
+    return _follow_up_dict(fu, db)
 
 
 @router.post("/{lead_id}/cadence/send/{step}")

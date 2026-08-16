@@ -165,6 +165,15 @@ class Organization(Base):
     sla_qualified_no_contact_days = Column(Integer, default=5, nullable=False, server_default="5")
     sla_responded_no_next_action_days = Column(Integer, default=2, nullable=False, server_default="2")
     sla_opened_no_response_days = Column(Integer, default=2, nullable=False, server_default="2")
+    # Limiar QUALIFICADO/DESQUALIFICADO aplicado em `_persist_scoring`.
+    # Calibrável por org via `PATCH /api/orgs/{id}` (sugestão via analytics).
+    qualification_threshold = Column(Integer, default=60, nullable=False, server_default="60")
+    # URL pública que recebe eventos de lead (POST JSON). Vazio = sem webhook.
+    webhook_url = Column(String(255))
+    # Segredo compartilhado enviado em X-Webhook-Secret — consumidor valida.
+    webhook_secret = Column(String(64))
+    # Link de agendamento (Cal.com/Calendly). Injetado no outreach como CTA.
+    scheduling_url = Column(String(255))
     # Teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
     # default do settings (`PROVIDER_DAILY_QUOTA`). Ex.: {"GROQ_API_KEY": 500}.
     api_quota = Column(JSONB, default=dict)
@@ -251,6 +260,33 @@ class SalesTarget(Base):
 
     def __repr__(self):
         return f"<SalesTarget(org='{self.organization_id}', user='{self.user_id}', month='{self.month}')>"
+
+
+class ConsultantPlaybook(Base):
+    """Mensagem que funcionou, anotada pelo próprio consultor.
+
+    Cada registro guarda um subject + body que o autor considera útil
+    reutilizar naquela vertical. Outros consultores da org podem ler
+    (ver e copiar), mas só o autor ou admin edita/remove. É diferente
+    do `CampaignScoringTemplate` (que define como pontuar) e dos
+    `playbook` embutidos no template (que alimentam a LLM).
+    """
+    __tablename__ = "consultant_playbooks"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    vertical = Column(String(120))
+    subject = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    tags = Column(JSONB)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+    author = relationship("User")
+
+    def __repr__(self):
+        return f"<ConsultantPlaybook(id='{self.id}', author='{self.author_id}', vertical='{self.vertical}')>"
 
 
 class OrganizationSecret(Base):
@@ -479,6 +515,10 @@ class Lead(Base):
     # Página da empresa no LinkedIn (linkedin.com/company/<slug>), localizada
     # por busca passiva durante o enriquecimento.
     company_linkedin_url = Column(String(255))
+    # Perfil do Instagram do negócio (canonicalizado via domain_utils).
+    # Sinal de presença/atividade digital — exibido no pitch e considerado
+    # pelo scoring (item 4.26).
+    instagram_url = Column(String(255))
     # Timestamps por fonte do enriquecimento (JSONB {"linkedin", "site",
     # "reviews"} em ISO) — alimenta o TTL e a indicação de dados antigos.
     enrichment_timestamps = Column(JSONB)
@@ -620,6 +660,9 @@ class FollowUp(Base):
     # Token de tracking: mesma chave usada em `messages.tracking_token` para
     # expor abertura/clique no painel de cadência.
     tracking_token = Column(String(64))
+    # Rótulo da variante A/B escolhida para esta etapa (ex.: "A"/"B"). Permite
+    # medir resposta por variante via `GET /api/analytics/message-variants`.
+    variant = Column(String(32))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="follow_ups")

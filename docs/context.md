@@ -1488,12 +1488,68 @@ npm run dev
 
 | Hash | Descrição |
 |------|-----------|
-| `12a1946` | feat(web): connect frontend to real API with auth |
-| `8030d07` | feat(api): create FastAPI with REST endpoints |
-| `460b88b` | fix(web): revert to "leads" terminology |
-| `77ebeec` | feat(web): UX improvements, drag-and-drop |
-| `d85bef2` | feat(web): complete route structure |
-| `c5e0932` | feat(web): setup Next.js with shadcn/ui |
-| `12a1946` | feat(web): connect frontend to real API with auth |
-| `8030d07` | feat(api): create FastAPI with REST endpoints |
-| *(current)* | feat(web): unify campanhas and pipeline pages |
+| `0363d71` | feat(api,web): 4.27 visibilidade de duplicatas + decisão registrada |
+| `1ef5161` | feat(api,web,workers): 4.26 sinal de Instagram |
+| `4e4d243` | feat(api,web,workers): 4.21 playbooks por consultor |
+| `8b08cb4` | feat(api,web,workers): 4.20 webhook genérico + link de agenda |
+| `d89c8c3` | feat(api,web,workers): 4.19 variantes A/B de mensagem + medição por variante |
+| `af0a369` | feat(api,web,workers): 4.18 threshold de qualificação por org |
+| `1a36009` | docs: 4.25 estado do enriquecimento + TTL entregue |
+
+## Sessão 24 — Entrega 7 (P3 · Aprofundamento) ✅ (2026-08-14)
+
+Branch: `feat/p3-aprofundamento` (a partir de `origin/main` — inclui PR #84 já mergeado).
+
+**Itens entregues:**
+- **4.18** Threshold de qualificação por org: `Organization.qualification_threshold`
+  (default 60, 1–100) aplicado em `enrichment_orchestrator._persist_scoring`.
+  `GET /api/analytics/threshold-suggestion` (F1 por faixa 30–90 passo 5) +
+  `ThresholdCard` em `/relatorios` com botão **Aplicar** (owner/admin). Sugestão
+  manual — nada muda silenciosamente.
+- **4.19** Variantes A/B de cadência: `OutreachService.generate_sequence
+  (generate_variants=True)` pede 2 sequências em uma única chamada Groq
+  (custo de token similar a 2 sequências concatenadas, latência à metade).
+  `FollowUp.variant` (String 32); `PATCH /api/leads/{id}/cadence/step/{step}`
+  registra a escolha. `GET /api/analytics/message-variants` calcula
+  abertas/cliques/respostas por variante; `MessageVariantsCard` em `/relatorios`
+  destaca a vencedora.
+- **4.20** Integrações (subset): webhook genérico de saída
+  (`Organization.webhook_url`+`webhook_secret`) com eventos `lead.created`,
+  `lead.status_changed`, `conversion.created`. `httpx.AsyncClient` com retry
+  (0.5s, 1s, 2s); fire-and-forget via `BackgroundTasks`/`asyncio.create_task`.
+  `Organization.scheduling_url` injetado como CTA preferencial no prompt do
+  outreach. `OrgIntegrationsCard` em `/configuracoes`. **Drive/Sheets via OAuth
+  adiado** (registrado no ADR — webhook genérico cobre o caso via n8n/Make/Zapier).
+- **4.21** Playbooks por consultor: tabela `consultant_playbooks` (org, author,
+  vertical, subject, body, tags); CRUD `/api/playbooks` (todos leem, autor ou
+  admin edita/remove). `PlaybooksCard` em `/configuracoes` + botão
+  **"Salvar no playbook"** no modal de mensagens do lead.
+- **4.26** Sinal de Instagram: `Lead.instagram_url` (String 255, nullable).
+  Detecção em 3 fontes — Places (`websiteUri` Instagram → `instagram_url` +
+  `website=None`), scan passivo do HTML (`technical_enrichment_service`),
+  CSV (coluna `instagram` + regex fallback). Aparece no pitch como link e no
+  prompt do outreach como fato. Helpers `extract_instagram_url`/`is_instagram_url`
+  em `domain_utils`. Followers não capturados (leitura passiva não confiável).
+- **4.27 pragmático**: `GET /api/leads/{id}/duplicates` (org-scoped) detecta
+  matches prováveis por CNPJ, domínio normalizado, e-mail ou LinkedIn de
+  contato. Banner âmbar no detalhe do lead com até 3 matches. **Modelo 3
+  entidades (Company/Person/Employment) adiado** — ADR em `decisions.md`
+  justifica o custo (> 1 semana, alto risco) e a abordagem atual.
+
+**Migrations aplicadas:** `a3b4c5d6e7f8` (qualification_threshold),
+`b3c4d5e6f7a8` (follow_ups.variant), `c4d5e6f7a8b9` (webhook + scheduling),
+`d5e6f7a8b9d0` (consultant_playbooks), `e6f7a8b9c0d2` (leads.instagram_url).
+
+**Testes adicionados (29):** `test_threshold_suggestion` (5), `test_outreach_variants` (5),
+`test_webhook_outbound` (3), `test_playbooks_route` (2), `test_instagram_signal` (7),
+`test_duplicate_detection` (7). Suíte total **238 passed**.
+
+**Verificação final:** `pytest -q` 238; `compileall` services limpo;
+`tsc --noEmit`/`eslint`/`npm run build` limpos; `alembic upgrade head` aplicou
+todas as 5 migrations no Postgres local.
+
+**Backlog pós-P3 (adiado, registrado em `decisions.md`):**
+- 4.20 Drive/Sheets OAuth (alto custo de auth público).
+- 4.27 modelo Company/Person/Employment (refactor > 1 semana, alto risco).
+- Rastreamento individual por variante (`Message.variant` para cálculo
+  estatístico de A/B sem proxy).

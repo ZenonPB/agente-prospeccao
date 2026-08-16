@@ -124,6 +124,40 @@ Retorne um JSON com EXATAMENTE esta estrutura:
 """
 
 
+SCHEMA_HINT_VARIANTS = """
+Retorne um JSON com EXATAMENTE esta estrutura:
+{
+  "variants": [
+    {
+      "label": "A",
+      "subject": "<...>",
+      "body_opening": "<...>",
+      "followup_1": "<...>",
+      "followup_2": "<...>",
+      "closing": "<...>",
+      "whatsapp_short": "<...>",
+      "rationale": "<gancho principal e ângulo>"
+    },
+    {
+      "label": "B",
+      "subject": "<...>",
+      "body_opening": "<...>",
+      "followup_1": "<...>",
+      "followup_2": "<...>",
+      "closing": "<...>",
+      "whatsapp_short": "<...>",
+      "rationale": "<gancho principal e ângulo>"
+    }
+  ]
+}
+
+As duas variantes devem diferir substancialmente em: gancho inicial,
+estrutura do subject e/ou CTA. Mesma observação factual é aceitável,
+mas a abertura (linha 1-2 do body) e o CTA final precisam variar.
+Mantenha contagens e regras (opt-out, jargão, comprimento) idênticas.
+"""
+
+
 def _extract_facts_for_prompt(lead: Dict[str, Any]) -> List[str]:
     """Reúne fatos reais do lead — extraídos do JSONB de evidências e do
     enriquecimento, mais dados cadastrais. A LLM só pode referenciar fatos
@@ -137,6 +171,8 @@ def _extract_facts_for_prompt(lead: Dict[str, Any]) -> List[str]:
         facts.append(f"Localização: {lead['city']}, {lead.get('state') or ''}")
     if lead.get("website"):
         facts.append(f"Site: {lead['website']}")
+    if lead.get("instagram_url"):
+        facts.append(f"Instagram ativo: {lead['instagram_url']}")
 
     for ev in (lead.get("evidence") or [])[:8]:
         title = ev.get("title") or ""
@@ -181,12 +217,16 @@ def build_prompt(
     context_service: str = "",
     context_segment: str = "",
     playbook: Optional[Dict[str, Any]] = None,
+    generate_variants: bool = False,
+    scheduling_url: Optional[str] = None,
 ) -> str:
     lines: List[str] = []
 
     lines.append("== CONTEXTO DA EMPRESA QUE PROSPECTA ==")
     lines.append(f"Serviço que vendemos: {context_service or '(não informado)'}")
     lines.append(f"Segmento prospectado: {context_segment or '(não informado)'}")
+    if scheduling_url:
+        lines.append(f"Link de agendamento oficial (ofereça como CTA preferencial quando fizer sentido): {scheduling_url}")
     lines.append("")
 
     if playbook:
@@ -229,7 +269,7 @@ def build_prompt(
     lines.append("9. Sem jargão (\"soluções\", \"sinergia\", \"jornada\") e sem frases com cara de IA (\"Neste cenário\", \"Diante disso\", \"Vale destacar\").")
     lines.append("10. Rodapé de opt-out em toda mensagem de email (body_opening, followup_1, followup_2, closing), em linhas finais separadas: \"-\\nResponda STOP para não receber mais mensagens.\"")
     lines.append("")
-    lines.append(SCHEMA_HINT)
+    lines.append(SCHEMA_HINT_VARIANTS if generate_variants else SCHEMA_HINT)
     return "\n".join(lines)
 
 
@@ -250,6 +290,24 @@ def _normalize_response(parsed: Dict[str, Any]) -> Dict[str, Any]:
             + "\n-\nResponda STOP para não receber mais mensagens."
         )
     return out
+
+
+def _normalize_variants(parsed: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """Normaliza o JSON de variantes devolvido pela LLM.
+
+    Cada variante herda o normalize padrão + recebe um `label` (A/B) extraído
+    da resposta (default A/B pela ordem). Retorna None se a estrutura não
+    parecer válida (sem lista de variantes).
+    """
+    raw_variants = parsed.get("variants")
+    if not isinstance(raw_variants, list) or len(raw_variants) < 2:
+        return None
+    normalized: List[Dict[str, Any]] = []
+    for i, raw in enumerate(raw_variants[:2]):
+        item = _normalize_response(raw)
+        item["label"] = str(raw.get("label") or ("A" if i == 0 else "B")).strip().upper()[:32] or ("A" if i == 0 else "B")
+        normalized.append(item)
+    return normalized
 
 
 def _parse_json(content: str) -> Optional[Dict[str, Any]]:
@@ -289,8 +347,15 @@ class OutreachService:
         context_service: str = "",
         context_segment: str = "",
         playbook: Optional[Dict[str, Any]] = None,
+        generate_variants: bool = False,
+        scheduling_url: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Gera subject + 4 mensagens + variação WhatsApp + rationale.
+
+        Quando `generate_variants=True`, devolve `{"variants": [A, B]}` — duas
+        sequências alternativas (mesma observação factual, ganchos/CTAs
+        distintos). Caso contrário, devolve o dict single-sequence normal
+        (compatibilidade com callers antigos).
 
         Args:
             lead: dict com company_name, category, city, state, website,
@@ -300,11 +365,23 @@ class OutreachService:
             playbook: dict opcional com hooks/subject_ideas/objections por
               vertical — injetado no prompt para mensagens
               variarem conforme o serviço/segmento.
+            generate_variants: se True, pede duas sequências alternativas
+              numa única chamada (a mesma `temperature=0.7` introduz a
+              variação naturalmente).
+            scheduling_url: link de agendamento da org (Cal.com/Calendly)
+              injetado como CTA preferencial quando presente.
 
         Returns:
-            Dict normalizado ou None em caso de falha.
+            Dict normalizado (single) ou com chave `variants` (multi) ou
+            None em caso de falha.
         """
-        prompt = build_prompt(lead, context_service, context_segment, playbook)
+        prompt = build_prompt(
+            lead, context_service, context_segment, playbook,
+            generate_variants=generate_variants,
+            scheduling_url=scheduling_url,
+        )
+        # Variantes dobram o tamanho do JSON pedido — sobem o limite.
+        max_tokens = 6000 if generate_variants else 3200
         payload = {
             "model": GROQ_MODEL,
             "messages": [
@@ -312,7 +389,7 @@ class OutreachService:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.7,
-            "max_tokens": 3200,
+            "max_tokens": max_tokens,
             "response_format": {"type": "json_object"},
         }
         try:
@@ -338,6 +415,12 @@ class OutreachService:
         parsed = _parse_json(content)
         if parsed is None:
             return None
+        if generate_variants:
+            variants = _normalize_variants(parsed)
+            if variants is None:
+                # LLM não devolveu variants — cai para sequência única.
+                return _normalize_response(parsed)
+            return {"variants": variants}
         return _normalize_response(parsed)
 
 

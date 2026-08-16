@@ -84,6 +84,7 @@ async def run_lead_collection(
                 google_rating=item.get("rating"),
                 google_rating_count=item.get("rating_count"),
                 google_maps_uri=item.get("maps_uri"),
+                instagram_url=item.get("instagram_url"),
                 campaign_id=campaign_id,
                 status=LeadStatus.NOVO,
             )

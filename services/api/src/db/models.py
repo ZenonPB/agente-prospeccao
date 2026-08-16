@@ -44,4 +44,5 @@ from database.models import (
     SalesTarget,
     OrgAuditLog,
     OrgAuditEvent,
+    ConsultantPlaybook,
 )

@@ -1,7 +1,7 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
-import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem } from "@/types";
+import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, ConsultantPlaybook, LeadDuplicate } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -136,11 +136,50 @@ export const leadsApi = {
       body: JSON.stringify({ assigned_to_id: assignedToId }),
     }),
 
-  generateMessages: (id: string, channel: "EMAIL" | "WHATSAPP" = "EMAIL") =>
+  generateMessages: (
+    id: string,
+    channel: "EMAIL" | "WHATSAPP" = "EMAIL",
+    options?: { variants?: boolean; force_regenerate?: boolean },
+  ) =>
     request<OutreachMessages>(`/api/leads/${id}/generate-messages`, {
       method: "POST",
-      body: JSON.stringify({ channel }),
+      body: JSON.stringify({ channel, variants: options?.variants, force_regenerate: options?.force_regenerate }),
     }),
+
+  updateCadenceStep: (
+    id: string,
+    step: "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE",
+    data: { variant?: string; subject?: string; content?: string },
+  ) =>
+    request<OutreachMessages>(`/api/leads/${id}/cadence/step/${step}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  listPlaybooks: (params?: { vertical?: string; author_id?: string; limit?: number }) =>
+    request<{ items: ConsultantPlaybook[] }>("/api/playbooks", {
+      params: params as Record<string, string | number | undefined>,
+    }),
+
+  createPlaybook: (data: { vertical?: string; subject: string; body: string; tags?: string[] }) =>
+    request<ConsultantPlaybook>("/api/playbooks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  updatePlaybook: (id: string, data: Partial<{ vertical: string; subject: string; body: string; tags: string[] }>) =>
+    request<ConsultantPlaybook>(`/api/playbooks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
+  deletePlaybook: (id: string) =>
+    request<{ deleted: boolean; id: string }>(`/api/playbooks/${id}`, {
+      method: "DELETE",
+    }),
+
+  getDuplicates: (id: string) =>
+    request<{ matches: LeadDuplicate[]; count: number }>(`/api/leads/${id}/duplicates`),
 
   getPitch: (id: string) =>
     request<PitchOnePager>(`/api/leads/${id}/pitch`),
@@ -441,6 +480,10 @@ export const orgsApi = {
     sla_qualified_no_contact_days?: number;
     sla_responded_no_next_action_days?: number;
     sla_opened_no_response_days?: number;
+    qualification_threshold?: number;
+    webhook_url?: string | null;
+    webhook_secret?: string | null;
+    scheduling_url?: string | null;
     api_quota?: Record<string, number>;
   }) =>
     request<{
@@ -455,6 +498,10 @@ export const orgsApi = {
       sla_qualified_no_contact_days?: number;
       sla_responded_no_next_action_days?: number;
       sla_opened_no_response_days?: number;
+      qualification_threshold?: number;
+      webhook_url?: string | null;
+      webhook_configured?: boolean;
+      scheduling_url?: string | null;
     }>(
       `/api/orgs/${orgId}`,
       { method: "PATCH", body: JSON.stringify(data) },
@@ -615,6 +662,16 @@ export const analyticsApi = {
 
   forecast: (params?: { from?: string; to?: string }) =>
     request<import("@/types").ForecastData>("/api/analytics/forecast", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  thresholdSuggestion: (params?: { from?: string; to?: string }) =>
+    request<import("@/types").ThresholdSuggestion>("/api/analytics/threshold-suggestion", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  messageVariants: (params?: { from?: string; to?: string }) =>
+    request<import("@/types").MessageVariants>("/api/analytics/message-variants", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 

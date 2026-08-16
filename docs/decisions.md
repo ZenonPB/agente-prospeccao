@@ -78,6 +78,24 @@ A partir de 2026-07-09, todo o código usa:
 | Token cache em memória no frontend | Elimina chamada HTTP `getSession()` em cada request de API; cache é populado após login/register |
 | WebSocket auth na 1ª mensagem (token fora da URL) | `WebSocket` browser não permite headers customizados; o token enviado na 1ª mensagem de texto evita expor o JWT em query params/logs de proxy (fix de segurança do go-live) |
 
-## Issues Conhecidas (resolvidas)
+## ADRs do P3 — Aprofundamento (2026-08-14)
 
+| Decisão | Motivo |
+|---|---|
+| `Organization.qualification_threshold` configurável, default 60 (mantém histórico) | Item 4.18 — calibrar por org exige campo + endpoint; default 60 evita migração lógica de leads antigos. Sugestão via `/api/analytics/threshold-suggestion` é manual (owner/admin aplica) — evita mudar o funil silenciosamente. |
+| Threshold por org lido em `enrichment_orchestrator._persist_scoring` | Item 4.18 — a regra de negócio vive no orquestrador (único local que atribui `status`); routes de listagem continuam aceitando `min_score` externo (UI não muda). |
+| Variantes A/B geradas em uma única chamada Groq (não 2 chamadas) | Item 4.19 — mesma `temperature=0.7` introduz variação natural; custo de tokens é similar a 2 sequências curtas concatenadas, mas a latência cai à metade. |
+| `follow_ups.variant` (String 32, nullable) — não há enum A/B/C | Item 4.19 — labels curtos ("A"/"B"/"C") variam conforme o consultor; enum rígido forçaria migration a cada novo rótulo. |
+| Medição por variante crua (enviadas/abertas/cliques/respondeu) | Item 4.19 — sem tracking individual (não temos qual variante de cada `Message` enviada), cruzamos pelo `FollowUp.variant` + `Message.tracking_token`. Proxy razoável para começar; para cálculo científico, exigiria `Message.variant` (adiado). |
+| `consultant_playbooks` como tabela nova (não reaproveita `CampaignScoringTemplate.playbook`) | Item 4.21 — playbooks por template alimentam a LLM; playbooks por consultor são um repositório pessoal do time. Conceitos diferentes, tabelas diferentes. |
+| Playbooks: lista visível a toda org; edição só do autor ou admin | Item 4.21 — inspiração compartilhada, autoria preservada. |
+| `webhook_outbound_service` usa `httpx.AsyncClient` + retry com backoff | Item 4.20 — alinhado ao padrão async do projeto; retry 3x (0.5s, 1s, 2s) cobre falhas transitórias sem prolongar a request. Fire-and-forget via `BackgroundTasks` (rotas) ou `asyncio.create_task` (pipeline). |
+| `scheduling_url` injetado como CTA preferencial no prompt, não anexado no final | Item 4.20 — a LLM escolhe quando oferecer (cadência permite omitir se o lead já respondeu antes); manter o link no final seria estático demais. |
+| Adiar importação via Google Drive/Sheets (OAuth) — registrado no backlog | Item 4.20 — exige OAuth público + custo de manter credenciais; o webhook genérico já cobre o caso de uso "planilha compartilhada" via `n8n`/Make/Zapier consumindo CSV e POSTando no webhook. Documentado como adiado. |
+| Detecção de Instagram em 3 fontes (Places, scan passivo do HTML, CSV) | Item 4.26 — maximiza cobertura sem nova chamada externa. Followers não são capturados (não há leitura passiva confiável); apenas presença + link. |
+| Score não muda automaticamente com Instagram ativo | Item 4.26 — manter `qualification_score` determinístico; o sinal entra como `evidence` no prompt e o consultor vê o link no pitch. |
+| 4.27 pragmático — `GET /api/leads/{id}/duplicates` (visibilidade) sem mutação | Item 4.27 — reaproveitamento real entre leads exige modelo Company/Person/Employment (refactor > 1 semana, alto risco para uma branch). Por enquanto, exibimos matches prováveis (CNPJ/domínio/e-mail/LinkedIn de contato) na UI do lead e registramos a decisão de adiar. |
+| ADR para registrar adios (4.20 Drive, 4.27 modelo 3 entidades) | Sem o registro, o item some do roadmap. Decisão escrita no `decisions.md` mantém rastreio. |
+
+## Issues Conhecidas (resolvidas)
 Todas as 11 issues da revisão de segurança foram corrigidas (2026-07-09). A lista completa com status está no histórico do `docs/context.md`.

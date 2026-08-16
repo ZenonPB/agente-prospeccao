@@ -246,9 +246,79 @@ export function useInvalidateJobs() {
 }
 
 export function useGenerateMessages() {
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, channel }: { id: string; channel?: "EMAIL" | "WHATSAPP" }) =>
-      leadsApi.generateMessages(id, channel),
+    mutationFn: ({
+      id,
+      channel,
+      variants,
+      forceRegenerate,
+    }: {
+      id: string;
+      channel?: "EMAIL" | "WHATSAPP";
+      variants?: boolean;
+      forceRegenerate?: boolean;
+    }) =>
+      leadsApi.generateMessages(id, channel, { variants, force_regenerate: forceRegenerate }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-cadence", variables.id] });
+    },
+  });
+}
+
+export function useUpdateCadenceStep() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      step,
+      data,
+    }: {
+      id: string;
+      step: "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE";
+      data: { variant?: string; subject?: string; content?: string };
+    }) => leadsApi.updateCadenceStep(id, step, data),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["lead-cadence", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["analytics", "message-variants"] });
+    },
+  });
+}
+
+export function usePlaybooks(params?: { vertical?: string; author_id?: string; limit?: number }) {
+  return useQuery({
+    queryKey: ["playbooks", params],
+    queryFn: () => leadsApi.listPlaybooks(params),
+  });
+}
+
+export function useCreatePlaybook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { vertical?: string; subject: string; body: string; tags?: string[] }) =>
+      leadsApi.createPlaybook(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["playbooks"] });
+    },
+  });
+}
+
+export function useDeletePlaybook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.deletePlaybook(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["playbooks"] });
+    },
+  });
+}
+
+export function useLeadDuplicates(id: string) {
+  return useQuery({
+    queryKey: ["lead-duplicates", id],
+    queryFn: () => leadsApi.getDuplicates(id),
+    enabled: !!id,
+    staleTime: 60_000,
   });
 }
 
@@ -425,6 +495,20 @@ export function useAnalyticsForecast(period?: AnalyticsPeriod) {
   return useQuery({
     queryKey: ["analytics", "forecast", period],
     queryFn: () => analyticsApi.forecast(period),
+  });
+}
+
+export function useAnalyticsThresholdSuggestion(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "threshold-suggestion", period],
+    queryFn: () => analyticsApi.thresholdSuggestion(period),
+  });
+}
+
+export function useAnalyticsMessageVariants(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "message-variants", period],
+    queryFn: () => analyticsApi.messageVariants(period),
   });
 }
 
@@ -723,6 +807,10 @@ export function usePatchOrgSettings() {
       sla_qualified_no_contact_days?: number;
       sla_responded_no_next_action_days?: number;
       sla_opened_no_response_days?: number;
+      qualification_threshold?: number;
+      webhook_url?: string | null;
+      webhook_secret?: string | null;
+      scheduling_url?: string | null;
       api_quota?: Record<string, number>;
     } }) =>
       orgsApi.patchSettings(orgId, data),
@@ -730,6 +818,7 @@ export function usePatchOrgSettings() {
       queryClient.invalidateQueries({ queryKey: ["org", "me"] });
       queryClient.invalidateQueries({ queryKey: ["orgs", "me"] });
       queryClient.invalidateQueries({ queryKey: ["orgs", variables.orgId, "usage"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics", "threshold-suggestion"] });
     },
   });
 }

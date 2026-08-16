@@ -3,7 +3,7 @@ import httpx
 import re
 from typing import List, Dict, Optional
 from config.settings import settings
-from services.domain_utils import is_social_domain
+from services.domain_utils import is_social_domain, is_instagram_url
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,16 @@ class GooglePlacesService:
         # Se o website da empresa for uma rede social (sem site próprio),
         # tratamos como SEM site — evita clonar perfil social falso, evitar
         # análise técnica errada (score 0) e o lead não marca "tem site".
-        website = place.get("websiteUri")
-        website = website if website and not is_social_domain(website) else None
+        # Se for Instagram especificamente, capturamos como `instagram_url`
+        # (sinal de atividade digital para o scoring e o pitch).
+        raw_website = place.get("websiteUri")
+        instagram_url = None
+        if raw_website and is_instagram_url(raw_website):
+            from urllib.parse import urlparse
+            handle = (urlparse(raw_website).path or "").strip("/").split("/")[0]
+            if handle:
+                instagram_url = f"https://instagram.com/{handle}"
+        website = raw_website if raw_website and not is_social_domain(raw_website) else None
 
         return {
             "name": name,
@@ -74,6 +82,7 @@ class GooglePlacesService:
             "rating": place.get("rating"),
             "rating_count": place.get("userRatingCount"),
             "maps_uri": place.get("googleMapsUri"),
+            "instagram_url": instagram_url,
         }
 
     def _parse_address(self, full_address: Optional[str]) -> Dict[str, Optional[str]]:
