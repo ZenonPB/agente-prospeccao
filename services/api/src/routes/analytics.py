@@ -159,12 +159,12 @@ def message_variants(
     to_date: Optional[str] = Query(None, alias="to"),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    """Desempenho por variante A/B de cadência (etapas com `variant`).
+    """Desempenho por variante A/B de cadência.
 
-    Para cada variante (A/B/...), mostra: etapas enviadas, abertas,
-    clicadas e que receberam resposta (status do lead virou RESPONDIDO/
-    REUNIAO_MARCADA/etc. após o envio da etapa). Útil para a UI comparar
-    o vencedor do A/B.
+    Para cada variante (A/B/...), mostra: mensagens enviadas, abertas,
+    clicadas e que receberam resposta. A variante é lida de `messages.variant`
+    (uma linha por envio real) — sem o proxy pelo status do funil. A resposta
+    é atribuída à variante da última mensagem enviada antes do inbound.
     """
     return analytics.message_variants(from_date=from_date, to_date=to_date)
 

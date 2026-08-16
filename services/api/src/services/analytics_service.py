@@ -786,72 +786,42 @@ class AnalyticsService:
     ) -> dict:
         """Desempenho por variante A/B de cadência.
 
-        Soma, por variante (FollowUp.variant) da org no período:
-        - `sent`: etapas efetivamente enviadas.
+        Usa `messages.variant` (uma linha por envio) — o que remove o proxy
+        por `FollowUp.variant` que misturava aberturas/cliques de etapas
+        distintas. Soma, por variante da org no período:
+        - `sent`: mensagens efetivamente enviadas (não respostas).
         - `opened`: mensagens com `opened_at` registrado.
         - `clicked`: mensagens com `clicked_at` registrado.
-        - `responded`: leads cujo status atual é RESPONDIDO/REUNIAO_MARCADA/
-          REUNIAO_FEITA/PROPOSTA_ENVIADA — proxy grosseiro mas útil para
-          comparar A/B sem dupla contagem.
+        - `responded`: mensagens `is_response=True` da org — criadas pelo
+          inbound com a variante da última mensagem enviada antes da resposta.
         """
         f = _parse_period(from_date)
         t = _parse_period(to_date, end_of_day=True)
 
-        fu_base = (
-            self.db.query(FollowUp)
-            .join(Lead, FollowUp.lead_id == Lead.id)
+        msg_base = (
+            self.db.query(Message)
+            .join(Lead, Message.lead_id == Lead.id)
             .filter(
                 Lead.organization_id == self.org_id,
-                FollowUp.variant.isnot(None),
+                Message.variant.isnot(None),
+                Message.sent_at.isnot(None),
             )
         )
         if f:
-            fu_base = fu_base.filter(FollowUp.scheduled_at >= f)
+            msg_base = msg_base.filter(Message.sent_at >= f)
         if t:
-            fu_base = fu_base.filter(FollowUp.scheduled_at <= t)
-        rows = fu_base.with_entities(
-            FollowUp.variant,
-            FollowUp.lead_id,
-            FollowUp.tracking_token,
-            FollowUp.status,
+            msg_base = msg_base.filter(Message.sent_at <= t)
+
+        rows = msg_base.with_entities(
+            Message.variant,
+            Message.tracking_token,
+            Message.opened_at,
+            Message.clicked_at,
+            Message.is_response,
         ).all()
 
-        responded_statuses = {
-            LeadStatus.RESPONDIDO.value,
-            LeadStatus.REUNIAO_MARCADA.value,
-            LeadStatus.REUNIAO_FEITA.value,
-            LeadStatus.PROPOSTA_ENVIADA.value,
-        }
-        lead_status_sub = {
-            str(lid): st
-            for lid, st in self.db.query(Lead.id, Lead.status)
-            .filter(Lead.organization_id == self.org_id)
-            .all()
-        }
-
-        token_open = {
-            t for (t,) in self.db.query(Message.tracking_token)
-            .join(Lead, Message.lead_id == Lead.id)
-            .filter(
-                Lead.organization_id == self.org_id,
-                Message.tracking_token.isnot(None),
-                Message.opened_at.isnot(None),
-            )
-            .all()
-        }
-        token_click = {
-            t for (t,) in self.db.query(Message.tracking_token)
-            .join(Lead, Message.lead_id == Lead.id)
-            .filter(
-                Lead.organization_id == self.org_id,
-                Message.tracking_token.isnot(None),
-                Message.clicked_at.isnot(None),
-            )
-            .all()
-        }
-
         by_variant: dict = {}
-        for variant, lead_id, token, status in rows:
+        for variant, token, opened_at, clicked_at, is_response in rows:
             v = (variant or "").strip().upper() or "(sem variante)"
             bucket = by_variant.setdefault(v, {
                 "variant": v,
@@ -860,15 +830,14 @@ class AnalyticsService:
                 "clicked": 0,
                 "responded": 0,
             })
-            sent_status = status.value if status else None
-            if sent_status == "SENT":
-                bucket["sent"] += 1
-                if token and token in token_open:
-                    bucket["opened"] += 1
-                if token and token in token_click:
-                    bucket["clicked"] += 1
-                if lead_status_sub.get(str(lead_id)) in responded_statuses:
-                    bucket["responded"] += 1
+            if is_response:
+                bucket["responded"] += 1
+                continue
+            bucket["sent"] += 1
+            if opened_at is not None:
+                bucket["opened"] += 1
+            if clicked_at is not None:
+                bucket["clicked"] += 1
 
         variants = []
         for v in sorted(by_variant.keys()):

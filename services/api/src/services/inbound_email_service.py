@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from src.db.models import (
     Lead, LeadStatus, Contact, FollowUp, FollowUpStatus,
     LeadActivity, LeadActivityAction,
+    Message, MessageChannel,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,50 @@ _STOP_RE = re.compile(r"(?i)\b(stop|pare|descadastr|remover?.*lista|cancelar.*en
 def _is_stop_request(subject: str = "", body: str = "") -> bool:
     text = f"{subject} {body}"
     return bool(_STOP_RE.search(text)) and any(w in text.lower() for w in ("stop", "pare", "descadastrar", "remover", "cancelar"))
+
+
+def _record_response_message(
+    db: Session, lead: Lead, body: str, now: datetime
+) -> None:
+    """Cria uma `Message` espelho (`is_response=True`) para fins de A/B.
+
+    A variante é derivada da última `Message` enviada do lead antes do
+    `now`. Isso permite ao `AnalyticsService.message_variants()` medir
+    resposta por variante sem proxy pelo status do funil (que mistura
+    todas as etapas).
+
+    Sem `Message` enviada anterior, nenhum registro é criado.
+    """
+    last_sent = (
+        db.query(Message)
+        .filter(
+            Message.lead_id == lead.id,
+            Message.sent_at.isnot(None),
+            Message.sent_at <= now,
+        )
+        .order_by(Message.sent_at.desc())
+        .first()
+    )
+    if last_sent is None:
+        return
+
+    # Evita duplicar: se a última `Message` enviada já é uma resposta,
+    # não criamos outra (ex.: webhook chamado duas vezes).
+    if last_sent.is_response:
+        last_sent.responded_at = now
+        return
+
+    db.add(Message(
+        lead_id=lead.id,
+        channel=MessageChannel.EMAIL,
+        content=body or "",
+        ai_generated_draft=None,
+        sent_at=now,
+        responded_at=now,
+        is_response=True,
+        tracking_token=last_sent.tracking_token,
+        variant=last_sent.variant,
+    ))
 
 
 def process_inbound_email(db: Session, from_email: str, subject: str, body: str) -> Dict[str, bool]:
@@ -86,6 +131,7 @@ def process_inbound_email(db: Session, from_email: str, subject: str, body: str)
             FollowUp.status == FollowUpStatus.PENDING,
         ).all():
             fu.status = FollowUpStatus.CANCELLED
+        _record_response_message(db, lead, body or "", now)
         log_inbound_activity(db, lead, "Resposta recebida (inbound)", now)
         logger.info("Lead %s marcado RESPONDIDO via inbound de %s", lead.id, sender)
 
