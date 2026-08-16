@@ -673,6 +673,10 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 - **4.19 A/B e variação de mensagens** — entregue: variantes A/B em uma
   única chamada Groq, `FollowUp.variant` + endpoint `PATCH /cadence/step/{step}`
   + medição em `/api/analytics/message-variants` + UI vencedora em `/relatorios`.
+  **Medição real (2026-08-15):** `messages.variant` (migration
+  `f7a8b9c0d1e2`) — a `Message` enviada carrega o variant do FollowUp e o
+  inbound grava uma `Message` espelho `is_response=True`; `message_variants()`
+  lê `Message.variant` (uma linha por envio), sem o proxy por status do funil.
 - **4.20 Integrações externas** — subset entregue: webhook genérico de saída
   (eventos `lead.created`/`lead.status_changed`/`conversion.created`) +
   `scheduling_url` injetado como CTA preferencial no outreach.
@@ -707,7 +711,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | 🟡 entregue no branch (2026-08-14) |
 | 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-14 |
 | 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ✅ Entregue 2026-08-14 |
-| 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ✅ Entregue 2026-08-14 |
+| 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ✅ Entregue 2026-08-15 (medição real) |
 | 4.20 | Integrações (Agenda, n8n, Drive) | Avançado | P3 | L | — | — | 🟡 subset (Drive adiado) |
 | 4.21 | Playbooks por consultor | Avançado | P3 | S | gratuito | — | ✅ Entregue 2026-08-14 |
 | 4.22 | Pesquisa assistida + perfil manual (LinkedIn) | LinkedIn | P1 | M | gratuito | 4.7 | ✅ Entregue 2026-08-11 |
@@ -934,6 +938,10 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 
 ## 11. Próximos passos (roadmap)
 
+- **P3 concluído (2026-08-15, `fix/p3-review`):** medição A/B real (4.19) —
+  `messages.variant` + `Message.is_response` do inbound; `message_variants()`
+  sem proxy. Suíte **244 passed**. Backlog pós-P3 = só 4.20 Drive/Sheets OAuth
+  e 4.27 modelo 3 entidades (adiados, ver `decisions.md`).
 - **Imediato (pós-merge):** rodar `reprocess_stuck_leads --apply --fix-site-evidence`
   (C2/C3) **na base real** (script validado; base local de teste recém-criada tem
   0 leads) e revalidar a distribuição de scores no `analytics/overview`.
@@ -955,9 +963,10 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   auto-`PERDIDO` no encerramento da cadência (dia 14 sem resposta →
   `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
   entrada + saída automáticas. Ver §10 C9.
-- **Backlog pendente (⬜ do §5):** P3 (4.18–4.21, 4.26–4.27).
-  Pendências abertas de itens concluídos: 4.17
-  (bottom-nav opcional, DnD em touchscreen, validação em device real).
+- **Backlog pendente (⬜ do §5):** apenas 4.20 (subset Drive/Sheets OAuth) e
+  4.27 (modelo 3 entidades) — ambos adiados com ADR. Pendências abertas de
+  itens concluídos: 4.17 (bottom-nav opcional, DnD em touchscreen, validação em
+  device real).
 - **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão
   fechada — template de categoria "Aplicações Web / ERP" no seed (sem terceiro
   perfil). Ver §10 C5.

@@ -784,7 +784,17 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-11** — onde paramos:
+> **Atualizado 2026-08-15** — onde paramos:
+>
+> 0. **P3 finalizado (2026-08-15, `fix/p3-review`):** em cima do P3 completo
+>    (4.18–4.21, 4.26, 4.27 subset + review pass `d555c56`), fechada a lacuna de
+>    **medição A/B real (4.19)** — `messages.variant` + `Message.is_response`
+>    do inbound; `message_variants()` sem proxy. Também corrigido o teste de
+>    threshold que o tie-break de F1 (limiar atual) havia quebrado. Suíte
+>    **244 passed**. Pendência operacional: rodar `reprocess_stuck_leads
+>    --apply --fix-site-evidence` na base real (C2/C3).
+>
+> **Histórico (2026-08-11):**
 >
 > 1. **Frontend — 3 temas + logo padrão** (apps/web): **Claro comum, Escuro e
 >    AlphaMec** (padrão `alpha`). Logo oficial no login/registro (carrossel
@@ -1513,6 +1523,12 @@ Branch: `feat/p3-aprofundamento` (a partir de `origin/main` — inclui PR #84 j�
   registra a escolha. `GET /api/analytics/message-variants` calcula
   abertas/cliques/respostas por variante; `MessageVariantsCard` em `/relatorios`
   destaca a vencedora.
+- **4.19 (medição real, 2026-08-15):** `messages.variant` (migration
+  `f7a8b9c0d1e2`) — o `Message` criado no envio da cadência agora carrega o
+  `variant` do `FollowUp`; o inbound de resposta grava uma `Message` espelho
+  (`is_response=True`) com a variante da última `Message` enviada antes da
+  resposta. `message_variants()` passou a ler `Message.variant` (uma linha por
+  envio) — fim do proxy por `FollowUp.variant` + status do funil.
 - **4.20** Integrações (subset): webhook genérico de saída
   (`Organization.webhook_url`+`webhook_secret`) com eventos `lead.created`,
   `lead.status_changed`, `conversion.created`. `httpx.AsyncClient` com retry
@@ -1538,7 +1554,8 @@ Branch: `feat/p3-aprofundamento` (a partir de `origin/main` — inclui PR #84 j�
 
 **Migrations aplicadas:** `a3b4c5d6e7f8` (qualification_threshold),
 `b3c4d5e6f7a8` (follow_ups.variant), `c4d5e6f7a8b9` (webhook + scheduling),
-`d5e6f7a8b9d0` (consultant_playbooks), `e6f7a8b9c0d2` (leads.instagram_url).
+`d5e6f7a8b9d0` (consultant_playbooks), `e6f7a8b9c0d2` (leads.instagram_url),
+`f7a8b9c0d1e2` (messages.variant).
 
 **Testes adicionados (29):** `test_threshold_suggestion` (5), `test_outreach_variants` (5),
 `test_webhook_outbound` (3), `test_playbooks_route` (2), `test_instagram_signal` (7),
@@ -1551,5 +1568,23 @@ todas as 5 migrations no Postgres local.
 **Backlog pós-P3 (adiado, registrado em `decisions.md`):**
 - 4.20 Drive/Sheets OAuth (alto custo de auth público).
 - 4.27 modelo Company/Person/Employment (refactor > 1 semana, alto risco).
-- Rastreamento individual por variante (`Message.variant` para cálculo
-  estatístico de A/B sem proxy).
+
+## Sessão 2026-08-15 — P3 finalizado: medição A/B real (4.19)
+
+Branch `fix/p3-review`:
+
+- **`messages.variant` (migration `f7a8b9c0d1e2`)**: o `Message` criado no
+  envio da cadência (`cadence_service.send_step`) agora espelha
+  `follow_up.variant` — uma linha por envio, sem o proxy por FollowUp.
+- **Inbound**: `inbound_email_service` cria uma `Message` espelho
+  (`is_response=True`, mesma `tracking_token` e `variant` da última `Message`
+  enviada do lead) quando uma resposta chega. Sem duplicata em re-chamada do
+  webhook.
+- **`AnalyticsService.message_variants()`** reescrito: conta `opened/clicked`
+  por `Message` enviada e `responded` por `Message.is_response` — taxa de
+  resposta por variante sem depender do status atual do funil.
+- **Testes**: `tests/test_message_variants.py` (5) + ajustes em
+  `test_threshold_suggestion.py` para o tie-break de F1 (limiar atual vence
+  empate) que havia quebrado no review pass `d555c56`.
+- **Verificação**: `pytest` **244 passed**; `compileall` services limpo;
+  migration aplicada no Postgres local (`f7a8b9c0d1e2` head).
