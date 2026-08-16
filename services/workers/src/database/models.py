@@ -620,6 +620,10 @@ class Message(Base):
     tracking_token = Column(String(64), unique=True, nullable=True)
     opened_at = Column(DateTime(timezone=True))
     clicked_at = Column(DateTime(timezone=True))
+    # Rótulo da variante A/B (espelha `follow_ups.variant` no envio). Quando o
+    # lead responde, o inbound cria uma `Message` espelho (`is_response=True`)
+    # com o variant da última mensagem enviada antes da resposta.
+    variant = Column(String(32))
 
     lead = relationship("Lead", back_populates="messages")
 

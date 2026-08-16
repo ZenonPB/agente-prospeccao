@@ -20,8 +20,8 @@ from src.db.models import (
 )
 from src.auth.dependencies import (
     get_current_user,
+    get_user_membership,
     get_user_organization,
-    require_org_admin,
 )
 
 router = APIRouter(prefix="/playbooks", tags=["playbooks"])
@@ -110,7 +110,7 @@ def update_playbook(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
-    actor: OrganizationMember = Depends(require_org_admin),
+    actor: OrganizationMember = Depends(get_user_membership),
 ):
     """Atualiza um playbook. Apenas o autor ou admin."""
     import uuid
@@ -151,7 +151,7 @@ def delete_playbook(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
-    actor: OrganizationMember = Depends(require_org_admin),
+    actor: OrganizationMember = Depends(get_user_membership),
 ):
     """Remove um playbook. Apenas o autor ou admin."""
     import uuid

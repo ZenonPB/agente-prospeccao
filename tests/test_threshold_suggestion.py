@@ -46,14 +46,33 @@ def test_threshold_escolhe_f1_maximo():
 
 
 def test_threshold_recomendado_eh_o_max_f1():
-    """O `recommended_threshold` corresponde ao candidato com maior F1."""
+    """O `recommended_threshold` corresponde ao candidato com maior F1.
+
+    Empate de F1 prefere o limiar atual (evita "saltos" sem evidência): com
+    vários limiares empatados no max F1, a recomendação é o threshold em uso.
+    """
     scored = [(s, f"id-{s}") for s in [10, 20, 30, 80, 85, 90, 95, 99]]
     converted = {"id-80", "id-85", "id-90", "id-95", "id-99"}
     out = compute_threshold_candidates(
         scored=scored, converted_ids=converted, current_threshold=60,
     )
-    best_candidate = max(out["candidates"], key=lambda c: c["f1"])
-    assert out["recommended_threshold"] == best_candidate["threshold"]
+    best_f1 = max(c["f1"] for c in out["candidates"])
+    best_thresholds = {c["threshold"] for c in out["candidates"] if c["f1"] == best_f1}
+    # 60 está entre os ótimos F1 — o tie-break o elege.
+    assert out["recommended_threshold"] == 60
+    assert 60 in best_thresholds
+
+
+def test_threshold_sem_empate_recomenda_estrito_melhor():
+    """Quando um limiar vence F1 de forma única, é ele quem é recomendado."""
+    scored = [(s, f"id-{s}") for s in [40, 45, 50, 55, 60]]
+    converted = {"id-60"}
+    out = compute_threshold_candidates(
+        scored=scored, converted_ids=converted, current_threshold=40,
+    )
+    # T=60 → 1 qualificado convertido de 1 → F1 1.0; T<60 sempre inclui um
+    # não-convertido, derrubando a precisão → F1 < 1.0 (máximo único em 60).
+    assert out["recommended_threshold"] == 60
 
 
 def test_persist_scoring_usa_threshold_da_org():

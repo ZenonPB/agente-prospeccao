@@ -201,6 +201,7 @@ def send_step(
             ai_generated_draft=follow_up.content,
             sent_at=follow_up.sent_at,
             tracking_token=follow_up.tracking_token,
+            variant=follow_up.variant,
         )
         db.add(msg)
         log_cadence_event(

@@ -238,7 +238,11 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
 - **jobs** — coleta/processamento (organization_id nullable).
 - **lead_activities / conversions** — trilha de atribuição/status; conversões e feedback.
 - **follow_ups / email_suppressions** — cadência dia 0/3/7/14; bounce/opt-out.
-- **messages / analysis_profiles** — registros de envio e perfis de análise.
+  `follow_ups.variant` (A/B) + `variant` espelhado na `Message` enviada
+  (item 4.19); inbound cria `Message.is_response` para medir resposta por
+  variante no `/analytics/message-variants`.
+- **messages / analysis_profiles** — registros de envio (tracking `opened_at`/
+  `clicked_at`, `variant`, `is_response`) e perfis de análise.
 - **sales_targets** — metas mensais por consultor (4.9): `month` "YYYY-MM",
   `meetings_target`, `revenue_target`; unique `(organization_id, user_id, month)`.
 - **org_audit_log** (3.3.4) — trilha de eventos administrativos da org
