@@ -784,7 +784,28 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-15** — onde paramos:
+> **Atualizado 2026-08-17** — onde paramos:
+>
+> 0. **Leads score 0 + contatos de decisores (`feat/contatos-e-pontuacao-0`,
+>    2026-08-16/17):** investigação de banco mostrou que os leads "score 0"
+>    eram **NOVO nunca pontuados** — a coleta trazia uma página inteira
+>    (pageSize=20) mesmo com `max_leads: 10` (overshoot), e o scoring só
+>    processava 10. Correções:
+>    - **A1** `places_service`: `max_results` respeitado dentro da página;
+>    - **A2** `pipeline_worker`: seleção NOVO determinística + resumo do job
+>      com `queue_remaining` (a UI avisa "N aguardando pontuação");
+>    - **B1** Hunter **domain-search** implementado (rota já existia, nunca
+>      usada): nomes/cargos/e-mails reais do domínio quando a Receita não tem;
+>    - **B2** descoberta reversa de **CNPJ por nome** (busca passiva +
+>      checksum) alimenta a Receita → sócios/decidores reais;
+>    - **B3** regex de e-mail não captura mais URL/CDN (falso
+>      `//unpkg.com/leaflet@1.7.1` era gravado como e-mail da Bluefit);
+>    - **B4** fallback honesto: sem CNPJ o contato vira "Decisor" sem nome
+>      inventado; heurística de e-mail só roda para nome real de pessoa.
+>    - **Operacional (base local):** 10 leads NOVO re-pontuados → QUALIFICADO
+>      (85–95); e-mail bugado removido. Suíte **276 passed**.
+>
+> > **Histórico anterior (2026-08-15):**
 >
 > 0. **P3 finalizado (2026-08-15, `fix/p3-review`):** em cima do P3 completo
 >    (4.18–4.21, 4.26, 4.27 subset + review pass `d555c56`), fechada a lacuna de
@@ -1518,6 +1539,7 @@ npm run dev
 
 | Hash | Descrição |
 |------|-----------|
+| `11b56a1` | feat(workers,api,web): pontuação sem overshoot + contatos de decisores mais encontrados (Hunter domain-search, CNPJ reverso, regex email) |
 | `2278671` | feat: consultor dashboard móvel — KPIs da planilha por consultor + perfil, bottom-nav, kanban touch |
 | `0363d71` | feat(api,web): 4.27 visibilidade de duplicatas + decisão registrada |
 | `1ef5161` | feat(api,web,workers): 4.26 sinal de Instagram |

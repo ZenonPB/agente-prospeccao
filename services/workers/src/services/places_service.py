@@ -195,6 +195,10 @@ class GooglePlacesService:
                     break
 
                 for place in places:
+                    # Teto real por rodada DENTRO da página: max_results não é
+                    # estourado por uma página cheia (pageSize=20 > max).
+                    if len(leads) >= max_results:
+                        break
                     place_id = place.get("id")
                     # Filtra já coletados ANTES de gastar a vaga em max_results.
                     if place_id and place_id in excluded:

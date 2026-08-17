@@ -27,6 +27,7 @@ interface PipelineEvent {
     scored: number;
     failed: number;
     total_processed: number;
+    queue_remaining?: number;
   };
   timestamp?: string;
 }
@@ -174,26 +175,33 @@ export function PipelineMonitor() {
             </div>
             <Progress value={progress} className="h-2" />
             {restoredSummary && (
-              <div className="mt-4 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
-                <div>
-                  <div className="text-2xl font-bold">{restoredSummary.collected}</div>
-                  <div className="text-sm text-muted-foreground">Coletados</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold">{restoredSummary.scored}</div>
-                  <div className="text-sm text-muted-foreground">Pontuados</div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-emerald-600">{restoredSummary.qualified}</div>
-                  <div className="text-sm text-muted-foreground">Aptos</div>
-                </div>
-                <div>
-                  <div className={`text-2xl font-bold ${restoredSummary.failed > 0 ? 'text-amber-600' : ''}`}>
-                    {restoredSummary.failed}
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-4 text-center sm:grid-cols-4">
+                  <div>
+                    <div className="text-2xl font-bold">{restoredSummary.collected}</div>
+                    <div className="text-sm text-muted-foreground">Coletados</div>
                   </div>
-                  <div className="text-sm text-muted-foreground">Falhas</div>
+                  <div>
+                    <div className="text-2xl font-bold">{restoredSummary.scored}</div>
+                    <div className="text-sm text-muted-foreground">Pontuados</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-emerald-600">{restoredSummary.qualified}</div>
+                    <div className="text-sm text-muted-foreground">Aptos</div>
+                  </div>
+                  <div>
+                    <div className={`text-2xl font-bold ${restoredSummary.failed > 0 ? 'text-amber-600' : ''}`}>
+                      {restoredSummary.failed}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Falhas</div>
+                  </div>
                 </div>
-              </div>
+                {(restoredSummary.queue_remaining ?? 0) > 0 && (
+                  <p className="mt-2 text-xs text-sky-700">
+                    {restoredSummary.queue_remaining} leads coletados aguardam pontuação — rode a coleta de novo para analisá-los.
+                  </p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

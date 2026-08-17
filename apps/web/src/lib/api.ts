@@ -845,6 +845,7 @@ export interface PipelineJob {
     scored: number;
     failed: number;
     total_processed: number;
+    queue_remaining?: number;
   } | null;
 }
 

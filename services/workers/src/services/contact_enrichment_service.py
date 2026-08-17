@@ -98,11 +98,104 @@ def _normalize_text(text: str) -> str:
     return "".join(c for c in normalized if not unicodedata.combining(c)).lower()
 
 
+def _looks_like_person_name(name: Optional[str], company: Optional[str]) -> bool:
+    """True se `name` parece ser nome de pessoa (não a empresa/placeholder).
+
+    Guarda a heurística de e-mail e a busca por nome: só rodam para nomes
+    reais de decisores, nunca para o nome da empresa ou rótulos genéricos
+    ("Decisor", "contato" etc.). Evita inventar e-mails como
+    `academia.max@dominio` a partir do nome do estabelecimento.
+    """
+    n = _normalize_text(name or "").strip()
+    c = _normalize_text(company or "").strip()
+    if not n or n == c:
+        return False
+    generic = {
+        "decisor", "contato", "contato@", "comercial", "vendas", "info",
+        "geral", "sac", "rh", "admin", "administracao", "financeiro",
+        "atendimento", "recepcao", "suporte", "ouvidoria",
+    }
+    if n in generic or any(g in n for g in ("decisor",)):
+        return False
+    tokens = [t for t in re.split(r"[\s.,]+", n) if t]
+    return len(tokens) >= 2
+
+
+def _role_from_position(position: Optional[str]) -> ContactRole:
+    """Infere o papel do decisor a partir do cargo (Hunter domain-search)."""
+    p = _normalize_text(position or "")
+    if "presidente" in p or "ceo" in p or "chief" in p:
+        return ContactRole.CEO
+    if "diretor" in p or "director" in p:
+        return ContactRole.DIRETOR
+    if "socio" in p or "sócio" in p:
+        return ContactRole.SOCIO
+    if "admin" in p:
+        return ContactRole.ADMINISTRADOR
+    return ContactRole.OUTRO
+
+
+def parse_hunter_domain_emails(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Filtra/parseia `data.emails` do Hunter domain-search.
+
+    Mantém apenas e-mails **pessoais** válidos (`type == "personal"`) e monta
+    o contato com nome (first + last), cargo e confiança. E-mails genéricos
+    (contato@, sac@) e inválidos são descartados — o site já cobre esse caso.
+    """
+    data = payload.get("data") if isinstance(payload, dict) else None
+    emails = (data or {}).get("emails") or []
+    people: List[Dict[str, Any]] = []
+    for e in emails:
+        if not isinstance(e, dict):
+            continue
+        if e.get("type") != "personal":
+            continue
+        value = (e.get("value") or "").strip()
+        if not is_valid_email_syntax(value):
+            continue
+        first = (e.get("first_name") or "").strip()
+        last = (e.get("last_name") or "").strip()
+        name = f"{first} {last}".strip() or "Decisor"
+        position = e.get("position") or ""
+        people.append({
+            "email": value.lower(),
+            "name": name,
+            "role": _role_from_position(position),
+            "role_label": position or "Decisor",
+            "confidence": int(e.get("confidence") or 70),
+            "is_primary": False,
+        })
+    # A pessoa de maior confiança/cargo é a primária (placeholder do lead).
+    if people:
+        people.sort(key=lambda p: (p["confidence"], p["role"] is not ContactRole.OUTRO))
+        people[0]["is_primary"] = True
+    return people
+
+
+def extract_cnpj_candidates(text: Optional[str]) -> List[str]:
+    """Extrai CNPJs (14 dígitos, com ou sem máscara) de um texto de busca."""
+    if not text:
+        return []
+    # Padrão do CNPJ mascarado (ex.: 35.481.049/0001-35) — separadores opcionais.
+    pattern = re.compile(
+        r"\d{2}[.\s-]?\d{3}[.\s-]?\d{3}[.\s/-]?\d{4}[.\s-]?\d{2}"
+    )
+    found: List[str] = []
+    seen: set = set()
+    for match in pattern.finditer(text):
+        cnpj = re.sub(r"\D", "", match.group(0))
+        if len(cnpj) == 14 and cnpj not in seen:
+            seen.add(cnpj)
+            found.append(cnpj)
+    return found
+
+
 def _extract_emails_from_html(html: Optional[str]) -> List[str]:
     """Extrai e-mails de um HTML, desofuscando padrões anti-bot comuns.
 
     Trata ' [at] '/'[dot]' (e variantes entre parênteses), entidades HTML
-    (`&#64;`/`&#46;`) e remove pontuação de frase dos arredores.
+    (`&#64;`/`&#46;`) e remove pontuação de frase dos arredores. Filtra
+    falsos positivos de URLs/CDN (ex.: `//unpkg.com/leaflet@1.7.1`).
     """
     if not html:
         return []
@@ -115,10 +208,26 @@ def _extract_emails_from_html(html: Optional[str]) -> List[str]:
         em = em.rstrip(".,;:)]}>\"'")
         if not is_valid_email_syntax(em):
             continue
+        if not _is_real_email(em):
+            continue
         low = em.lower()
         if low not in emails:
             emails.append(low)
     return emails
+
+
+def _is_real_email(email: str) -> bool:
+    """True se o candidato não parece URL/CDN (local part com caminho)."""
+    local, sep, domain = email.rpartition("@")
+    if not sep or not local or not domain:
+        return False
+    # URLs de CDN: local part com '/' ou '=' (query) → falso positivo.
+    if "/" in local or "=" in local or local.startswith("//"):
+        return False
+    # Domínio só numérico (ex.: 1.7.1 de versão de pacote) → não é e-mail.
+    if not any(ch.isalpha() for ch in domain):
+        return False
+    return True
 
 
 def _extract_phone_from_html(html: Optional[str]) -> List[str]:
@@ -327,6 +436,47 @@ class ContactEnrichmentService:
             if not lead.company_linkedin_url and not linkedin_fresh:
                 lead.company_linkedin_url = await self._linkedin_company_from_search(client, lead)
 
+            # Descoberta reversa de CNPJ por nome (busca passiva) quando o lead
+            # não tem CNPJ — a Receita devolve sócios/decidores reais a partir
+            # dele. Sem CNPJ, o fallback é um placeholder genérico sem nome.
+            if not cnpj and not getattr(lead, "cnpj", None) and lead.company_name:
+                discovered = await self._discover_cnpj_from_search(client, lead)
+                if discovered:
+                    lead.cnpj = discovered
+                    if len(existing) == 1 and existing[0].source == "lead_name":
+                        # Placeholder genérico sem CNPJ — re-cria com a Receita
+                        # agora que temos CNPJ.
+                        db.delete(existing[0])
+                        db.flush()
+                        existing = await self._contacts_from_receita(lead, db, discovered)
+
+            # Hunter domain-search: quando o placeholder da Receita não trouxe
+            # ninguém real (sem QSA), tentamos nomes/emails nomeados do domínio.
+            if self.hunter_key and lead.website:
+                domain = _domain_from_website(lead.website)
+                if domain and len(existing) <= 1 and not any(
+                    c.email for c in existing if c.name != "Decisor"
+                ):
+                    people = await self._people_from_hunter_domain(client, lead, domain)
+                    for person in people[:max_contacts]:
+                        if not any(
+                            c.email and c.email == person["email"] for c in existing
+                        ):
+                            contact = Contact(
+                                lead_id=lead.id,
+                                name=person["name"],
+                                role=person["role"],
+                                role_label=person["role_label"],
+                                email=person["email"],
+                                confidence=person["confidence"],
+                                is_primary=not any(c.is_primary for c in existing),
+                                source="hunter_domain",
+                                raw_data={"email_source": "hunter"},
+                            )
+                            db.add(contact)
+                            existing.append(contact)
+                    db.flush()
+
             for contact in existing[:max_contacts]:
                 await self._enrich_email(client, contact, lead, site_emails, site_phones)
                 if contact.email:
@@ -351,10 +501,12 @@ class ContactEnrichmentService:
 
         target_cnpj = cnpj or (getattr(lead, "cnpj", None) or "")
         if not target_cnpj:
-            # Sem CNPJ: cria um contato genérico com o nome do lead.
+            # Sem CNPJ: cria um contato genérico SEM inventar nome de pessoa —
+            # o nome do estabelecimento não é um decisor (evita heurística
+            # falsa tipo "academia.max@dominio"). O consultor nomeia depois.
             generic = Contact(
                 lead_id=lead.id,
-                name=lead.company_name,
+                name="Decisor",
                 role=ContactRole.OUTRO,
                 role_label="Decisor",
                 confidence=30,
@@ -391,10 +543,11 @@ class ContactEnrichmentService:
                 db.add(contact)
                 contacts.append(contact)
         else:
-            # CNPJ existe mas sem QSA disponível — fallback genérico.
+            # CNPJ existe mas sem QSA disponível — fallback genérico honesto
+            # (nome neutro, não o nome da empresa — não é um decisor real).
             generic = Contact(
                 lead_id=lead.id,
-                name=lead.company_name,
+                name="Decisor",
                 role=ContactRole.OUTRO,
                 role_label="Decisor",
                 confidence=30,
@@ -532,12 +685,14 @@ class ContactEnrichmentService:
             return
 
         # 3) Busca passiva em buscador — '<nome> ''<empresa>' email.
-        search_email, search_conf, search_src = await self._mail_to_company(
-            client, contact, lead,
-        )
-        if search_email:
-            self._apply_email(contact, search_email, search_src or "search", search_conf)
-            return
+        #    Só roda para contato com nome real de pessoa (não placeholder).
+        if _looks_like_person_name(contact.name, lead.company_name):
+            search_email, search_conf, search_src = await self._mail_to_company(
+                client, contact, lead,
+            )
+            if search_email:
+                self._apply_email(contact, search_email, search_src or "search", search_conf)
+                return
 
         # 4) E-mail cadastral da empresa (CNPJ/Receita) — salvo em `company_email`.
         cnpj_email = (contact.raw_data or {}).get("company_email")
@@ -546,18 +701,20 @@ class ContactEnrichmentService:
             return
 
         # 5) Heurística determinística (offline) — nome.sobrenome@dominio.
-        heuristic_email, hconf = self._email_heuristic(contact, domain)
-        if heuristic_email:
-            contact.email = heuristic_email
-            if not contact.source or contact.source.startswith("cnpj"):
-                contact.source = f"{contact.source or 'cnpj_receita'}:heuristic"
-            # E-mail adivinhado é marcado como não verificado — nunca
-            # deve cruzar o gate de outreach automático (confidence >= 50).
-            contact.raw_data = {
-                **(contact.raw_data or {}),
-                "email_source": "heuristic",
-                "email_verified": False,
-            }
+        #    Nunca roda para placeholder/nome de empresa (evita email inventado).
+        if _looks_like_person_name(contact.name, lead.company_name):
+            heuristic_email, hconf = self._email_heuristic(contact, domain)
+            if heuristic_email:
+                contact.email = heuristic_email
+                if not contact.source or contact.source.startswith("cnpj"):
+                    contact.source = f"{contact.source or 'cnpj_receita'}:heuristic"
+                # E-mail adivinhado é marcado como não verificado — nunca
+                # deve cruzar o gate de outreach automático (confidence >= 50).
+                contact.raw_data = {
+                    **(contact.raw_data or {}),
+                    "email_source": "heuristic",
+                    "email_verified": False,
+                }
 
     def _apply_email(
         self, contact: Contact, email: str, source: str, confidence: int,
@@ -821,6 +978,103 @@ class ContactEnrichmentService:
 
         self._http_cache[cache_key] = None
         return None
+
+    # ------------------------------------------------------------------ #
+    # Descoberta reversa de CNPJ por nome (busca passiva)
+    # ------------------------------------------------------------------ #
+    async def _discover_cnpj_from_search(
+        self, client: httpx.AsyncClient, lead: Lead,
+    ) -> Optional[str]:
+        """Busca o CNPJ a partir do nome da empresa (`"<empresa>" cnpj`).
+
+        Busca passiva em DuckDuckGo→Bing (mesma infra do LinkedIn), extrai
+        candidatos de CNPJ da página e valida o dígito verificador. A partir
+        do CNPJ a Receita devolve os sócios/decidores reais — sem ele, o
+        contato fica um placeholder genérico.
+        """
+        company = (lead.company_name or "").strip()
+        if not company:
+            return None
+        query = f'"{company}" cnpj'
+        cache_key = f"cnpj:{hashlib.md5(query.encode()).hexdigest()}"
+        cached = self._http_cache.get(cache_key)
+        if cached is not None:
+            return cached or None
+
+        for engine, params in (
+            ("duckduckgo", {"q": query, "kl": "br-pt"}),
+            ("bing", {"q": query, "count": 10, "mkt": "pt-BR"}),
+        ):
+            try:
+                url = (
+                    "https://html.duckduckgo.com/html/"
+                    if engine == "duckduckgo"
+                    else "https://www.bing.com/search"
+                )
+                resp = await client.get(url, params=params)
+                if resp.status_code != 200:
+                    continue
+                candidates = extract_cnpj_candidates(resp.text)
+                for cnpj in candidates:
+                    if self._is_valid_cnpj_checksum(cnpj):
+                        self._http_cache[cache_key] = cnpj
+                        return cnpj
+            except Exception as e:
+                logger.debug("Busca CNPJ (%s) falhou para %s: %s", engine, company, e)
+
+        self._http_cache[cache_key] = None
+        return None
+
+    @staticmethod
+    def _is_valid_cnpj_checksum(cnpj: str) -> bool:
+        """Valida os dígitos verificadores de um CNPJ (14 dígitos)."""
+        import services.cnpj_service as cnpj_mod
+
+        if not cnpj_mod.is_valid_cnpj(cnpj):
+            return False
+        nums = [int(d) for d in cnpj]
+        w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        total1 = sum(n * w for n, w in zip(nums[:12], w1))
+        d1 = 11 - (total1 % 11)
+        d1 = 0 if d1 >= 10 else d1
+        w2 = [6] + w1
+        total2 = sum(n * w for n, w in zip(nums[:13], w2))
+        d2 = 11 - (total2 % 11)
+        d2 = 0 if d2 >= 10 else d2
+        return d1 == nums[12] and d2 == nums[13]
+
+    # ------------------------------------------------------------------ #
+    # Hunter domain-search (nomes + e-mails nomeados por domínio)
+    # ------------------------------------------------------------------ #
+    async def _people_from_hunter_domain(
+        self, client: httpx.AsyncClient, lead: Lead, domain: str,
+    ) -> List[Dict[str, Any]]:
+        """Busca pessoas + e-mails reais de um domínio via Hunter domain-search.
+
+        O `email-finder` (usado por contato) exige o nome do decisor; o
+        `domain-search` lista todas as pessoas do domínio com cargo e e-mail
+        nomeado — adiciona decisores reais quando a Receita não trouxe QSA.
+        """
+        if not self.hunter_key or not domain:
+            return []
+        cache_key = f"dom:{hashlib.md5(domain.encode()).hexdigest()}"
+        cached = self._http_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        try:
+            resp = await client.get(
+                HUNTER_SEARCH_URL,
+                params={"domain": domain, "limit": 25, "api_key": self.hunter_key},
+            )
+            if resp.status_code != 200:
+                return []
+            people = parse_hunter_domain_emails(resp.json())
+            people.sort(key=lambda p: (-p["confidence"], bool(p["role_label"] != "Decisor")))
+            self._http_cache[cache_key] = people
+            return people
+        except Exception as e:
+            logger.debug("Hunter domain-search falhou para %s: %s", domain, e)
+            return []
 
     # ------------------------------------------------------------------ #
     # Confidence e serialização

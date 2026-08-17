@@ -29,6 +29,7 @@ interface PipelineEvent {
     scored: number;
     failed: number;
     total_processed: number;
+    queue_remaining?: number;
   };
   timestamp?: string;
 }
@@ -288,6 +289,11 @@ export function CampaignPipeline({
             {restoredSummary.failed > 0 && (
               <p className="text-xs text-amber-700 mb-2">
                 Leads não pontuados (falha do provedor) voltam à fila automaticamente no próximo job.
+              </p>
+            )}
+            {mode !== 'reanalyze' && (restoredSummary.queue_remaining ?? 0) > 0 && (
+              <p className="text-xs text-sky-700 mb-2">
+                {restoredSummary.queue_remaining} leads coletados ainda aguardam pontuação — rode «Coletar» de novo para analisá-los.
               </p>
             )}
             <Button onClick={() => router.push('/oportunidades')}>
