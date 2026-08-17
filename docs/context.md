@@ -805,6 +805,13 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    - **Operacional (base local):** 10 leads NOVO re-pontuados → QUALIFICADO
 >      (85–95); e-mail bugado removido. Suíte **276 passed**.
 >
+> 0. **Limpeza de docs (2026-08-17, `docs/cleanup-roadmaps`):** `docs/roadmap-leads.md`
+>    **deletado** — 100% implementado (Partes A–E; histórico preservado neste
+>    arquivo e em `decisions.md`). Referências sincronizadas
+>    (`business-rules.md`, `roadmap-vendas.md`) e status do `roadmap-vendas.md`
+>    unificados (4.17 → ✅; C2/C3 → "fix aplicado, falta rodar na base real";
+>    §11 sem pendências do 4.17 que já foram entregues).
+>
 > > **Histórico anterior (2026-08-15):**
 >
 > 0. **P3 finalizado (2026-08-15, `fix/p3-review`):** em cima do P3 completo

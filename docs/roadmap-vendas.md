@@ -524,7 +524,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   paginação server-side no kanban e na lista de leads + índices compostos
   `(organization_id, status, qualification_score)` (migration `ca2c1a...`).
 
-#### 4.17 Frontend mobile-first 🟡 entregue no branch (M, gratuito)
+#### 4.17 Frontend mobile-first ✅ (M, gratuito)
 
 - **Proposta:** revisar kanban/tabelas/mapas para o celular (consultor trabalha
   no WhatsApp no celular; EJ tem rotatividade e quem trabalha em campo).
@@ -838,7 +838,7 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Atenção futura:** qualquer `Select` novo precisa de rótulo explícito no
   `SelectValue` — não usar `<SelectValue />` solto.
 
-### C2 · Leads presos em `ANALISADO`/score 0 por falha transitória do Groq 🟡
+### C2 · Leads presos em `ANALISADO`/score 0 por falha transitória do Groq ✅ fix aplicado
 - **Sintoma:** 35 de 45 leads com score 0; todos em `ANALISADO`. Sensação de que
   "só quem tem site recebe score" (o público-alvo **sem** site ficou preso).
 - **Causa:** quando a chamada ao Groq falhava (rate-limit/5xx/rede),
@@ -850,14 +850,14 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   padrão) **validado** em 2026-08-11 (removido o `def reprocess_one` duplicado).
   Levantamento atual: **53 presos** + **3 com evidência errada de "sem site"** =
   56 leads.
-- **PENDENTE — rodar na base real** (base local de teste recém-criada tem 0 leads):
+- **PENDENTE — rodar na base real** (fix já em vigor; comandos prontos):
   ```bash
   cd services/workers
   source venv/bin/activate
   python -m src.scripts.reprocess_stuck_leads --apply --fix-site-evidence
   ```
 
-### C3 · Alucinação "sem site próprio" quando o lead TEM site 🟡
+### C3 · Alucinação "sem site próprio" quando o lead TEM site ✅ fix aplicado
 - **Sintoma:** ex. **Psicóloga Pâmela Oliveira** (site `psipamelaoliveira.com`,
   WordPress/SSL ok) — a IA gravou evidência "Sem site próprio — dados cadastrais",
   contradizendo os facts `Tem website: sim`.
@@ -867,8 +867,6 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   nunca afirme ausência") + **guard determinístico** `_contradicts_site_state`
   em `scoring_service._normalize_response(has_website=...)` que remove
   evidências contraditórias. Testes: `tests/test_scoring_site_claims.py` (5).
-- **PENDENTE:** re-pontuar os afetados (mesmo comando do C2, que já inclui o
-  `--fix-site-evidence`).
 
 ### C4 · Leads SEM site deveriam pontuar (público-alvo de sites) ✅ entendido
 - **Sintoma/entendimento:** leads sem site (ex.: **Psicóloga Jaqueline Pradelli**)
@@ -955,9 +953,9 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 ## 11. Próximos passos (roadmap)
 
 - **Consultor dashboard + fechamento 4.17 (2026-08-15, `feat/consultor-dashboard-mobile`):**
-  KPIs da planilha Alphamec por consultor (roadmap-leads C.2) — `pitch_rate`,
-  `response_rate`, `contract_approval_rate`, `ticket_medio`, dias de
-  cadência/fechamento, RD/Orçamento/RP, canal — expostos em
+  KPIs da planilha Alphamec por consultor (pitch_rate, response_rate,
+  contract_approval_rate, ticket_medio, dias de
+  cadência/fechamento, RD/Orçamento/RP, canal) — expostos em
   `/analytics/consultants` + perfil `/analytics/consultants/{id}` (com funil
   ponta-a-ponta e trilha de atividades) e telas `/relatorios/consultores/[id]`;
   bottom-nav mobile + kanban com drag-handle isolado e "Mover para" (fecham os
@@ -989,9 +987,14 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
   `PERDIDO`/`NAO_RESPONDEU` após `CADENCE_CLOSE_GRACE_DAYS`) — com o requeue C8,
   entrada + saída automáticas. Ver §10 C9.
 - **Backlog pendente (⬜ do §5):** apenas 4.20 (subset Drive/Sheets OAuth) e
-  4.27 (modelo 3 entidades) — ambos adiados com ADR. Pendências abertas de
-  itens concluídos: 4.17 (bottom-nav opcional, DnD em touchscreen, validação em
-  device real).
+  4.27 (modelo 3 entidades) — ambos adiados com ADR. Pendência aberta de item
+  concluído: 4.17 — validar o kanban (DnD por toque) em device real.
+- **Contatos + pontuação (2026-08-16, `feat/contatos-e-pontuacao-0`):** leads
+  com "score 0" eram NOVO nunca pontuados (coleta estourava o teto por página);
+  corrigido overshoot + fila visível. Hunter domain-search implementado,
+  descoberta reversa de CNPJ por nome, regex de e-mail sem URLs/CDN e fallback
+  honesto de contato. Suíte **276 passed**; base local re-pontuada (10 NOVO →
+  QUALIFICADO). Ver `docs/context.md`.
 - **C5 entregue (2026-08-14, branch `feat/erp-webapps-template-seed`):** decisão
   fechada — template de categoria "Aplicações Web / ERP" no seed (sem terceiro
   perfil). Ver §10 C5.
