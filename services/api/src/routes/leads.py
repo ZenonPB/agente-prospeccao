@@ -729,7 +729,7 @@ async def generate_messages(
     if not _can_access_lead(member, lead):
         raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
-    from services.provider_client import quota_ok, consume_quota
+    from services.provider_client import quota_ok
     if not quota_ok(db, str(_org.id), "GROQ_API_KEY"):
         raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
@@ -760,6 +760,8 @@ async def generate_messages(
         lead_dict, context_service or "", context_segment or "", playbook,
         generate_variants=body.variants,
         scheduling_url=_org.scheduling_url,
+        db=db,
+        organization_id=str(_org.id),
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
@@ -773,7 +775,6 @@ async def generate_messages(
     )
     db.commit()
 
-    consume_quota(db, str(_org.id), "GROQ_API_KEY")
     return result
 
 
@@ -1280,7 +1281,7 @@ async def start_lead_cadence(
     if lead.opt_out:
         raise HTTPException(status_code=400, detail="Lead com opt-out — não gere cadência")
 
-    from services.provider_client import quota_ok, consume_quota
+    from services.provider_client import quota_ok
     if not quota_ok(db, str(_org.id), "GROQ_API_KEY"):
         raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
@@ -1310,6 +1311,8 @@ async def start_lead_cadence(
     lead_dict = _build_lead_dict(lead, db)
     result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
+        db=db,
+        organization_id=str(_org.id),
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagens da cadência")
@@ -1326,7 +1329,6 @@ async def start_lead_cadence(
     # com `auto_send_email`. Enviar o ciclo inteiro de uma vez queimava a
     # entregabilidade.
 
-    consume_quota(db, str(_org.id), "GROQ_API_KEY")
     return {
         "lead_id": str(lead.id),
         "playbook_applied": bool(playbook),
