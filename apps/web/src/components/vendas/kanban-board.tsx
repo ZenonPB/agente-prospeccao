@@ -12,7 +12,7 @@ import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, us
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
 interface KanbanColumn {
@@ -505,41 +505,43 @@ export function KanbanBoard() {
                                         }
                                       />
                                       <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                                        <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onAssignTo(lead.id, currentUserId as string, 'você');
-                                          }}
-                                          disabled={!currentUserId}
-                                        >
-                                          <User className="h-3.5 w-3.5" />
-                                          Você
-                                        </DropdownMenuItem>
-                                        {membersData?.members
-                                          .filter((m) => m.user_id !== currentUserId)
-                                          .map((m) => (
-                                            <DropdownMenuItem
-                                              key={m.user_id}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                onAssignTo(lead.id, m.user_id, m.name);
-                                              }}
-                                            >
-                                              <User className="h-3.5 w-3.5" />
-                                              {m.name || m.email}
-                                            </DropdownMenuItem>
-                                          ))}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            onAssignTo(lead.id, null);
-                                          }}
-                                        >
-                                          Desatribuir
-                                        </DropdownMenuItem>
+                                        <DropdownMenuGroup>
+                                          <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onAssignTo(lead.id, currentUserId as string, 'você');
+                                            }}
+                                            disabled={!currentUserId}
+                                          >
+                                            <User className="h-3.5 w-3.5" />
+                                            Você
+                                          </DropdownMenuItem>
+                                          {membersData?.members
+                                            .filter((m) => m.user_id !== currentUserId)
+                                            .map((m) => (
+                                              <DropdownMenuItem
+                                                key={m.user_id}
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  onAssignTo(lead.id, m.user_id, m.name);
+                                                }}
+                                              >
+                                                <User className="h-3.5 w-3.5" />
+                                                {m.name || m.email}
+                                              </DropdownMenuItem>
+                                            ))}
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onAssignTo(lead.id, null);
+                                            }}
+                                          >
+                                            Desatribuir
+                                          </DropdownMenuItem>
+                                        </DropdownMenuGroup>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   )}
@@ -559,25 +561,27 @@ export function KanbanBoard() {
                                       }
                                     />
                                     <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                                      <DropdownMenuLabel>Mover para</DropdownMenuLabel>
-                                      <DropdownMenuSeparator />
-                                      {COLUMNS.filter((c) => c.id !== column.id).map((c) => (
-                                        <DropdownMenuItem
-                                          key={c.id}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            updateStatus.mutate(
-                                              { id: lead.id, status: c.id },
-                                              {
-                                                onSuccess: () => toast.success(`Lead movido para ${c.title}`),
-                                                onError: () => toast.error('Erro ao mover lead'),
-                                              }
-                                            );
-                                          }}
-                                        >
-                                          {c.title}
-                                        </DropdownMenuItem>
-                                      ))}
+                                      <DropdownMenuGroup>
+                                        <DropdownMenuLabel>Mover para</DropdownMenuLabel>
+                                        <DropdownMenuSeparator />
+                                        {COLUMNS.filter((c) => c.id !== column.id).map((c) => (
+                                          <DropdownMenuItem
+                                            key={c.id}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              updateStatus.mutate(
+                                                { id: lead.id, status: c.id },
+                                                {
+                                                  onSuccess: () => toast.success(`Lead movido para ${c.title}`),
+                                                  onError: () => toast.error('Erro ao mover lead'),
+                                                }
+                                              );
+                                            }}
+                                          >
+                                            {c.title}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuGroup>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </div>
