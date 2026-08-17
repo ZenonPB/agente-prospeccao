@@ -24,8 +24,6 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-import httpx
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
 
@@ -310,36 +308,11 @@ def _normalize_variants(parsed: Dict[str, Any]) -> Optional[List[Dict[str, Any]]
     return normalized
 
 
-def _parse_json(content: str) -> Optional[Dict[str, Any]]:
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error("JSON inválido no outreach: %s", e)
-        return None
-
-
 class OutreachService:
     """Gera sequência de cadência de outreach usando Llama 3.3 70B."""
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY
-
-    def _create_client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            timeout=90.0,  # 70B é mais lento que o 8B.
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
 
     async def generate_sequence(
         self,
@@ -349,6 +322,8 @@ class OutreachService:
         playbook: Optional[Dict[str, Any]] = None,
         generate_variants: bool = False,
         scheduling_url: Optional[str] = None,
+        db=None,
+        organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Gera subject + 4 mensagens + variação WhatsApp + rationale.
 
@@ -356,6 +331,11 @@ class OutreachService:
         sequências alternativas (mesma observação factual, ganchos/CTAs
         distintos). Caso contrário, devolve o dict single-sequence normal
         (compatibilidade com callers antigos).
+
+        A chamada vai pelo `provider_client.groq_json_chat` (lazy import,
+        como no scoring): herda o pacing global entre chamadas, o retry com
+        `Retry-After`/backoff em 429/5xx e, quando `db`/`organization_id` são
+        informados, o gate/consumo de cota diária.
 
         Args:
             lead: dict com company_name, category, city, state, website,
@@ -370,49 +350,33 @@ class OutreachService:
               variação naturalmente).
             scheduling_url: link de agendamento da org (Cal.com/Calendly)
               injetado como CTA preferencial quando presente.
+            db / organization_id: sessão e org para cotas (consume interno).
 
         Returns:
             Dict normalizado (single) ou com chave `variants` (multi) ou
             None em caso de falha.
         """
+        from services.provider_client import groq_json_chat
+
         prompt = build_prompt(
             lead, context_service, context_segment, playbook,
             generate_variants=generate_variants,
             scheduling_url=scheduling_url,
         )
-        # Variantes dobram o tamanho do JSON pedido — sobem o limite.
-        max_tokens = 6000 if generate_variants else 3200
-        payload = {
-            "model": GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.7,
-            "max_tokens": max_tokens,
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            async with self._create_client() as client:
-                r = await client.post(GROQ_URL, json=payload)
-        except httpx.RequestError as e:
-            logger.error("Erro de rede Groq outreach: %s", e)
-            return None
-
-        if r.status_code != 200:
-            logger.error("Groq outreach HTTP %s: %s", r.status_code, r.text[:300])
-            return None
-
-        try:
-            data = r.json()
-        except json.JSONDecodeError as e:
-            logger.error("Resposta Groq não é JSON: %s", e)
-            return None
-        choices = data.get("choices") or []
-        if not choices:
-            return None
-        content = choices[0].get("message", {}).get("content", "")
-        parsed = _parse_json(content)
+        # Cadência inteira (subject + 4 mensagens + rodapés) — limite generoso
+        # para o JSON não chegar truncado (truncamento → JSON inválido → None).
+        parsed = await groq_json_chat(
+            api_key=self.api_key,
+            model=GROQ_MODEL,
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=prompt,
+            url=GROQ_URL,
+            max_tokens=6000,
+            temperature=0.7,
+            timeout=90.0,
+            db=db,
+            organization_id=organization_id,
+        )
         if parsed is None:
             return None
         if generate_variants:

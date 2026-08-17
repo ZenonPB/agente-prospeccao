@@ -786,6 +786,22 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 
 > **Atualizado 2026-08-17** — onde paramos:
 >
+> 0. **Erros de produção reportados (`docs/erros.md`, branch
+>    `fix/erros-coleta-kanban-outreach`):** os 3 bugs que atrapalhavam a
+>    operação corrigidos e verificados:
+>    - **Coleta zerando (UniqueViolation):** `pipeline_worker` agora filtra a
+>      2ª loja da mesma rede no lote (`filter_new_batch_items`) e insere com
+>      `db.flush()` por lead em SAVEPOINT — um conflito isolado não derruba mais
+>      o lote inteiro;
+>    - **Kanban travando (MenuGroupContext):** labels dos dropdowns do kanban e
+>      da lista de leads envoltos em `DropdownMenuGroup`;
+>    - **"Falha ao gerar mensagem":** outreach migrado para
+>      `provider_client.groq_json_chat` (pacing + retry 429/5xx + cotas) e
+>      `max_tokens` 6000; rotas passam `db`/org e o consumo de cota ficou
+>      centralizado.
+>    - Verificação: **285 passed** (+9 testes), `compileall` OK, web lint/tsc/
+>      build limpos.
+>
 > 0. **Leads score 0 + contatos de decisores (`feat/contatos-e-pontuacao-0`,
 >    2026-08-16/17):** investigação de banco mostrou que os leads "score 0"
 >    eram **NOVO nunca pontuados** — a coleta trazia uma página inteira

@@ -16,7 +16,7 @@ import {
 import type { Lead } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
 const scoreColors = {
@@ -388,16 +388,18 @@ export function LeadList() {
                 Atribuir para
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {membersData?.members
-                  .filter((m) => m.user_id !== currentUserId)
-                  .map((m) => (
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {membersData?.members
+                    .filter((m) => m.user_id !== currentUserId)
+                    .map((m) => (
                     <DropdownMenuItem key={m.user_id} onClick={() => bulkAssign(m.user_id, m.name || m.email)}>
                       <User className="mr-2 h-3.5 w-3.5" />
                       {m.name || m.email}
                     </DropdownMenuItem>
-                  ))}
+                    ))}
+                </DropdownMenuGroup>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

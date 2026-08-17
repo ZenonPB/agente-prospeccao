@@ -9,6 +9,7 @@ from typing import AsyncGenerator, Dict, Any
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sqlfunc
+from sqlalchemy.exc import IntegrityError
 
 from src.db.session import SessionLocal
 from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile, CampaignScoringTemplate
@@ -34,6 +35,46 @@ logger = logging.getLogger(__name__)
 
 def _ts() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _prepare_batch_items(results):
+    """Anota cada resultado da coleta com seu `normalized_domain`.
+
+    O domínio é a chave da dedupe por rede (constraint única por org) e precisa
+    estar disponível antes de filtrar o lote — sem depender da leitura do banco
+    dentro do loop (que, com `autoflush=False`, não vê os leads já adicionados).
+    """
+    return [
+        {**item, "normalized_domain": normalize_domain(item.get("website"))}
+        for item in results
+    ]
+
+
+def filter_new_batch_items(items, known_place_ids, known_domains):
+    """Remove do lote os resultados que já existem na organização.
+
+    Além de `place_id` já conhecido, pula a SEGUNDA ocorrência do mesmo
+    `normalized_domain` dentro do lote: duas lojas da mesma rede com o site
+    idêntico (ex.: duas filiais apontando para `site.rede.com.br`) violariam
+    `uq_leads_org_normalized_domain` no commit em lote — e com `autoflush=False`
+    a query de dedupe dentro do loop não enxerga a irmã recém-adicionada.
+    """
+    seen_place_ids = set(known_place_ids)
+    seen_domains = set(known_domains)
+    kept = []
+    for item in items:
+        place_id = item.get("place_id_candidate")
+        domain = item.get("normalized_domain")
+        if place_id and place_id in seen_place_ids:
+            continue
+        if domain and domain in seen_domains:
+            continue
+        if place_id:
+            seen_place_ids.add(place_id)
+        if domain:
+            seen_domains.add(domain)
+        kept.append(item)
+    return kept
 
 
 def _dispatch_lead_created_webhooks(db: Session, org_id: str, lead_ids: list[str]) -> None:
@@ -233,6 +274,16 @@ async def run_pipeline(
                 if row[0]
             ]
             existing_ids_set = set(existing_ids)
+            # Domínios já cadastrados da org — impedem a 2ª loja da mesma rede
+            # (mesmo `normalized_domain`) dentro do lote, que violaria
+            # `uq_leads_org_normalized_domain` no commit em lote.
+            existing_domains = {
+                row[0]
+                for row in db.query(Lead.normalized_domain)
+                .filter(Lead.organization_id == org_id, Lead.normalized_domain.isnot(None))
+                .all()
+                if row[0]
+            }
 
             yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
             places_created_ids: list[str] = []
@@ -245,18 +296,22 @@ async def run_pipeline(
                 organization_id=str(campaign.organization_id) if campaign else None,
             )
 
+            batch_items = filter_new_batch_items(
+                _prepare_batch_items(results), existing_ids_set, existing_domains,
+            )
+
             logger.info("Pipeline collected %d results", len(results))
-            yield {"type": "log", "message": f"{len(results)} estabelecimentos encontrados", "timestamp": _ts()}
+            yield {"type": "log", "message": f"{len(results)} estabelecimentos encontrados ({len(batch_items)} novos)", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 30}
 
-            for i, item in enumerate(results):
+            for i, item in enumerate(batch_items):
                 company_name = item.get("name")
                 if not company_name:
                     continue
 
                 google_place_id = item.get("place_id_candidate")
                 website_url = item.get("website")
-                normalized_domain = normalize_domain(website_url)
+                normalized_domain = item.get("normalized_domain")
 
                 existing_lead = db.query(Lead).filter(
                     (Lead.organization_id == (campaign.organization_id if campaign else None)) &
@@ -289,7 +344,18 @@ async def run_pipeline(
                     campaign_id=campaign.id if campaign else None,
                     status=LeadStatus.NOVO,
                 )
-                db.add(new_lead)
+                # SAVEPOINT por lead: o flush expõe o lead às dedupes seguintes
+                # e, se alguma linha colidir (ex.: corrida entre jobs), só ela
+                # é descartada — o lote inteiro não rola para trás.
+                try:
+                    with db.begin_nested():
+                        db.add(new_lead)
+                        db.flush()
+                except IntegrityError as exc:
+                    logger.warning(
+                        "Lead duplicado ignorado na coleta (%s): %s", company_name, exc.orig or exc,
+                    )
+                    continue
                 places_created_ids.append(str(new_lead.id) if new_lead.id is not None else None)
                 collected_count += 1
 
@@ -299,7 +365,7 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
 
-                percent = 30 + int((i + 1) / len(results) * 20)
+                percent = 30 + int((i + 1) / len(batch_items) * 20)
                 yield {"type": "progress", "step": "coleta", "percent": min(percent, 50)}
 
             db.commit()

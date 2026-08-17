@@ -14,7 +14,6 @@ Como rodar (exige banco real):
 Em CI (sem banco) o teste é pulado automaticamente.
 """
 import asyncio
-import json
 import os
 import uuid
 
@@ -81,37 +80,17 @@ def _canned_sequence() -> dict:
     }
 
 
-class _FakeOutboundResponse:
-    status_code = 200
-
-    def json(self):
-        return {
-            "choices": [
-                {"message": {"content": json.dumps(_canned_sequence(), ensure_ascii=False)}}
-            ]
-        }
-
-
-class _FakeHttpClient:
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        return False
-
-    async def post(self, url, json=None):
-        return _FakeOutboundResponse()
-
-
 @pytest.fixture()
 def fake_providers(monkeypatch):
-    """Stub das fronteiras externas: LLM (scoring) e SMTP (envio)."""
+    """Stub das fronteiras externas: LLM (scoring e outreach) e SMTP (envio)."""
 
     async def fake_groq_json_chat(*args, **kwargs):
+        # Outreach usa um modelo maior; scoring usa o modelo de classificação.
+        if kwargs.get("model") == "qwen/qwen3.6-27b":
+            return _canned_sequence()
         return _canned_score_response()
 
     monkeypatch.setattr("services.provider_client.groq_json_chat", fake_groq_json_chat)
-    monkeypatch.setattr(OutreachService, "_create_client", lambda self: _FakeHttpClient())
 
     def fake_send_email(*args, **kwargs):
         return EmailSendResult(sent=True, message_id=f"<e2e-{uuid.uuid4().hex}@test>")
