@@ -390,7 +390,7 @@ async def run_pipeline(
                 leads_query = leads_query.filter(Lead.campaign_id == None)
             # Reanalisa leads da campanha (qualquer status prévio), sobrescrevendo
             # o scoring legado com o contextual novo. Respeita max_leads.
-            leads_query = leads_query.limit(max_leads)
+            leads_query = leads_query.order_by(Lead.created_at, Lead.id).limit(max_leads)
             leads_to_process = leads_query.all()
             for lead in leads_to_process:
                 lead.status = LeadStatus.NOVO
@@ -414,7 +414,9 @@ async def run_pipeline(
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
             else:
                 leads_query = leads_query.filter(Lead.campaign_id == None)
-            leads_query = leads_query.limit(max_leads)
+            # Ordem determinística (mais antigos primeiro) evita que a seleção
+            # mude entre lotes e deixa leads NOVO sempre estáveis na fila.
+            leads_query = leads_query.order_by(Lead.created_at, Lead.id).limit(max_leads)
             leads_to_process = leads_query.all()
 
         scored_count = 0
@@ -561,6 +563,17 @@ async def run_pipeline(
             lead_filter = lead_filter & (Lead.organization_id.is_(None))
         qualified = db.query(Lead).filter(lead_filter).count()
 
+        # Leads NOVO que ainda aguardam pontuação (próximo lote) — publica no
+        # resumo para a UI avisar "X na fila" em vez de parecer "score 0".
+        queue_remaining = 0
+        if not reanalyze_only:
+            queue_filter = (Lead.status == LeadStatus.NOVO)
+            if campaign:
+                queue_filter = queue_filter & (Lead.campaign_id == campaign.id)
+            else:
+                queue_filter = queue_filter & (Lead.organization_id.is_(None))
+            queue_remaining = db.query(Lead).filter(queue_filter).count()
+
         yield {
             "type": "done",
             "summary": {
@@ -569,6 +582,7 @@ async def run_pipeline(
                 "scored": scored_count,
                 "failed": failed_count,
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
+                "queue_remaining": queue_remaining,
             },
             "timestamp": _ts(),
         }
@@ -585,6 +599,7 @@ async def run_pipeline(
                 "scored": scored_count,
                 "failed": failed_count,
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
+                "queue_remaining": queue_remaining,
             }
             db.commit()
 
