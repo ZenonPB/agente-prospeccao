@@ -54,7 +54,7 @@ const ORG_ROLE_LABELS: Record<OrgRole, string> = {
 const SALES_ROLE_LABELS: Record<SalesRole, string> = {
   CONSULTOR: "Consultor",
   ANALYST: "Analista",
-  MANAGER: "Gerente",
+  MANAGER: "Diretor",
 };
 
 export function InvitesManager() {
@@ -199,7 +199,7 @@ export function InvitesManager() {
                     <SelectContent>
                       <SelectItem value="CONSULTOR">Consultor</SelectItem>
                       <SelectItem value="ANALYST">Analista</SelectItem>
-                      <SelectItem value="MANAGER">Gerente</SelectItem>
+                      <SelectItem value="MANAGER">Diretor</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
