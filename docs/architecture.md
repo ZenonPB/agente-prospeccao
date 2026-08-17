@@ -33,7 +33,7 @@ dados (ORM/API) e HTTP/WebSocket:
 | API | FastAPI + uvicorn · slowapi (rate limit) · pydantic-settings |
 | Banco | PostgreSQL |
 | Auth | JWT (Credentials: email/senha, bcrypt) |
-| IA | Groq — `llama-3.1-8b-instant` (scoring/router) · `llama-3.3-70b-versatile` (mensagens/templates/brief) |
+| IA | Groq — `openai/gpt-oss-20b` (scoring/router) · `qwen/qwen3.6-27b` (mensagens/templates/brief) |
 | Coleta | Google Places API (New) · CSV · CNAE/Receita (BrasilAPI/Minha Receita/CNPJá) |
 | Enriquecimento | Hunter.io (opcional) · Receita/CNPJ · busca passiva (LinkedIn) |
 | BI/PDF | WeasyPrint (HTML→PDF) · Leaflet (mapa) · Recharts |

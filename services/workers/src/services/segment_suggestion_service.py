@@ -29,7 +29,7 @@ from config.settings import settings  # noqa: E402
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "qwen/qwen3.6-27b"
 
 SYSTEM_PROMPT = (
     "Você é um consultor de pré-vendas B2B focado em PMEs brasileiras. "
@@ -171,7 +171,7 @@ FALLBACKS = {
 
 
 class SegmentSuggestionService:
-    """Sugere segmento/nicho de prospecção via Groq (llama-3.3-70b-versatile)."""
+    """Sugere segmento/nicho de prospecção via Groq (qwen/qwen3.6-27b)."""
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY

@@ -32,7 +32,7 @@ from database.models import CampaignScoringTemplate  # noqa: E402
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.1-8b-instant"
+GROQ_MODEL = "openai/gpt-oss-20b"
 
 # Threshold do overlap de tokens para aceitar match fuzzy sem LLM.
 _FUZZY_THRESHOLD = 0.5

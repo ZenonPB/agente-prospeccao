@@ -32,7 +32,7 @@ from config.settings import settings  # noqa: E402
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = "qwen/qwen3.6-27b"
 
 SYSTEM_PROMPT = (
     "Você é um copywriter comercial sênior brasileiro, especializado em cold "
