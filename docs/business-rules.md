@@ -91,8 +91,8 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
 
 - Lead sem website **não passa pelo enriquecimento técnico**, mas é pontuado
   pelo **caminho business** em campanhas `WEB_PRESENCE` (fatores cadastrais +
-  sinais do template direcionados a quem não tem site próprio — roadmap-leads
-  S4). Nunca fica invisível/`NOVO` esperando por um site.
+  sinais do template direcionados a quem não tem site próprio). Nunca fica
+  invisível/`NOVO` esperando por um site.
 - Lead sem contato com `email_verified = True` não sai no **envio automático**
   da cadência (gate 4.1); humano ainda pode enviar não-verificado com aviso.
 - **Leads `PERDIDO` voltam à fila após 90 dias** (implementado 2026-08-12):
