@@ -398,6 +398,18 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
     (`company_email`/`company_phone` da Receita) como fonte extra.
   - Frontend: badge "Fonte: ..." na aba Contatos do lead.
   - Testes: `tests/test_contact_site_sources.py` (15).
+- **Reforço (2026-08-16, `feat/contatos-e-pontuacao-0`):**
+  - **Hunter domain-search** implementado (a rota já existia, nunca era usada):
+    quando a Receita não traz QSA, busca as pessoas do domínio (nomes, cargos e
+    e-mails nomeados) e cria contatos reais.
+  - **Descoberta reversa de CNPJ por nome** (busca passiva `"<empresa>" cnpj` +
+    validação por checksum) alimenta a Receita → devolve sócios/decidores.
+  - **Fallback honesto:** sem CNPJ, o contato vira "Decisor" (sem nome
+    inventado); heurística de e-mail e busca por nome só rodam para nome real
+    de pessoa — elimina falsos `academia.max@dominio`.
+  - **Correção de parsing:** e-mails não capturam mais URL/CDN (antes gravava
+    `//unpkg.com/leaflet@1.7.1` como e-mail de um lead).
+  - Testes: `tests/test_contact_enrichment_qualidade.py` (11).
 
 ---
 
