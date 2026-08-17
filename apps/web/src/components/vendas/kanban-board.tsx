@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import type { SlaAlertItem } from '@/types';
@@ -260,7 +260,7 @@ export function KanbanBoard() {
           Arraste os cartões entre as colunas para atualizar o status do funil
         </p>
         <p className="text-sm font-medium text-muted-foreground sm:hidden">
-          Toque num cartão para abrir e atualizar o status
+          Toque num cartão para abrir o lead · arraste pelo puxador ou use “Mover para” para mudar de etapa
         </p>
         {slaAlertsCount > 0 && (
           <div className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
@@ -312,7 +312,6 @@ export function KanbanBoard() {
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
-                              {...provided.dragHandleProps}
                               role="link"
                               tabIndex={0}
                               aria-label={`Abrir lead ${lead.company_name}`}
@@ -334,7 +333,11 @@ export function KanbanBoard() {
                             >
                               <div className="mb-2 flex items-start justify-between">
                                 <div className="flex items-center gap-2">
-                                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                  {/* Arrastar só pelo puxador — tocar no cartão abre o lead
+                                      (drag handle separado evita conflito de gestos no mobile). */}
+                                  <span {...provided.dragHandleProps} className="cursor-grab touch-none active:cursor-grabbing" aria-label="Arrastar para mudar de etapa">
+                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                  </span>
                                   <h4 className="font-medium">{lead.company_name}</h4>
                                 </div>
                                 {lead.qualification_score != null ? (
@@ -540,6 +543,43 @@ export function KanbanBoard() {
                                       </DropdownMenuContent>
                                     </DropdownMenu>
                                   )}
+                                  {/* Fallback acessível por toque: mover de etapa sem arrastar. */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger
+                                      render={
+                                        <Button
+                                          variant="outline"
+                                          size="icon"
+                                          className="h-9 w-9 sm:h-8 sm:w-8"
+                                          onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+                                          aria-label={`Mover ${lead.company_name} para outra etapa`}
+                                        >
+                                          <ArrowRight className="h-3.5 w-3.5" />
+                                        </Button>
+                                      }
+                                    />
+                                    <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                                      <DropdownMenuLabel>Mover para</DropdownMenuLabel>
+                                      <DropdownMenuSeparator />
+                                      {COLUMNS.filter((c) => c.id !== column.id).map((c) => (
+                                        <DropdownMenuItem
+                                          key={c.id}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            updateStatus.mutate(
+                                              { id: lead.id, status: c.id },
+                                              {
+                                                onSuccess: () => toast.success(`Lead movido para ${c.title}`),
+                                                onError: () => toast.error('Erro ao mover lead'),
+                                              }
+                                            );
+                                          }}
+                                        >
+                                          {c.title}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </div>
                             </div>

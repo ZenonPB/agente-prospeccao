@@ -8,6 +8,8 @@ Endpoints:
 - `GET /api/analytics/overview`      — KPIs, funil, conversão, resposta, score
 - `GET /api/analytics/funnel`        — funil ponta-a-ponta
 - `GET /api/analytics/consultants`   — desempenho por consultor
+- `GET /api/analytics/consultants/{user_id}`        — perfil (KPIs da planilha + funil)
+- `GET /api/analytics/consultants/{user_id}/activity` — trilha recente do consultor
 - `GET /api/analytics/leads-ranking` — top leads (score/conversão/criação)
 - `GET /api/analytics/geo`           — agregação por cidade/UF (heatmap/mapa)
 - `GET /api/analytics/campaigns`     — desempenho por campanha
@@ -16,6 +18,7 @@ Endpoints:
 - `GET /api/analytics/export/pdf`    — relatório executivo em PDF
 """
 from typing import Optional
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -28,6 +31,14 @@ from src.services.analytics_service import AnalyticsService
 from src.services.pdf_report_service import build_report_pdf
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+
+def _valid_uuid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
 
 
 def _get_analytics(
@@ -75,6 +86,43 @@ def consultants(
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     return {"consultants": analytics.consultants(from_date=from_date, to_date=to_date)}
+
+
+@router.get("/consultants/{user_id}")
+def consultant_detail(
+    user_id: str,
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Perfil de um consultor (ANALYST/MANAGER-only): KPIs da planilha +
+    funil ponta-a-ponta dele. 404 se o usuário não é membro da org."""
+    if not _valid_uuid(user_id):
+        raise HTTPException(status_code=400, detail="Consultor inválido")
+    detail = analytics.consultant_detail(
+        user_id, from_date=from_date, to_date=to_date,
+    )
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Consultor não encontrado")
+    return detail
+
+
+@router.get("/consultants/{user_id}/activity")
+def consultant_activity(
+    user_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Trilha recente do consultor (atividades dos leads dele + ações dele)."""
+    if not _valid_uuid(user_id):
+        raise HTTPException(status_code=400, detail="Consultor inválido")
+    return {
+        "activities": analytics.consultant_activity(
+            user_id, limit=limit, from_date=from_date, to_date=to_date,
+        )
+    }
 
 
 @router.get("/forecast")

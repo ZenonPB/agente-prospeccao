@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle } from 'lucide-react';
@@ -23,7 +24,7 @@ export function ConsultantsCard({ consultants }: { consultants: AnalyticsConsult
     <Card>
       <CardHeader>
         <CardTitle>Desempenho por consultor</CardTitle>
-        <CardDescription>Atribuição, contato, conversão e atingimento de meta</CardDescription>
+        <CardDescription>Atribuição, pitch, resposta e contrato (KPIs da planilha)</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {consultants.length === 0 && (
@@ -33,43 +34,59 @@ export function ConsultantsCard({ consultants }: { consultants: AnalyticsConsult
           const pct = (c.assigned_leads / maxAssigned) * 100;
           const hasTarget = c.meetings_target > 0 || c.revenue_target > 0;
           return (
-            <div key={c.user_id} className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{c.name || 'Sem nome'}</span>
-                <span className="text-muted-foreground">
-                  {c.converted_leads} convertido{c.converted_leads !== 1 ? 's' : ''} · {c.conversion_rate}%
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
+            <Link
+              key={c.user_id}
+              href={`/relatorios/consultores/${c.user_id}`}
+              className="block rounded-lg p-1.5 transition-colors hover:bg-muted/50"
+            >
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">{c.name || 'Sem nome'}</span>
+                  <span className="text-muted-foreground">
+                    {c.converted_leads} convertido{c.converted_leads !== 1 ? 's' : ''} · {c.conversion_rate}%
+                  </span>
                 </div>
-                <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                  {c.assigned_leads} atribuídos
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {c.contacted_leads} contatados · {c.meetings} reuniões · {c.proposals_sent} propostas
-                {c.revenue_realized > 0 && ` · R$ ${c.revenue_realized.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-              </p>
-              {hasTarget && (
-                <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-medium">
-                  {c.meetings_attainment !== null && c.meetings_attainment !== undefined && (
-                    <span className={attainmentColor(c.meetings_attainment)}>
-                      Reuniões: {c.meetings}/{c.meetings_target} ({c.meetings_attainment}%)
-                    </span>
-                  )}
-                  {c.revenue_attainment !== null && c.revenue_attainment !== undefined && (
-                    <span className={attainmentColor(c.revenue_attainment)}>
-                      Receita: {c.revenue_attainment}% da meta
+                <div className="flex items-center gap-3">
+                  <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-24 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                    {c.assigned_leads} atribuídos
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {c.contacted_leads} contatados · {c.meetings} reuniões · {c.proposals_sent} propostas
+                  {c.revenue_realized > 0 && ` · R$ ${c.revenue_realized.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                </p>
+                <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                  <span>Pitch {c.pitch_rate}%</span>
+                  <span>resp.{c.response_rate}%</span>
+                  <span>contrato aprov. {c.contract_approval_rate}%</span>
+                  {c.ticket_medio > 0 && (
+                    <span className="tabular-nums">
+                      ticket {c.ticket_medio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}
                     </span>
                   )}
                 </p>
-              )}
-            </div>
+                {hasTarget && (
+                  <p className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-medium">
+                    {c.meetings_attainment !== null && c.meetings_attainment !== undefined && (
+                      <span className={attainmentColor(c.meetings_attainment)}>
+                        Reuniões: {c.meetings}/{c.meetings_target} ({c.meetings_attainment}%)
+                      </span>
+                    )}
+                    {c.revenue_attainment !== null && c.revenue_attainment !== undefined && (
+                      <span className={attainmentColor(c.revenue_attainment)}>
+                        Receita: {c.revenue_attainment}% da meta
+                      </span>
+                    )}
+                  </p>
+                )}
+              </div>
+            </Link>
           );
         })}
       </CardContent>

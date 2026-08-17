@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from urllib.parse import quote
+import uuid
 import os
 import sys
 import logging
@@ -230,6 +231,7 @@ def list_leads(
     search: Optional[str] = None,
     min_score: Optional[int] = None,
     assigned: Optional[str] = Query(None, pattern="^(me|none|any)$"),
+    consultant_id: Optional[str] = None,
     next_action_before: Optional[str] = None,
     limit: int = Query(50, le=100),
     offset: int = 0,
@@ -257,6 +259,26 @@ def list_leads(
         query = query.filter(Lead.company_name.ilike(f"%{search}%"))
     if min_score is not None:
         query = query.filter(Lead.qualification_score >= min_score)
+    if consultant_id:
+        # Filtro por consultor (carteira de um usuário) — limitado a quem tem
+        # acesso total (ANALYST/MANAGER/owner), mesmo padrão das rotas de BI.
+        if not is_full_access(member):
+            raise HTTPException(status_code=403, detail="Acesso restrito a leads de outros consultores")
+        try:
+            consultant_uuid = uuid.UUID(consultant_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="consultant_id inválido")
+        lookup = (
+            db.query(OrganizationMember)
+            .filter(
+                OrganizationMember.organization_id == _org.id,
+                OrganizationMember.user_id == consultant_uuid,
+            )
+            .first()
+        )
+        if not lookup:
+            raise HTTPException(status_code=404, detail="Consultor não encontrado")
+        query = query.filter(Lead.assigned_to_id == consultant_uuid)
     if assigned:
         if assigned == "me":
             query = query.filter(Lead.assigned_to_id == member.user_id)

@@ -532,8 +532,12 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
   - Campanhas: header e linhas de leads responsivos; lista com header wrap.
   - Mapa (`/relatorios`): altura responsiva (`h-[300px] sm:h-[440px]`).
   - Verificação: `npm run lint`, `npx tsc --noEmit` e `npm run build` limpos.
-  - **Pendente (próximo ciclo):** bottom-nav opcional, refinamento de DnD em
-    touchscreen e validação em device real.
+  - **Fechado (2026-08-15, `feat/consultor-dashboard-mobile`):** `MobileBottomNav`
+    (navegação fixa inferior, visível só em < lg, com itens condicionais por
+    papel — Relatórios só para ANALYST/MANAGER/owner) + kanban com
+    **drag-handle isolado** (tocar no cartão abre o lead) + fallback acessível
+    **"Mover para"** por dropdown para touchscreen. Ajuste de `pb` do layout
+    para o bottom-nav. **Falta apenas** validação em device real.
 
 ---
 
@@ -708,7 +712,7 @@ O maior fator entre "campanha que responde" e "campanha que vai pro spam".
 | 4.14 | Medidor de cotas por org | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.15 | Observabilidade + teste de restore | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
 | 4.16 | Paginação/performance das listas | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-11 |
-| 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | 🟡 entregue no branch (2026-08-14) |
+| 4.17 | Frontend mobile-first | Confiabilidade | P2 | M | gratuito | — | ✅ Entregue 2026-08-15 (bottom-nav + DnD) |
 | 3.3.4 | Auditoria de membros/acessos | Multi-org | P2 | M | gratuito | 3.3.1 | ✅ Entregue 2026-08-14 |
 | 4.18 | Threshold automático por org | Avançado | P3 | M | gratuito | 4.8/4.9 | ✅ Entregue 2026-08-14 |
 | 4.19 | A/B de mensagens | Avançado | P3 | M | gratuito | 4.2 | ✅ Entregue 2026-08-15 (medição real) |
@@ -938,6 +942,15 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 
 ## 11. Próximos passos (roadmap)
 
+- **Consultor dashboard + fechamento 4.17 (2026-08-15, `feat/consultor-dashboard-mobile`):**
+  KPIs da planilha Alphamec por consultor (roadmap-leads C.2) — `pitch_rate`,
+  `response_rate`, `contract_approval_rate`, `ticket_medio`, dias de
+  cadência/fechamento, RD/Orçamento/RP, canal — expostos em
+  `/analytics/consultants` + perfil `/analytics/consultants/{id}` (com funil
+  ponta-a-ponta e trilha de atividades) e telas `/relatorios/consultores/[id]`;
+  bottom-nav mobile + kanban com drag-handle isolado e "Mover para" (fecham os
+  pendentes do 4.17). Acesso restrito a ANALYST/MANAGER/owner/admin — CONSULTOR
+  recebe 403. Resta validar o DnD em device real.
 - **P3 concluído (2026-08-15, `fix/p3-review`):** medição A/B real (4.19) —
   `messages.variant` + `Message.is_response` do inbound; `message_variants()`
   sem proxy. Suíte **244 passed**. Backlog pós-P3 = só 4.20 Drive/Sheets OAuth

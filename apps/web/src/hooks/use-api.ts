@@ -18,6 +18,7 @@ export function useLeads(params?: {
   search?: string;
   min_score?: number;
   assigned?: string;
+  consultant_id?: string;
   next_action_before?: string;
   limit?: number;
   offset?: number;
@@ -36,6 +37,7 @@ export function useAllLeads(params?: {
   search?: string;
   min_score?: number;
   assigned?: string;
+  consultant_id?: string;
 }) {
   return useQuery({
     queryKey: ["leads", "all", params],
@@ -64,6 +66,7 @@ export function useInfiniteLeads(params?: {
   search?: string;
   min_score?: number;
   assigned?: string;
+  consultant_id?: string;
   next_action_before?: string;
 }) {
   return useInfiniteQuery({
@@ -460,6 +463,22 @@ export function useAnalyticsConsultants(period?: AnalyticsPeriod) {
   return useQuery({
     queryKey: ["analytics", "consultants", period],
     queryFn: () => analyticsApi.consultants(period),
+  });
+}
+
+export function useAnalyticsConsultantDetail(userId: string, period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "consultants", userId, period],
+    queryFn: () => analyticsApi.consultantDetail(userId, period),
+    enabled: !!userId,
+  });
+}
+
+export function useAnalyticsConsultantActivity(userId: string, period?: AnalyticsPeriod, limit = 50) {
+  return useQuery({
+    queryKey: ["analytics", "consultants", userId, "activity", period, limit],
+    queryFn: () => analyticsApi.consultantActivity(userId, { limit, ...(period || {}) }),
+    enabled: !!userId,
   });
 }
 

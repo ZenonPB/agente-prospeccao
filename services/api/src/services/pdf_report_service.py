@@ -210,15 +210,16 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
             f"<td>{html.escape(c['name'] or 'Sem nome')}</td>"
             f"<td>{_bar(c['assigned_leads'], max_cons)}</td>"
             f"<td>{c['contacted_leads']}</td>"
-            f"<td>{c['meetings']}</td>"
-            f"<td>{c['proposals_sent']}</td>"
+            f"<td>{_fmt_pct(c.get('pitch_rate', 0))}</td>"
+            f"<td>{_fmt_pct(c.get('response_rate', 0))}</td>"
+            f"<td>{_fmt_pct(c.get('contract_approval_rate', 0))}</td>"
+            f"<td>{_fmt_currency(c.get('ticket_medio', 0))}</td>"
             f"<td>{c['converted_leads']}</td>"
-            f"<td>{_fmt_pct(c['conversion_rate'])}</td>"
             "</tr>"
         )
     if not consultants:
         consultant_rows = (
-            "<tr><td colspan='7' class='empty'>Nenhum consultor no período.</td></tr>"
+            "<tr><td colspan='8' class='empty'>Nenhum consultor no período.</td></tr>"
         )
 
     # ---------- top leads ----------
@@ -463,7 +464,7 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
 
   <h2>Desempenho por consultor</h2>
   <table>
-    <thead><tr><th>Consultor</th><th>Atribuídos</th><th>Contatados</th><th>Reuniões</th><th>Propostas</th><th>Convertidos</th><th>Conv. %</th></tr></thead>
+    <thead><tr><th>Consultor</th><th>Atribuídos</th><th>Contatados</th><th>Pitch %</th><th>Resposta %</th><th>Contrato aprov. %</th><th>Ticket médio</th><th>Convertidos</th></tr></thead>
     <tbody>{consultant_rows}</tbody>
   </table>
 

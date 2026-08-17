@@ -794,6 +794,26 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 >    **244 passed**. Pendência operacional: rodar `reprocess_stuck_leads
 >    --apply --fix-site-evidence` na base real (C2/C3).
 >
+> 0. **Consultor dashboard + fechamento 4.17 (2026-08-15,
+>    `feat/consultor-dashboard-mobile`):** KPIs da planilha Alphamec
+>    (roadmap-leads C.2) por consultor — `pitch_sent`/`pitch_rate`,
+>    `responded_leads`/`response_rate`, `contracts_approved`/`contract_approval_rate`,
+>    `ticket_medio`/`ticket_count`, `avg_cadence_days`, `avg_close_days`,
+>    `negotiation_distribution`, `contracts_by_outcome`, `channel_distribution`
+>    — em `AnalyticsService.consultants()`; novos endpoints
+>    `GET /analytics/consultants/{id}` (perfil: KPIs + funil ponta-a-ponta) e
+>    `/analytics/consultants/{id}/activity` (trilha com filtro de período);
+>    `GET /leads` aceita `consultant_id` (ANALYST/MANAGER/owner só, UUID
+>    validado → 400). Web: `/relatorios/consultores/[id]` (KPIs, funil, trilha,
+>    carteira buscável), card "Desempenho por consultor" com os rates da
+>    planilha, **`MobileBottomNav`** + kanban com drag-handle isolado e fallback
+>    "Mover para" por toque (fecham os pendentes do 4.17) e KPIs da planilha na
+>    tabela de consultores do **PDF executivo**. Testes
+>    `test_consultant_planilha_kpis.py` (8) + `test_consultor_acesso_restrito.py`
+>    (10 — CONSULTOR convidado, não dono, tem 403 em analytics/BI/manager e
+>    escopo restrito de leads). Suíte **264 passed**. Resta validar o DnD do
+>    kanban em device real.
+>
 > **Histórico (2026-08-11):**
 >
 > 1. **Frontend — 3 temas + logo padrão** (apps/web): **Claro comum, Escuro e
@@ -1498,6 +1518,7 @@ npm run dev
 
 | Hash | Descrição |
 |------|-----------|
+| `2278671` | feat: consultor dashboard móvel — KPIs da planilha por consultor + perfil, bottom-nav, kanban touch |
 | `0363d71` | feat(api,web): 4.27 visibilidade de duplicatas + decisão registrada |
 | `1ef5161` | feat(api,web,workers): 4.26 sinal de Instagram |
 | `4e4d243` | feat(api,web,workers): 4.21 playbooks por consultor |

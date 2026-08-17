@@ -153,6 +153,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 |--------|------|-----------|
 | GET | `/metrics` | Métricas do dashboard + funnel |
 | GET | `/analytics/overview` · `/analytics/consultants` · `/analytics/leads-ranking` | KPIs, funil (+ negociação RD/ORÇ/RP e resultado de contrato), desempenho por consultor (com atingimento de meta 4.9), ranking |
+| GET | `/analytics/consultants/{user_id}` · `/analytics/consultants/{user_id}/activity` | Perfil de um consultor (KPIs da planilha Alphamec + funil ponta-a-ponta) e trilha recente de atividades |
 | GET | `/analytics/geo` · `/analytics/campaigns` · `/analytics/timeline` | Geo, campanhas, evolução temporal |
 | GET | `/analytics/forecast` | Forecast ponderado por estágio (5% a 90%), pipeline total e motivos de perda (Item 4.8) |
 | GET | `/analytics/export/pdf` | PDF executivo (WeasyPrint) |
