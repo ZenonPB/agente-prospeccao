@@ -348,6 +348,18 @@ A etapa final deste roadmap — para abandonarmos a planilha.
 3. **Pós-venda automatizado**: follow-up de pós-cliente usando o mesmo motor do
    scheduler de cadência (follow_ups) + registro do canal.
 
+> **Entregue (2026-08-15, `feat/consultor-dashboard-mobile`):** os itens 1 e 2.
+> `AnalyticsService::consultants()` passa a incluir `pitch_sent`/`pitch_rate`,
+> `responded_leads`/`response_rate`, `contracts_approved`/`contracts_total`/
+> `contract_approval_rate`, `ticket_medio`/`ticket_count`, `avg_cadence_days`/
+> `cadence_days_n`, `avg_close_days`/`close_days_n`, `negotiation_distribution`,
+> `contracts_by_outcome` e `channel_distribution`. Endpoints novos
+> `GET /api/analytics/consultants/{id}` (perfil: KPIs + funil ponta-a-ponta) e
+> `GET /api/analytics/consultants/{id}/activity` (trilha recente, com filtro
+> de período). UI: `/relatorios/consultores/[id]` (KPIs, funil, trilha,
+> carteira buscável) + card "Desempenho por consultor" com os rates da
+> planilha. Acesso = ANALYST/MANAGER/owner/admin (CONSULTOR → 403).
+
 > **Pós-venda (entregue 2026-08-06, `feat/post-sale`):** `POST /leads/{id}/post-sale`
 > registra a data + canal do 1º contato pós-cliente (P/R da planilha) e, se houver
 > conteúdo, agenda um lembrete `FollowUp.POST_SALE` que roda pelo mesmo motor da

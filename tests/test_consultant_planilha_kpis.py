@@ -1,4 +1,4 @@
-"""Testes dos KPIs da planilha Alphamec por consultor (roadmap-leads C.2).
+"""Testes dos KPIs da planilha Alphamec por consultor.
 
 Cobre as funções puras:
 - `compute_rate` (porcentagem com denominador zero);

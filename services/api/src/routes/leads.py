@@ -264,17 +264,21 @@ def list_leads(
         # acesso total (ANALYST/MANAGER/owner), mesmo padrão das rotas de BI.
         if not is_full_access(member):
             raise HTTPException(status_code=403, detail="Acesso restrito a leads de outros consultores")
+        try:
+            consultant_uuid = uuid.UUID(consultant_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="consultant_id inválido")
         lookup = (
             db.query(OrganizationMember)
             .filter(
                 OrganizationMember.organization_id == _org.id,
-                OrganizationMember.user_id == uuid.UUID(consultant_id),
+                OrganizationMember.user_id == consultant_uuid,
             )
             .first()
         )
         if not lookup:
             raise HTTPException(status_code=404, detail="Consultor não encontrado")
-        query = query.filter(Lead.assigned_to_id == uuid.UUID(consultant_id))
+        query = query.filter(Lead.assigned_to_id == consultant_uuid)
     if assigned:
         if assigned == "me":
             query = query.filter(Lead.assigned_to_id == member.user_id)

@@ -474,10 +474,10 @@ export function useAnalyticsConsultantDetail(userId: string, period?: AnalyticsP
   });
 }
 
-export function useAnalyticsConsultantActivity(userId: string, limit = 50) {
+export function useAnalyticsConsultantActivity(userId: string, period?: AnalyticsPeriod, limit = 50) {
   return useQuery({
-    queryKey: ["analytics", "consultants", userId, "activity", limit],
-    queryFn: () => analyticsApi.consultantActivity(userId, { limit }),
+    queryKey: ["analytics", "consultants", userId, "activity", period, limit],
+    queryFn: () => analyticsApi.consultantActivity(userId, { limit, ...(period || {}) }),
     enabled: !!userId,
   });
 }

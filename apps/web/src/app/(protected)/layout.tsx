@@ -21,7 +21,7 @@ export default async function ProtectedLayout({
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-6">
+        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
           {children}
         </main>
       </div>

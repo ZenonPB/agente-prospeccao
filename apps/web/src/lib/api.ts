@@ -553,7 +553,7 @@ export interface AnalyticsConsultant {
   revenue_target: number;
   meetings_attainment: number | null;
   revenue_attainment: number | null;
-  // KPIs da planilha Alphamec (roadmap-leads C.2).
+  // KPIs da planilha Alphamec.
   pitch_sent: number;
   responded_leads: number;
   pitch_rate: number;
@@ -700,7 +700,7 @@ export const analyticsApi = {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 
-  consultantActivity: (userId: string, params?: { limit?: number }) =>
+  consultantActivity: (userId: string, params?: { limit?: number; from?: string; to?: string }) =>
     request<{ activities: ConsultantActivity[] }>(
       `/api/analytics/consultants/${userId}/activity`,
       {

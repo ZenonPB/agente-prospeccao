@@ -328,7 +328,7 @@ class AnalyticsService:
         to_date: Optional[str] = None,
         assigned_leads: Optional[int] = None,
     ) -> dict:
-        """KPIs da planilha Alphamec (roadmap-leads C.2) para um consultor.
+        """KPIs da planilha Alphamec para um consultor.
 
         Efetua consultas específicas do usuário: pitch enviado (abertura da
         cadência), respostas (inbound), estágio de negociação, resultado do
@@ -602,7 +602,7 @@ class AnalyticsService:
                 "revenue_target": revenue_target,
                 "meetings_attainment": round((meetings / meetings_target * 100), 1) if meetings_target else None,
                 "revenue_attainment": round((revenue / revenue_target * 100), 1) if revenue_target else None,
-                # KPIs da planilha Alphamec (roadmap-leads C.2).
+                # KPIs da planilha Alphamec.
                 **planilha,
             })
 
@@ -659,23 +659,29 @@ class AnalyticsService:
         self,
         user_id: str,
         limit: int = 50,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
     ) -> list:
         """Trilha recente de um consultor.
 
         Atividades (LeadActivity) dos leads atribuídos a ele OU executadas por
         ele — org-scoped, mais recentes primeiro. Compõe a aba "Atividades" do
-        perfil do consultor.
+        perfil do consultor. Aceita período via `from_date`/`to_date`.
         """
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+        activity_filter = or_(
+            Lead.assigned_to_id == user_id,
+            LeadActivity.user_id == user_id,
+        )
+        if f:
+            activity_filter = and_(activity_filter, LeadActivity.created_at >= f)
+        if t:
+            activity_filter = and_(activity_filter, LeadActivity.created_at <= t)
         rows = (
             self.db.query(LeadActivity, Lead)
             .join(Lead, LeadActivity.lead_id == Lead.id)
-            .filter(
-                Lead.organization_id == self.org_id,
-                or_(
-                    Lead.assigned_to_id == user_id,
-                    LeadActivity.user_id == user_id,
-                ),
-            )
+            .filter(Lead.organization_id == self.org_id, activity_filter)
             .order_by(LeadActivity.created_at.desc())
             .limit(limit)
             .all()
@@ -1196,7 +1202,7 @@ def compute_threshold_candidates(
 
 
 # ---------------------------------------------------------------------------
-# KPIs da planilha Alphamec por consultor (roadmap-leads C.2).
+# KPIs da planilha Alphamec por consultor.
 # Funções puras — testáveis sem banco.
 # ---------------------------------------------------------------------------
 

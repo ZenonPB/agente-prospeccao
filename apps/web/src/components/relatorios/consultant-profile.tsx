@@ -96,7 +96,7 @@ export function ConsultantProfile({ params }: { params: Promise<{ id: string }> 
     membership?.membership?.sales_role === 'MANAGER';
 
   const detailQ = useAnalyticsConsultantDetail(id, period);
-  const activityQ = useAnalyticsConsultantActivity(id, 50);
+  const activityQ = useAnalyticsConsultantActivity(id, period, 50);
   const leadsQ = useLeads({ consultant_id: id, search: search || undefined, limit: 50 });
 
   if (loadingMembership) {
