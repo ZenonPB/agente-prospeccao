@@ -24,7 +24,7 @@
   - `_detect_cms` agora usa HTML já baixado (sem nova requisição) + detecção ampliada de stack
   - `_check_seo` verifica title/meta description/h1 + menção a privacidade
   - `performance` interpreta `load_time_ms` (rápido/aceitável/lento/muito lento)
-- `scoring_service.py` — qualificação via Groq (llama-3.1-8b-instant)
+- `scoring_service.py` — qualificação via Groq (openai/gpt-oss-20b)
   - Prompt conhece contexto da campanha (`target_service` + `target_segment`)
   - LLM gera `pitch_angle` (gancho de abordagem) e `suggested_subject` (assunto de e-mail)
   - `primary_need` inclui adequação de privacidade
