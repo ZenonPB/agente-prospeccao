@@ -48,3 +48,45 @@ src/components/vendas/kanban-board.tsx (562:39)
 #### Também está dando erro ao tentar gerar mensagem com IA
 
 Gerando sequência personalizada de outreach com IA -> Falha ao gerar mensagem
+
+---
+
+## Resolução (2026-08-17) — branch `fix/erros-coleta-kanban-outreach`
+
+Os três erros acima foram corrigidos:
+
+1. **UniqueViolation `uq_leads_org_normalized_domain` na coleta** — causa raiz:
+   `services/api/src/db/session.py` usa `autoflush=False`, então a dedup dentro
+   do loop do `pipeline_worker.py` não enxergava os leads recém-adicionados no
+   MESMO lote. Quando o Google devolve duas lojas da mesma rede com o mesmo
+   site (ex.: "Supermercados 14" e "Supermercados 14 - Loja 02" →
+   `site.supermercado14.com.br`), a segunda passava pela dedup e violava a
+   constraint no `commit` em lote — derrubando a transação inteira (0 leads
+   salvos). Fix:
+   - `filter_new_batch_items()` — filtra, em Python, a 2ª ocorrência do mesmo
+     `normalized_domain` dentro do lote (e place_ids já conhecidos da org);
+   - `db.flush()` por lead dentro de `with db.begin_nested():` (SAVEPOINT) —
+     o flush expõe o lead às dedupes seguintes e um `IntegrityError` residual
+     só descarta a linha do conflito, sem rollback do lote.
+
+2. **`MenuGroupContext is missing` no kanban** — causa raiz: `DropdownMenuLabel`
+   (Base UI `Menu.GroupLabel`) exige estar dentro de `Menu.Group`/`RadioGroup`.
+   Os usos em `kanban-board.tsx` ("Atribuir para" e "Mover para") e em
+   `lead-list.tsx` (bulk "Atribuir para") ficavam direto no
+   `DropdownMenuContent`. Fix: envolver os labels em `<DropdownMenuGroup>`
+   (mesmo padrão do `header.tsx`).
+
+3. **"Falha ao gerar mensagem" (502)** — causa raiz: `OutreachService.
+   generate_sequence` fazia chamada **crua** à Groq (sem pacing global, sem
+   retry/backoff de 429/5xx), ao contrário do scoring que já usa
+   `provider_client.groq_json_chat`. No tier free, um 429 qualquer retornava
+   `None` → 502. Fix: `generate_sequence` migrado para `groq_json_chat`
+   (herda pacing + retry com `Retry-After` + gate/consumo de cota quando
+   `db`/`organization_id` informados) e `max_tokens` 3200→6000 (JSON não
+   trunca mais). As rotas `generate-messages`/cadência passam `db`/org e o
+   consumo de cota ficou centralizado no provider (removido o `consume_quota`
+   manual duplicado).
+
+**Verificado:** `python -m pytest tests -q` → **285 passed** (6 novos de dedup
+de lote + 3 do outreach→provider); `compileall` OK; web `npm run lint` +
+`npx tsc --noEmit` + `npm run build` limpos.
