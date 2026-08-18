@@ -11,8 +11,10 @@ Se uma decisão precisar ser revertida, documente aqui o motivo.
 | httpx em vez de requests | Suporte nativo a async; escolha explícita do dev |
 | Google Places API (New) em vez de scraping | Oficial, sem risco de bloqueio, dados estruturados |
 | Groq para IA | Free tier generoso, latência baixa |
-| openai/gpt-oss-20b para scoring | Tarefa simples de classificação não precisa de 70B |
-| qwen/qwen3.6-27b para mensagens | Geração de texto de qualidade exige modelo maior |
+| Modelos Groq centralizados no `.env` (`GROQ_MODEL_CLASSIFY`/`GROQ_MODEL_GENERATION`) | Trocar de modelo não deve exigir editar 6 serviços; serviços obrigados a descontinuação foram o gatilho |
+| Classificação usa modelo leve (default `openai/gpt-oss-20b`) | Rotulagem/scoring são tarefas curtas; modelo maior é custo desnecessário |
+| Geração de texto usa modelo de geração (default `qwen/qwen3.6-27b`) | Outreach/mensagens/brief são texto client-facing — qualidade exige modelo adequado |
+| Todo consumo de LLM passa por `provider_client.groq_json_chat` (pacing global + retry 429/5xx + cota) | Rate-limit do tier free derrubava batches; um único caminho concentra resiliência e contabilidade de quota/org |
 | PostgreSQL em vez de Mongo | Relacional, robusto, compartilhado entre workers e Next.js |
 | Contacts como tabela separada de Lead | Um lead pode ter múltiplos decisores e fontes |
 | raw_technical_data como JSONB | Permite reprocessar scoring sem revisitar o site |
