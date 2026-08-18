@@ -226,7 +226,10 @@ export function useStartPipeline() {
 export function useReanalyzeCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (campaign_id: string) => pipelineApi.reanalyzeCampaign(campaign_id),
+    mutationFn: (args: { campaign_id: string; unscored_only?: boolean }) => {
+      const { campaign_id } = args;
+      return pipelineApi.reanalyzeCampaign(campaign_id, args.unscored_only ?? false);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });

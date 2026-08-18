@@ -816,9 +816,9 @@ export const pipelineApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  reanalyzeCampaign: (campaign_id: string) =>
+  reanalyzeCampaign: (campaign_id: string, unscored_only = false) =>
     request<{ job_id: string; status: string; leads_to_reanalyze: number }>(
-      `/api/campaigns/${campaign_id}/reanalyze`,
+      `/api/campaigns/${campaign_id}/reanalyze${unscored_only ? "?unscored_only=true" : ""}`,
       { method: "POST", body: JSON.stringify({}) },
     ),
   jobs: (params: { campaign_id?: string; limit?: number } = {}) => {

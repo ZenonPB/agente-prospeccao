@@ -89,6 +89,7 @@ async def _run_job(job: Job) -> None:
             campaign_id=payload.get("campaign_id"),
             max_leads=int(payload.get("max_leads", 10)),
             reanalyze_only=bool(payload.get("reanalyze_only", False)),
+            unscored_only=bool(payload.get("unscored_only", False)),
             source=payload.get("source") or "places",
             cnae_code=payload.get("cnae_code"),
             cnpjs=payload.get("cnpjs"),

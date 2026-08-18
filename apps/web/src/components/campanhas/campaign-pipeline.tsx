@@ -49,7 +49,7 @@ export function CampaignPipeline({
 }: CampaignPipelineProps) {
   const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
-  const [mode, setMode] = useState<'collect' | 'reanalyze'>('collect');
+  const [mode, setMode] = useState<'collect' | 'reanalyze' | 'reanalyze-unscored'>('collect');
   const [events, setEvents] = useState<PipelineEvent[]>([]);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
@@ -76,7 +76,7 @@ export function CampaignPipeline({
     }
   }, [events]);
 
-  const handleStart = useCallback(async (startMode: 'collect' | 'reanalyze' = 'collect') => {
+  const handleStart = useCallback(async (startMode: 'collect' | 'reanalyze' | 'reanalyze-unscored' = 'collect') => {
     setHasStarted(true);
     setIsRunning(true);
     setMode(startMode);
@@ -88,11 +88,14 @@ export function CampaignPipeline({
 
     try {
       const result =
-        startMode === 'reanalyze'
-          ? await reanalyzeCampaign.mutateAsync(campaignId)
-: await startPipeline.mutateAsync({
+        startMode === 'collect'
+          ? await startPipeline.mutateAsync({
               campaign_id: campaignId,
               max_leads: 10,
+            })
+          : await reanalyzeCampaign.mutateAsync({
+              campaign_id: campaignId,
+              unscored_only: startMode === 'reanalyze-unscored',
             });
       invalidateJobs();
 
@@ -180,20 +183,36 @@ export function CampaignPipeline({
                   Iniciar Coleta
                 </Button>
                 {hasExistingLeads && (
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => handleStart('reanalyze')}
-                    disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
-                    title="Reanalisa os leads já coletados desta campanha com os critérios contextuais atualizados"
-                  >
-                    {reanalyzeCampaign.isPending ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 h-5 w-5" />
-                    )}
-                    Reanalisar leads
-                  </Button>
+                  <>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={() => handleStart('reanalyze')}
+                      disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
+                      title="Reanalisa os leads já coletados desta campanha com os critérios contextuais atualizados"
+                    >
+                      {reanalyzeCampaign.isPending ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-5 w-5" />
+                      )}
+                      Reanalisar leads
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="secondary"
+                      onClick={() => handleStart('reanalyze-unscored')}
+                      disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
+                      title="Reanalisa apenas os leads ainda sem pontuação (score vazio ou NOVO) — não consome cota de IA com leads já pontuados"
+                    >
+                      {reanalyzeCampaign.isPending ? (
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-2 h-5 w-5" />
+                      )}
+                      Reanalisar não pontuados
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -236,7 +255,7 @@ export function CampaignPipeline({
               <div className="flex items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <CardTitle>
-                  {mode === 'reanalyze' ? 'Reanalisando leads...' : 'Coletando leads...'}
+                  {mode === 'reanalyze' || mode === 'reanalyze-unscored' ? 'Reanalisando leads...' : 'Coletando leads...'}
                 </CardTitle>
               </div>
               <Button variant="outline" size="sm" onClick={handleStop}>
@@ -263,7 +282,7 @@ export function CampaignPipeline({
             <div className="flex items-center gap-2 mb-4">
               <CheckCircle className="h-6 w-6 text-emerald-600" />
               <h3 className="text-lg font-semibold text-emerald-800">
-                {mode === 'reanalyze' ? 'Reanálise finalizada' : 'Coleta finalizada'}
+                {mode === 'reanalyze' || mode === 'reanalyze-unscored' ? 'Reanálise finalizada' : 'Coleta finalizada'}
               </h3>
             </div>
             <div className="grid grid-cols-2 gap-4 text-center mb-2 sm:grid-cols-4">
