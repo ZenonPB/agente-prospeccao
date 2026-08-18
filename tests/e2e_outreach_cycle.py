@@ -85,8 +85,10 @@ def fake_providers(monkeypatch):
     """Stub das fronteiras externas: LLM (scoring e outreach) e SMTP (envio)."""
 
     async def fake_groq_json_chat(*args, **kwargs):
-        # Outreach usa um modelo maior; scoring usa o modelo de classificação.
-        if kwargs.get("model") == "qwen/qwen3.6-27b":
+        # Dispatch pela config centralizada: geração (outreach) vs classificação
+        # (scoring) — evita dependência da string hardcoded do modelo.
+        from config.settings import settings
+        if kwargs.get("model") == settings.GROQ_MODEL_GENERATION:
             return _canned_sequence()
         return _canned_score_response()
 

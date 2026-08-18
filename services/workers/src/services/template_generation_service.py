@@ -8,17 +8,16 @@ relevantes para o serviço/segmento informado e os persiste em
 Nada hardcoded: cada vertical nova gera os seus próprios sinais. O template
 gerado é reutilizado em campanhas seguintes da mesma org (match por label).
 
-Modelo: Groq Llama 3.3 70B (geração de critérios precisa de modelo maior).
+Modelo: Groq de geração configurado em `settings.GROQ_MODEL_GENERATION`
+(geração de critérios precisa de modelo de texto).
 Fallback: se a LLM falhar ou retornar JSON inválido, devolve o template
 'Genérico' (não quebra o pipeline).
 """
-import json
 import logging
 import os
 import sys
 from typing import Any, Dict, Optional
 
-import httpx
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 
@@ -29,7 +28,7 @@ from database.models import CampaignScoringTemplate  # noqa: E402
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "qwen/qwen3.6-27b"
+GROQ_MODEL = settings.GROQ_MODEL_GENERATION
 
 SYSTEM_PROMPT = (
     "Você é um consultor de pré-vendas B2B especializado em prospecção "
@@ -93,22 +92,6 @@ def build_prompt(target_service: str, target_segment: str = "") -> str:
     return "\n".join(lines)
 
 
-def _parse_json(content: str) -> Optional[Dict[str, Any]]:
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error("JSON inválido no template_generation: %s", e)
-        return None
-
-
 def _validate(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Valida e normaliza o JSON gerado para o schema do seed."""
     label = str(data.get("service_label", "")).strip()
@@ -167,10 +150,7 @@ class TemplateGenerationService:
     """Gera e persiste um template de scoring sob demanda."""
 
     def __init__(self, api_key: Optional[str] = None) -> None:
-        self.headers = {
-            "Authorization": f"Bearer {api_key or settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
+        self.api_key = api_key or settings.GROQ_API_KEY
 
     def _load_generic(self, db: Session) -> Optional[CampaignScoringTemplate]:
         return (
@@ -208,17 +188,17 @@ class TemplateGenerationService:
         """
         generic = self._load_generic(db)
 
-        from services.provider_client import quota_ok, consume_quota
+        from services.provider_client import quota_ok
         if not quota_ok(db, organization_id, "GROQ_API_KEY"):
             logger.warning("Cota de IA esgotada — caindo no template Genérico (org=%s).", organization_id)
             return _serialize(generic) if generic else {}
 
-        generated = await self._call_llm(target_service, target_segment)
+        generated = await self._call_llm(
+            target_service, target_segment, db=db, organization_id=organization_id,
+        )
 
         if generated is None:
             return _serialize(generic) if generic else {}
-
-        consume_quota(db, organization_id, "GROQ_API_KEY")
 
         # Reutiliza se já existir template gerado com o mesmo label (mesma org ou global).
         existing = self._find_existing(db, generated["service_label"], organization_id)
@@ -242,30 +222,30 @@ class TemplateGenerationService:
         logger.info("Template gerado sob demanda: %s (org=%s)", tmpl.service_label, organization_id)
         return _serialize(tmpl)
 
-    async def _call_llm(self, target_service: str, target_segment: str) -> Optional[Dict[str, Any]]:
+    async def _call_llm(
+        self,
+        target_service: str,
+        target_segment: str,
+        db=None,
+        organization_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        from services.provider_client import groq_json_chat
+
         try:
-            async with httpx.AsyncClient(timeout=45) as client:
-                resp = await client.post(
-                    GROQ_URL,
-                    headers=self.headers,
-                    json={
-                        "model": GROQ_MODEL,
-                        "messages": [
-                            {"role": "system", "content": SYSTEM_PROMPT},
-                            {"role": "user", "content": build_prompt(target_service, target_segment)},
-                        ],
-                        "temperature": 0.3,
-                        "max_tokens": 2000,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+            parsed = await groq_json_chat(
+                api_key=self.api_key,
+                model=GROQ_MODEL,
+                system_prompt=SYSTEM_PROMPT,
+                user_prompt=build_prompt(target_service, target_segment),
+                url=GROQ_URL,
+                max_tokens=2000,
+                temperature=0.3,
+                db=db,
+                organization_id=organization_id,
+            )
         except Exception as e:
             logger.warning("Template generation LLM failed: %s", e)
             return None
-
-        parsed = _parse_json(content)
         if parsed is None:
             return None
         return _validate(parsed)
