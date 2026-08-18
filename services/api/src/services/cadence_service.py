@@ -408,8 +408,6 @@ def run_due(db: Session) -> Tuple[int, int]:
 
     Retorna `(enviadas, postergadas)`.
     """
-    from sqlalchemy import and_
-
     now_utc = datetime.now(timezone.utc)
     now_local = datetime.now().astimezone()
     due = (
@@ -417,12 +415,10 @@ def run_due(db: Session) -> Tuple[int, int]:
         .join(Lead, FollowUp.lead_id == Lead.id)
         .join(Organization, Lead.organization_id == Organization.id)
         .filter(
-            and_(
-                FollowUp.status == FollowUpStatus.PENDING,
-                FollowUp.scheduled_at <= now_utc,
-                Lead.opt_out.is_(False),
-                Organization.auto_send_email.is_(True),
-            )
+            (FollowUp.status == FollowUpStatus.PENDING)
+            & (FollowUp.scheduled_at <= now_utc)
+            & (Lead.opt_out.is_(False))
+            & (Organization.auto_send_email.is_(True))
         )
         .order_by(FollowUp.scheduled_at.asc())
         .all()
@@ -441,7 +437,7 @@ def run_due(db: Session) -> Tuple[int, int]:
         if not org:
             continue
         limit = _org_daily_limit(org)
-        sent_today, sent_hour = org_sends_today(db, org_id, now_local)
+        sent_today, sent_hour = sends_today(db, org_id, now_local)
         within_window, hourly_cap = _window_state(org, now_local)
         budget = limit - sent_today
         sent_in_org = 0

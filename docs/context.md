@@ -786,6 +786,46 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 
 > **Atualizado 2026-08-17** — onde paramos:
 >
+> 0. **Inspeção geral (branch `fix/inspecao-geral`):** revisão + regressão de
+>    toda a suíte (307 teste) e das três camadas. Corrigido no frontend:
+>    - `use-api.ts`: invalidação da cadência usava chave errada
+>      (`["lead-cadence", id]` → `["leads", id, "cadence"]`) — o painel de
+>      cadência não atualizava após gerar mensagens/editar variante;
+>    - `types/index.ts` + `lib/api.ts`: `Campaign.scoring_template_id` agora
+>      tipado (e PATCH devolve `Campaign` completo);
+>    - `use-myOrganization` deduplicado com `useOrgMembership` (mesma chave
+>      `["org","me"]` — antes havia dois fetches do `/orgs/me`);
+>    - `today-actions.tsx`: "hoje" recalculado por render (não congela na
+>      virada do dia);
+>    - acessibilidade: `aria-label` em botões-icon (voltar, kebab de campanha,
+>      remover sinal, menu de usuário).
+>    - Verificado: `SelectItem value=""` é válido no Base UI (sem mudança);
+>      `SelectValue` com função-rótulo é o padrão documentado. `pytest`,
+>      `compileall`, lint/tsc/build limpos.
+>
+> 0. **Varredura geral + troca do modelo de LLM (branch `fix/sweep-bugs`):**
+>    revisão completa do sistema encontrou e corrigiu:
+>    - **LLM centralizado**: modelos agora vêm do `.env`
+>      (`GROQ_MODEL_CLASSIFY`/`GROQ_MODEL_GENERATION`), sem constante espalhada
+>      em 6 serviços (a descontinuação do modelo antigo motivou a troca);
+>      segment/brief/router/geração de template migrados para
+>      `provider_client.groq_json_chat` (pacing global + retry 429/5xx + cota)
+>      — antes só scoring/outreach tinham isso; cota de `suggest-segment`/
+>      `from-brief` corrigida (consumo central no provider, sem duplicar).
+>    - **Críticos**: auto-envio de cadência quebrava por `NameError`
+>      (`org_sends_today` → `sends_today`); `change-password` nunca gravava a
+>      nova senha; import CSV com coluna de contato quebrava FK
+>      (`bulk_save_objects` misto → `add_all` na ordem Lead→Contact, com
+>      `imported_count` só de leads + novo `contacts_count`).
+>    - **Altos**: playbooks (admin/owner não editavam — comparação de enum por
+>      string); templates globais agora read-only via PATCH (400); **org
+>      switcher real** — frontend envia `X-Organization-Id` (HTTP e WS) e o
+>      backend resolve org/membership por ele (fallback p/ primeira).
+>    - **Housekeeping**: imports `datetime` no topo de `leads.py`, `member`→
+>      `target_member`, tipo de `_user`→`Organization` em `orgs.py`, `.is_(None)`.
+>    - Verificação: **307 passed** (+22 testes), `compileall` OK, web lint/tsc/
+>      build limpos.
+>
 > 0. **Erros de produção reportados (`docs/erros.md`, branch
 >    `fix/erros-coleta-kanban-outreach`):** os 3 bugs que atrapalhavam a
 >    operação corrigidos e verificados:

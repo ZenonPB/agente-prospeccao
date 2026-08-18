@@ -7,9 +7,8 @@ aleatório contextualizado pelo perfil da prospecção selecionado:
 - `web_presence`        → tecnologia/serviços digitais (sites, apps, ERPs...)
 - `business_opportunity` → engenharia/serviços industriais/presenciais
 
-Modelo: Groq Llama 3.3 70B Versatile (mesma escolha do outreach_service —
-a resposta é texto client-facing, não classificação JSON; 8B é fraco para
-criatividade controlada em pt-BR).
+Modelo: Groq de geração configurado em `settings.GROQ_MODEL_GENERATION`
+(a resposta é texto client-facing/criativa, não classificação JSON).
 
 Resposta: JSON com segmento + rationale + exemplos de subnichos + gancho
 de abordagem. Não leva dados do lead (não existe lead ainda) — só usa o
@@ -21,15 +20,13 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-import httpx
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "qwen/qwen3.6-27b"
+GROQ_MODEL = settings.GROQ_MODEL_GENERATION
 
 SYSTEM_PROMPT = (
     "Você é um consultor de pré-vendas B2B focado em PMEs brasileiras. "
@@ -102,22 +99,6 @@ def build_prompt(
     return "\n".join(lines)
 
 
-def _parse_json(content: str) -> Optional[Dict[str, Any]]:
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error("JSON inválido no segment_suggestion: %s", e)
-        return None
-
-
 def _normalize_response(parsed: Dict[str, Any]) -> Dict[str, Any]:
     subniches = parsed.get("subniches") or []
     if not isinstance(subniches, list):
@@ -171,25 +152,18 @@ FALLBACKS = {
 
 
 class SegmentSuggestionService:
-    """Sugere segmento/nicho de prospecção via Groq (qwen/qwen3.6-27b)."""
+    """Sugere segmento/nicho de prospecção via Groq (modelo de geração)."""
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY
-
-    def _create_client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            timeout=60.0,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
 
     async def suggest(
         self,
         profile: str = "web_presence",
         current_segment: str = "",
         exclude: Optional[List[str]] = None,
+        db=None,
+        organization_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Sugere um segmento alinhado ao perfil.
 
@@ -197,45 +171,27 @@ class SegmentSuggestionService:
             profile: 'web_presence' ou 'business_opportunity'.
             current_segment: segmento já informado (para variar em torno).
             exclude: lista de segmentos já sugeridos para não repetir.
+            db / organization_id: sessão e org para gate/consumo de cota.
 
         Returns:
             Dict normalizado com segment, rationale, subniches, hook,
             cities_hint. Em caso de falha da LLM, retorna um fallback
             determinístico (offline-friendly).
         """
+        from services.provider_client import groq_json_chat
+
         prompt = build_prompt(profile, current_segment, exclude)
-        payload = {
-            "model": GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.9,  # alta temperatura → mais variação entre chamadas
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            async with self._create_client() as client:
-                r = await client.post(GROQ_URL, json=payload)
-        except httpx.RequestError as e:
-            logger.error("Erro de rede Groq segment_suggestion: %s", e)
-            return self._fallback(profile, exclude)
-
-        if r.status_code != 200:
-            logger.error("Groq segment_suggestion HTTP %s: %s", r.status_code, r.text[:300])
-            return self._fallback(profile, exclude)
-
-        try:
-            data = r.json()
-        except json.JSONDecodeError as e:
-            logger.error("Resposta Groq não é JSON: %s", e)
-            return self._fallback(profile, exclude)
-
-        choices = data.get("choices") or []
-        if not choices:
-            return self._fallback(profile, exclude)
-
-        content = choices[0].get("message", {}).get("content", "")
-        parsed = _parse_json(content)
+        parsed = await groq_json_chat(
+            api_key=self.api_key,
+            model=GROQ_MODEL,
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=prompt,
+            url=GROQ_URL,
+            max_tokens=2048,
+            temperature=0.9,  # alta temperatura → mais variação entre chamadas
+            db=db,
+            organization_id=organization_id,
+        )
         if parsed is None:
             return self._fallback(profile, exclude)
         return _normalize_response(parsed)

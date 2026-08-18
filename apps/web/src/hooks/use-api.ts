@@ -264,7 +264,7 @@ export function useGenerateMessages() {
     }) =>
       leadsApi.generateMessages(id, channel, { variants, force_regenerate: forceRegenerate }),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["lead-cadence", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence"] });
     },
   });
 }
@@ -282,7 +282,7 @@ export function useUpdateCadenceStep() {
       data: { variant?: string; subject?: string; content?: string };
     }) => leadsApi.updateCadenceStep(id, step, data),
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["lead-cadence", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence"] });
       queryClient.invalidateQueries({ queryKey: ["analytics", "message-variants"] });
     },
   });
@@ -538,10 +538,9 @@ export function useExportAnalyticsPdf() {
 }
 
 export function useMyOrganization() {
-  return useQuery({
-    queryKey: ["orgs", "me"],
-    queryFn: () => orgsApi.me(),
-  });
+  // Mesmo cache de `useOrgMembership` (chave ["org","me"]) — evita fetch
+  // duplicado do GET /orgs/me com chaves divergentes.
+  return useOrgMembership();
 }
 
 export function useMyOrganizations() {

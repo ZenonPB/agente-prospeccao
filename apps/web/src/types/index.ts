@@ -277,6 +277,7 @@ export interface Campaign {
   target_country?: string;
   analysis_profile?: 'web_presence' | 'business_opportunity';
   places_query?: string;
+  scoring_template_id?: string | null;
   status: CampaignStatus;
   lead_count?: number;
   avg_score?: number;
@@ -442,6 +443,7 @@ export interface CsvImportErrorItem {
 export interface CsvImportResult {
   total_rows: number;
   imported_count: number;
+  contacts_count?: number;
   duplicate_count: number;
   error_count: number;
   errors: CsvImportErrorItem[];

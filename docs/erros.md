@@ -90,3 +90,46 @@ Os três erros acima foram corrigidos:
 **Verificado:** `python -m pytest tests -q` → **285 passed** (6 novos de dedup
 de lote + 3 do outreach→provider); `compileall` OK; web `npm run lint` +
 `npx tsc --noEmit` + `npm run build` limpos.
+
+---
+
+## Varredura geral (2026-08-17) — branch `fix/sweep-bugs`
+
+Revisão completa do sistema + troca do modelo de LLM (o anterior deixou de ter
+suporte). Itens corrigidos:
+
+**Modelo de LLM centralizado:**
+- Modelos agora são config em `.env`: `GROQ_MODEL_CLASSIFY` (scoring/router) e
+  `GROQ_MODEL_GENERATION` (outreach/segmentos/brief/templates) — antes cada um
+  dos 6 serviços tinha constante própria (trocar o modelo exigia editar 6
+  arquivos, e docstrings ainda citavam modelos descontinuados).
+- Segmento/brief/router/geração de template migrados para
+  `provider_client.groq_json_chat` (pacing global + retry 429/5xx + cota).
+- Cota de `suggest-segment`/`from-brief` corrigida (consumo único no provider).
+
+**Bugs críticos de runtime:**
+- Auto-envio de follow-ups quebrado por `NameError`: `cadence_service.run_due`
+  chamava `org_sends_today` (não existia) — corrigido para `sends_today`.
+- `change-password` validava a senha atual mas **nunca gravava a nova hash** —
+  agora persiste e commita.
+- Import CSV com coluna de contato quebrava a FK de `contacts.lead_id`:
+  `bulk_save_objects` com lista mista ignorava a relationship. Agora salva na
+  ordem Lead→Contact (`add_all`) e `imported_count` conta só leads (novo campo
+  `contacts_count`).
+
+**Altos:**
+- Playbooks: owner/admin não conseguiam editar/remover (comparação de enum por
+  string `"OWNER"` nunca casava com o valor `"owner"`). Comparação por enum.
+- Templates globais (seeds) agora são read-only via PATCH (400) — edição de um
+  usuário afetava o scoring de todas as orgs.
+- **Org switcher real (multi-org)**: o frontend envia `X-Organization-Id` (HTTP
+  e websocket do pipeline) e o backend resolve a org/membership por ele,
+  validando que o usuário é membro da org pedida (403 se não). Sem header,
+  comporta como antes (primeira membership).
+
+**Housekeeping:** `datetime` no topo de `leads.py` (NameError latente),
+`member`→`target_member` na atribuição, tipo `_user`→`Organization` em
+`orgs.py`, `.is_(None)` no `pipeline_worker`, `and_()`→`&` no `cadence_service`.
+
+**Verificado:** `pytest` → **307 passed** (+22); `compileall` OK; web lint/
+tsc/build limpos.

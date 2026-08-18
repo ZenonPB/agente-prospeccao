@@ -1,6 +1,5 @@
 'use client';
 
-import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,7 +47,9 @@ export function TodayActions() {
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const assignLead = useAssignLead();
-  const dueIso = useMemo(() => endOfTodayIso(), []);
+  // Calculada no render (valor estável dentro do dia) — evita congelar o
+  // "hoje" quando a sessão atravessa a virada do dia.
+  const dueIso = endOfTodayIso();
 
   const { data: overdueData, isLoading: loadingDue } = useLeads({
     next_action_before: dueIso,

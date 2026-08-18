@@ -16,6 +16,7 @@ from src.db.models import (
     ConsultantPlaybook,
     Organization,
     OrganizationMember,
+    OrganizationRole,
     User,
 )
 from src.auth.dependencies import (
@@ -125,7 +126,7 @@ def update_playbook(
     if not pb:
         raise HTTPException(status_code=404, detail="Playbook não encontrado")
     is_author = str(pb.author_id) == str(user.id)
-    is_admin = actor.role in ("OWNER", "ADMIN")
+    is_admin = actor.role in (OrganizationRole.OWNER, OrganizationRole.ADMIN)
     if not (is_author or is_admin):
         raise HTTPException(
             status_code=403,
@@ -166,7 +167,7 @@ def delete_playbook(
     if not pb:
         raise HTTPException(status_code=404, detail="Playbook não encontrado")
     is_author = str(pb.author_id) == str(user.id)
-    is_admin = actor.role in ("OWNER", "ADMIN")
+    is_admin = actor.role in (OrganizationRole.OWNER, OrganizationRole.ADMIN)
     if not (is_author or is_admin):
         raise HTTPException(
             status_code=403,

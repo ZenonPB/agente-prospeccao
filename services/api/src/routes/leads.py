@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from urllib.parse import quote
+from datetime import datetime, timezone
 import uuid
 import os
 import sys
@@ -558,11 +559,11 @@ def assign_lead(
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
         # O usuário-alvo precisa ser membro da mesma organização.
         from src.db.models import OrganizationMember
-        member = db.query(OrganizationMember).filter(
+        target_member = db.query(OrganizationMember).filter(
             OrganizationMember.organization_id == _org.id,
             OrganizationMember.user_id == new_assignee.id,
         ).first()
-        if not member:
+        if not target_member:
             raise HTTPException(status_code=403, detail="Usuário não pertence à organização")
 
     previous = str(lead.assigned_to_id) if lead.assigned_to_id else None
@@ -753,6 +754,7 @@ async def generate_messages(
         target_segment=context_segment or "",
         explicit_template_id=str(campaign.scoring_template_id) if campaign and campaign.scoring_template_id else None,
         api_key=groq,
+        organization_id=str(_org.id),
     )
 
     lead_dict = _build_lead_dict(lead, db)
@@ -1306,6 +1308,7 @@ async def start_lead_cadence(
         target_segment=context_segment or "",
         explicit_template_id=str(campaign.scoring_template_id) if campaign and campaign.scoring_template_id else None,
         api_key=groq,
+        organization_id=str(_org.id),
     )
 
     lead_dict = _build_lead_dict(lead, db)

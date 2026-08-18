@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from src.db.dependencies import get_db
-from src.db.models import Job, JobStatus, JobType, Campaign, User, Organization
+from src.db.models import Job, JobStatus, JobType, Campaign, User, Organization, OrganizationMember
 from src.auth.dependencies import get_current_user, get_user_organization
 from src.auth.security import decode_access_token
 from src.middleware.rate_limit import limiter
@@ -184,7 +184,28 @@ async def websocket_pipeline(
 
     db = next(get_db())
     try:
-        org = user_organization(db, db.query(User).filter(User.id == user_id).first())
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            await websocket.close(code=403, reason="Usuário não encontrado")
+            return
+        # Org ativa: opcional na mensagem de auth (org switcher). Sem ela, cai
+        # na primeira membership (legado).
+        req_org = (data.get("organization_id") or "").strip()
+        if req_org:
+            org = (
+                db.query(Organization)
+                .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+                .filter(
+                    OrganizationMember.user_id == user.id,
+                    Organization.id == req_org,
+                )
+                .first()
+            )
+            if org is None:
+                await websocket.close(code=403, reason="Acesso negado a esta organização")
+                return
+        else:
+            org = user_organization(db, user)
         if org is None:
             await websocket.close(code=403, reason="Usuário sem organização")
             return

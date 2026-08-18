@@ -15,7 +15,8 @@ Este serviço NÃO cria campanha — o endpoint `POST /api/campaigns/from-brief`
 retorna a sugestão para o usuário revisar/editar antes de confirmar
 (critério de aceite 1.4: "Usuário edita campos antes de confirmar").
 
-Modelo: Groq Llama 3.3 70B Versatile (criatividade controlada em pt-BR).
+Modelo: Groq de geração configurado em `settings.GROQ_MODEL_GENERATION`
+(estruturação de brief exige modelo de texto).
 """
 import json
 import logging
@@ -23,15 +24,13 @@ import os
 import sys
 from typing import Any, Dict, Optional
 
-import httpx
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "qwen/qwen3.6-27b"
+GROQ_MODEL = settings.GROQ_MODEL_GENERATION
 
 SYSTEM_PROMPT = (
     "Você é um consultor de pré-vendas B2B brasileiro. O usuário vai descrever, "
@@ -77,22 +76,6 @@ def build_prompt(brief: str) -> str:
     return "\n".join(lines)
 
 
-def _parse_json(content: str) -> Optional[Dict[str, Any]]:
-    text = (content or "").strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines).strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error("JSON inválido no campaign_brief: %s", e)
-        return None
-
-
 def _normalize_response(parsed: Dict[str, Any]) -> Dict[str, Any]:
     profile = str(parsed.get("analysis_profile") or "").strip().lower()
     if profile not in ("web_presence", "business_opportunity"):
@@ -119,59 +102,42 @@ class CampaignBriefService:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY
 
-    def _create_client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            timeout=60.0,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-        )
-
-    async def interpret(self, brief: str) -> Dict[str, Any]:
+    async def interpret(
+        self,
+        brief: str,
+        db=None,
+        organization_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Interpreta o brief e devolve os campos normalizados.
 
-        Em caso de falha da LLM (rede/HTTP/JSON inválido), levanta
+        Em caso de falha da LLM (rede/HTTP/JSON inválido/cota), levanta
         RuntimeError para que o endpoint retorne 502 — melhor do que
         devolver uma campanha inventada que o usuário teria que corrigir
         do zero. O brief é curto e a extração é estruturada (JSON), então
         um fallback determinístico genérico seria pior que o erro claro.
+
+        A chamada passa por `provider_client.groq_json_chat` (pacing global +
+        retry em 429/5xx + gate/consumo de cota quando `db`/`organization_id`
+        chegam).
         """
+        from services.provider_client import groq_json_chat
+
         prompt = build_prompt(brief)
-        payload = {
-            "model": GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.3,
-            "response_format": {"type": "json_object"},
-        }
-        try:
-            async with self._create_client() as client:
-                r = await client.post(GROQ_URL, json=payload)
-        except httpx.RequestError as e:
-            logger.error("Erro de rede Groq campaign_brief: %s", e)
-            raise RuntimeError("Falha de rede ao interpretar o brief") from e
-
-        if r.status_code != 200:
-            logger.error("Groq campaign_brief HTTP %s: %s", r.status_code, r.text[:300])
-            raise RuntimeError("Falha ao interpretar o brief via IA")
-
-        try:
-            data = r.json()
-        except json.JSONDecodeError as e:
-            logger.error("Resposta Groq campaign_brief não é JSON: %s", e)
-            raise RuntimeError("Falha ao interpretar o brief via IA") from e
-
-        choices = data.get("choices") or []
-        if not choices:
-            raise RuntimeError("Falha ao interpretar o brief via IA")
-
-        content = choices[0].get("message", {}).get("content", "")
-        parsed = _parse_json(content)
+        parsed = await groq_json_chat(
+            api_key=self.api_key,
+            model=GROQ_MODEL,
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=prompt,
+            url=GROQ_URL,
+            max_tokens=4000,
+            temperature=0.3,
+            timeout=60.0,
+            db=db,
+            organization_id=organization_id,
+        )
         if parsed is None:
-            raise RuntimeError("Resposta da IA em formato inesperado")
+            logger.warning("Falha ao interpretar brief via IA (org=%s).", organization_id)
+            raise RuntimeError("Falha ao interpretar o brief via IA")
 
         normalized = _normalize_response(parsed)
         if not normalized["target_segment"] and not normalized["target_service"]:

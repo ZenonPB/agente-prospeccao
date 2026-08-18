@@ -1,7 +1,7 @@
 """OutreachService — gera sequência de mensagens de prospecção B2B.
 
- Modelo: Groq Llama 3.3 70B Versatile (qualidade de escrita superior ao
- 8B usado em scoring — mensagens de outreach são texto client-facing, não
+ Modelo: Groq de geração configurado em `settings.GROQ_MODEL_GENERATION`
+ (texto client-facing — mensagens de outreach são conteúdo comercial, não
  classificação JSON).
 
 Diferente do `scoring_service` (que pontua), aqui a IA PRODUZ conteúdo
@@ -30,7 +30,7 @@ from config.settings import settings  # noqa: E402
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "qwen/qwen3.6-27b"
+GROQ_MODEL = settings.GROQ_MODEL_GENERATION
 
 SYSTEM_PROMPT = (
     "Você é um copywriter comercial sênior brasileiro, especializado em cold "
@@ -309,7 +309,7 @@ def _normalize_variants(parsed: Dict[str, Any]) -> Optional[List[Dict[str, Any]]
 
 
 class OutreachService:
-    """Gera sequência de cadência de outreach usando Llama 3.3 70B."""
+    """Gera sequência de cadência de outreach usando o modelo de geração."""
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY
