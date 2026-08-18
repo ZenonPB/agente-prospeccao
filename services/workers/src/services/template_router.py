@@ -10,18 +10,16 @@ entre:
 3. Sinal `GENERATE_NEW` (consumido pelo TemplateGenerationService)
    para criar critérios sob demanda — nada hardcoded.
 
-Modelo: Groq Llama 3.1 8B (classificação barata e rápida; não é geração de
+Modelo: Groq de classificação (tarefa simples de rotulagem, não geração de
 texto client-facing). Com cache em memória por string normalizada para
 evitar chamadas repetidas de Groq para a mesma campanha.
 """
-import json
 import logging
 import os
 import sys
 import unicodedata
 from typing import Any, Dict, List, Optional, Tuple
 
-import httpx
 from sqlalchemy import func as sqlfunc
 from sqlalchemy.orm import Session
 
@@ -32,7 +30,7 @@ from database.models import CampaignScoringTemplate  # noqa: E402
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "openai/gpt-oss-20b"
+GROQ_MODEL = settings.GROQ_MODEL_CLASSIFY
 
 # Threshold do overlap de tokens para aceitar match fuzzy sem LLM.
 _FUZZY_THRESHOLD = 0.5
@@ -132,14 +130,23 @@ def _get_cached_llm_route(key: str, labels_key: str) -> Optional[Tuple[str, str]
 
 
 async def _classify_llm(
-    query: str, labels: List[str], api_key: Optional[str] = None,
+    query: str,
+    labels: List[str],
+    api_key: Optional[str] = None,
+    db=None,
+    organization_id: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Pede à LLM que escolha o melhor label existente ou GENERATE_NEW.
+
+    A chamada vai pelo `provider_client.groq_json_chat` (pacing global + retry
+    em 429/5xx + gate/consumo de cota quando `db`/`organization_id` chegam).
 
     Returns:
         (ROUTE_GENERATE_NEW, "") se nenhum label serve.
         (ROUTE_MATCHED, label) se a LLM escolheu um template existente.
     """
+    from services.provider_client import groq_json_chat
+
     labels_text = "\n".join(f"- {label}" for label in labels) if labels else "(nenhum)"
     system = (
         "Você classifica ofertas de prospecção B2B em categorias de critérios. "
@@ -156,45 +163,26 @@ async def _classify_llm(
         "{\"choice\": \"GENERATE_NEW\"}"
     )
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            GROQ_URL,
-            headers={
-                "Authorization": f"Bearer {api_key or settings.GROQ_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": GROQ_MODEL,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "temperature": 0.0,
-                "max_tokens": 64,
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-
-    try:
-        parsed = json.loads(content)
-        choice = str(parsed.get("choice", "")).strip()
-    except json.JSONDecodeError:
-        # Fallback: procura GENERATE_NEW ou um label no texto bruto.
-        if "GENERATE_NEW" in content:
+    parsed = await groq_json_chat(
+        api_key=api_key or settings.GROQ_API_KEY,
+        model=GROQ_MODEL,
+        system_prompt=system,
+        user_prompt=user,
+        url=GROQ_URL,
+        max_tokens=64,
+        temperature=0.0,
+        db=db,
+        organization_id=organization_id,
+    )
+    if parsed is not None and isinstance(parsed.get("choice"), str):
+        choice = parsed["choice"].strip()
+        if choice == "GENERATE_NEW":
             return ROUTE_GENERATE_NEW, ""
         for label in labels:
-            if normalize_key(label) and normalize_key(label) in normalize_key(content):
+            if normalize_key(label) == normalize_key(choice):
                 return ROUTE_MATCHED, label
+        # A LLM devolveu um label que não está na lista (label fantasma).
         return ROUTE_GENERIC, "Genérico"
-
-    if choice == "GENERATE_NEW":
-        return ROUTE_GENERATE_NEW, ""
-    for label in labels:
-        if normalize_key(label) == normalize_key(choice):
-            return ROUTE_MATCHED, label
-    # A LLM devolveu um label que não está na lista (label fantasma).
     return ROUTE_GENERIC, "Genérico"
 
 
@@ -204,6 +192,7 @@ async def route_scoring_template(
     target_segment: str = "",
     explicit_template_id: Optional[str] = None,
     api_key: Optional[str] = None,
+    organization_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Resolve o melhor template de scoring para a campanha.
 
@@ -263,6 +252,7 @@ async def route_scoring_template(
             try:
                 route, label = await _classify_llm(
                     f"{target_service} {target_segment}".strip(), labels, api_key,
+                    db=db, organization_id=organization_id,
                 )
                 _cache_llm_route(query, labels_key, (route, label))
             except Exception as e:
@@ -295,6 +285,7 @@ async def get_playbook_for_campaign(
     target_segment: str = "",
     explicit_template_id: Optional[str] = None,
     api_key: Optional[str] = None,
+    organization_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Resolve o template da campanha e retorna o playbook de outreach.
 
@@ -308,6 +299,7 @@ async def get_playbook_for_campaign(
         target_segment=target_segment,
         explicit_template_id=explicit_template_id,
         api_key=api_key,
+        organization_id=organization_id,
     )
     tmpl = routed.get("template") or {}
     return tmpl.get("playbook") or {}

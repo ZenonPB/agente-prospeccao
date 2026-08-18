@@ -28,6 +28,13 @@ async function resolveToken(): Promise<string | null> {
   return token ?? null;
 }
 
+// Organização ativa gravada pelo OrgSwitcher (chave em `org-switcher.tsx`).
+// Quando presente, define o workspace multi-org nas chamadas à API.
+function getActiveOrganizationId(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem("active_organization_id");
+}
+
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
   responseType?: "json" | "blob";
@@ -58,6 +65,12 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const token = await resolveToken();
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  // Workspace ativo (org switcher) em multi-org — o backend valida a membership.
+  const activeOrgId = getActiveOrganizationId();
+  if (activeOrgId) {
+    headers["X-Organization-Id"] = activeOrgId;
   }
 
   const response = await fetch(url.toString(), {
@@ -311,7 +324,7 @@ export const campaignsApi = {
     scoring_template_id?: string | null;
     status?: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
   }) =>
-    request<{ id: string; name: string; scoring_template_id: string | null }>(`/api/campaigns/${id}`, {
+    request<Campaign>(`/api/campaigns/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
@@ -903,7 +916,9 @@ export function createPipelineWs(jobId: string): WebSocket {
   const baseUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;
   const ws = new WebSocket(baseUrl);
   ws.addEventListener("open", () => {
-    ws.send(JSON.stringify({ type: "auth", token }));
+    // Org ativa do switcher — validação de workspace no WS (multi-org).
+    const organization_id = getActiveOrganizationId();
+    ws.send(JSON.stringify({ type: "auth", token, organization_id: organization_id ?? undefined }));
   });
   return ws;
 }

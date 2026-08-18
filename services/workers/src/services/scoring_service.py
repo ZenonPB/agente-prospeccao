@@ -209,7 +209,7 @@ def _ground_pitch_fields(
             parsed[field] = fallback.get(field, "")
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "openai/gpt-oss-20b"
+GROQ_MODEL = settings.GROQ_MODEL_CLASSIFY
 
 SYSTEM_PROMPT = (
     "Você é um consultor comercial B2B especializado em prospecção qualificada. "
@@ -492,7 +492,7 @@ def extract_business_facts(
 
 
 class AIScoringService:
-    """Serviço de scoring contextual e explicável via Groq (openai/gpt-oss-20b)."""
+    """Serviço de scoring contextual e explicável via Groq (modelo de classificação)."""
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or settings.GROQ_API_KEY

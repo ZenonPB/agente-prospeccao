@@ -217,6 +217,13 @@ def patch_scoring_template(
     ).first()
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template não encontrado")
+    if tmpl.organization_id is None:
+        # Seeds globais são compartilhados entre todas as orgs — edição por um
+        # usuário afetaria o scoring de todos. Para personalizar, duplique.
+        raise HTTPException(
+            status_code=400,
+            detail="Template global de fábrica — duplique para personalizar.",
+        )
 
     updates = body.model_dump(exclude_unset=True)
     if "service_label" in updates:

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from urllib.parse import quote
+from datetime import datetime, timezone
 import uuid
 import os
 import sys
@@ -558,11 +559,11 @@ def assign_lead(
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
         # O usuário-alvo precisa ser membro da mesma organização.
         from src.db.models import OrganizationMember
-        member = db.query(OrganizationMember).filter(
+        target_member = db.query(OrganizationMember).filter(
             OrganizationMember.organization_id == _org.id,
             OrganizationMember.user_id == new_assignee.id,
         ).first()
-        if not member:
+        if not target_member:
             raise HTTPException(status_code=403, detail="Usuário não pertence à organização")
 
     previous = str(lead.assigned_to_id) if lead.assigned_to_id else None
@@ -729,7 +730,7 @@ async def generate_messages(
     if not _can_access_lead(member, lead):
         raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
-    from services.provider_client import quota_ok, consume_quota
+    from services.provider_client import quota_ok
     if not quota_ok(db, str(_org.id), "GROQ_API_KEY"):
         raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
@@ -753,6 +754,7 @@ async def generate_messages(
         target_segment=context_segment or "",
         explicit_template_id=str(campaign.scoring_template_id) if campaign and campaign.scoring_template_id else None,
         api_key=groq,
+        organization_id=str(_org.id),
     )
 
     lead_dict = _build_lead_dict(lead, db)
@@ -760,6 +762,8 @@ async def generate_messages(
         lead_dict, context_service or "", context_segment or "", playbook,
         generate_variants=body.variants,
         scheduling_url=_org.scheduling_url,
+        db=db,
+        organization_id=str(_org.id),
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagem")
@@ -773,7 +777,6 @@ async def generate_messages(
     )
     db.commit()
 
-    consume_quota(db, str(_org.id), "GROQ_API_KEY")
     return result
 
 
@@ -1280,7 +1283,7 @@ async def start_lead_cadence(
     if lead.opt_out:
         raise HTTPException(status_code=400, detail="Lead com opt-out — não gere cadência")
 
-    from services.provider_client import quota_ok, consume_quota
+    from services.provider_client import quota_ok
     if not quota_ok(db, str(_org.id), "GROQ_API_KEY"):
         raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
@@ -1305,11 +1308,14 @@ async def start_lead_cadence(
         target_segment=context_segment or "",
         explicit_template_id=str(campaign.scoring_template_id) if campaign and campaign.scoring_template_id else None,
         api_key=groq,
+        organization_id=str(_org.id),
     )
 
     lead_dict = _build_lead_dict(lead, db)
     result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
+        db=db,
+        organization_id=str(_org.id),
     )
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagens da cadência")
@@ -1326,7 +1332,6 @@ async def start_lead_cadence(
     # com `auto_send_email`. Enviar o ciclo inteiro de uma vez queimava a
     # entregabilidade.
 
-    consume_quota(db, str(_org.id), "GROQ_API_KEY")
     return {
         "lead_id": str(lead.id),
         "playbook_applied": bool(playbook),

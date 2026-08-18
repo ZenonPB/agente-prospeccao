@@ -63,4 +63,17 @@ class Settings(BaseSettings):
         description='Teto do backoff (s) para retry sem header Retry-After',
     )
 
+    # Modelos Groq — config centralizada para trocar de modelo sem editar os
+    # serviços individualmente. CLASSIFY = tarefas de classificação (scoring e
+    # router de template, respostas curtas); GENERATION = texto client-facing
+    # (outreach, segmentos, brief, templates gerados).
+    GROQ_MODEL_CLASSIFY: str = Field(
+        "openai/gpt-oss-20b",
+        description='Modelo Groq de classificação (scoring/router)',
+    )
+    GROQ_MODEL_GENERATION: str = Field(
+        "qwen/qwen3.6-27b",
+        description='Modelo Groq de geração (outreach/segmentos/brief/templates)',
+    )
+
 settings = Settings()

@@ -134,6 +134,7 @@ class CsvImportService:
         existing_place_ids = {l.place_id for l in existing_leads if l.place_id}
 
         imported_leads: List[Lead] = []
+        imported_contacts: List[Contact] = []
         errors: List[Dict[str, Any]] = []
         duplicate_count = 0
         line_num = 1
@@ -233,16 +234,21 @@ class CsvImportService:
                     confidence=50 if email else 30,
                     source="csv",
                 )
-                imported_leads.append(contact)
+                imported_contacts.append(contact)
 
-        if imported_leads:
-            db.bulk_save_objects(imported_leads)
+        # Salva na ordem certa: o Lead primeiro (gera o PK) e o Contact depois
+        # (a FK `lead_id` vem da relationship). Usar `bulk_save_objects` com a
+        # lista misturada quebrava a FK — aqui o unit of work resolve as
+        # dependências na mesma sessão.
+        if imported_leads or imported_contacts:
+            db.add_all([*imported_leads, *imported_contacts])
             db.commit()
 
         total_rows = line_num - 1
         return {
             "total_rows": total_rows,
             "imported_count": len(imported_leads),
+            "contacts_count": len(imported_contacts),
             "duplicate_count": duplicate_count,
             "error_count": len(errors),
             "errors": errors[:50],  # Limita os primeiros 50 erros para não inflar payload

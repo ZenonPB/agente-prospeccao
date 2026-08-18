@@ -170,7 +170,7 @@ def list_my_organizations(
 def list_members(
     org_id: str,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_user_organization),
+    _user: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
     """Lista membros da organização (MANAGER/owner/admin).
@@ -646,7 +646,7 @@ def list_sales_targets(
     org_id: str,
     month: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}$"),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_user_organization),
+    _user: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
     """Lista as metas de vendas da organização.
@@ -771,7 +771,7 @@ def list_org_audit_log(
     event: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_user_organization),
+    _user: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_manager()),
 ):
     """Lista a auditoria de eventos administrativos da org (MANAGER/owner/admin).
