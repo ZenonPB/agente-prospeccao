@@ -127,6 +127,7 @@ async def run_pipeline(
     campaign_id: str | None = None,
     max_leads: int = 10,
     reanalyze_only: bool = False,
+    unscored_only: bool = False,
     source: str = "places",
     cnae_code: str | None = None,
     cnpjs: list[str] | None = None,
@@ -139,10 +140,11 @@ async def run_pipeline(
     a partir dos campos da campanha e o analysis_profile define o
     comportamento do pipeline.
 
-    Se `reanalyze_only=True`, pula a coleta e reanalisa TODOS os leads da
-    campanha (qualquer status anterior) usando o scoring contextual novo.
-    Útil para leads que foram analisados pelo pipeline legado específico
-    de web antes da migração de scoring contextual.
+    Se `reanalyze_only=True`, pula a coleta e reanalisa OS LEADS da campanha
+    (qualquer status anterior) usando o scoring contextual novo. Com
+    `unscored_only=True`, restringe aos leads ainda sem pontuação (score NULL
+    ou status NOVO) — útil para reprocessar só o que ficou para trás por
+    rate-limit/falha, sem re-pontuar o que já pontuou (economiza cota).
     """
     db = SessionLocal()
 
@@ -455,6 +457,12 @@ async def run_pipeline(
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
             else:
                 leads_query = leads_query.filter(Lead.campaign_id.is_(None))
+            if unscored_only:
+                # Só o que ainda não pontuou (score NULL ou NOVO) — não
+                # re-pontua QUALIFICADO/DESQUALIFICADO (economiza cota de IA).
+                leads_query = leads_query.filter(
+                    (Lead.qualification_score.is_(None)) | (Lead.status == LeadStatus.NOVO)
+                )
             # Reanalisa leads da campanha (qualquer status prévio), sobrescrevendo
             # o scoring legado com o contextual novo. Respeita max_leads.
             leads_query = leads_query.order_by(Lead.created_at, Lead.id).limit(max_leads)

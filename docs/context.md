@@ -786,7 +786,21 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 
 > **Atualizado 2026-08-17** — onde paramos:
 >
-> 0. **Inspeção geral (branch `fix/inspecao-geral`):** revisão + regressão de
+> **Atualizado 2026-08-17** — onde paramos:
+>
+> 0. **Operações reais + reanálise seletiva (branch `feat/reanalise-nao-pontuados`, PR #94):**
+>    - **Base local inspecionada**: 20 leads (todos `QUALIFICADO`), 1 campanha
+>      ("Landing pages - Academia - São Carlos"); 0 leads `NOVO`/score nulo.
+>    - Seed idempotente rodado → **10 templates ativos**;
+>      `reprocess_stuck_leads --fix-site-evidence` → **0 leads para reprocessar**
+>      (no-op — nada preso nesta base).
+>    - **Novo recurso**: `POST /campaigns/{id}/reanalyze?unscored_only=true`
+>      reanalisa só leads sem pontuação (score NULL ou `NOVO`) — não queima cota
+>      de IA re-pontuando o que já pontuou. Botão **"Reanalisar não pontuados"**
+>      na página da campanha. Verificado: 279 tests, compileall OK, web
+>      lint/tsc/build limpos.
+>
+> 0. **Inspeção geral (branch `fix/inspecao-geral`, PR #93):** revisão + regressão de
 >    toda a suíte (307 teste) e das três camadas. Corrigido no frontend:
 >    - `use-api.ts`: invalidação da cadência usava chave errada
 >      (`["lead-cadence", id]` → `["leads", id, "cadence"]`) — o painel de

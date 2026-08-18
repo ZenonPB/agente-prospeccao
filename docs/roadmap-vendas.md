@@ -989,6 +989,11 @@ Mapa de bugs encontrados e correções: o que já foi feito e o que falta rodar.
 - **Backlog pendente (⬜ do §5):** apenas 4.20 (subset Drive/Sheets OAuth) e
   4.27 (modelo 3 entidades) — ambos adiados com ADR. Pendência aberta de item
   concluído: 4.17 — validar o kanban (DnD por toque) em device real.
+- **Operações reais + reanálise seletiva (2026-08-17,
+  `feat/reanalise-nao-pontuados`):** base local inspecionada (20 leads, todos
+  QUALIFICADO); seed → 10 templates; `reprocess_stuck_leads --fix-site-evidence`
+  → 0 presos (no-op). Novo `POST /campaigns/{id}/reanalyze?unscored_only=true`
+  (só leads sem score) + botão "Reanalisar não pontuados" na campanha.
 - **Contatos + pontuação (2026-08-16, `feat/contatos-e-pontuacao-0`):** leads
   com "score 0" eram NOVO nunca pontuados (coleta estourava o teto por página);
   corrigido overshoot + fila visível. Hunter domain-search implementado,

@@ -7,7 +7,7 @@ import sys
 from pydantic import BaseModel, Field
 
 from src.db.dependencies import get_db
-from src.db.models import Campaign, CampaignStatus, Lead, User, Job, JobStatus, JobType, Organization
+from src.db.models import Campaign, CampaignStatus, Lead, LeadStatus, User, Job, JobStatus, JobType, Organization
 from src.auth.dependencies import get_current_user, get_user_organization
 from src.middleware.rate_limit import limiter
 from src.services.csv_import_service import CsvImportService
@@ -380,11 +380,12 @@ def patch_campaign(
 async def reanalyze_campaign(
     request: Request,
     campaign_id: str,
+    unscored_only: bool = Query(False, description="Reanalisa apenas leads sem score (score NULL ou status NOVO)"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
-    """Agenda a reanálise de TODOS os leads de uma campanha na fila de Jobs.
+    """Agenda a reanálise dos leads de uma campanha na fila de Jobs.
 
     A execução acontece no job-consumer (`jobs_consumer.py`), um job por vez;
     aqui a request só insere o Job e devolve `job_id` para o frontend escutar
@@ -394,6 +395,9 @@ async def reanalyze_campaign(
     - Reseta scoring de cada lead (status=NOVO, fields limpos) internamente.
     - Usa o scoring contextual baseado em campaign.target_service/target_segment
       + fallback ao template 'Genérico'.
+    - Com `unscored_only=True`, só os leads ainda sem pontuação relevante
+      entram (score NULL ou status NOVO) — os já QUALIFICADO/DESQUALIFICADO
+      ficam intocados (evita queimar cota de IA re-pontuando o que já pontuou).
     """
     campaign = db.query(Campaign).filter(
         Campaign.id == campaign_id,
@@ -402,9 +406,19 @@ async def reanalyze_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
-    lead_count = db.query(Lead).filter(Lead.campaign_id == campaign.id).count()
+    lead_filter = Lead.campaign_id == campaign.id
+    if unscored_only:
+        lead_filter = lead_filter & (
+            (Lead.qualification_score.is_(None)) | (Lead.status == LeadStatus.NOVO)
+        )
+    lead_count = db.query(Lead).filter(lead_filter).count()
     if lead_count == 0:
-        raise HTTPException(status_code=400, detail="Campanha não tem leads para reanalisar")
+        detail = (
+            "Não há leads não pontuados para reanalisar"
+            if unscored_only
+            else "Campanha não tem leads para reanalisar"
+        )
+        raise HTTPException(status_code=400, detail=detail)
 
     job = Job(
         job_type=JobType.LEAD_ENRICHMENT,
@@ -414,6 +428,7 @@ async def reanalyze_campaign(
         payload={
             "campaign_id": str(campaign.id),
             "reanalyze_only": True,
+            "unscored_only": unscored_only,
             "max_leads": lead_count,
         },
     )
