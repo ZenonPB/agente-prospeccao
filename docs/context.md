@@ -786,6 +786,18 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
 
 > **Atualizado 2026-08-17** — onde paramos:
 >
+> 0. **Operações reais + reanálise seletiva (branch `feat/reanalise-nao-pontuados`):**
+>    - **Base local inspecionada**: 20 leads (todos `QUALIFICADO`), 1 campanha
+>      ("Landing pages - Academia - São Carlos"); 0 leads `NOVO`/score nulo.
+>    - Seed idempotente rodado → **10 templates ativos**;
+>      `reprocess_stuck_leads --fix-site-evidence` → **0 leads para reprocessar**
+>      (no-op — nada preso nesta base).
+>    - **Novo recurso**: `POST /campaigns/{id}/reanalyze?unscored_only=true`
+>      reanalisa só leads sem pontuação (score NULL ou `NOVO`) — não queima cota
+>      de IA re-pontuando o que já pontuou. Botão **"Reanalisar não pontuados"**
+>      na página da campanha. Verificado: 279 tests, compileall OK, web
+>      lint/tsc/build limpos.
+>
 > 0. **Leads score 0 + contatos de decisores (`feat/contatos-e-pontuacao-0`,
 >    2026-08-16/17):** investigação de banco mostrou que os leads "score 0"
 >    eram **NOVO nunca pontuados** — a coleta trazia uma página inteira
