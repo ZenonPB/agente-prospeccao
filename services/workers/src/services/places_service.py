@@ -147,7 +147,13 @@ class GooglePlacesService:
             Lista de dicionários no formato de lead prontos para persistência.
         """
         leads: List[Dict] = []
-        excluded = exclude_place_ids or set()
+        # Cópia própria: nunca mutar o set do chamador (`exclude_place_ids`).
+        # Antes, `exclude_place_ids or set()` aliás o set quando não-vazio e o
+        # `excluded.add` interno contaminava o `existing_ids_set` da org — o
+        # `filter_new_batch_items` do pipeline via toda rodada como "já
+        # coletada" (0 novos sempre, mesmo em campanha nova com leads de
+        # outra campanha na org).
+        excluded = set(exclude_place_ids or ())
         page_token = None
         pages = 0
         max_pages = 6  # teto para não estourar custo da API quando quase tudo já existe

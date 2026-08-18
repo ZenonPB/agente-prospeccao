@@ -63,3 +63,32 @@ def test_search_places_sem_exclusao_mantem_teto():
         leads = asyncio.run(svc.search_places("academias", max_results=5))
 
     assert len(leads) == 5
+
+
+def test_search_places_nao_muta_exclude_place_ids():
+    """Coleta incremental: o set de já-coletados NÃO pode crescer dentro da busca.
+
+    Regressão do bug que zerava rodadas seguintes: `excluded = exclude_place_ids
+    or set()` aliás o set do chamador quando não-vazio, e o `excluded.add(...)`
+    interno contaminava o `existing_ids_set` da org — o `filter_new_batch_items`
+    do pipeline via todos os resultados como "já coletados" (0 novos sempre,
+    mesmo em campanha nova com a org tendo leads de outra campanha).
+    """
+    svc = GooglePlacesService(api_key="test")
+    fake_client = MagicMock()
+    fake_client.post = _fake_post_response([_place(i) for i in range(20)])
+    fake_client.__aenter__ = AsyncMock(return_value=fake_client)
+    fake_client.__aexit__ = AsyncMock(return_value=False)
+
+    already_known = {"place-0", "place-1"}
+
+    with patch("services.places_service.httpx.AsyncClient", return_value=fake_client):
+        import asyncio
+
+        leads = asyncio.run(
+            svc.search_places("academias", max_results=5, exclude_place_ids=already_known)
+        )
+
+    assert len(leads) == 5
+    assert {l["place_id_candidate"] for l in leads} == {"place-2", "place-3", "place-4", "place-5", "place-6"}
+    assert already_known == {"place-0", "place-1"}, "chamador não pode ter seu set mutado"
