@@ -175,6 +175,8 @@ def change_password(
             detail="Senha atual incorreta.",
         )
 
+    current_user.password_hash = hash_password(body.new_password)
+    db.commit()
     logger.info("Password changed for user %s", current_user.email)
     return {"message": "Senha alterada com sucesso."}
 

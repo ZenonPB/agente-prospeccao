@@ -1,14 +1,19 @@
 """Testes das funções puras do importador de CSV.
 
 Não tocam o banco — cobrem sanitização, place_id determinístico e mapeamento
-de cabeçalhos.
+de cabeçalhos. Inclui um test-drive do fluxo com DB fake (sem ORM real) que
+garante a separação Lead/Contact (o `bulk_save_objects` com lista misturada
+quebrava a FK de `contacts.lead_id`).
 """
+from types import SimpleNamespace
+
 from src.services.csv_import_service import (
     clean_url,
     clean_cnpj,
     generate_csv_place_id,
     normalize_header,
     normalize_import_website,
+    CsvImportService,
 )
 
 
@@ -56,3 +61,66 @@ def test_normalize_import_website_anula_sem_site_proprio():
     assert normalize_import_website("https://api.whatsapp.com/send?phone=55") is None
     assert normalize_import_website("https://www.instagram.com/loja") is None
     assert normalize_import_website("https://instadelivery.com.br/perfil") is None
+
+
+class _FakeQuery:
+    def filter(self, *_a, **_k):
+        return self
+
+    def all(self):
+        return []
+
+
+class _FakeDb:
+    def __init__(self):
+        self.added = []
+        self.committed = 0
+
+    def query(self, *_a):
+        return _FakeQuery()
+
+    def add_all(self, objs):
+        self.added.extend(objs)
+
+    def commit(self):
+        self.committed += 1
+
+
+def _campaign():
+    return SimpleNamespace(
+        id="c-1",
+        organization_id="org-1",
+        target_city=None,
+        target_state=None,
+        target_segment=None,
+    )
+
+
+def test_import_com_contato_conta_leads_e_contatos_separados():
+    content = (
+        "nome,contato,email\n"
+        "Empresa A,Ana Souza,ana@empresaa.com.br\n"
+        "Empresa B,,contato@empresab.com.br\n"
+    )
+    db = _FakeDb()
+    out = CsvImportService.parse_and_import(db, _campaign(), content, "user-1")
+
+    assert out["imported_count"] == 2          # só leads
+    assert out["contacts_count"] == 1          # só o decisor do primeiro
+    assert db.committed == 1
+    assert len(db.added) == 3                  # 2 leads + 1 contato
+
+
+def test_import_sem_contato_nao_conta_contatos():
+    content = "nome,email\nEmpresa A,contato@empresa.com.br\n"
+    db = _FakeDb()
+    out = CsvImportService.parse_and_import(db, _campaign(), content, "user-1")
+    assert out["imported_count"] == 1
+    assert out["contacts_count"] == 0
+    assert len(db.added) == 1
+    assert _has_no_contact(db.added)
+
+
+def _has_no_contact(objs):
+    from src.db.models import Contact
+    return not any(isinstance(o, Contact) for o in objs)

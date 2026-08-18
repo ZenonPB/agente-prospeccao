@@ -442,6 +442,7 @@ export interface CsvImportErrorItem {
 export interface CsvImportResult {
   total_rows: number;
   imported_count: number;
+  contacts_count?: number;
   duplicate_count: number;
   error_count: number;
   errors: CsvImportErrorItem[];
