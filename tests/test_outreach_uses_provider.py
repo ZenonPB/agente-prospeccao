@@ -75,7 +75,8 @@ def test_generate_sequence_repassa_cota_db_e_org(monkeypatch):
     )
     assert captured.get("organization_id") == "org-1"
     assert captured.get("db") is not None
-    assert captured.get("max_tokens") == 6000
+    assert captured.get("max_tokens") == 5000
+    assert captured.get("reasoning_effort") == "none"
 
 
 def test_generate_sequence_falha_do_provider_retorna_none(monkeypatch):

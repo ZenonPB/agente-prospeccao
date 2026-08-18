@@ -365,17 +365,22 @@ class OutreachService:
         )
         # Cadência inteira (subject + 4 mensagens + rodapés) — limite generoso
         # para o JSON não chegar truncado (truncamento → JSON inválido → None).
+        # `reasoning_effort="none"` desliga o raciocínio do qwen* (que, com o
+        # `response_format: json_object`, vira 400 `json_validate_failed`) e
+        # reduz bastante a saída. max_tokens cabe no TPM da org (on_demand
+        # ~8000): prompt ~2150 + 5000 < 8000, sem 413 determinístico.
         parsed = await groq_json_chat(
             api_key=self.api_key,
             model=GROQ_MODEL,
             system_prompt=SYSTEM_PROMPT,
             user_prompt=prompt,
             url=GROQ_URL,
-            max_tokens=6000,
+            max_tokens=5000,
             temperature=0.7,
             timeout=90.0,
             db=db,
             organization_id=organization_id,
+            reasoning_effort="none",
         )
         if parsed is None:
             return None

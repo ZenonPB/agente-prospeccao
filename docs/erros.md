@@ -133,3 +133,39 @@ suporte). Itens corrigidos:
 
 **Verificado:** `pytest` → **307 passed** (+22); `compileall` OK; web lint/
 tsc/build limpos.
+
+---
+
+## Resolução (2026-08-18) — branch `fix/outreach-tpm-413`
+
+**"Falha ao gerar mensagem" (502) persistente** — mesmo após o fix anterior
+(outreach via `groq_json_chat`), a geração continuava falhando **sempre**.
+Causa raiz:
+
+1. **HTTP 413 determinístico por TPM**: `generate_sequence` usava
+   `max_tokens=6000` fixo. Com prompt real (playbook + scheduling_url +
+   evidências) ~2150 tokens, o request ia a ~8150 tokens > limite de **8000
+   TPM** do tier `on_demand` da org → `413 Request too large`, que **não
+   estava na lista de retriable** do provider → `None` na 1ª tentativa → 502.
+2. **HTTP 400 `json_validate_failed` intermitente**: o modelo de geração
+   (`qwen/qwen3.6-27b`) tem modo `thinking` ativo por padrão; com
+   `response_format: json_object`, o raciocínio contamina a saída e a Groq
+   rejeita com 400 (não-retriable) → 502 intermitente.
+
+Fix:
+
+- `provider_client.groq_json_chat` ganhou `reasoning_effort` (opcional): com
+  `"none"`, desliga o thinking do qwen* — JSON sai limpo e a saída cai de
+  ~5000+ para ~800 tokens (medido: 788).
+- `provider_client` agora trata **HTTP 413** reduzindo `max_tokens`
+  progressivamente (1024 a 1024) e retentando, em vez de desistir na primeira
+  chamada — robusto para qualquer prompt que cresça.
+- `outreach_service.generate_sequence` usa `max_tokens=5000` (antes 6000) +
+  `reasoning_effort="none"`: prompt 2150 + 5000 = 7150 < 8000 TPM, sem 413.
+- O mesmo `reasoning_effort="none"` foi aplicado aos outros serviços de geração
+  (segmentos, brief e templates) para eliminar o 400 intermitente em todos.
+
+**Verificado:** 6 novos testes (2 de 413 no provider + ajustes de
+outreach/segmentos/brief/templates) → `python -m pytest tests -q` → **312
+passed**; chamada real à Groq com o mesmo payload que dava 413 → **200 OK** com
+JSON completo.
