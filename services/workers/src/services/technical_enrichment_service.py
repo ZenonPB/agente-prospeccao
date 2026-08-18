@@ -255,6 +255,8 @@ class TechnicalEnrichmentService:
             "tel_link_found": False,
             "whatsapp_link_found": False,
             "mailto_link_found": False,
+            "login_portal_found": False,
+            "system_mention_found": False,
             "issues": [],
         }
         if not html_content:
@@ -278,6 +280,27 @@ class TechnicalEnrichmentService:
         result["mailto_link_found"] = bool(re.search(r'href=["\']mailto:', html_lower))
         if not (result["tel_link_found"] or result["whatsapp_link_found"] or result["mailto_link_found"]):
             result["issues"].append("Nenhum canal de contato clicável (telefone/WhatsApp/e-mail) na home")
+
+        # Área logada / portal / painel — evidência determinística de que a
+        # empresa JÁ tem sistema próprio (template "Aplicações Web / ERP").
+        # Sem isto, a LLM alegaria "tem portal/painel" ou "não tem" sem medir.
+        result["login_portal_found"] = bool(
+            re.search(
+                r'login|área\s+do\s+cliente|área\s+do\s+aluno|'
+                r'portal\s+do\s+(cliente|aluno)|meu\s+painel|'
+                r'[\'"](?:/)?(?:login|painel|area-do-cliente|portal)[/\'"]',
+                html_lower,
+            )
+        )
+        if result["login_portal_found"]:
+            result["issues"].append("Área logada/portal/painel detectado na página")
+
+        # Menção a sistema/ERP/software — indício de automação de processos.
+        result["system_mention_found"] = bool(
+            re.search(r'\bsistema\b|\berp\b|\bsoftware\b', html_lower)
+        )
+        if result["system_mention_found"]:
+            result["issues"].append("Menção a sistema/ERP/software detectada na página")
 
         return result
 

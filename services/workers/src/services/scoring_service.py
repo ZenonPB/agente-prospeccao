@@ -453,6 +453,19 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
         else:
             facts.append("Nenhum canal de contato clicável (telefone/WhatsApp/e-mail) na home")
 
+        # Área logada/portal e menção a sistema — evidência determinística
+        # usada pelo template "Aplicações Web / ERP": empresa com área logada
+        # ou que cita sistema próprio provavelmente JÁ tem automação (reduz o
+        # fit); site só institucional sem portal sugere processo manual.
+        if ux.get("login_portal_found"):
+            facts.append("Área logada/portal/painel presente na página (indício de sistema próprio)")
+        else:
+            facts.append("Nenhuma área logada/portal/painel encontrada na página")
+        if ux.get("system_mention_found"):
+            facts.append("Menção a sistema/ERP/software na página (indício de automação)")
+        else:
+            facts.append("Nenhuma menção a sistema/ERP/software na página")
+
     warnings = report.get("warnings") or []
     if warnings:
         facts.append(f"Avisos gerais: {', '.join(warnings[:5])}")

@@ -50,3 +50,31 @@ def test_template_erp_instrucao_anti_desqualificacao():
     instructions = tmpl.get("extra_instructions", "").lower()
     assert "processo manual" in instructions
     assert "área logada" in instructions
+
+
+def test_template_erp_sinais_medidos_no_html():
+    # Sinais de portal/área logada agora são medidos deterministicamente no
+    # HTML (não mais "critério a CONFIRMAR") — ancoram o score no fact.
+    tmpl = _erp_template()
+    descs = " ".join(
+        s["description"]
+        for s in tmpl["positive_signals"] + tmpl["negative_signals"]
+    ).lower()
+    assert "a confirmar" not in descs
+
+
+def test_template_erp_negativo_microempresa():
+    # Porte é o sinal mais decisivo para ERP: microempresa/MEI é fraco fito.
+    tmpl = _erp_template()
+    labels = {s["label"] for s in tmpl["negative_signals"]}
+    assert "Microempresa / MEI" in labels
+
+
+def test_template_erp_processo_manual_baixo_peso():
+    # "Processo manual / planilha" não é mensurável no site — vira inferência
+    # de segmento e não pode pesar como evidência técnica alta.
+    tmpl = _erp_template()
+    manual = [
+        s for s in tmpl["positive_signals"] if s["label"] == "Processo manual / planilha"
+    ]
+    assert manual and manual[0]["weight_hint"] == "low"
