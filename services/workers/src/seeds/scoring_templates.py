@@ -133,28 +133,34 @@ DEFAULT_TEMPLATES = [
             ],
         },
         "positive_signals": [
-            {"label": "Site institucional / landing sem função", "description": "Site apenas institucional ou landing page, sem área logada/portal ou funcionalidade (critério a CONFIRMAR no HTML)", "weight_hint": "high"},
-            {"label": "Sem área logada / portal do cliente", "description": "Ausência de login, painel, área do aluno/cliente ou portal (critério a CONFIRMAR no HTML)", "weight_hint": "high"},
-            {"label": "Processo manual / planilha", "description": "Indícios de operação por planilha, papel, WhatsApp ou processo manual no segmento", "weight_hint": "high"},
-            {"label": "Crescimento sem sistema", "description": "Sinais de expansão (filial, novos serviços) sem indícios de automação", "weight_hint": "medium"},
+            {"label": "Sem área logada / portal do cliente", "description": "Nenhuma área logada/portal/painel de cliente no site (medido no HTML)", "weight_hint": "high"},
+            {"label": "Site institucional / landing sem função", "description": "Site apenas institucional ou landing page, sem funcionalidade (medido no HTML)", "weight_hint": "high"},
+            {"label": "Sem menção a sistema/ERP", "description": "Site não menciona sistema/ERP/software próprio (medido no HTML)", "weight_hint": "medium"},
+            {"label": "Processo manual / planilha", "description": "Indícios de operação por planilha, papel ou WhatsApp no segmento (inferência de segmento, não medido no site)", "weight_hint": "low"},
+            {"label": "Crescimento sem sistema", "description": "Sinais de expansão (filial, novos serviços) sem indícios de automação (inferência de segmento)", "weight_hint": "low"},
         ],
         "negative_signals": [
-            {"label": "Painel / área do cliente presente", "description": "Área logada, painel ou portal ativo no site (já tem sistema)", "weight_hint": "high"},
-            {"label": "Menção a integrações/API", "description": "Site/empresa cita integrações, API ou sistemas próprios", "weight_hint": "high"},
-            {"label": "Portal do aluno/cliente ativo", "description": "Portal de cliente/aluno ativo e funcional", "weight_hint": "medium"},
+            {"label": "Painel / área do cliente presente", "description": "Área logada, painel ou portal ativo no site (já tem sistema — medido no HTML)", "weight_hint": "high"},
+            {"label": "Menção a integrações/API", "description": "Site/empresa cita integrações, API ou sistemas próprios (medido no HTML)", "weight_hint": "high"},
+            {"label": "Portal do aluno/cliente ativo", "description": "Portal de cliente/aluno ativo e funcional (medido no HTML)", "weight_hint": "medium"},
+            {"label": "Microempresa / MEI", "description": "Porte cadastral indica microempresa/MEI sem operação que justifique sistema", "weight_hint": "high"},
         ],
         "context_signals": [
             {"label": "Segmento", "description": "Educação, saúde, serviços, comércio — setores com processos operacionais que viram sistema"},
             {"label": "Região", "description": "Presença regional indica potencial de atendimento presencial"},
+            {"label": "Porte", "description": "Porte cadastral (dados cadastrais) indica capacidade de compra de sistema"},
         ],
         "extra_instructions": (
             "Venda de aplicações web completas ou sistemas ERP. Use os dados técnicos "
             "do site como evidência primária da maturidade digital: a presença de "
-            "área logada/painel/portal indica que a empresa JÁ tem sistema (reduz o "
-            "score); site só institucional sem função indica processo manual "
-            "(aumenta o score). NUNCA desqualifique por 'site desatualizado' — para "
-            "quem vende sistema, processo manual/planilha é o público-alvo. "
-            "Critérios a CONFIRMAR no HTML: formulário, login, portal, menção a API."
+            "área logada/painel/portal no HTML indica que a empresa JÁ tem sistema "
+            "(reduz o score); site só institucional sem função nem menção a sistema "
+            "indica processo manual (aumenta o score). Sinais de 'crescimento sem "
+            "sistema' e 'processo manual' são inferência de segmento — não podem "
+            "ser usados como evidência técnica (pondere baixo). NUNCA desqualifique "
+            "por 'site desatualizado' — para quem vende sistema, processo "
+            "manual/planilha é o público-alvo. Porte cadastral importa: microempresa/"
+            "MEI tem pouco fito para ERP — não supervalorize o score só pelo site."
         ),
     },
     # ----- Industrial / Engenharia -----

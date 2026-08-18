@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -126,6 +126,13 @@ export function KanbanBoard() {
     [data?.leads]
   );
 
+  // Estado local espelhado das colunas durante o drag: sem optimistic update,
+  // o card "volta" para a posição antiga ao soltar (e só reposiciona quando o
+  // refetch termina) — parece que o drag não funciona. Aqui movemos o card
+  // imediatamente e desfazemos em caso de erro.
+  const [draftColumns, setDraftColumns] = useState<Record<string, LeadData[]> | null>(null);
+  const visibleColumns = draftColumns ?? columns;
+
   // Alerta de leads parados por lead: mapeia o alerta e o conta por coluna
   // (coluna do status do alerta).
   const slaByLead = useMemo(() => {
@@ -151,22 +158,35 @@ export function KanbanBoard() {
   const slaAlertsCount = Object.values(slaByLead).length;
 
   const onDragEnd = useCallback((result: DropResult) => {
-    const { draggableId, destination } = result;
+    const { draggableId, destination, source } = result;
     if (!destination) return;
+    if (destination.droppableId === source.droppableId) return;
 
     const newStatus = destination.droppableId;
+    setDraftColumns((current) => {
+      const base = current ?? columns;
+      const lead = (base[source.droppableId] || []).find((l) => l.id === draggableId);
+      if (!lead) return current;
+      const next = { ...base };
+      next[source.droppableId] = (base[source.droppableId] || []).filter((l) => l.id !== draggableId);
+      next[destination.droppableId] = [...(base[destination.droppableId] || []), lead];
+      return next;
+    });
+
     updateStatus.mutate(
       { id: draggableId, status: newStatus },
       {
         onSuccess: () => {
+          setDraftColumns(null);
           toast.success('Lead movido para ' + destination.droppableId);
         },
         onError: () => {
+          setDraftColumns(null);
           toast.error('Erro ao mover lead');
         },
       }
     );
-  }, [updateStatus]);
+  }, [columns, updateStatus]);
 
   const onAssignToMe = useCallback((leadId: string) => {
     if (!currentUserId) return;
@@ -197,7 +217,7 @@ export function KanbanBoard() {
     );
   }, [assignLead]);
 
-  const totalLeads = Object.values(columns).reduce((acc, col) => acc + col.length, 0);
+  const totalLeads = Object.values(visibleColumns).reduce((acc, col) => acc + col.length, 0);
 
   if (isLoading) {
     return (
@@ -239,18 +259,18 @@ export function KanbanBoard() {
         </div>
         <div className="rounded-lg border bg-card p-3 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground">Aptos p/ Contato</p>
-          <p className="font-heading text-xl font-bold tracking-tight text-emerald-600">{columns['QUALIFICADO']?.length || 0}</p>
+          <p className="font-heading text-xl font-bold tracking-tight text-emerald-600">{visibleColumns['QUALIFICADO']?.length || 0}</p>
         </div>
         <div className="rounded-lg border bg-card p-3 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground">Em Abordagem</p>
           <p className="font-heading text-xl font-bold tracking-tight text-blue-600">
-            {(columns['CONTATADO']?.length || 0) + (columns['RESPONDIDO']?.length || 0)}
+            {(visibleColumns['CONTATADO']?.length || 0) + (visibleColumns['RESPONDIDO']?.length || 0)}
           </p>
         </div>
         <div className="rounded-lg border bg-card p-3 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground">Reuniões / Propostas</p>
           <p className="font-heading text-xl font-bold tracking-tight text-amber-600">
-            {(columns['REUNIAO_MARCADA']?.length || 0) + (columns['REUNIAO_FEITA']?.length || 0) + (columns['PROPOSTA_ENVIADA']?.length || 0)}
+            {(visibleColumns['REUNIAO_MARCADA']?.length || 0) + (visibleColumns['REUNIAO_FEITA']?.length || 0) + (visibleColumns['PROPOSTA_ENVIADA']?.length || 0)}
           </p>
         </div>
       </div>
@@ -282,7 +302,7 @@ export function KanbanBoard() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Badge variant="secondary" className="text-xs">
-                      {columns[column.id]?.length || 0}
+                      {visibleColumns[column.id]?.length || 0}
                     </Badge>
                     {slaCountByColumn[column.id] > 0 && (
                       <Badge
@@ -306,7 +326,7 @@ export function KanbanBoard() {
                         snapshot.isDraggingOver ? 'bg-primary/10' : ''
                       }`}
                     >
-                      {(columns[column.id] || []).map((lead, index) => (
+                      {(visibleColumns[column.id] || []).map((lead, index) => (
                         <Draggable key={lead.id} draggableId={lead.id} index={index}>
                           {(provided, snapshot) => (
                             <div
@@ -331,21 +351,21 @@ export function KanbanBoard() {
                                 snapshot.isDragging ? 'shadow-lg' : 'hover:shadow-md'
                               }`}
                             >
-                              <div className="mb-2 flex items-start justify-between">
-                                <div className="flex items-center gap-2">
+                              <div className="mb-2 flex items-start justify-between gap-2">
+                                <div className="flex min-w-0 items-center gap-2">
                                   {/* Arrastar só pelo puxador — tocar no cartão abre o lead
                                       (drag handle separado evita conflito de gestos no mobile). */}
-                                  <span {...provided.dragHandleProps} className="cursor-grab touch-none active:cursor-grabbing" aria-label="Arrastar para mudar de etapa">
+                                  <span {...provided.dragHandleProps} className="shrink-0 cursor-grab touch-none active:cursor-grabbing" aria-label="Arrastar para mudar de etapa">
                                     <GripVertical className="h-4 w-4 text-muted-foreground" />
                                   </span>
-                                  <h4 className="font-medium">{lead.company_name}</h4>
+                                  <h4 className="truncate font-medium">{lead.company_name}</h4>
                                 </div>
                                 {lead.qualification_score != null ? (
-                                  <Badge className="bg-emerald-100 text-emerald-700">
+                                  <Badge className="shrink-0 bg-emerald-100 text-emerald-700">
                                     {lead.qualification_score}
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                                  <Badge variant="outline" className="shrink-0 text-xs text-muted-foreground">
                                     Sem score
                                   </Badge>
                                 )}
@@ -419,11 +439,11 @@ export function KanbanBoard() {
                                 )}
                               </div>
                               <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1">
+                                <div className="flex shrink-0 items-center gap-1">
                                   <Clock className="h-3 w-3" />
                                   <span>{Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
                                   {column.id === 'QUALIFICADO' && (
                                     <div className="flex items-center gap-1 text-emerald-600">
                                       <AlertCircle className="h-3 w-3" />
@@ -440,7 +460,7 @@ export function KanbanBoard() {
                                      <Button
                                        variant="ghost"
                                        size="icon"
-                                       className="h-9 w-9 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-6 sm:w-6"
+                                       className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-6 sm:w-6"
                                        disabled={recordWhatsApp.isPending}
                                        onClick={(e) => {
                                          e.stopPropagation();
@@ -474,7 +494,7 @@ export function KanbanBoard() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-9 gap-1.5 px-3 text-xs sm:h-6 sm:gap-1 sm:px-2 sm:text-[11px]"
+                                      className="h-9 shrink-0 gap-1.5 px-3 text-xs sm:h-6 sm:gap-1 sm:px-2 sm:text-[11px]"
                                       disabled={assignLead.isPending && assignLead.variables?.id === lead.id}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -496,7 +516,7 @@ export function KanbanBoard() {
                                           <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-9 w-9 sm:h-6 sm:w-6"
+                                            className="h-9 w-9 shrink-0 sm:h-6 sm:w-6"
                                             onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
                                             aria-label="Atribuir lead"
                                           >
@@ -552,7 +572,7 @@ export function KanbanBoard() {
                                         <Button
                                           variant="outline"
                                           size="icon"
-                                          className="h-9 w-9 sm:h-8 sm:w-8"
+                                          className="h-9 w-9 shrink-0 sm:h-8 sm:w-8"
                                           onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
                                           aria-label={`Mover ${lead.company_name} para outra etapa`}
                                         >
@@ -591,7 +611,7 @@ export function KanbanBoard() {
                         </Draggable>
                       ))}
                       {provided.placeholder}
-                      {(columns[column.id] || []).length === 0 && !snapshot.isDraggingOver && (
+                      {(visibleColumns[column.id] || []).length === 0 && !snapshot.isDraggingOver && (
                         <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
                           Nenhum lead nesta etapa
                         </div>

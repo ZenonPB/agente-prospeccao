@@ -92,6 +92,14 @@ api_start() {
   echo "API iniciando em http://127.0.0.1:$API_PORT/docs (log: $API_LOG)"
 }
 
+# Seed idempotente dos templates de scoring: garante que mudanças nos
+# templates default cheguem ao banco em cada start (mesmo comportamento do
+# setup.sh). Seguro rodar sempre — usa service_label como chave e só atualiza.
+seed_templates() {
+  echo "Seed de templates de scoring"
+  ( cd "$REPO_ROOT/services/workers" && ./venv/bin/python -m src.seeds.scoring_templates )
+}
+
 web_start() {
   if web_is_up; then
     echo "Web já está rodando."
@@ -139,6 +147,7 @@ status() {
 case "${1:-start}" in
   start)
     pg_start
+    seed_templates
     api_start
     wait_for_up "$API_PORT" "API" "$API_LOG"
     web_start
