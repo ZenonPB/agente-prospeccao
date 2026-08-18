@@ -1,13 +1,12 @@
 """Dependência FastAPI para autenticação JWT e isolamento por organização."""
 import logging
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from src.db.dependencies import get_db
 from src.db.models import User, Organization, OrganizationMember, OrganizationRole, SalesRole
 from src.auth.security import decode_access_token
-from src.services.org_service import user_organization
 
 logger = logging.getLogger(__name__)
 
@@ -77,36 +76,71 @@ def get_optional_user(
     return db.query(User).filter(User.id == user_id).first()
 
 
+def _resolve_request_membership(
+    db: Session,
+    user: User,
+    request: Request | None,
+) -> OrganizationMember | None:
+    """Membership do usuário na org ativa da request.
+
+    - Com `X-Organization-Id` no header: devolve só se o usuário for membro da
+      org indicada (senão 403). É o que faz o org switcher trocar de workspace
+      de verdade na API.
+    - Sem header: primeira membership (comportamento legado — usuários de uma
+      só org continuam funcionando sem mudança).
+    """
+    header = request.headers.get("X-Organization-Id") if request else None
+    if header and header.strip():
+        member = db.query(OrganizationMember).filter(
+            OrganizationMember.user_id == user.id,
+            OrganizationMember.organization_id == header.strip(),
+        ).first()
+        if member:
+            return member
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuário não é membro da organização solicitada",
+        )
+    return db.query(OrganizationMember).filter(
+        OrganizationMember.user_id == user.id,
+    ).first()
+
+
 def get_user_organization(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> Organization:
     """Resolve a organização ativa do usuário autenticado.
+
+    A org ativa vem de `X-Organization-Id` (quando presente); sem o header,
+    cai na primeira membership do usuário.
 
     Usada como dependência nas rotas para isolar os dados por workspace.
     Levanta 403 se o usuário não pertence a nenhuma organização.
     """
-    org = user_organization(db, user)
-    if org is None:
+    member = _resolve_request_membership(db, user, request)
+    if member is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuário sem organização vinculada",
         )
-    return org
+    return member.organization
 
 
 def get_user_membership(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
+    request: Request = None,
 ) -> OrganizationMember:
     """Resolve o membership do usuário na organização ativa.
 
     Centraliza o acesso ao `sales_role` (papel de venda) e ao `role`
-    (owner/admin/member) do usuário na org. Levanta 403 se não for membro.
+    (owner/admin/member) do usuário na org. A org ativa vem de
+    `X-Organization-Id` (quando presente); sem o header, cai na primeira
+    membership. Levanta 403 se não for membro.
     """
-    member = db.query(OrganizationMember).filter(
-        OrganizationMember.user_id == user.id,
-    ).first()
+    member = _resolve_request_membership(db, user, request)
     if member is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

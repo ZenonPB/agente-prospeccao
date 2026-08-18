@@ -396,6 +396,7 @@ async def run_pipeline(
                 target_segment=campaign.target_segment or "",
                 explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
                 api_key=groq_key,
+                organization_id=str(campaign.organization_id) if campaign else None,
             )
             scoring_template = route_result.get("template")
             route_label = route_result.get("route")
@@ -453,7 +454,7 @@ async def run_pipeline(
             if campaign:
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
             else:
-                leads_query = leads_query.filter(Lead.campaign_id == None)
+                leads_query = leads_query.filter(Lead.campaign_id.is_(None))
             # Reanalisa leads da campanha (qualquer status prévio), sobrescrevendo
             # o scoring legado com o contextual novo. Respeita max_leads.
             leads_query = leads_query.order_by(Lead.created_at, Lead.id).limit(max_leads)
@@ -479,7 +480,7 @@ async def run_pipeline(
             if campaign:
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
             else:
-                leads_query = leads_query.filter(Lead.campaign_id == None)
+                leads_query = leads_query.filter(Lead.campaign_id.is_(None))
             # Ordem determinística (mais antigos primeiro) evita que a seleção
             # mude entre lotes e deixa leads NOVO sempre estáveis na fila.
             leads_query = leads_query.order_by(Lead.created_at, Lead.id).limit(max_leads)
