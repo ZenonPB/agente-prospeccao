@@ -134,6 +134,7 @@ class CampaignBriefService:
             timeout=60.0,
             db=db,
             organization_id=organization_id,
+            reasoning_effort="none",
         )
         if parsed is None:
             logger.warning("Falha ao interpretar brief via IA (org=%s).", organization_id)

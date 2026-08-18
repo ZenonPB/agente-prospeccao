@@ -71,7 +71,7 @@ ANTES de escrever código.** Skills disponíveis nesta máquina:
 ### Graphify
 | Skill | Quando usar |
 |---|---|
-| `/graphify` (skill instalada em `.opencode/skills/graphify/`) | Sempre que o usuário digitar `/graphify`, e como base de consulta do código (ver _graphify_ abaixo). |
+| `/graphify` (skill global em `~/.config/opencode/skills/graphify/`) | Sempre que o usuário digitar `/graphify`, e como base de consulta do código (ver _graphify_ abaixo). |
 
 ## Environment & secrets
 
@@ -94,18 +94,19 @@ agente-prospeccao/
 │   ├── src/app/(auth)/       ← login, register, esqueci/resetar-senha, aceitar-convite
 │   ├── src/app/(protected)/  ← dashboard, campanhas(+nova,+[id]), oportunidades([id]),
 │   │                            vendas(kanban), relatorios, configuracoes(+membros)
-│   ├── src/components/       ← ui/(shadcn), layout/, páginas por feature
+│   ├── src/app/api/          ← route handlers Next (NextAuth, webhooks)
+│   ├── src/components/       ← ui/(shadcn), layout/, features (campanhas, oportunidades,
+│   │                            vendas, relatorios, dashboard, sales, pipeline)
 │   └── src/{lib,hooks,stores,types}/
 ├── services/
 │   ├── api/                  ← FastAPI (main.py: app, CORS, rate limit, scheduler de cadência)
-│   │   └── src/{config,auth,db,middleware,routes,services,pipeline_worker.py}
+│   │   └── src/{config,auth,db,middleware,routes,services,pipeline_worker.py,jobs_consumer.py}
 │   └── workers/              ← fonte única de models (src/database/models.py) e migrations
 │       └── src/{config,database,seeds,services,scripts}
 ├── scripts/                  ← setup.sh/.ps1/.cmd · dev.sh/.ps1/.cmd · backup.sh
-├── tests/                    ← pytest (unit, sem DB) — rodar da raiz
+├── tests/                    ← pytest unit (sem DB) + e2e_outreach_cycle.py (banco real) — rodar da raiz
 ├── docs/                     ← documentação em PT (context/architecture/business-rules/decisions/coding-standards/agents/roadmap-*)
-├── graphify-out/             ← grafo de conhecimento (gitignored; gerar se ausente)
-└── .opencode/                ← config opencode (plugin/skills do graphify)
+└── graphify-out/             ← grafo de conhecimento (gitignored; gerar se ausente)
 ```
 
 Modelos definidos **uma única vez** em `services/workers/src/database/models.py`;
@@ -119,7 +120,8 @@ uvicorn main:app --reload --port 8000   # http://localhost:8000/docs
 ```
 - venv gitignored — criar se faltar: `python -m venv venv && source venv/bin/activate && pip install -r requirements.txt`.
 - Scheduler de cadência no lifespan (poll `CADENCE_POLL_SECONDS`, default 60s).
-- CORS libera `http://localhost:3000` e `:3001`.
+- Job-consumer do pipeline em `src/jobs_consumer.py` (poll `JOB_POLL_SECONDS`, default 5s).
+- CORS libera `http://localhost:3000` e `:3001` (config `CORS_ORIGINS`).
 
 **Workers** (CWD `services/workers`):
 ```bash
@@ -151,6 +153,8 @@ embarcado zonky) e `scripts/dev.ps1 start|stop|status|restart` (ou `.cmd`).
 - `tests/` na raiz (pytest, unit-only). Instalar deps com
   `pip install -r requirements-dev.txt` e rodar **da raiz**:
   `python -m pytest tests -q`.
+- `tests/e2e_outreach_cycle.py` é E2E com Postgres real (`E2E_DATABASE_URL`), stubando
+  LLM/SMTP; sem banco é pulado automaticamente (incl. CI).
 - `tests/conftest.py` injeta env vars dummy e conserta `sys.path`
   (`services.*|database.*|config.*` → workers; `src.*` → API). Não mover.
 - CI (`.github/workflows/ci.yml`): web `npm run lint` → `npx tsc --noEmit` →
@@ -195,8 +199,9 @@ embarcado zonky) e `scripts/dev.ps1 start|stop|status|restart` (ou `.cmd`).
 ## graphify
 
 Projeto tem grafo de conhecimento em `graphify-out/` (god nodes, comunidades,
-relações entre arquivos). A skill `/graphify` está instalada em
-`.opencode/skills/graphify/` e um plugin registra `graphify update` automático.
+relações entre arquivos). A skill `/graphify` está instalada globalmente em
+`~/.config/opencode/skills/graphify/` — **não há** `.opencode/` no repo nem
+plugin de hook; o `graphify update .` é manual.
 
 **Regras:**
 - Para perguntas sobre o código, rode **sempre** `graphify query "<pergunta>"`

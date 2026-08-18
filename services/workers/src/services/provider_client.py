@@ -79,10 +79,16 @@ async def groq_json_chat(
     db=None,
     organization_id: Optional[str] = None,
     quota_key: str = "GROQ_API_KEY",
+    reasoning_effort: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """Chama a Groq pedindo JSON e devolve o dict parseado (ou None em falha).
 
     - Payload com `response_format: json_object`.
+    - `reasoning_effort` (ex.: "none"): desliga o modo raciocínio de modelos
+      que pensam antes do JSON (qwen*), evitando o 400 `json_validate_failed`
+      e o desperdício de tokens de saída.
+    - Em HTTP 413 ("request too large" por TPM) reduz `max_tokens`
+      progressivamente e retenta, em vez de desistir na primeira chamada.
     - Loga erro com HTTP status (sem vazar o corpo inteiro).
     - Aplica backoff simples em 429/5xx (uma retentativa).
     - Cotas: se `db` + `organization_id` forem informados, verifica
@@ -108,6 +114,8 @@ async def groq_json_chat(
         "max_tokens": max_tokens,
         "response_format": {"type": "json_object"},
     }
+    if reasoning_effort:
+        payload["reasoning_effort"] = reasoning_effort
 
     max_attempts = max(1, getattr(settings, "GROQ_MAX_RETRIES", 5))
     retry_base = getattr(settings, "GROQ_RETRY_BASE_SECONDS", 4.0)
@@ -129,6 +137,23 @@ async def groq_json_chat(
 
         if response.status_code == 200:
             break
+        if response.status_code == 413 and attempts < max_attempts:
+            current = int(payload.get("max_tokens") or max_tokens)
+            if current <= 1024:
+                logger.error(
+                    "Groq HTTP 413 sem margem para reduzir max_tokens (model=%s).",
+                    model,
+                )
+                return None
+            reduced = max(1024, current - 1024)
+            payload["max_tokens"] = reduced
+            delay = min(retry_cap, retry_base * (2 ** (attempts - 1)))
+            logger.warning(
+                "Groq HTTP 413 (model=%s) — reduzindo max_tokens %d→%d e retentando em %.1fs",
+                model, current, reduced, delay,
+            )
+            await asyncio.sleep(delay)
+            continue
         retriable = response.status_code in (429, 500, 502, 503, 504)
         if retriable and attempts < max_attempts:
             retry_after = _parse_retry_after(response.headers.get("Retry-After"))

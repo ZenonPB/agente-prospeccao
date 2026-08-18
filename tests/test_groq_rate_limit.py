@@ -27,6 +27,7 @@ class FakeClient:
     def __init__(self, responses):
         self._responses = list(responses)
         self.calls = 0
+        self.payloads = []
 
     async def __aenter__(self):
         return self
@@ -37,6 +38,8 @@ class FakeClient:
     async def post(self, url, json=None):
         idx = min(self.calls, len(self._responses) - 1)
         self.calls += 1
+        if json is not None:
+            self.payloads.append(dict(json))
         return self._responses[idx]
 
 
@@ -92,4 +95,32 @@ def test_500_retries_without_retry_after(monkeypatch):
     )
     result = asyncio.run(groq_json_chat("k", "m", "s", "u", "http://x", db=None))
     assert result == {"ok": True}
+    assert client.calls == 2
+
+
+def test_413_reduces_max_tokens_and_retries(monkeypatch):
+    client = _patch(
+        monkeypatch,
+        [FakeResponse(413), _ok()],
+        retries=2,
+    )
+    result = asyncio.run(
+        groq_json_chat("k", "m", "s", "u", "http://x", db=None, max_tokens=6000)
+    )
+    assert result == {"ok": True}
+    assert client.calls == 2
+    assert client.payloads[0]["max_tokens"] == 6000
+    assert client.payloads[1]["max_tokens"] < 6000
+
+
+def test_413_exhausts_reductions_returns_none(monkeypatch):
+    client = _patch(
+        monkeypatch,
+        [FakeResponse(413)],
+        retries=2,
+    )
+    result = asyncio.run(
+        groq_json_chat("k", "m", "s", "u", "http://x", db=None, max_tokens=6000)
+    )
+    assert result is None
     assert client.calls == 2

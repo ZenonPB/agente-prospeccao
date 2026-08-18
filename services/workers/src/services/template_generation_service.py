@@ -242,6 +242,7 @@ class TemplateGenerationService:
                 temperature=0.3,
                 db=db,
                 organization_id=organization_id,
+                reasoning_effort="none",
             )
         except Exception as e:
             logger.warning("Template generation LLM failed: %s", e)

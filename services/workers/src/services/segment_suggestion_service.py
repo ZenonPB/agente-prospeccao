@@ -191,6 +191,7 @@ class SegmentSuggestionService:
             temperature=0.9,  # alta temperatura → mais variação entre chamadas
             db=db,
             organization_id=organization_id,
+            reasoning_effort="none",
         )
         if parsed is None:
             return self._fallback(profile, exclude)
