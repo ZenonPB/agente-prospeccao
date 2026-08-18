@@ -42,7 +42,6 @@ def test_extract_business_facts_inclui_reputacao_google():
         city="Araraquara",
         state="SP",
         website=None,
-        segment_hint="doceria",
         google_rating=3.2,
         google_rating_count=11,
     )
@@ -57,6 +56,33 @@ def test_extract_business_facts_sem_rating_nao_inventa():
         city="A",
         state="SP",
         website="https://x.com.br",
-        segment_hint="",
     )
     assert all("Reputação Google" not in f for f in facts)
+
+
+def test_sem_categoria_declara_nao_informada():
+    # Sem categoria, o fact precisa dizer explicitamente "não informada" —
+    # senão a LLM assume o segmento-alvo da campanha como se fosse dado do
+    # lead (ex.: portal de notícias vira "comércio" → score 90 errado).
+    facts = extract_business_facts(
+        company_name="A Cidade",
+        category="",
+        city="Araraquara",
+        state="SP",
+        website="https://www.acidadeon.com/araraquara",
+    )
+    assert any("não informada" in f.lower() for f in facts)
+
+
+def test_segmento_da_campanha_nao_vira_fato_do_lead():
+    # O segmento-alvo da campanha já está no bloco CONTEXTO DA CAMPANHA do
+    # prompt; injetá-lo como fact cadastral faz a LLM tratar o alvo da
+    # prospecção como característica do lead.
+    facts = extract_business_facts(
+        company_name="A Cidade",
+        category="",
+        city="Araraquara",
+        state="SP",
+        website="https://www.acidadeon.com/araraquara",
+    )
+    assert all("Segmento" not in f for f in facts)

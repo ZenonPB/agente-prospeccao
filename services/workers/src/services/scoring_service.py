@@ -49,11 +49,33 @@ _HAS_SITE_CLAIM = re.compile(
 
 # Campanhas cujo serviço é presença digital/desenvolvimento de site — para elas,
 # um lead SEM site é público-alvo (o prompt pondera positivamente a ausência).
+# Decisão por template (autoridade de critérios): só os labels de presença web
+# tratam ausência de site como oportunidade. A regex é fallback apenas quando
+# não há template específico (rota GENERIC com o template "Genérico" ou None).
+_WEB_PRESENCE_LABELS = frozenset({
+    "desenvolvimento de sites",
+    "seo / marketing digital",
+})
 _SELLS_WEB_PRESENCE = re.compile(
-    r"site|website|web|p[áa]gina|loja virtual|presen[çc]a digital|landing|"
-    r"marketing digital|seo|e-?commerce",
+    r"site|website|p[áa]gina|loja virtual|presen[çc]a digital|landing|"
+    r"marketing digital|seo|e-?commerce|web\s?(design|sites?|presen)",
     re.IGNORECASE,
 )
+
+
+def _campaign_sells_web_presence(template: Optional[Dict[str, Any]], target_service: str) -> bool:
+    """True se a campanha trata ausência de site como público-alvo.
+
+    Template específico decide pelos critérios que ele define (ex.: o template
+    "Aplicações Web / ERP" não trata ausência de site como dor; "Desenvolvimento
+    de Sites" trata). Sem template específico (Genérico/None), cai na regex sobre
+    o serviço como aproximação de rota GENERATE_NEW ainda sem template.
+    """
+    if template:
+        label = (template.get("service_label") or "").strip().lower()
+        if label not in _WEB_PRESENCE_LABELS and label != "genérico":
+            return False
+    return bool(_SELLS_WEB_PRESENCE.search(target_service or ""))
 
 
 def _contradicts_site_state(evidence: Dict[str, Any], has_website: bool) -> bool:
@@ -354,7 +376,7 @@ def build_prompt(
     lines.append("7. A presença de site é fato determinístico: se os facts disserem 'Tem website: sim',")
     lines.append("   NUNCA afirme que o lead não tem site nem use 'ausência de site' como dor.")
     lines.append("   A mesma regra vale ao contrário.")
-    if _SELLS_WEB_PRESENCE.search(target_service or ""):
+    if _campaign_sells_web_presence(template, target_service):
         lines.append("8. ESTA campanha vende presença digital/desenvolvimento de site: um lead SEM site")
         lines.append("   próprio (sem website ou só com Instagram/WhatsApp/Canva) é PÚBLICO-ALVO.")
         lines.append("   Trate a ausência de site como oportunidade FORTE (aumente o score) e não")
@@ -482,7 +504,6 @@ def extract_business_facts(
     city: str,
     state: str,
     website: Optional[str],
-    segment_hint: str,
     google_rating: Optional[float] = None,
     google_rating_count: Optional[int] = None,
 ) -> List[str]:
@@ -490,12 +511,16 @@ def extract_business_facts(
     facts.append(f"Empresa: {company_name}")
     if category:
         facts.append(f"Categoria (Google Places): {category}")
+    else:
+        facts.append("Categoria (Google Places): não informada")
     facts.append(f"Localização: {city}, {state}")
     facts.append(f"Tem website: {'sim' if website else 'não'}")
     if website:
         facts.append(f"Website URL: {website}")
-    if segment_hint:
-        facts.append(f"Segmento declarado na campanha: {segment_hint}")
+    # O segmento-alvo da campanha é CONTEXTO (já vai no prompt como tal) e
+    # não é um fato do lead. Injetá-lo aqui como fact cadastral faz a LLM
+    # tratar o alvo da prospecção como característica do lead (ex.: portal de
+    # notícias sem categoria vira "comércio" e pontua alto errado).
     # Reputação no Google — dor observável: negócio
     # mal avaliado = oportunidade (interpretação do template decide o sinal).
     if google_rating is not None:
@@ -681,7 +706,6 @@ class AIScoringService:
             city=city,
             state=state,
             website=website,
-            segment_hint=target_segment,
             google_rating=google_rating,
             google_rating_count=google_rating_count,
         )
@@ -724,7 +748,6 @@ class AIScoringService:
             city=city,
             state=state,
             website=website,
-            segment_hint=target_segment,
             google_rating=google_rating,
             google_rating_count=google_rating_count,
         )
