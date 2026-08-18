@@ -77,14 +77,24 @@ HUNTER_SEARCH_URL = "https://api.hunter.io/v2/domain-search"
 HUNTER_FINDER_URL = "https://api.hunter.io/v2/email-finder"
 
 # Mais fontes de contato além da Receita:
-# - `_EMAIL_FIND_RE`: extração de e-mails em texto livre (sem âncoras), com
-#   de-ofuscação de padrões comuns (' [at] ', '(dot)', entidades HTML).
+# - `_scan_email_candidates`: extração de e-mails em texto livre (sem âncoras),
+#   com de-ofuscação de padrões comuns (' [at] ', '(dot)', entidades HTML).
+#   A varredura é LINEAR (imune a ReDoS): o regex antigo
+#   (`[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@...`) tinha backtracking catastrófico
+#   em HTML grande com blobs base64/URLs (o local part aceita `/`/`+`/`=`),
+#   travando o processo inteiro a 100% de CPU.
 # - `_PHONE_FIND_RE`: telefones BR públicos (com DDD) nas páginas de contato.
-_EMAIL_FIND_RE = re.compile(
-    r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@"
-    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
-    r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+",
+_EMAIL_LOCAL_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    ".!#$%&'*+/=?^_`{|}~-"
 )
+_EMAIL_DOMAIN_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.-"
+)
+# Comprimento máximo plausível de um e-mail (RFC 5321 limita em 254 chars);
+# corta candidatos absurdos que o scanner linear poderia montar ao expandir
+# um blob gigante (também evita backtracking na validação de sintaxe).
+_MAX_EMAIL_LEN = 320
 _PHONE_RE_WITH_DDD = re.compile(r"(?:\(\d{2,3}\)|\b\d{2,3})\s*\d{4,5}[-\s]?\d{4}")
 _PHONE_RE_RUN = re.compile(r"\d{10,11}")
 
@@ -190,6 +200,34 @@ def extract_cnpj_candidates(text: Optional[str]) -> List[str]:
     return found
 
 
+def _scan_email_candidates(text: str) -> List[str]:
+    """Varre linearmente por candidatos a e-mail (imune a ReDoS).
+
+    Para cada `@`, expande o local part para a esquerda e o domínio para a
+    direita até os limites dos conjuntos de caracteres permitidos — sem
+    quantificadores aninhados, então nunca há backtracking catastrófico em
+    HTML grande (blobs base64, URLs de CDN, minificações). O `rstrip` e a
+    validação sintática ficam no chamador.
+    """
+    candidates: List[str] = []
+    n = len(text)
+    i = 0
+    while True:
+        at = text.find("@", i)
+        if at < 0:
+            break
+        start = at
+        while start > 0 and text[start - 1] in _EMAIL_LOCAL_CHARS:
+            start -= 1
+        end = at + 1
+        while end < n and text[end] in _EMAIL_DOMAIN_CHARS:
+            end += 1
+        if start < at and end > at + 1:
+            candidates.append(text[start:end])
+        i = end if end > at else at + 1
+    return candidates
+
+
 def _extract_emails_from_html(html: Optional[str]) -> List[str]:
     """Extrai e-mails de um HTML, desofuscando padrões anti-bot comuns.
 
@@ -204,7 +242,9 @@ def _extract_emails_from_html(html: Optional[str]) -> List[str]:
                   html, flags=re.IGNORECASE)
     text = text.replace("&#64;", "@").replace("&#46;", ".")
     emails: List[str] = []
-    for em in _EMAIL_FIND_RE.findall(text):
+    for em in _scan_email_candidates(text):
+        if len(em) > _MAX_EMAIL_LEN:
+            continue
         em = em.rstrip(".,;:)]}>\"'")
         if not is_valid_email_syntax(em):
             continue
