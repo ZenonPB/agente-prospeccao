@@ -284,6 +284,7 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                           variant="ghost"
                           size="icon"
                           onClick={() => removeSignal(group.key, i)}
+                          aria-label="Remover sinal"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

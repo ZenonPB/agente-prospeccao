@@ -408,7 +408,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Link href="/oportunidades">
-          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" aria-label="Voltar para oportunidades">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>

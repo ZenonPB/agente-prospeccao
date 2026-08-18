@@ -54,7 +54,7 @@ export default function CampaignDetailPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Link href="/campanhas">
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Voltar para campanhas">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>

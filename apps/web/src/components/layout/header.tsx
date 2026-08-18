@@ -44,7 +44,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="ghost" className="relative h-10 items-center gap-2 rounded-full pr-2" />}
+            render={<Button variant="ghost" className="relative h-10 items-center gap-2 rounded-full pr-2" aria-label="Menu do usuário" />}
           >
             <Avatar className="h-8 w-8">
               <AvatarImage src={session?.user?.image || ''} alt={session?.user?.name || ''} />

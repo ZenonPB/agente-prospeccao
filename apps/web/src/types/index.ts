@@ -277,6 +277,7 @@ export interface Campaign {
   target_country?: string;
   analysis_profile?: 'web_presence' | 'business_opportunity';
   places_query?: string;
+  scoring_template_id?: string | null;
   status: CampaignStatus;
   lead_count?: number;
   avg_score?: number;

@@ -324,7 +324,7 @@ export const campaignsApi = {
     scoring_template_id?: string | null;
     status?: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
   }) =>
-    request<{ id: string; name: string; scoring_template_id: string | null }>(`/api/campaigns/${id}`, {
+    request<Campaign>(`/api/campaigns/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
