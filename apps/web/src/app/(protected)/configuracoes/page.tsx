@@ -20,6 +20,7 @@ import { OrgNameCard } from '@/components/configuracoes/org-name-card';
 import { OrgIntegrationsCard } from '@/components/configuracoes/org-integrations-card';
 import { PlaybooksCard } from '@/components/configuracoes/playbooks-card';
 import { SystemMonitoringPanel } from '@/components/configuracoes/system-monitoring';
+import { TourCard } from '@/components/configuracoes/tour-card';
 import { useOrgMembership } from '@/hooks/use-api';
 import { PageHeader } from '@/components/ui/page-header';
 import { useTheme } from '@/components/theme-provider';
@@ -342,6 +343,9 @@ export default function ConfiguracoesPage() {
 
       {/* Playbooks por consultor (4.21) */}
       <PlaybooksCard />
+
+      {/* Tutorial Interativo */}
+      <TourCard />
 
       {/* Monitoramento de Webhooks & Jobs */}
       <SystemMonitoringPanel />

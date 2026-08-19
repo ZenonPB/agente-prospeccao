@@ -12,7 +12,9 @@ export default function VendasPage() {
         description="Acompanhe e gerencie suas conversas com os leads"
       />
 
-      <KanbanBoard />
+      <div data-tour="vendas-kanban">
+        <KanbanBoard />
+      </div>
     </div>
   );
 }

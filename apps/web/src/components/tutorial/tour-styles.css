@@ -1,0 +1,105 @@
+@import "driver.js/dist/driver.css";
+
+/* Custom Driver.js Popover Styling matching design tokens */
+.driver-popover.agente-tour-popover {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  padding: 1.25rem !important;
+  max-width: 380px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  font-family: var(--font-sans), sans-serif !important;
+  z-index: 100000 !important;
+}
+
+.driver-popover.agente-tour-popover .driver-popover-title {
+  font-family: var(--font-heading), var(--font-sans), sans-serif !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  color: var(--foreground) !important;
+  margin-bottom: 0.5rem !important;
+  letter-spacing: -0.01em !important;
+}
+
+.driver-popover.agente-tour-popover .driver-popover-description {
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  color: var(--muted-foreground) !important;
+  margin-bottom: 1rem !important;
+}
+
+.driver-popover.agente-tour-popover .driver-popover-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-top: 0.75rem !important;
+  padding-top: 0.75rem !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+.driver-popover.agente-tour-popover .driver-popover-progress-text {
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover.agente-tour-popover .driver-popover-navigation-btns {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-btn {
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  padding: 0.4rem 0.85rem !important;
+  border-radius: var(--radius-sm, 0.375rem) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  text-shadow: none !important;
+  outline: none !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-prev-btn {
+  background-color: transparent !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-prev-btn:hover {
+  background-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-next-btn {
+  background-color: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  border: 1px solid var(--primary) !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-next-btn:hover {
+  opacity: 0.9 !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-close-btn {
+  color: var(--muted-foreground) !important;
+  top: 0.75rem !important;
+  right: 0.75rem !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-close-btn:hover {
+  color: var(--foreground) !important;
+}
+
+/* Custom Overlay Cutout Highlight */
+.driver-active-element {
+  outline: 2px solid var(--primary) !important;
+  outline-offset: 4px !important;
+  border-radius: var(--radius-sm, 0.375rem) !important;
+}
+
+.driver-overlay {
+  z-index: 99999 !important;
+}

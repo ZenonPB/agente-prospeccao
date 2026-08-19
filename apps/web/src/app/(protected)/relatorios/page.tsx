@@ -82,11 +82,13 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Relatórios"
-        title="Relatórios de Vendas"
-        description={`Resumo de vendas e atendimentos da sua equipe · ${membership?.organization?.name || 'sua organização'}`}
-      />
+      <div data-tour="relatorios-header">
+        <PageHeader
+          eyebrow="Relatórios"
+          title="Relatórios de Vendas"
+          description={`Resumo de vendas e atendimentos da sua equipe · ${membership?.organization?.name || 'sua organização'}`}
+        />
+      </div>
 
       <ReportControls
         period={period}

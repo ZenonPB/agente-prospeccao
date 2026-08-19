@@ -127,6 +127,12 @@
     `components/theme-provider.tsx` (classe no `<html>`, `useSyncExternalStore`,
     sync cross-tab, anti-flash via script inline SSR no `layout.tsx`).
 
+**Tutorial & Onboarding Interativo Multi-Páginas:**
+- Sistema completo de onboarding guiado em 7 etapas navegando pelas páginas da aplicação (`/dashboard` → `/campanhas` → `/oportunidades` → `/vendas` → `/relatorios` → `/configuracoes`).
+- `driver.js` com estilização nos temas Claro, Escuro e Alpha (tokens OKLCH e tipografia Space Grotesk / Inter).
+- Persistência híbrida no Postgres (`User.onboarding_status`) e `localStorage` com endpoints `GET /api/auth/me` e `PATCH /api/auth/onboarding`.
+- Opção para refazer tutorial no Header (menu de perfil) e no card de tutorial em `/configuracoes`.
+
 **Bugfixes de qualidade de dados e UI (2026-08-04):**
 - **Limite de coleta**: `campaign-pipeline.tsx` agora busca até **50 leads** por coleta (era 10).
 - **Mensagens de outreach**: botão "Gerar/Enviar mensagem" no detalhe do lead agora dispara a geração por IA ao abrir o modal (antes ficava vazio até clicar em gerar). Adicionado estado de loading.

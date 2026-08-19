@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
+import { GuidedTourManager } from "@/components/tutorial/guided-tour-manager";
 
 export default async function ProtectedLayout({
   children,
@@ -26,6 +27,7 @@ export default async function ProtectedLayout({
         </main>
       </div>
       <MobileBottomNav />
+      <GuidedTourManager />
     </div>
   );
 }

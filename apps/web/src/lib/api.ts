@@ -281,6 +281,15 @@ export const leadsApi = {
 };
 
 export const authApi = {
+  getMe: () =>
+    request<{ id: string; name: string; email: string; role: string; onboarding_status: import("@/types").OnboardingStatus }>("/api/auth/me"),
+
+  updateOnboardingStatus: (status: import("@/types").OnboardingStatus) =>
+    request<{ id: string; onboarding_status: import("@/types").OnboardingStatus }>("/api/auth/onboarding", {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
   changePassword: (current_password: string, new_password: string) =>
     request<{ message: string }>("/api/auth/change-password", {
       method: "POST",

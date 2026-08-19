@@ -18,6 +18,8 @@ export type SalesRole = 'CONSULTOR' | 'ANALYST' | 'MANAGER';
 
 export type OrgRole = 'OWNER' | 'ADMIN' | 'MEMBER';
 
+export type OnboardingStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'DISMISSED';
+
 export interface ScoreFactor {
   label: string;
   impact: '+' | '-';
