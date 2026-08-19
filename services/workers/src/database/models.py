@@ -559,6 +559,12 @@ class Lead(Base):
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
     campaign = relationship("Campaign", back_populates="leads")
 
+    # Modelo de 3 entidades (Company / Person / Lead-Oportunidade)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True)
+    primary_person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id"), nullable=True)
+    company = relationship("Company", back_populates="leads")
+    primary_person = relationship("Person", foreign_keys=[primary_person_id])
+
     # Atribuição a consultor de vendas (desempenho por consultor).
     assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     assigned_at = Column(DateTime(timezone=True), nullable=True)
@@ -767,6 +773,102 @@ class CompanyRecord(Base):
 
     def __repr__(self):
         return f"<CompanyRecord(lead_id='{self.lead_id}', cnpj='{self.cnpj}')>"
+
+
+class Company(Base):
+    """Entidade independente de Empresa para o modelo de 3 Entidades (Company, Person, Lead/Oportunidade).
+    
+    Permite consolidar informações de uma mesma empresa entre diferentes campanhas
+    e oportunidades na mesma organização.
+    """
+    __tablename__ = "companies"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "cnpj", name="uq_companies_org_cnpj"),
+        UniqueConstraint("organization_id", "normalized_domain", name="uq_companies_org_domain"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    company_name = Column(String(255), nullable=False)
+    name = Column(String(255))
+    cnpj = Column(String(20))
+    website = Column(String(255))
+    normalized_domain = Column(String(255))
+    phone = Column(String(50))
+    address = Column(String(500))
+    city = Column(String(100))
+    state = Column(String(100))
+    country = Column(String(100))
+    category = Column(String(100))
+    google_rating = Column(Float)
+    google_rating_count = Column(Integer)
+    google_maps_uri = Column(String(255))
+    company_linkedin_url = Column(String(255))
+    instagram_url = Column(String(255))
+    raw_data = Column(JSONB)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+    leads = relationship("Lead", back_populates="company")
+    persons = relationship("Person", back_populates="company")
+
+    def __repr__(self):
+        return f"<Company(id='{self.id}', name='{self.company_name}')>"
+
+
+class Person(Base):
+    """Entidade de Pessoa/Decisor para o modelo de 3 Entidades.
+    
+    Persiste contatos/decisores de forma independente, associados a uma Empresa.
+    """
+    __tablename__ = "persons"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True)
+    name = Column(String(255), nullable=False)
+    role = Column(Enum(ContactRole, name='contact_role', create_type=False, values_callable=lambda e: [m.value for m in e]), nullable=True)
+    role_label = Column(String(100))
+    email = Column(String(255))
+    phone = Column(String(50))
+    document_cpf = Column(String(20))
+    confidence = Column(Integer, default=0)
+    email_verified = Column(Boolean, nullable=False, server_default="false", default=False)
+    email_verified_at = Column(DateTime(timezone=True))
+    linkedin_url = Column(String(255))
+    linkedin_confidence = Column(Integer, default=0)
+    source = Column(String(60), default="cnpj_receita")
+    raw_data = Column(JSONB)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    organization = relationship("Organization")
+    company = relationship("Company", back_populates="persons")
+
+    def __repr__(self):
+        return f"<Person(id='{self.id}', name='{self.name}')>"
+
+
+class WebhookLog(Base):
+    """Histórico de disparos de webhooks de saída por organização."""
+    __tablename__ = "webhook_logs"
+    __table_args__ = (
+        Index("ix_webhook_logs_org_created", "organization_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    event_type = Column(String(100), nullable=False)
+    target_url = Column(String(500), nullable=False)
+    status_code = Column(Integer)
+    success = Column(Boolean, default=False, nullable=False)
+    payload = Column(JSONB)
+    response_body = Column(Text)
+    error_message = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization")
+
+    def __repr__(self):
+        return f"<WebhookLog(id='{self.id}', event='{self.event_type}', success={self.success})>"
 
 
 class Conversion(Base):

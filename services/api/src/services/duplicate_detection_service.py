@@ -45,6 +45,8 @@ def find_duplicate_signals(target: Dict, others: Iterable[Dict]) -> List[Dict]:
     matches: List[Dict] = []
     target_cnpj = _norm(target.get("cnpj"))
     target_domain = _norm(target.get("normalized_domain"))
+    target_company_id = str(target.get("company_id")) if target.get("company_id") else None
+    target_person_id = str(target.get("primary_person_id")) if target.get("primary_person_id") else None
     target_emails = {_norm(c.get("email")) for c in (target.get("contacts") or []) if c.get("email")}
     target_linkedins = {_normalize_linkedin(c.get("linkedin_url")) for c in (target.get("contacts") or []) if c.get("linkedin_url")}
 
@@ -52,17 +54,25 @@ def find_duplicate_signals(target: Dict, others: Iterable[Dict]) -> List[Dict]:
         if str(other.get("id")) == str(target.get("id")):
             continue
         criteria: List[str] = []
+        other_company_id = str(other.get("company_id")) if other.get("company_id") else None
+        other_person_id = str(other.get("primary_person_id")) if other.get("primary_person_id") else None
+
+        if target_company_id and other_company_id and target_company_id == other_company_id:
+            criteria.append("company_id")
+        if target_person_id and other_person_id and target_person_id == other_person_id:
+            criteria.append("person_id")
+
         other_cnpj = _norm(other.get("cnpj"))
-        if target_cnpj and other_cnpj and target_cnpj == other_cnpj:
+        if target_cnpj and other_cnpj and target_cnpj == other_cnpj and "company_id" not in criteria:
             criteria.append("cnpj")
         other_domain = _norm(other.get("normalized_domain"))
-        if target_domain and other_domain and target_domain == other_domain:
+        if target_domain and other_domain and target_domain == other_domain and "company_id" not in criteria:
             criteria.append("normalized_domain")
         other_emails = {_norm(c.get("email")) for c in (other.get("contacts") or []) if c.get("email")}
-        if target_emails & other_emails:
+        if target_emails & other_emails and "person_id" not in criteria:
             criteria.append("contact_email")
         other_linkedins = {_normalize_linkedin(c.get("linkedin_url")) for c in (other.get("contacts") or []) if c.get("linkedin_url")}
-        if target_linkedins & other_linkedins:
+        if target_linkedins & other_linkedins and "person_id" not in criteria:
             criteria.append("contact_linkedin")
 
         if criteria:
@@ -70,5 +80,7 @@ def find_duplicate_signals(target: Dict, others: Iterable[Dict]) -> List[Dict]:
                 "lead_id": str(other.get("id")),
                 "company_name": other.get("company_name"),
                 "matched_by": criteria,
+                "company_id": other_company_id,
+                "primary_person_id": other_person_id,
             })
     return matches

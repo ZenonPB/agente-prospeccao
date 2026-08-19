@@ -59,27 +59,33 @@ async def _post_webhook(
     url: str,
     payload: Dict[str, Any],
     headers: Dict[str, str],
-) -> bool:
-    """POST com retry simples. Retorna True no 2xx, False em qualquer falha."""
+) -> tuple[bool, Optional[int], str, Optional[str]]:
+    """POST com retry simples. Retorna (success, status_code, body, error)."""
     body = json.dumps(payload, default=str)
+    last_err = None
+    last_status = None
+    last_body = ""
     for attempt, delay in enumerate((0.0,) + RETRY_DELAYS):
         if delay:
             await asyncio.sleep(delay)
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT) as client:
                 r = await client.post(url, content=body, headers=headers)
+            last_status = r.status_code
+            last_body = r.text[:500]
             if 200 <= r.status_code < 300:
-                return True
+                return True, last_status, last_body, None
             logger.warning(
                 "Webhook %s respondeu %s na tentativa %d: %s",
                 url, r.status_code, attempt + 1, r.text[:200],
             )
         except httpx.RequestError as e:
+            last_err = str(e)
             logger.warning(
                 "Webhook %s falhou na tentativa %d: %s",
                 url, attempt + 1, e,
             )
-    return False
+    return False, last_status, last_body, last_err or "Failed after retries"
 
 
 def enqueue_webhook(
@@ -106,18 +112,40 @@ def enqueue_webhook(
     payload = build_webhook_payload(event, data)
     headers = build_webhook_headers(org.webhook_secret, event)
     background_tasks.add_task(
-        _dispatch_webhook, str(org.webhook_url), payload, headers,
+        _dispatch_webhook, str(organization_id), str(org.webhook_url), payload, headers,
     )
     return True
 
 
 async def _dispatch_webhook(
+    organization_id: str,
     url: str,
     payload: Dict[str, Any],
     headers: Dict[str, str],
 ) -> None:
-    """Wrapper que executa o POST e loga o resultado final."""
-    ok = await _post_webhook(url, payload, headers)
+    """Wrapper que executa o POST, loga o resultado final e grava em WebhookLog."""
+    ok, status_code, body_resp, err_msg = await _post_webhook(url, payload, headers)
+    
+    # Grava no banco de dados para o painel de monitoramento
+    try:
+        from src.db.session import SessionLocal
+        from src.db.models import WebhookLog
+        with SessionLocal() as db:
+            log_entry = WebhookLog(
+                organization_id=organization_id,
+                event_type=payload.get("event", "unknown"),
+                target_url=url,
+                status_code=status_code,
+                success=ok,
+                payload=payload,
+                response_body=body_resp,
+                error_message=err_msg if not ok else None,
+            )
+            db.add(log_entry)
+            db.commit()
+    except Exception as exc:
+        logger.warning("Falha ao salvar WebhookLog no banco: %s", exc)
+
     if ok:
         logger.info("Webhook entregue: %s (event=%s)", url, payload.get("event"))
     else:

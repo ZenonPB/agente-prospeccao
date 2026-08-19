@@ -134,3 +134,43 @@ class EmailVerificationService:
         if mx is None:
             return {"verified": False, "mx": None, "reason": "no_mx_or_dns_unavailable"}
         return {"verified": True, "mx": mx[0], "reason": "ok"}
+
+    @staticmethod
+    def probe_smtp_catchall_sync(domain: str, mx_host: str) -> Dict[str, Any]:
+        """Probe SMTP ativo (RCPT TO) para detecção de servidor Catch-All.
+        
+        ATENÇÃO: Executar APENAS sob consentimento/opt-in explícito da empresa
+        (ação não-passiva — Lei 12.737/2012).
+        """
+        import smtplib
+        import uuid
+
+        # Remove o ponto final do MX record caso haja
+        clean_mx = mx_host.rstrip(".")
+        random_localpart = f"probe_check_{uuid.uuid4().hex[:10]}"
+        random_email = f"{random_localpart}@{domain}"
+
+        try:
+            with smtplib.SMTP(clean_mx, port=25, timeout=5) as server:
+                server.helo("verify.prospeccao.b2b")
+                server.mail("noreply@verify.prospeccao.b2b")
+                code, _ = server.rcpt(random_email)
+                # Se o servidor responder 250 OK para um localpart aleatório, é Catch-All
+                is_catchall = (code == 250)
+                return {"is_catchall": is_catchall, "code": code, "probed": True}
+        except Exception as exc:
+            logger.debug("Probe SMTP catchall falhou para %s: %s", domain, exc)
+            return {"is_catchall": False, "probed": False, "error": str(exc)}
+
+    async def probe_smtp_catchall(
+        self,
+        domain: str,
+        mx_host: str,
+        enable_catchall_probe: bool = False,
+    ) -> Dict[str, Any]:
+        """Wrapper assíncrono para probe SMTP de Catch-All (respeita opt-in)."""
+        if not enable_catchall_probe:
+            return {"is_catchall": False, "probed": False, "reason": "disabled_by_policy"}
+
+        import asyncio
+        return await asyncio.to_thread(self.probe_smtp_catchall_sync, domain, mx_host)

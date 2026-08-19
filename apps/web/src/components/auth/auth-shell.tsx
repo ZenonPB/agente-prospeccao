@@ -28,14 +28,20 @@ const teamPhotos = [
   {
     src: "/imgs/alphamec/nortear.jpg",
     caption: "Equipe AlphaMec no Evento Nortear",
+    objectFit: "object-cover",
+    objectPosition: "object-center",
   },
   {
     src: "/imgs/alphamec/foto2.jpg",
     caption: "Time AlphaMec em ação",
+    objectFit: "object-cover",
+    objectPosition: "object-center",
   },
   {
     src: "/imgs/alphamec/foto3.jpg",
-    caption: "Inovação e engenharia de ponta",
+    caption: "Inovação e tecnologia de ponta",
+    objectFit: "object-contain",
+    objectPosition: "object-center",
   },
 ];
 
@@ -159,18 +165,31 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
             {/* Carrossel de fotos da equipe (tema AlphaMec) */}
             {isAlpha ? (
-              <div className="group relative h-52 w-full overflow-hidden rounded-2xl border border-[#910001]/10 shadow-xl shadow-[#910001]/10">
+              <div className="group relative h-52 w-full overflow-hidden rounded-2xl border border-[#910001]/10 bg-[#3a0000] shadow-xl shadow-[#910001]/10">
                 {teamPhotos.map((photo, i) => (
-                  <Image
+                  <div
                     key={photo.src}
-                    src={photo.src}
-                    alt={photo.caption}
-                    fill
-                    sizes="(min-width: 1024px) 28rem, 100vw"
-                    className={`object-cover transition-opacity duration-700 ${
-                      i === photoIndex ? "opacity-100" : "opacity-0"
+                    className={`absolute inset-0 transition-opacity duration-700 ${
+                      i === photoIndex ? "opacity-100" : "opacity-0 pointer-events-none"
                     }`}
-                  />
+                  >
+                    {/* Fundo desfocado para preencher bordas de fotos com formato vertical */}
+                    <Image
+                      src={photo.src}
+                      alt=""
+                      fill
+                      aria-hidden="true"
+                      className="object-cover blur-md opacity-40 scale-105"
+                    />
+                    {/* Foto principal */}
+                    <Image
+                      src={photo.src}
+                      alt={photo.caption}
+                      fill
+                      sizes="(min-width: 1024px) 28rem, 100vw"
+                      className={`${photo.objectFit || "object-cover"} ${photo.objectPosition || "object-center"}`}
+                    />
+                  </div>
                 ))}
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#4c0000]/85 via-transparent to-transparent" />
                 <span className="absolute bottom-3 left-4 right-14 text-xs font-semibold uppercase tracking-wide text-white drop-shadow-md">

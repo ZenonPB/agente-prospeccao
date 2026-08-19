@@ -392,6 +392,11 @@ export const campaignsApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  exportGoogleSheets: (campaignId: string) =>
+    request<Blob>(`/api/campaigns/${campaignId}/export/google-sheets`, {
+      responseType: "blob",
+    }),
 };
 
 export const metricsApi = {
@@ -530,6 +535,16 @@ export const orgsApi = {
         ...(event ? { event } : {}),
         ...(limit !== undefined ? { limit: String(limit) } : {}),
       },
+    }),
+
+  listWebhookLogs: (orgId: string, limit?: number) =>
+    request<import("@/types").WebhookLogEntry[]>(`/api/orgs/${orgId}/webhook-logs`, {
+      params: limit !== undefined ? { limit: String(limit) } : undefined,
+    }),
+
+  listJobLogs: (orgId: string, limit?: number) =>
+    request<import("@/types").JobLogEntry[]>(`/api/orgs/${orgId}/job-logs`, {
+      params: limit !== undefined ? { limit: String(limit) } : undefined,
     }),
 };
 

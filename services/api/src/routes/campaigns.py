@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
@@ -534,3 +534,97 @@ async def collect_campaign_cnae(
     db.refresh(job)
 
     return {"job_id": str(job.id), "status": "queued", "cnae_code": data.cnae_code}
+
+
+@router.get("/{campaign_id}/export/google-sheets")
+def export_campaign_google_sheets(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Exporta os leads da campanha formatados para o Google Sheets (CSV)."""
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    leads = db.query(Lead).filter(Lead.campaign_id == campaign.id).all()
+
+    import csv
+    import io
+
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=",")
+    writer.writerow([
+        "ID Lead", "Nome Empresa", "CNPJ", "Website", "Telefone", "Cidade", "UF",
+        "Score", "Prioridade", "Status", "Decisor Principal", "Email Decisor",
+        "LinkedIn Decisor", "Necessidade Principal", "Gancho de Pitch", "Assunto Sugerido"
+    ])
+
+    for lead in leads:
+        primary_contact = None
+        for c in (lead.contacts or []):
+            if c.is_primary:
+                primary_contact = c
+                break
+        if not primary_contact and lead.contacts:
+            primary_contact = lead.contacts[0]
+
+        writer.writerow([
+            str(lead.id),
+            lead.company_name or lead.name or "",
+            lead.cnpj or "",
+            lead.website or "",
+            lead.phone or "",
+            lead.city or "",
+            lead.state or "",
+            lead.qualification_score or 0,
+            lead.priority.value if lead.priority else "",
+            lead.status.value if lead.status else "",
+            primary_contact.name if primary_contact else "",
+            primary_contact.email if primary_contact else "",
+            primary_contact.linkedin_url if primary_contact else "",
+            lead.primary_need or "",
+            lead.pitch_angle or "",
+            lead.suggested_subject or "",
+        ])
+
+    csv_data = output.getvalue()
+    filename = f"campaign_{campaign_id}_export.csv"
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+class GoogleSheetsSyncPayload(BaseModel):
+    spreadsheet_id: Optional[str] = None
+
+
+@router.post("/{campaign_id}/sync-google-sheets")
+async def sync_campaign_google_sheets(
+    campaign_id: str,
+    data: Optional[GoogleSheetsSyncPayload] = None,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Sincroniza e espelha os leads da campanha diretamente em uma planilha do Google Sheets via OAuth2."""
+    from services.google_sheets_service import GoogleSheetsService
+
+    spreadsheet_id = data.spreadsheet_id if data else None
+    res = await GoogleSheetsService.sync_campaign_to_sheets(
+        db=db,
+        organization_id=_org.id,
+        campaign_id=campaign_id,
+        spreadsheet_id=spreadsheet_id,
+    )
+
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Falha na sincronização com Google Sheets"))
+
+    return res
