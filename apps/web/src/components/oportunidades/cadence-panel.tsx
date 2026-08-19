@@ -77,10 +77,10 @@ export function CadencePanel({ leadId }: { leadId: string }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-muted-foreground" />
-          Cadência de follow-up
+          Sequência de Mensagens de Acompanhamento
         </CardTitle>
         <CardDescription>
-          Dias 0/3/7/14 — abertura, follow-ups e encerramento (human-in-the-loop por padrão)
+          Etapas programadas para enviar ao cliente nos dias 0, 3, 7 e 14
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

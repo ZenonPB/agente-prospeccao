@@ -6,16 +6,16 @@ import { AlertCircle, Percent, Gauge, Handshake } from 'lucide-react';
 import type { AnalyticsOverview } from '@/lib/api';
 
 const STAGE_LABELS: Record<string, string> = {
-  NOVO: 'Encontrados',
-  ANALISADO: 'Analisados',
-  QUALIFICADO: 'Aptos',
-  DESQUALIFICADO: 'Desqualificados',
-  CONTATADO: 'Mensagem enviada',
-  RESPONDIDO: 'Respondeu',
-  REUNIAO_MARCADA: 'Reunião marcada',
-  REUNIAO_FEITA: 'Reunião realizada',
-  PROPOSTA_ENVIADA: 'Proposta enviada',
-  PERDIDO: 'Perdidos',
+  NOVO: 'Novos Encontrados',
+  ANALISADO: 'Avaliados pela IA',
+  QUALIFICADO: 'Aptos para Contato',
+  DESQUALIFICADO: 'Fora do Perfil',
+  CONTATADO: 'Mensagem Enviada',
+  RESPONDIDO: 'Cliente Respondeu',
+  REUNIAO_MARCADA: 'Reunião Agendada',
+  REUNIAO_FEITA: 'Reunião Realizada',
+  PROPOSTA_ENVIADA: 'Proposta Enviada',
+  PERDIDO: 'Arquivados',
 };
 
 const STAGE_COLORS: Record<string, string> = {
@@ -59,9 +59,9 @@ export function FunnelCard({ overview }: { overview: AnalyticsOverview }) {
 }
 
 const RATES = [
-  { key: 'conversion_rate', label: 'Conversão', hint: 'convertidos / qualificados' },
-  { key: 'response_rate', label: 'Resposta', hint: 'responderam / contatados' },
-  { key: 'meeting_rate', label: 'Reunião', hint: 'reuniões / qualificados' },
+  { key: 'conversion_rate', label: 'Taxa de Fechamento', hint: 'vendas fechadas / clientes aptos' },
+  { key: 'response_rate', label: 'Taxa de Resposta', hint: 'clientes que responderam / mensagens enviadas' },
+  { key: 'meeting_rate', label: 'Taxa de Agendamento', hint: 'reuniões agendadas / clientes aptos' },
 ] as const;
 
 export function RatesCard({ overview }: { overview: AnalyticsOverview }) {
@@ -70,7 +70,7 @@ export function RatesCard({ overview }: { overview: AnalyticsOverview }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Percent className="h-4 w-4 text-muted-foreground" />
-          Taxas
+          Taxas Principais
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -99,9 +99,9 @@ export function ScoreBandsCard({ overview }: { overview: AnalyticsOverview }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gauge className="h-4 w-4 text-muted-foreground" />
-          Score
+          Acerto por Faixa de Pontuação (0 a 100)
         </CardTitle>
-        <CardDescription>Taxa de acerto por faixa de pontuação</CardDescription>
+        <CardDescription>Percentual de contratos fechados em cada faixa de nota da IA</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {overview.leads_by_score_band.map((band, i) => {

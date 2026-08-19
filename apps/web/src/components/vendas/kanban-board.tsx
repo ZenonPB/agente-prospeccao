@@ -23,19 +23,19 @@ interface KanbanColumn {
 }
 
 const COLUMNS: KanbanColumn[] = [
-  { id: 'NOVO', title: 'Novos', color: 'bg-slate-500', status: ['NOVO'] },
-  { id: 'QUALIFICADO', title: 'Aptos para contato', color: 'bg-emerald-500', status: ['QUALIFICADO'] },
-  { id: 'CONTATADO', title: 'Mensagem enviada', color: 'bg-blue-500', status: ['CONTATADO'] },
-  { id: 'RESPONDIDO', title: 'Respondeu', color: 'bg-purple-500', status: ['RESPONDIDO'] },
-  { id: 'REUNIAO_MARCADA', title: 'Reunião marcada', color: 'bg-amber-500', status: ['REUNIAO_MARCADA'] },
-  { id: 'REUNIAO_FEITA', title: 'Reunião realizada', color: 'bg-teal-500', status: ['REUNIAO_FEITA'] },
-  { id: 'PROPOSTA_ENVIADA', title: 'Proposta enviada', color: 'bg-pink-500', status: ['PROPOSTA_ENVIADA'] },
+  { id: 'NOVO', title: 'Novos Encontrados', color: 'bg-slate-500', status: ['NOVO'] },
+  { id: 'QUALIFICADO', title: 'Aptos para Contato', color: 'bg-emerald-500', status: ['QUALIFICADO'] },
+  { id: 'CONTATADO', title: 'Mensagem Enviada', color: 'bg-blue-500', status: ['CONTATADO'] },
+  { id: 'RESPONDIDO', title: 'Cliente Respondeu', color: 'bg-purple-500', status: ['RESPONDIDO'] },
+  { id: 'REUNIAO_MARCADA', title: 'Reunião Agendada', color: 'bg-amber-500', status: ['REUNIAO_MARCADA'] },
+  { id: 'REUNIAO_FEITA', title: 'Reunião Realizada', color: 'bg-teal-500', status: ['REUNIAO_FEITA'] },
+  { id: 'PROPOSTA_ENVIADA', title: 'Proposta Enviada', color: 'bg-pink-500', status: ['PROPOSTA_ENVIADA'] },
 ];
 
 const NEG_STAGE_LABELS: Record<string, string> = {
-  RD: 'RD',
+  RD: 'Demonstração',
   ORCAMENTO: 'Orçamento',
-  RP: 'RP',
+  RP: 'Proposta',
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

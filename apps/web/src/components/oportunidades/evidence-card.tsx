@@ -51,12 +51,12 @@ export function EvidenceCard({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Análise e Evidências</CardTitle>
+          <CardTitle>Por que a IA recomendou</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Este lead ainda não foi analisado ou não possui dados suficientes para scoring.
-            Execute o pipeline de coleta e enriquecimento para gerar a análise completa.
+            Este cliente ainda não foi avaliado pela Inteligência Artificial.
+            Inicie a análise na tela da campanha para gerar as recomendações.
           </p>
         </CardContent>
       </Card>
@@ -67,7 +67,7 @@ export function EvidenceCard({
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Análise e Evidências</CardTitle>
+          <CardTitle>Por que a IA recomendou</CardTitle>
           {priority && priorityConfig[priority] && (
             <Badge className={priorityConfig[priority].color}>
               <span className="mr-1">{priorityConfig[priority].emoji}</span>

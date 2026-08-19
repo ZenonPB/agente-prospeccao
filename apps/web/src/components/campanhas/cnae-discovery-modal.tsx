@@ -65,16 +65,16 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="outline" />}>
         <Building className="mr-2 h-4 w-4" aria-hidden="true" />
-        Buscar por CNAE
+        Buscar por Ramo de Atuação
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Building className="h-5 w-5 text-primary" aria-hidden="true" />
-            Descoberta por CNAE / Receita
+            Buscar Empresas por Ramo de Atividade
           </DialogTitle>
           <DialogDescription>
-            Busque empresas na Receita Federal por CNAE ou CNPJ para a campanha <strong>{campaignName}</strong>.
+            Encontre empresas na base da Receita Federal pelo seu ramo oficial para a campanha <strong>{campaignName}</strong>.
           </DialogDescription>
         </DialogHeader>
 
@@ -82,18 +82,18 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
           <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200">
             <p className="flex items-center gap-1.5 font-medium mb-1">
               <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-              Provedores integrados:
+              Fonte dos dados:
             </p>
             <p className="text-muted-foreground">
-              Utiliza consulta pública resiliente via <strong>BrasilAPI</strong>, <strong>Minha Receita</strong> e <strong>CNPJá API</strong> com rate-limit automático.
+              Consultamos o cadastro oficial público de empresas (Receita Federal) com proteção automática contra limites de uso.
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="cnae-input">Código do CNAE</Label>
+            <Label htmlFor="cnae-input">Código do Ramo de Atividade (CNAE)</Label>
             <Input
               id="cnae-input"
-              placeholder="Ex: 28.69-1-00 ou 2869100"
+              placeholder="Ex: 28.69-1-00 (Serviços de engenharia)"
               value={cnaeCode}
               onChange={(e) => setCnaeCode(e.target.value)}
             />
@@ -131,7 +131,7 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
             {collectCnae.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                Iniciando...
+                Iniciando busca...
               </>
             ) : (
               <>

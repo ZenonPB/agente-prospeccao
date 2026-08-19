@@ -6,12 +6,12 @@ import { TrendingUp, Target, Phone, CalendarDays, BadgeCheck, CircleDollarSign }
 import type { AnalyticsOverview } from '@/lib/api';
 
 const META = [
-  { key: 'total_leads', label: 'Leads', icon: Target, accent: 'text-sky-600 dark:text-sky-400' },
-  { key: 'qualified_leads', label: 'Qualificados', icon: BadgeCheck, accent: 'text-emerald-600 dark:text-emerald-400' },
-  { key: 'contacted_leads', label: 'Contatados', icon: Phone, accent: 'text-amber-600 dark:text-amber-400' },
-  { key: 'meetings_scheduled', label: 'Reuniões', icon: CalendarDays, accent: 'text-violet-600 dark:text-violet-400' },
-  { key: 'converted_leads', label: 'Convertidos', icon: TrendingUp, accent: 'text-teal-600 dark:text-teal-400' },
-  { key: 'total_revenue', label: 'Receita', icon: CircleDollarSign, accent: 'text-rose-600 dark:text-rose-400' },
+  { key: 'total_leads', label: 'Clientes Encontrados', icon: Target, accent: 'text-sky-600 dark:text-sky-400' },
+  { key: 'qualified_leads', label: 'Aptos para Contato', icon: BadgeCheck, accent: 'text-emerald-600 dark:text-emerald-400' },
+  { key: 'contacted_leads', label: 'Mensagens Enviadas', icon: Phone, accent: 'text-amber-600 dark:text-amber-400' },
+  { key: 'meetings_scheduled', label: 'Reuniões Agendadas', icon: CalendarDays, accent: 'text-violet-600 dark:text-violet-400' },
+  { key: 'converted_leads', label: 'Vendas Realizadas', icon: TrendingUp, accent: 'text-teal-600 dark:text-teal-400' },
+  { key: 'total_revenue', label: 'Faturamento Total', icon: CircleDollarSign, accent: 'text-rose-600 dark:text-rose-400' },
 ];
 
 function formatValue(key: string, value: number): string {

@@ -62,11 +62,10 @@ export function PlaybooksCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Bookmark className="h-5 w-5 text-muted-foreground" />
-          Playbooks por consultor
+          Modelos de Mensagens e Guia de Vendas
         </CardTitle>
         <CardDescription>
-          Salve aqui as mensagens que funcionaram bem. Outros consultores da sua
-          organização podem ler; só você ou um admin pode editar/remover.
+          Guarde aqui exemplos de mensagens que trouxeram ótimos resultados. Toda a equipe pode consultar para inspirar abordagens.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

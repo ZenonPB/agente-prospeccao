@@ -53,15 +53,15 @@ export function OrgIntegrationsCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plug className="h-5 w-5 text-muted-foreground" />
-            Integrações
+            Integrações e Notificações Automáticas
           </CardTitle>
           <CardDescription>
-            Webhook de saída e link de agendamento. Apenas owner/admin configura.
+            Envio de notificações automáticas para outros sistemas e link da sua agenda. Apenas administradores configuram.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Fale com um administrador para configurar as integrações da sua organização.
+            Fale com o administrador da conta para configurar a integração com outros sistemas.
           </p>
         </CardContent>
       </Card>
@@ -73,10 +73,10 @@ export function OrgIntegrationsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Plug className="h-5 w-5 text-muted-foreground" />
-          Integrações
+          Integrações e Notificações Automáticas
         </CardTitle>
         <CardDescription>
-          Webhook genérico de saída (eventos de lead) e link de agendamento injetado no outreach.
+          Avise outros sistemas quando encontrar novos clientes e inclua o link da sua agenda nas mensagens.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -85,11 +85,10 @@ export function OrgIntegrationsCard() {
             <div>
               <Label className="text-sm font-medium flex items-center gap-2">
                 <Send className="h-4 w-4 text-muted-foreground" />
-                Webhook de saída
+                Link de Notificação Automática (URL)
               </Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                POST JSON em <code>webhook_url</code> quando há lead criado, status alterado ou conversão.
-                Cabeçalho <code>X-Webhook-Secret</code> + <code>X-Webhook-Event</code>.
+                Sua aplicação receberá um aviso a cada novo cliente encontrado ou mudança de etapa.
               </p>
             </div>
             {membership?.organization?.webhook_configured ? (
@@ -99,13 +98,13 @@ export function OrgIntegrationsCard() {
             )}
           </div>
           <Input
-            placeholder="https://exemplo.com/webhook/prospeccao"
+            placeholder="https://sua-empresa.com/notificacoes/prospeccao"
             value={webhookUrl}
             onChange={(e) => setWebhookUrl(e.target.value)}
           />
           <Input
             type="password"
-            placeholder="Segredo compartilhado (opcional, mas recomendado)"
+            placeholder="Senha de segurança da notificação (opcional)"
             value={webhookSecret}
             onChange={(e) => setWebhookSecret(e.target.value)}
             autoComplete="off"
@@ -117,10 +116,10 @@ export function OrgIntegrationsCard() {
             <div>
               <Label className="text-sm font-medium flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                Link de agendamento
+                Link da sua Agenda de Reuniões
               </Label>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Cal.com, Calendly ou similar. Injetado no outreach como CTA preferencial.
+                Coloque o link do seu calendário (ex: Cal.com ou Calendly). A IA usará este link nas mensagens.
               </p>
             </div>
             {membership?.organization?.scheduling_url ? (

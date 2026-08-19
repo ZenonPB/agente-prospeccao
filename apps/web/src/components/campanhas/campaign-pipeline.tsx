@@ -189,28 +189,28 @@ export function CampaignPipeline({
                       variant="outline"
                       onClick={() => handleStart('reanalyze')}
                       disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
-                      title="Reanalisa os leads já coletados desta campanha com os critérios contextuais atualizados"
+                      title="Reavalia todos os clientes desta campanha usando as regras mais recentes"
                     >
                       {reanalyzeCampaign.isPending ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       ) : (
                         <RefreshCw className="mr-2 h-5 w-5" />
                       )}
-                      Reanalisar leads
+                      Reavaliar todos os clientes
                     </Button>
                     <Button
                       size="lg"
                       variant="secondary"
                       onClick={() => handleStart('reanalyze-unscored')}
                       disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
-                      title="Reanalisa apenas os leads ainda sem pontuação (score vazio ou NOVO) — não consome cota de IA com leads já pontuados"
+                      title="Avalia apenas os clientes que ainda não possuem pontuação — sem gastar seu limite com clientes já analisados"
                     >
                       {reanalyzeCampaign.isPending ? (
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       ) : (
                         <RefreshCw className="mr-2 h-5 w-5" />
                       )}
-                      Reanalisar não pontuados
+                      Avaliar apenas pendentes
                     </Button>
                   </>
                 )}

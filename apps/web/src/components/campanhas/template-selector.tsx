@@ -210,7 +210,7 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                     onChange={(e) =>
                       setDraft({ ...(draft ?? {}), extra_instructions: e.target.value })
                     }
-                    placeholder="Instrução livre injetada no prompt da IA"
+                    placeholder="Orientação simples enviada para a Inteligência Artificial"
                   />
                 </div>
 

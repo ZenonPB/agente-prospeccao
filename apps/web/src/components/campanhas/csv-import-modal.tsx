@@ -65,13 +65,13 @@ export function CsvImportModal({ campaignId, campaignName, onSuccess }: CsvImpor
     <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) handleReset(); }}>
       <DialogTrigger render={<Button variant="outline" />}>
         <FileSpreadsheet className="mr-2 h-4 w-4" aria-hidden="true" />
-        Importar CSV
+        Importar Planilha (CSV)
       </DialogTrigger>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <FileSpreadsheet className="h-5 w-5 text-primary" aria-hidden="true" />
-            Importar Leads por CSV
+            Importar Clientes por Planilha (CSV)
           </DialogTitle>
           <DialogDescription>
             Adicione sua própria lista de empresas para a campanha <strong>{campaignName}</strong>.

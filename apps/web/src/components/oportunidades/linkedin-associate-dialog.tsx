@@ -60,7 +60,7 @@ export function LinkedInAssociateDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LinkedInIcon className="h-5 w-5 text-primary" />
-            Associar perfil LinkedIn
+            Vincular Perfil do LinkedIn ao Contato
           </DialogTitle>
         </DialogHeader>
 

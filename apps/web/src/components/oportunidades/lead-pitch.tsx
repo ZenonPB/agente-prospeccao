@@ -23,7 +23,7 @@ function SiteAuditCard({ audit }: { audit: SiteAudit }) {
   if (!audit.available) {
     return (
       <Card>
-        <CardHeader><CardTitle>Auditoria do Site</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Análise da Página do Cliente</CardTitle></CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">{audit.summary}</p>
         </CardContent>
@@ -35,7 +35,7 @@ function SiteAuditCard({ audit }: { audit: SiteAudit }) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>Auditoria do Site</CardTitle>
+          <CardTitle>Análise da Página do Cliente</CardTitle>
           <Badge variant="outline" className={
             audit.overall_status === 'OK' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
             audit.overall_status === 'PROBLEMA' ? 'bg-amber-50 text-amber-700 border-amber-200' :
