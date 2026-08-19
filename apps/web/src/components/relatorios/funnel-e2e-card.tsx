@@ -40,10 +40,10 @@ export function FunnelEndToEndCard({ funnel }: { funnel: AnalyticsFunnel }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          Funil ponta-a-ponta
+          Passo a Passo de Vendas (Do Encontro ao Fechamento)
         </CardTitle>
         <CardDescription>
-          Do achado ao fechamento — onde o funil afina. Conversão = % da etapa anterior que seguiu.
+          Acompanhe o caminho dos clientes desde a busca inicial até o contrato fechado.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">

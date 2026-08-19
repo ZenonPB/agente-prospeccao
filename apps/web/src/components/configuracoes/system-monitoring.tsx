@@ -35,10 +35,10 @@ export function SystemMonitoringPanel() {
         <div>
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
-            <CardTitle className="text-lg font-semibold">Monitoramento de Webhooks & Jobs</CardTitle>
+            <CardTitle className="text-lg font-semibold">Monitoramento de Notificações e Tarefas da IA</CardTitle>
           </div>
           <CardDescription className="mt-1 text-xs">
-            Acompanhe em tempo real as entregas de webhooks e a execução de tarefas em segundo plano.
+            Acompanhe o envio automático de notificações para outros sistemas e o andamento das buscas em segundo plano.
           </CardDescription>
         </div>
         <Button
@@ -57,7 +57,7 @@ export function SystemMonitoringPanel() {
           <TabsList className="grid w-full grid-cols-2 mb-4">
             <TabsTrigger value="webhooks" className="gap-2 text-xs">
               <Radio className="h-3.5 w-3.5" />
-              Webhooks de Saída
+              Notificações Enviadas
               {webhookLogs && webhookLogs.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
                   {webhookLogs.length}
@@ -66,7 +66,7 @@ export function SystemMonitoringPanel() {
             </TabsTrigger>
             <TabsTrigger value="jobs" className="gap-2 text-xs">
               <Clock className="h-3.5 w-3.5" />
-              Jobs do Pipeline
+              Tarefas de Busca e Análise
               {jobLogs && jobLogs.length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0">
                   {jobLogs.length}
@@ -78,13 +78,13 @@ export function SystemMonitoringPanel() {
           {/* Webhooks Tab */}
           <TabsContent value="webhooks">
             {loadingWebhooks ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">Carregando histórico de webhooks...</p>
+              <p className="py-6 text-center text-xs text-muted-foreground">Carregando histórico de notificações...</p>
             ) : !webhookLogs || webhookLogs.length === 0 ? (
               <div className="py-8 text-center border rounded-lg bg-muted/20">
                 <Radio className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
-                <p className="text-sm font-medium">Nenhum disparo registrado</p>
+                <p className="text-sm font-medium">Nenhuma notificação enviada ainda</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                  Configure uma URL de Webhook acima para receber notificações automáticas de novos leads e mudanças de status.
+                  Configure um link de notificação acima para avisar seus sistemas quando um novo cliente for encontrado.
                 </p>
               </div>
             ) : (
@@ -126,9 +126,9 @@ export function SystemMonitoringPanel() {
             ) : !jobLogs || jobLogs.length === 0 ? (
               <div className="py-8 text-center border rounded-lg bg-muted/20">
                 <Clock className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
-                <p className="text-sm font-medium">Nenhum job registrado</p>
+                <p className="text-sm font-medium">Nenhuma tarefa realizada ainda</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Os jobs de coleta, enriquecimento e pontuação aparecerão aqui durante a execução.
+                  As buscas, análises de sites e avaliações por IA aparecerão aqui durante a execução.
                 </p>
               </div>
             ) : (

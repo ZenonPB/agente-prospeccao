@@ -18,8 +18,8 @@ import { useOrgMembership, useOrgUsage, usePatchOrgSettings } from "@/hooks/use-
 import type { ProviderUsageItem } from "@/types";
 
 const KEY_LABELS: Record<string, string> = {
-  GOOGLE_API_KEY: "Google Places (coleta)",
-  GROQ_API_KEY: "Groq (IA)",
+  GOOGLE_API_KEY: "Busca de Empresas (Google)",
+  GROQ_API_KEY: "Processamento por IA (Groq)",
 };
 
 function barColor(pct: number): string {
@@ -133,10 +133,10 @@ export function OrgQuotaCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gauge className="h-5 w-5 text-muted-foreground" />
-          Cotas de uso de IA e dados
+          Uso Diário de Buscas e Inteligência Artificial
         </CardTitle>
         <CardDescription>
-          Uso diário de Google Places e Groq pela organização
+          Acompanhe quantas buscas e análises por IA foram realizadas no dia de hoje.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

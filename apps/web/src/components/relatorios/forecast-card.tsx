@@ -14,14 +14,14 @@ const LOST_REASON_LABELS: Record<string, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  NOVO: 'Novo',
-  ANALISADO: 'Analisado',
-  QUALIFICADO: 'Apto',
-  CONTATADO: 'Mensagem enviada',
-  RESPONDIDO: 'Respondeu',
-  REUNIAO_MARCADA: 'Reunião marcada',
-  REUNIAO_FEITA: 'Reunião feita',
-  PROPOSTA_ENVIADA: 'Proposta enviada',
+  NOVO: 'Novos Encontrados',
+  ANALISADO: 'Avaliados pela IA',
+  QUALIFICADO: 'Aptos para Contato',
+  CONTATADO: 'Mensagem Enviada',
+  RESPONDIDO: 'Cliente Respondeu',
+  REUNIAO_MARCADA: 'Reunião Agendada',
+  REUNIAO_FEITA: 'Reunião Realizada',
+  PROPOSTA_ENVIADA: 'Proposta Enviada',
 };
 
 function formatBRL(val: number): string {
@@ -33,13 +33,13 @@ export function ForecastCard({ forecast }: { forecast: ForecastData }) {
     <Card className="col-span-full">
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-base font-semibold">
-          <span>Forecast & Oportunidades</span>
+          <span>Previsão de Vendas Estimada</span>
           <span className="text-xs font-normal text-muted-foreground">
-            {forecast.open_leads_count} leads em aberto
+            {forecast.open_leads_count} clientes em atendimento
           </span>
         </CardTitle>
         <CardDescription>
-          Previsão ponderada pela probabilidade histórica de conversão de cada estágio do funil
+          Estimativa de faturamento baseada na probabilidade de fechamento de cada etapa do processo
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -48,7 +48,7 @@ export function ForecastCard({ forecast }: { forecast: ForecastData }) {
           <div className="rounded-lg border p-3.5 bg-muted/30">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <DollarSign className="h-4 w-4 text-sky-600" />
-              <span>Pipeline Total Em Aberto</span>
+              <span>Valor Total em Negociação</span>
             </div>
             <p className="mt-2 text-xl font-bold tracking-tight">{formatBRL(forecast.pipeline_value)}</p>
           </div>
@@ -56,7 +56,7 @@ export function ForecastCard({ forecast }: { forecast: ForecastData }) {
           <div className="rounded-lg border p-3.5 bg-muted/30">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <TrendingUp className="h-4 w-4 text-emerald-600" />
-              <span>Forecast Ponderado</span>
+              <span>Previsão de Vendas Estimada</span>
             </div>
             <p className="mt-2 text-xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
               {formatBRL(forecast.forecast_weighted)}

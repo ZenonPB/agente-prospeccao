@@ -503,14 +503,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="h-10">
-          <TabsTrigger value="overview" className="h-9">Dados gerais</TabsTrigger>
-          <TabsTrigger value="pitch" className="h-9">Pitch One-Pager</TabsTrigger>
-          <TabsTrigger value="evidence" className="h-9">Evidências</TabsTrigger>
-          <TabsTrigger value="technical" className="h-9">Análise do site</TabsTrigger>
-          <TabsTrigger value="contacts" className="h-9">Contatos</TabsTrigger>
-          <TabsTrigger value="cadence" className="h-9">Cadência</TabsTrigger>
-          <TabsTrigger value="activities" className="h-9">Atividades</TabsTrigger>
-          <TabsTrigger value="actions" className="h-9">Ações</TabsTrigger>
+          <TabsTrigger value="overview" className="h-9">Visão Geral</TabsTrigger>
+          <TabsTrigger value="pitch" className="h-9">Resumo para o Vendedor</TabsTrigger>
+          <TabsTrigger value="evidence" className="h-9">Por que a IA recomendou</TabsTrigger>
+          <TabsTrigger value="technical" className="h-9">Análise da Página</TabsTrigger>
+          <TabsTrigger value="contacts" className="h-9">Decisores e Contatos</TabsTrigger>
+          <TabsTrigger value="cadence" className="h-9">Passos de Envio</TabsTrigger>
+          <TabsTrigger value="activities" className="h-9">Histórico do Cliente</TabsTrigger>
+          <TabsTrigger value="actions" className="h-9">Próximas Tarefas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">

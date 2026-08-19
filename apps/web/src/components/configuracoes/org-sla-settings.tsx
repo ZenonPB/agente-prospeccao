@@ -72,7 +72,7 @@ function SlaForm({
       </p>
       <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-3">
         <div className="space-y-1">
-          <Label htmlFor="sla-qualified">Apto sem contato (dias)</Label>
+          <Label htmlFor="sla-qualified">Cliente aprovado sem contato (dias)</Label>
           <Input
             id="sla-qualified"
             type="number"
@@ -82,11 +82,11 @@ function SlaForm({
             onChange={(e) => setQualified(e.target.value)}
           />
           <p className="text-[11px] leading-tight text-muted-foreground">
-            QUALIFICADO que não recebeu nenhum contato dentro deste prazo.
+            Cliente apto que não recebeu nenhuma mensagem dentro deste prazo.
           </p>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="sla-responded">Respondeu sem passo (dias)</Label>
+          <Label htmlFor="sla-responded">Cliente respondeu sem retorno (dias)</Label>
           <Input
             id="sla-responded"
             type="number"
@@ -96,11 +96,11 @@ function SlaForm({
             onChange={(e) => setResponded(e.target.value)}
           />
           <p className="text-[11px] leading-tight text-muted-foreground">
-            RESPONDIDO sem próxima ação agendada (ou vencida) neste prazo.
+            Cliente que respondeu mas ainda não possui nova tarefa agendada.
           </p>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="sla-opened">Abriu sem responder (dias)</Label>
+          <Label htmlFor="sla-opened">Visualizou sem responder (dias)</Label>
           <Input
             id="sla-opened"
             type="number"
@@ -110,7 +110,7 @@ function SlaForm({
             onChange={(e) => setOpened(e.target.value)}
           />
           <p className="text-[11px] leading-tight text-muted-foreground">
-            Abriu a mensagem (tracking) e não respondeu dentro deste prazo.
+            Cliente que abriu a mensagem enviada mas ainda não respondeu.
           </p>
         </div>
       </div>
@@ -135,10 +135,10 @@ export function OrgSlaSettings() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Clock className="h-5 w-5 text-muted-foreground" />
-          Prazos de atendimento
+          Alertas de Clientes sem Atendimento (Prazos)
         </CardTitle>
         <CardDescription>
-          Lembretes automáticos para leads que ficam esquecidos
+          Defina prazos máximos para avisar a equipe sobre clientes aguardando resposta
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

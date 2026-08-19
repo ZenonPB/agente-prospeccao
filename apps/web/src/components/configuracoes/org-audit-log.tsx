@@ -78,11 +78,10 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
         <div>
           <CardTitle className="flex items-center gap-2">
             <ScrollText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            Auditoria de acessos
+            Registro de Atividades da Equipe
           </CardTitle>
           <CardDescription>
-            Registro de quem criou convite, mudou papel, removeu membro, alterou chave ou meta.
-            Valores de chave nunca são exibidos.
+            Histórico de ações da equipe: convites criados, mudanças de função, alterações em chaves de busca ou metas.
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">

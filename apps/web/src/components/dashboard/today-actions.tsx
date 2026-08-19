@@ -92,7 +92,7 @@ export function TodayActions() {
               <div className="mb-2 flex items-center justify-between">
                 <p className="flex items-center gap-1.5 text-sm font-medium">
                   <CalendarClock className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                  Follow-up vencido / hoje
+                  Mensagens e tarefas agendadas para hoje
                 </p>
                 <Badge variant="secondary" className="text-xs">
                   {overdue.length}
@@ -175,14 +175,14 @@ export function TodayActions() {
               <div className="mb-2 flex items-center justify-between">
                 <p className="flex items-center gap-1.5 text-sm font-medium">
                   <AlertTriangle className="h-4 w-4 text-red-500" aria-hidden="true" />
-                  Leads parados
+                  Clientes aguardando atendimento
                 </p>
                 <Badge variant="destructive" className="text-xs">
                   {slaAlerts.length}
                 </Badge>
               </div>
               {slaAlerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum lead parado — tudo em dia.</p>
+                <p className="text-sm text-muted-foreground">Nenhum cliente aguardando — tudo em dia.</p>
               ) : (
                 <div className="space-y-2">
                   {slaAlerts.map((alert) => (

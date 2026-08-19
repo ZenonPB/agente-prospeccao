@@ -35,14 +35,14 @@ import {
 const KEYS = [
   {
     key_name: "GOOGLE_API_KEY",
-    label: "Google Places",
-    description: "Usada na coleta de empresas e análise de presença digital (perfuração).",
+    label: "Google Places (Busca de Empresas)",
+    description: "Usada na busca de empresas pelo mapa e verificação de informações.",
     placeholder: "AIza…",
   },
   {
     key_name: "GROQ_API_KEY",
-    label: "Groq",
-    description: "Usada na pontuação de leads, geração de mensagens e templates.",
+    label: "Inteligência Artificial (Groq)",
+    description: "Usada para qualificar os clientes, criar mensagens e gerar sugestões.",
     placeholder: "gsk_…",
   },
 ] as const;
@@ -106,11 +106,10 @@ export function OrgSecretsCard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-muted-foreground" />
-            Chaves de API da organização
+            Chaves de Inteligência e Buscas (API)
           </CardTitle>
           <CardDescription>
-            Apenas o dono ou um administrador pode configurar chaves próprias
-            (BYOK) para a organização.
+            Apenas o administrador da conta pode cadastrar chaves próprias de acesso.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -128,11 +127,10 @@ export function OrgSecretsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="h-5 w-5 text-muted-foreground" />
-          Chaves de API da organização
+          Chaves de Inteligência e Buscas (API)
         </CardTitle>
         <CardDescription>
-          Configure suas próprias chaves (BYOK). Elas são criptografadas e
-          usadas no lugar do pool global nas campanhas desta organização.
+          Insira suas próprias chaves de acesso caso prefira utilizar seus limites diretos do Google e da Inteligência Artificial.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

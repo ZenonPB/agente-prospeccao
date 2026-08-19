@@ -83,9 +83,9 @@ export default function RelatoriosPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Inteligência"
-        title="Relatórios"
-        description={`Visão executiva da operação · ${membership?.organization?.name || 'sua organização'}`}
+        eyebrow="Relatórios"
+        title="Relatórios de Vendas"
+        description={`Resumo de vendas e atendimentos da sua equipe · ${membership?.organization?.name || 'sua organização'}`}
       />
 
       <ReportControls

@@ -70,11 +70,11 @@ function ThrottleForm({
     <div className="space-y-3 rounded-lg border p-4">
       <div className="flex items-center gap-2">
         <Gauge className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-medium">Throttling de envio (warmup)</p>
+        <p className="text-sm font-medium">Controle e limites de segurança de envio</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        O envio automático respeita um limite diário e uma janela de espalhamento
-        (fuso do servidor) para não disparar rajadas e queimar a reputação do remetente.
+        O envio automático respeita um limite diário e um horário comercial
+        para enviar e-mails com segurança e evitar que entrem em caixa de spam.
       </p>
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
@@ -89,7 +89,7 @@ function ThrottleForm({
       </div>
       <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-3">
         <div className="space-y-1">
-          <Label htmlFor="daily-limit">Limite diário</Label>
+          <Label htmlFor="daily-limit">Máximo por dia</Label>
           <Input
             id="daily-limit"
             type="number"
@@ -100,7 +100,7 @@ function ThrottleForm({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="window-start">Janela início</Label>
+          <Label htmlFor="window-start">Início do envio</Label>
           <Input
             id="window-start"
             type="time"
@@ -109,7 +109,7 @@ function ThrottleForm({
           />
         </div>
         <div className="space-y-1">
-          <Label htmlFor="window-end">Janela fim</Label>
+          <Label htmlFor="window-end">Fim do envio</Label>
           <Input
             id="window-end"
             type="time"
@@ -174,20 +174,19 @@ export function OrgSendSettings() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Send className="h-5 w-5 text-muted-foreground" />
-          Envio de follow-ups
+          Envio de Mensagens de Acompanhamento
         </CardTitle>
         <CardDescription>
-          Como a cadência de dias 0/3/7/14 é enviada por esta organização
+          Escolha como as mensagens de acompanhamento (Dias 0, 3, 7 e 14) serão enviadas aos clientes.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <p className="text-sm font-medium">Envio automático por e-mail</p>
+            <p className="text-sm font-medium">Disparo automático de mensagens</p>
             <p className="text-xs text-muted-foreground">
-              Ao ligar, o sistema envia os follow-ups quando a data agendada vence
-              (via SMTP). Desligado (padrão), o consultor revisa e envia cada etapa
-              manualmente — humano no loop.
+              Ao ativar, o sistema dispara as mensagens automaticamente quando chegar a data agendada.
+              Desativado (recomendado), o vendedor revisa e aprova cada mensagem antes de enviar.
             </p>
           </div>
           {canManage ? (
