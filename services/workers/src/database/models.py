@@ -101,6 +101,12 @@ class MessageChannel(enum.Enum):
     WHATSAPP = "WHATSAPP"
     LINKEDIN = "LINKEDIN"
 
+class OnboardingStatus(enum.Enum):
+    NOT_STARTED = "NOT_STARTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    DISMISSED = "DISMISSED"
+
 class FollowUpStep(enum.Enum):
     """Etapas da cadência de follow-up — regras de business-rules.
 
@@ -396,6 +402,7 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
     role = Column(String(50), default="SALES")
+    onboarding_status = Column(Enum(OnboardingStatus, name='onboarding_status', create_type=True), nullable=False, default=OnboardingStatus.NOT_STARTED, server_default="NOT_STARTED")
     reset_token = Column(String(255), nullable=True)
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

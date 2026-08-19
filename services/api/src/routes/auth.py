@@ -7,7 +7,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
 
 from src.db.dependencies import get_db
-from src.db.models import User
+from src.db.models import User, OnboardingStatus
 from src.auth.security import hash_password, verify_password, create_access_token
 from src.auth.dependencies import get_current_user
 from src.middleware.rate_limit import limiter
@@ -54,6 +54,10 @@ class UpdateProfileRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=255)
 
 
+class UpdateOnboardingStatusRequest(BaseModel):
+    status: str = Field(..., pattern="^(NOT_STARTED|IN_PROGRESS|COMPLETED|DISMISSED)$")
+
+
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 def register(request: Request, body: RegisterRequest, db: Session = Depends(get_db)):
@@ -88,6 +92,7 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
             "name": user.name,
             "email": user.email,
             "role": user.role,
+            "onboarding_status": user.onboarding_status.value if hasattr(user.onboarding_status, "value") else str(user.onboarding_status or "NOT_STARTED"),
         },
         "token": token,
     }
@@ -112,6 +117,7 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
             "name": user.name,
             "email": user.email,
             "role": user.role,
+            "onboarding_status": user.onboarding_status.value if hasattr(user.onboarding_status, "value") else str(user.onboarding_status or "NOT_STARTED"),
         },
         "token": token,
     }
@@ -198,4 +204,36 @@ def update_profile(
         "name": current_user.name,
         "email": current_user.email,
         "role": current_user.role,
+    }
+
+
+@router.get("/me")
+def get_me(
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna os dados do usuário autenticado."""
+    status_val = current_user.onboarding_status.value if hasattr(current_user.onboarding_status, "value") else str(current_user.onboarding_status or "NOT_STARTED")
+    return {
+        "id": str(current_user.id),
+        "name": current_user.name,
+        "email": current_user.email,
+        "role": current_user.role,
+        "onboarding_status": status_val,
+    }
+
+
+@router.patch("/onboarding")
+def update_onboarding_status(
+    body: UpdateOnboardingStatusRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Atualiza o status de onboarding do usuário."""
+    current_user.onboarding_status = OnboardingStatus[body.status]
+    db.commit()
+    db.refresh(current_user)
+    status_val = current_user.onboarding_status.value if hasattr(current_user.onboarding_status, "value") else str(current_user.onboarding_status)
+    return {
+        "id": str(current_user.id),
+        "onboarding_status": status_val,
     }
