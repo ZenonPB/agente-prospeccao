@@ -802,6 +802,22 @@ Branch `feat/3-entities-webhooks-integrations`:
   - Menu de ações rápidas ("Mover para"), drag-handle com `touch-none` e `MobileBottomNav` revisados para targets de toque `>= 44px`.
 - **Verificação**: `compileall` OK, 342 testes pytest passando, `npm run lint`, `npx tsc --noEmit` e `npm run build` do Next.js 16 limpos.
 
+### Qualificação Universal por Setor (Engenharia CAD, MDF/Troféus, ERPs, etc.) ✅ (2026-08-18)
+
+Branch `feat/universal-sector-scoring`:
+
+- **Enriquecimento Semântico de Conteúdo (`technical_enrichment_service.py`)**:
+  - `_extract_domain_copy`: extrai títulos, meta description, H1/H2 e detecta dicionários de palavras-chave industriais/negócio (`keywords_mechanical` [usinagem, torno, CNC, caldeiraria, CAD/CAM, SolidWorks], `keywords_custom_craft` [MDF, troféus, chaveiros, acrílico, corte laser, brindes], `keywords_systems` [sistema, portal, ERP, área logada]).
+- **Fatos de Negócio e Cadastrais Ampliados (`scoring_service.py`)**:
+  - `extract_business_facts` e `extract_technical_facts` agora formatam a vocação operacional do prospect (capacidades industriais, CNAE, porte cadastral e trechos do site) para fundamentar a avaliação da IA.
+- **Seeds e Templates por Arquétipo (`scoring_templates.py`)**:
+  - `Engenharia Mecânica & Desenhos Técnicos CAD`: ignora métricas de SEO/SSL e prioriza vocação fabril, usinagem e porte industrial.
+  - `Corte Laser, MDF & Produtos Personalizados (Troféus / Chaveiros)`: avalia demandas de premiação, eventos, sinalização e peças sob medida.
+  - `Aplicações Web & ERPs`: prioriza ausência de área logada/portal e porte operacional, sem punir por falta de SEO.
+- **Geração de Templates por IA (`template_generation_service.py`)**:
+  - Prompt atualizado com diretrizes para os 5 Arquétipos (Presença Digital, Sistemas/ERPs, Engenharia/CAD, Fabricação/Produtos Personalizados [MDF, Troféus], Serviços Gerais).
+- **Verificação**: `compileall` OK, suíte de 347 testes Pytest passando (incluindo `test_universal_scoring.py`), `npm run lint`, `npx tsc --noEmit` e `npm run build` do Next.js 16 limpos.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-17** — onde paramos:

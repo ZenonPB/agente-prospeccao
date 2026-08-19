@@ -382,8 +382,9 @@ def build_prompt(
         lines.append("   Trate a ausência de site como oportunidade FORTE (aumente o score) e não")
         lines.append("   desqualifique por causa dela — use-a como dor no pitch/suggested_subject.")
     else:
-        lines.append("8. A ausência de site próprio é NEUTRA para o fit desta campanha: avalie os")
-        lines.append("   demais sinais, não desqualifique nem supervalorize por causa dela.")
+        lines.append("8. A ausência de site próprio é NEUTRA para o fit desta campanha (engenharia, projetos CAD, corte laser, MDF, troféus, ERP/sistemas ou consultoria):")
+        lines.append("   avalie o fito principalmente pelas palavras-chave de atuação/produtos, CNAEs e porte cadastral.")
+        lines.append("   NÃO desqualifique nem reduza o score por questões de SEO/SSL/performance do site — elas são irrelevantes.")
     lines.append("9. Os sinais do template (CRITÉRIOS) NÃO são fatos do lead: nunca inclua em evidence[],")
     lines.append("   pitch_angle ou suggested_subject um sintoma (ex.: 'sem responsividade', 'sem formulário/CTA',")
     lines.append("   'site desatualizado') que não tenha fact correspondente nas EVIDÊNCIAS acima.")
@@ -495,6 +496,27 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
     if errors:
         facts.append(f"Erros gerais: {', '.join(errors[:5])}")
 
+    domain_copy = report.get("domain_copy") or {}
+    if domain_copy:
+        meta_desc = domain_copy.get("meta_description")
+        if meta_desc:
+            facts.append(f"Descrição do negócio no site: {meta_desc}")
+        headings = domain_copy.get("headings")
+        if headings:
+            facts.append(f"Destaques/Serviços no site: {'; '.join(headings)}")
+        kw_mech = domain_copy.get("keywords_mechanical")
+        if kw_mech:
+            facts.append(f"Capacidades/Processos industriais detectados no site: {', '.join(kw_mech)}")
+        kw_craft = domain_copy.get("keywords_custom_craft")
+        if kw_craft:
+            facts.append(f"Produtos/Serviços sob medida detectados no site: {', '.join(kw_craft)}")
+        kw_sys = domain_copy.get("keywords_systems")
+        if kw_sys:
+            facts.append(f"Termos de sistemas/tecnologia no site: {', '.join(kw_sys)}")
+        snippet = domain_copy.get("snippet")
+        if snippet and len(snippet) > 40:
+            facts.append(f"Trecho resumo do site: {snippet[:200]}")
+
     return facts
 
 
@@ -506,6 +528,8 @@ def extract_business_facts(
     website: Optional[str],
     google_rating: Optional[float] = None,
     google_rating_count: Optional[int] = None,
+    cnae_info: Optional[str] = None,
+    company_size_info: Optional[str] = None,
 ) -> List[str]:
     facts: List[str] = []
     facts.append(f"Empresa: {company_name}")
@@ -513,6 +537,10 @@ def extract_business_facts(
         facts.append(f"Categoria (Google Places): {category}")
     else:
         facts.append("Categoria (Google Places): não informada")
+    if cnae_info:
+        facts.append(f"Atividade econômica (CNAE/Receita): {cnae_info}")
+    if company_size_info:
+        facts.append(f"Porte/Estrutura cadastral: {company_size_info}")
     facts.append(f"Localização: {city}, {state}")
     facts.append(f"Tem website: {'sim' if website else 'não'}")
     if website:

@@ -163,34 +163,84 @@ DEFAULT_TEMPLATES = [
             "MEI tem pouco fito para ERP — não supervalorize o score só pelo site."
         ),
     },
-    # ----- Industrial / Engenharia -----
+    # ----- Industrial / Engenharia / Fabricação -----
     {
-        "service_label": "Engenharia Mecânica",
-        "requires_technical_report": False,
+        "service_label": "Engenharia Mecânica & Desenhos Técnicos CAD",
+        "requires_technical_report": True,
         "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Empresa necessita de detalhamento de projetos mecânicos 3D/CAD e desenhos técnicos para produção",
+                "Operação fabril/usinagem que terceiriza ou necessita de capacidade extra de engenharia e modelagem",
+                "Atualização de acervo técnico ou documentação de componentes para fabricação/manutenção",
+            ],
+            "subject_ideas": [
+                "Modelagem 3D e desenhos técnicos CAD para a {empresa}",
+                "Capacidade extra em engenharia mecânica para a {empresa}",
+                "Detalhamento de projetos e peças para a {empresa}",
+            ],
+            "objections": [
+                {"objection": "Já temos equipe de engenharia interna", "approach": "Oferecer suporte para picos de demanda ou detalhamento 2D/3D especializado"},
+                {"objection": "Não terceirizamos projetos", "approach": "Propor teste em um componente/protótipo específico para homologação"},
+            ],
+        },
         "positive_signals": [
-            {"label": "Tipo de empresa industrial", "description": "Indústria/fábrica vs. apenas escritório", "weight_hint": "high"},
-            {"label": "Porte médio/grande", "description": "Indícios de capacity para projetos complexos", "weight_hint": "high"},
-            {"label": "Sinais de expansão", "description": "Filial nova, nova linha de produção etc. (inferível do nome/categoria)", "weight_hint": "high"},
-            {"label": "Setor com necessidade de automação", "description": "Metalomecânica, plásticos, automotivo etc.", "weight_hint": "high"},
-            {"label": "Sinais de processos manuais", "description": "Sem menção a sistemas ERP/sistemas, site institucional básico", "weight_hint": "medium"},
-            {"label": "Equipamentos/investimento em ativos", "description": "Categoria sugere CAPEX (usinagem, caldeiraria etc.)", "weight_hint": "medium"},
-            {"label": "Frota/logística própria", "description": "Indica operação complexa com potenciais ganhos", "weight_hint": "low"},
+            {"label": "Operação de usinagem / caldeiraria / metalurgia", "description": "Termos de manufatura (torno, cnc, solda, usinagem) ou CNAE industrial detectados", "weight_hint": "high"},
+            {"label": "Necessidade de projetos / detalhamento CAD", "description": "Menção a projetos mecânicos, componentes sob medida ou máquinas", "weight_hint": "high"},
+            {"label": "Porte industrial médio/grande", "description": "Capacidade operacional e fito para desenvolvimento técnico", "weight_hint": "high"},
+            {"label": "Sinais de expansão / novos equipamentos", "description": "Empresa adquirindo máquinas ou ampliando linha de produção", "weight_hint": "medium"},
         ],
         "negative_signals": [
-            {"label": "Microempresa de serviços sob medida", "description": "Sem capacidade de projeto de engenharia", "weight_hint": "medium"},
-            {"label": "Categoria não-industrial", "description": "Restaurante, varejo, etc.", "weight_hint": "high"},
+            {"label": "Comércio varejista / serviço sem componente físico", "description": "Sem aderência para engenharia mecânica", "weight_hint": "high"},
+            {"label": "Microempresa individual sem produção física", "description": "Sem escala ou demanda para projetos técnicos", "weight_hint": "medium"},
         ],
         "context_signals": [
             {"label": "Segmento industrial", "description": "Metalomecânica, plásticos, automotivo, alimento, bebida, energia"},
-            {"label": "Região", "description": "Polo industrial regional indica densidade de oportunidade"},
+            {"label": "Região", "description": "Polo industrial regional indica alta densidade de demanda"},
         ],
         "extra_instructions": (
-            "NÃO basear a análise em HTTPS/SSL/SEO/performance do site (são pouco "
-            "relevantes para vender engenharia mecanica). Priorize sinais de porte, "
-            "setor industrial, expansão, equipamentos e processos. Se um site "
-            "estiver desatualizado, mencione apenas como evidência secundaria."
+            "Análise voltada a projetos de Engenharia Mecânica, modelagem 3D, projetos CAD, "
+            "detalhamento técnico de peças e automação. Use os termos de capacidade industrial "
+            "(usinagem, CNC, solda, máquinas, caldeiraria) e o porte cadastral como evidência primária. "
+            "Ignore SSL/SEO/performance do site — avalie pelo segmento, vocação fabril e palavras-chave de negócio."
         ),
+    },
+    {
+        "service_label": "Corte Laser, MDF & Produtos Personalizados",
+        "requires_technical_report": True,
+        "requires_business_data": True,
+        "playbook": {
+            "hooks": [
+                "Empresa demanda troféus, medalhas, chaveiros ou brindes corporativos sob medida para eventos e premiações",
+                "Demanda por peças cortadas a laser em MDF, acrílico ou metal para comunicação visual ou produtos",
+                "Necessidade de lote personalizado de brindes ou peças decorativas/promocionais",
+            ],
+            "subject_ideas": [
+                "Troféus, chaveiros e peças personalizadas em MDF para a {empresa}",
+                "Corte a laser e brindes sob medida para {empresa}",
+                "Premiações e peças em MDF/Acrílico para a {empresa}",
+            ],
+            "objections": [
+                {"objection": "Já temos fornecedor de brindes", "approach": "Oferecer amostra/protótipo sem custo ou orçamento comparativo para o próximo evento"},
+                {"objection": "Compramos pronto no mercado", "approach": "Mostrar a valorização da marca com peças 100% personalizadas em MDF/Acrílico"},
+            ],
+        },
+        "positive_signals": [
+            {"label": "Organização de eventos / RH / marketing / esportes", "description": "Promove premiações, corridas, homenagens ou eventos corporativos", "weight_hint": "high"},
+            {"label": "Palavras-chave de artesanato/comunicação visual/brindes", "description": "Menções a MDF, acrílico, troféus, chaveiros ou peças sob medida", "weight_hint": "high"},
+            {"label": "Empresa comercial ou agência consumidora de brindes", "description": "Demanda recorrente de presentes corporativos ou sinalização", "weight_hint": "medium"},
+        ],
+        "negative_signals": [
+            {"label": "Empresa sem eventos ou sem uso de marca física", "description": "Sem aderência para produtos personalizados em MDF/Acrílico", "weight_hint": "high"},
+        ],
+        "extra_instructions": (
+            "Análise para venda de corte a laser, projetos em MDF, acrílico, troféus, chaveiros, "
+            "placas e brindes corporativos. Avalie o fito se a empresa realiza eventos, premiações, "
+            "ou consome material promocional/comunicação visual sob medida. Ignore métricas de SEO/SSL."
+        ),
+        "context_signals": [
+            {"label": "Segmento", "description": "Eventos, educação, esportes, RH corporativo, agências, comércio"},
+        ],
     },
     {
         "service_label": "Automação Industrial",
