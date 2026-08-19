@@ -36,6 +36,7 @@ from database.models import (
     OrganizationSecret,
     FollowUpStep,
     FollowUpStatus,
+    OnboardingStatus,
     EmailSuppression,
     NegotiationStage,
     ContractOutcome,

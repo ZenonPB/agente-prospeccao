@@ -15,17 +15,21 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Visão Geral"
-        title="Seu radar comercial"
-        description="Acompanhe os resultados da sua prospecção em um só lugar"
-      />
+      <div data-tour="dashboard-header">
+        <PageHeader
+          eyebrow="Visão Geral"
+          title="Seu radar comercial"
+          description="Acompanhe os resultados da sua prospecção em um só lugar"
+        />
+      </div>
 
       {/* Process Banner */}
       <ProcessBanner />
 
       {/* Metrics */}
-      <MetricsGrid onFilter={setActiveFilter} activeFilter={activeFilter} />
+      <div data-tour="dashboard-metrics">
+        <MetricsGrid onFilter={setActiveFilter} activeFilter={activeFilter} />
+      </div>
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">

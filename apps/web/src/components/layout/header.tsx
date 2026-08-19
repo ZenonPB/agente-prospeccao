@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { Menu } from 'lucide-react';
+import { Menu, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,11 +15,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/stores/useAppStore';
+import { useOnboardingStore } from '@/stores/useOnboardingStore';
+import { useUpdateOnboardingStatus } from '@/hooks/use-api';
 import { BrandLogo } from './brand-logo';
 
 export function Header() {
   const { data: session } = useSession();
   const { toggleSidebar } = useAppStore();
+  const { resetTour } = useOnboardingStore();
+  const updateStatusMutation = useUpdateOnboardingStatus();
+
+  const handleRestartTour = () => {
+    resetTour();
+    updateStatusMutation.mutate('NOT_STARTED');
+  };
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 lg:px-6">
@@ -70,6 +79,10 @@ export function Header() {
             <DropdownMenuSeparator />
             <DropdownMenuItem render={<Link href="/configuracoes" />}>
               Configurações
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRestartTour}>
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Refazer Tutorial
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => signOut()}>

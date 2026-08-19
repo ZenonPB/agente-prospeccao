@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, type ScoringTemplateInput } from "@/lib/api";
-import type { SalesRole, OrgRole } from "@/types";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, type ScoringTemplateInput } from "@/lib/api";
+import type { SalesRole, OrgRole, OnboardingStatus } from "@/types";
 
 export type SegmentSuggestion = {
   segment: string;
@@ -867,5 +867,23 @@ export function useOrgUsage(orgId?: string) {
     queryKey: ["orgs", orgId, "usage"],
     queryFn: () => orgsApi.getUsage(orgId as string),
     enabled: !!orgId,
+  });
+}
+
+export function useUserMe() {
+  return useQuery({
+    queryKey: ["user", "me"],
+    queryFn: () => authApi.getMe(),
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export function useUpdateOnboardingStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (status: OnboardingStatus) => authApi.updateOnboardingStatus(status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+    },
   });
 }
