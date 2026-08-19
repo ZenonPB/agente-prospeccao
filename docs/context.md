@@ -782,6 +782,26 @@ Branch `feat/p2-confiabilidade` (roadmap-vendas P2 — PR #68):
   de leads + índices compostos `(organization_id, status, qualification_score)`
   (migration `ca2c1a...`).
 
+### Modelo de 3 Entidades, Google OAuth2, Monitoramento & Catch-All Opt-in ✅ (2026-08-18)
+
+Branch `feat/3-entities-webhooks-integrations`:
+
+- **Modelo de 3 Entidades (Company, Person, Lead — Item 4.27)**:
+  - Migration `2b137f2dc6f5`: cria tabelas `companies`, `persons` e `webhook_logs`, e vincula `company_id` e `primary_person_id` ao `leads`.
+  - `CompanyPersonService` (`services/workers/src/services/company_person_service.py`): sincronização automática e reutilização de histórico de empresas e decisores na mesma organização. Integrado em `pipeline_worker.py` e `csv_import_service.py`.
+  - `duplicate_detection_service.py`: atualizado para considerar `company_id` e `person_id` na detecção de duplicatas.
+- **Sincronização Nativa Google Sheets via OAuth2 (Item 4.20)**:
+  - `GoogleSheetsService` (`services/api/src/services/google_sheets_service.py`): fluxo OAuth2 completo com autorização, troca/renovação de tokens e espelhamento direto via API REST Google Sheets (`sheets.googleapis.com/v4/spreadsheets`).
+  - Endpoints: `GET /api/orgs/{org_id}/google/oauth-url`, `POST /api/orgs/{org_id}/google/oauth-callback` e `POST /api/campaigns/{id}/sync-google-sheets`.
+- **Painel de Monitoramento de Webhooks & Jobs**:
+  - Backend: endpoints `GET /api/orgs/{org_id}/webhook-logs` e `GET /api/orgs/{org_id}/job-logs`. `webhook_outbound_service.py` grava cada disparo em `webhook_logs`.
+  - Frontend UI: `SystemMonitoringPanel` (`components/configuracoes/system-monitoring.tsx`) adicionado à página `/configuracoes`.
+- **Verificação de E-mail Catch-All (Item 4.1)**:
+  - `EmailVerificationService.probe_smtp_catchall`: probe SMTP ativo via `RCPT TO` configurável por opt-in (`enable_catchall_probe`). Mantém a análise 100% passiva por padrão (Lei 12.737/2012).
+- **Validação Tátil em Dispositivos Móveis (Item 4.17)**:
+  - Menu de ações rápidas ("Mover para"), drag-handle com `touch-none` e `MobileBottomNav` revisados para targets de toque `>= 44px`.
+- **Verificação**: `compileall` OK, 342 testes pytest passando, `npm run lint`, `npx tsc --noEmit` e `npm run build` do Next.js 16 limpos.
+
 ### Próximo passo imediato
 
 > **Atualizado 2026-08-17** — onde paramos:
