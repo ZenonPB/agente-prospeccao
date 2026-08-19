@@ -29,6 +29,7 @@ from services.template_generation_service import TemplateGenerationService
 from services.cnae_discovery_service import CnaeDiscoveryService
 from services.secret_service import SecretService
 from services.domain_utils import normalize_domain
+from services.company_person_service import CompanyPersonService
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def _dispatch_lead_created_webhooks(db: Session, org_id: str, lead_ids: list[str
         )
         headers = build_webhook_headers(org_obj.webhook_secret, "lead.created")
         asyncio.create_task(
-            _dispatch_webhook(str(org_obj.webhook_url), payload, headers),
+            _dispatch_webhook(str(org_id), str(org_obj.webhook_url), payload, headers),
         )
 
 
@@ -249,6 +250,7 @@ async def run_pipeline(
                     status=LeadStatus.NOVO,
                     campaign_id=campaign.id if campaign else None,
                 )
+                CompanyPersonService.sync_lead_entities(db, new_lead)
                 db.add(new_lead)
                 db.commit()
                 if new_lead.id is not None:
@@ -351,6 +353,7 @@ async def run_pipeline(
                 # é descartada — o lote inteiro não rola para trás.
                 try:
                     with db.begin_nested():
+                        CompanyPersonService.sync_lead_entities(db, new_lead)
                         db.add(new_lead)
                         db.flush()
                 except IntegrityError as exc:
@@ -611,6 +614,7 @@ async def run_pipeline(
                     contacts = await enrich_svc.enrich_contacts(lead, db)
                     if contacts:
                         enriched_count += len(contacts)
+                        CompanyPersonService.sync_lead_entities(db, lead)
                         yield {
                             "type": "log",
                             "message": (

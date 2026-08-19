@@ -528,6 +528,8 @@ class ContactEnrichmentService:
             if not linkedin_fresh:
                 enrichment_ts.stamp(lead, "linkedin")
 
+        from services.company_person_service import CompanyPersonService
+        CompanyPersonService.sync_lead_entities(db, lead)
         db.flush()
         return results
 

@@ -242,6 +242,17 @@ class CsvImportService:
         # dependências na mesma sessão.
         if imported_leads or imported_contacts:
             db.add_all([*imported_leads, *imported_contacts])
+            if hasattr(db, "flush"):
+                db.flush()
+
+            # Sincroniza modelo de 3 Entidades (Company, Person)
+            from services.company_person_service import CompanyPersonService
+            for lead in imported_leads:
+                try:
+                    CompanyPersonService.sync_lead_entities(db, lead)
+                except Exception:
+                    pass
+
             db.commit()
 
         total_rows = line_num - 1

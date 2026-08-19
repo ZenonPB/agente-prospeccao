@@ -675,6 +675,24 @@ export function useOrgAuditLog(orgId?: string, event?: string) {
   });
 }
 
+export function useWebhookLogs(orgId?: string, limit?: number) {
+  return useQuery({
+    queryKey: ["org", orgId, "webhook-logs", limit],
+    queryFn: () => orgsApi.listWebhookLogs(orgId as string, limit),
+    enabled: !!orgId,
+    refetchInterval: 15000,
+  });
+}
+
+export function useJobLogs(orgId?: string, limit?: number) {
+  return useQuery({
+    queryKey: ["org", orgId, "job-logs", limit],
+    queryFn: () => orgsApi.listJobLogs(orgId as string, limit),
+    enabled: !!orgId,
+    refetchInterval: 15000,
+  });
+}
+
 export function useImportCsv() {
   const queryClient = useQueryClient();
   return useMutation({

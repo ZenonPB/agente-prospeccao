@@ -15,6 +15,8 @@ from src.db.models import (
     OrganizationSecret,
     SalesTarget,
     OrgAuditEvent,
+    WebhookLog,
+    Job,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -802,3 +804,118 @@ def list_org_audit_log(
             for e in entries
         ]
     }
+
+
+@router.get("/{org_id}/webhook-logs")
+def list_webhook_logs(
+    org_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_manager),
+):
+    """Lista histórico de disparos de webhooks da organização (MANAGER+)."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    logs = (
+        db.query(WebhookLog)
+        .filter(WebhookLog.organization_id == org_id)
+        .order_by(WebhookLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": str(log.id),
+            "event_type": log.event_type,
+            "target_url": log.target_url,
+            "status_code": log.status_code,
+            "success": log.success,
+            "payload": log.payload,
+            "response_body": log.response_body,
+            "error_message": log.error_message,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+        }
+        for log in logs
+    ]
+
+
+@router.get("/{org_id}/job-logs")
+def list_job_logs(
+    org_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    actor: OrganizationMember = Depends(require_manager),
+):
+    """Lista histórico de jobs de coleta/pipeline da organização (MANAGER+)."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    jobs = (
+        db.query(Job)
+        .filter(Job.organization_id == org_id)
+        .order_by(Job.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": str(j.id),
+            "job_type": j.job_type.value if j.job_type else None,
+            "status": j.status.value if j.status else None,
+            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "started_at": j.started_at.isoformat() if j.started_at else None,
+            "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+            "error_message": j.error_message,
+            "payload": j.payload,
+        }
+        for j in jobs
+    ]
+
+
+class GoogleOAuthCallbackRequest(BaseModel):
+    code: str
+    redirect_uri: str
+
+
+@router.get("/{org_id}/google/oauth-url")
+def get_google_oauth_url(
+    org_id: str,
+    redirect_uri: str = Query(...),
+    db: Session = Depends(get_db),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Gera URL de consentimento OAuth2 para Google Drive/Sheets (Admin only)."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    from services.google_sheets_service import GoogleSheetsService
+    auth_url = GoogleSheetsService.get_auth_url(redirect_uri, state=org_id)
+    return {"auth_url": auth_url}
+
+
+@router.post("/{org_id}/google/oauth-callback")
+async def handle_google_oauth_callback(
+    org_id: str,
+    payload: GoogleOAuthCallbackRequest,
+    db: Session = Depends(get_db),
+    actor: OrganizationMember = Depends(require_org_admin),
+):
+    """Processa o código OAuth2 do Google e persiste as credenciais da org (Admin only)."""
+    if str(actor.organization_id) != org_id:
+        raise HTTPException(status_code=404, detail="Organização não encontrada")
+
+    from services.google_sheets_service import GoogleSheetsService
+    res = await GoogleSheetsService.exchange_code_and_store(
+        db=db,
+        organization_id=org_id,
+        code=payload.code,
+        redirect_uri=payload.redirect_uri,
+    )
+
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Falha na troca de código OAuth2"))
+
+    return {"message": "Google OAuth2 autorizado com sucesso"}

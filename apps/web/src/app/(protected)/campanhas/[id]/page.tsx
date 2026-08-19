@@ -9,7 +9,9 @@ import { CnaeDiscoveryModal } from '@/components/campanhas/cnae-discovery-modal'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, MapPin, FileSpreadsheet } from 'lucide-react';
+import { campaignsApi } from '@/lib/api';
+import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; color: string }> = {
   ACTIVE: { label: 'Em andamento', color: 'bg-emerald-100 text-emerald-700' },
@@ -26,6 +28,24 @@ export default function CampaignDetailPage() {
 
   const { data: campaign, isLoading } = useCampaign(campaignId);
   const { data: leadsData } = useLeads({ campaign_id: campaignId });
+
+  const handleExportGoogleSheets = async () => {
+    if (!campaign) return;
+    try {
+      const blob = await campaignsApi.exportGoogleSheets(campaignId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `campanha_${campaign.name.replace(/\s+/g, "_")}_google_sheets.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success("Planilha exportada para formato compatível com Google Sheets.");
+    } catch {
+      toast.error("Falha ao exportar para o Google Sheets.");
+    }
+  };
 
   if (isLoading) {
     return (
@@ -73,6 +93,10 @@ export default function CampaignDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <CnaeDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} />
           <CsvImportModal campaignId={campaign.id} campaignName={campaign.name} />
+          <Button variant="outline" size="sm" onClick={handleExportGoogleSheets} className="gap-1.5 text-xs">
+            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+            Google Sheets / CSV
+          </Button>
           <Badge className={statusConfig[campaign.status]?.color}>
             {statusConfig[campaign.status]?.label || campaign.status}
           </Badge>

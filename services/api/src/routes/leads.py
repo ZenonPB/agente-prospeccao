@@ -162,6 +162,10 @@ def _lead_summary(lead: Lead) -> dict:
         "value": float(lead.value) if lead.value is not None else None,
         "expected_close_date": lead.expected_close_date.isoformat() if lead.expected_close_date else None,
         "lost_reason": lead.lost_reason.value if lead.lost_reason else None,
+        "company_id": str(lead.company_id) if lead.company_id else None,
+        "primary_person_id": str(lead.primary_person_id) if lead.primary_person_id else None,
+        "company_name_3e": lead.company.company_name if lead.company else lead.company_name,
+        "primary_person_name": lead.primary_person.name if lead.primary_person else None,
     }
 
 

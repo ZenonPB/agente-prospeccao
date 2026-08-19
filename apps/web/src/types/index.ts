@@ -194,6 +194,29 @@ export interface OrgAuditEntry {
   created_at: string;
 }
 
+export interface WebhookLogEntry {
+  id: string;
+  event_type: string;
+  target_url: string;
+  status_code?: number | null;
+  success: boolean;
+  payload?: Record<string, unknown> | null;
+  response_body?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
+export interface JobLogEntry {
+  id: string;
+  job_type: string;
+  status: string;
+  created_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  error_message?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
 export interface OrgMembership {
   organization: {
     id: string;

@@ -45,4 +45,7 @@ from database.models import (
     OrgAuditLog,
     OrgAuditEvent,
     ConsultantPlaybook,
+    Company,
+    Person,
+    WebhookLog,
 )
