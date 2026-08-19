@@ -304,6 +304,69 @@ class TechnicalEnrichmentService:
 
         return result
 
+    def _extract_domain_copy(self, html_content: Optional[str]) -> Dict[str, Any]:
+        """Extrai fatos de conteúdo e palavras-chave de negócio do HTML da home.
+
+        Fornece contexto semântico real sobre o que a empresa produz, fabrica ou vende,
+        permitindo pontuar com precisão qualquer vertical (engenharia, MDF, ERPs, etc.).
+        """
+        if not html_content:
+            return {}
+
+        soup_clean = re.sub(r"<(script|style|svg|path)[^>]*>.*?</\1>", " ", html_content, flags=re.DOTALL | re.IGNORECASE)
+        plain_text = re.sub(r"<[^>]+>", " ", soup_clean)
+        plain_text = re.sub(r"\s+", " ", plain_text).strip()
+        text_lower = plain_text.lower()
+
+        h1_matches = [re.sub(r"<[^>]+>", "", h).strip() for h in re.findall(r"<h1[^>]*>(.*?)</h1>", html_content, flags=re.DOTALL | re.IGNORECASE)]
+        h2_matches = [re.sub(r"<[^>]+>", "", h).strip() for h in re.findall(r"<h2[^>]*>(.*?)</h2>", html_content, flags=re.DOTALL | re.IGNORECASE)]
+        headings = [h for h in h1_matches + h2_matches if h and len(h) <= 120][:5]
+
+        meta_desc = ""
+        desc_match = re.search(r'<meta\s+name=["\']description["\']\s+content=["\']([^"\']+)["\']', html_content, flags=re.IGNORECASE)
+        if not desc_match:
+            desc_match = re.search(r'<meta\s+property=["\']og:description["\']\s+content=["\']([^"\']+)["\']', html_content, flags=re.IGNORECASE)
+        if desc_match:
+            meta_desc = desc_match.group(1).strip()[:255]
+
+        full_search_text = (plain_text + " " + meta_desc + " " + " ".join(headings)).lower()
+
+        kw_mechanical = [
+            kw for kw in (
+                "usinagem", "torno", "fresa", "cnc", "caldeiraria", "solda",
+                "corte a laser", "desenho técnico", "desenho tecnico", "cad/cam",
+                "solidworks", "autocad", "projetos mecânicos", "projetos mecanicos",
+                "injetora", "estamparia", "moldes", "automação industrial",
+                "automacao industrial", "equipamentos", "manutenção industrial"
+            ) if kw in full_search_text
+        ]
+
+        kw_custom_craft = [
+            kw for kw in (
+                "mdf", "troféus", "trofeus", "chaveiros", "acrílico", "acrilico",
+                "corte e gravação laser", "brindes", "brindes corporativos",
+                "placas de homenagem", "marcenaria", "comunicação visual",
+                "sinalização", "peças sob medida"
+            ) if kw in full_search_text
+        ]
+
+        kw_systems = [
+            kw for kw in (
+                "sistema", "portal", "área do cliente", "area do cliente",
+                "software", "erp", "crm", "painel", "área logada", "area logada",
+                "integração", "integracao", "api"
+            ) if kw in full_search_text
+        ]
+
+        return {
+            "meta_description": meta_desc,
+            "headings": headings,
+            "keywords_mechanical": kw_mechanical,
+            "keywords_custom_craft": kw_custom_craft,
+            "keywords_systems": kw_systems,
+            "snippet": plain_text[:350],
+        }
+
     def _rate_performance(self, load_time_ms: Optional[int]) -> Dict[str, Any]:
         """Interpreta o tempo de carregamento em uma classificação legível."""
         if load_time_ms is None:
@@ -418,6 +481,9 @@ class TechnicalEnrichmentService:
             report["ux"] = self._check_ux(html_content)
             for issue in report["ux"].get("issues", []):
                 report["warnings"].append(f"UX/Conversão: {issue}")
+
+            # Extração semântica de conteúdo e palavras-chave de negócio
+            report["domain_copy"] = self._extract_domain_copy(html_content)
 
             # Checagem de arquivos públicos de SEO (robots/sitemap):
             # sem varredura de caminhos sensíveis (.env, .git, admin/).
