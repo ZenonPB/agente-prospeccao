@@ -44,10 +44,15 @@ export function CadencePanel({ leadId }: { leadId: string }) {
 
   const handleStart = useCallback(async () => {
     try {
-      await startCadence.mutateAsync(leadId);
-      toast.success("Cadência gerada e agendada (dias 0/3/7/14).");
+      const result = await startCadence.mutateAsync(leadId);
+      const days = result?.schedule?.length === 4 ? result.schedule : null;
+      toast.success(
+        days
+          ? `Mensagens geradas e agendadas (dias ${days.join(", ")}).`
+          : "Mensagens geradas e agendadas.",
+      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao gerar cadência.");
+      toast.error(error instanceof Error ? error.message : "Erro ao gerar as mensagens.");
     }
   }, [leadId, startCadence]);
 
@@ -66,9 +71,9 @@ export function CadencePanel({ leadId }: { leadId: string }) {
   const handleOptOut = useCallback(async () => {
     try {
       await optOut.mutateAsync(leadId);
-      toast.success("Opt-out registrado. Cadência pausada.");
+      toast.success("Registrado: esta empresa não receberá mais mensagens.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao registrar opt-out.");
+      toast.error(error instanceof Error ? error.message : "Não foi possível registrar. Tente de novo.");
     }
   }, [leadId, optOut]);
 
@@ -77,10 +82,10 @@ export function CadencePanel({ leadId }: { leadId: string }) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <CalendarClock className="h-4 w-4 text-muted-foreground" />
-          Sequência de Mensagens de Acompanhamento
+          Mensagens de acompanhamento
         </CardTitle>
         <CardDescription>
-          Etapas programadas para enviar ao cliente nos dias 0, 3, 7 e 14
+          Etapas programadas para acompanhar a empresa — cada uma mostra a data agendada abaixo
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -96,12 +101,12 @@ export function CadencePanel({ leadId }: { leadId: string }) {
         ) : optOutActive ? (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
             <ShieldAlert className="h-4 w-4 shrink-0" />
-            Lead opt-out — nenhuma mensagem é enviada.
+            Esta empresa pediu para não receber mensagens — o acompanhamento está pausado.
           </div>
         ) : followUps.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-4 text-center">
             <p className="text-sm text-muted-foreground">
-              Nenhuma cadência ainda. Gere e agende as mensagens dos dias 0/3/7/14.
+              Nenhuma mensagem agendada ainda. Gere e agende as mensagens de acompanhamento.
             </p>
             <Button
               size="sm"
@@ -113,7 +118,7 @@ export function CadencePanel({ leadId }: { leadId: string }) {
               ) : (
                 <Play className="mr-1.5 h-4 w-4" />
               )}
-              Iniciar cadência
+              Gerar mensagens
             </Button>
           </div>
         ) : (
@@ -187,7 +192,7 @@ export function CadencePanel({ leadId }: { leadId: string }) {
                 disabled={optOut.isPending}
               >
                 <Ban className="mr-1 h-3.5 w-3.5" />
-                Opt-out
+                Não enviar mais mensagens
               </Button>
             </div>
           </>

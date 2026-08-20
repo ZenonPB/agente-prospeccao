@@ -797,6 +797,8 @@ export interface Playbook {
   objections?: { objection?: string; approach?: string }[];
 }
 
+export type EnrichmentStep = "technical_site" | "cnpj_receita" | "business_social";
+
 export interface ScoringTemplate {
   id: string;
   service_label: string;
@@ -805,6 +807,8 @@ export interface ScoringTemplate {
   context_signals: { label: string; description?: string; weight_hint: string }[];
   requires_technical_report: boolean;
   requires_business_data: boolean;
+  enrichment_steps?: EnrichmentStep[] | null;
+  cadence_schedule?: number[] | null;
   extra_instructions?: string;
   playbook?: Playbook;
   is_generated: boolean;
@@ -819,6 +823,8 @@ export interface ScoringTemplateInput {
   context_signals?: { label: string; description?: string; weight_hint: string }[];
   requires_technical_report?: boolean;
   requires_business_data?: boolean;
+  enrichment_steps?: EnrichmentStep[] | null;
+  cadence_schedule?: number[] | null;
   extra_instructions?: string;
   playbook?: Playbook;
   is_active?: boolean;

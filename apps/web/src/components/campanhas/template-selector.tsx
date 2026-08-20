@@ -8,11 +8,31 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, Plus, Trash2, BookOpen } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Trash2, BookOpen, Search, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useScoringTemplates, usePatchScoringTemplate } from '@/hooks/use-api';
-import type { ScoringTemplate, ScoringTemplateInput, Playbook } from '@/lib/api';
+import type { ScoringTemplate, ScoringTemplateInput, Playbook, EnrichmentStep } from '@/lib/api';
 import { toast } from 'sonner';
+
+const DEFAULT_CADENCE = [0, 3, 7, 14];
+
+// Templates antigos não têm `enrichment_steps` — deriva dos flags binários
+// (mesmo critério do backend) para o switch aparecer preenchido.
+function deriveSteps(tmpl: ScoringTemplate): EnrichmentStep[] {
+  const steps: EnrichmentStep[] = [];
+  if (tmpl.requires_technical_report) steps.push('technical_site');
+  if (tmpl.requires_business_data) steps.push('cnpj_receita');
+  steps.push('business_social');
+  return Array.from(new Set(steps));
+}
+
+const STEP_OPTIONS: { key: EnrichmentStep; label: string; hint: string }[] = [
+  { key: 'technical_site', label: 'Site da empresa', hint: 'Tecnologias, segurança e desempenho do site' },
+  { key: 'cnpj_receita', label: 'Dados da Receita Federal (CNPJ)', hint: 'Porte, ramo de atividade, tempo de empresa' },
+  { key: 'business_social', label: 'Reputação no Google', hint: 'Nota e quantidade de avaliações' },
+];
+
+const CADENCE_LABELS = ['1ª mensagem', '2ª mensagem', '3ª mensagem', 'Encerramento'];
 
 interface TemplateSelectorProps {
   value: string | null;
@@ -147,6 +167,28 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
     updatePlaybook({ objections: items });
   };
 
+  const currentSteps: EnrichmentStep[] = selected
+    ? (draft?.enrichment_steps ?? deriveSteps(selected))
+    : [];
+  const currentCadence: number[] = selected
+    ? (draft?.cadence_schedule ?? selected.cadence_schedule ?? DEFAULT_CADENCE)
+    : DEFAULT_CADENCE;
+
+  const toggleStep = (step: EnrichmentStep, enabled: boolean) => {
+    if (!selected) return;
+    const next = new Set(currentSteps);
+    if (enabled) next.add(step);
+    else next.delete(step);
+    setDraft({ ...(draft ?? {}), enrichment_steps: Array.from(next) });
+  };
+
+  const updateCadenceDay = (index: number, value: string) => {
+    if (!selected) return;
+    const days = [...currentCadence];
+    days[index] = value === '' ? 0 : Number(value);
+    setDraft({ ...(draft ?? {}), cadence_schedule: days });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -199,8 +241,11 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                       Gerado por IA — revisar antes de usar em massa
                     </Badge>
                   )}
-                  {selected.requires_technical_report && <Badge variant="outline">Análise técnica</Badge>}
-                  {selected.requires_business_data && <Badge variant="outline">Dados cadastrais</Badge>}
+                  {STEP_OPTIONS.filter((o) => deriveSteps(selected).includes(o.key)).map((o) => (
+                    <Badge key={o.key} variant="outline">
+                      {o.label}
+                    </Badge>
+                  ))}
                 </div>
 
                 <div className="space-y-2">
@@ -214,27 +259,69 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Flags</Label>
-                  <div className="flex gap-6">
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={draft?.requires_technical_report ?? selected.requires_technical_report}
-                        onCheckedChange={(v) =>
-                          setDraft({ ...(draft ?? {}), requires_technical_report: v === true })
-                        }
-                      />
-                      Análise técnica do site
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={draft?.requires_business_data ?? selected.requires_business_data}
-                        onCheckedChange={(v) =>
-                          setDraft({ ...(draft ?? {}), requires_business_data: v === true })
-                        }
-                      />
-                      Dados cadastrais
-                    </label>
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">O que analisar nesta empresa</p>
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      ajuste por tipo de serviço
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Escolha as informações que o sistema deve buscar para avaliar se a empresa
+                    é uma boa oportunidade. Indústrias costumam render melhor com dados da
+                    Receita do que com auditoria de site.
+                  </p>
+                  <div className="space-y-2">
+                    {STEP_OPTIONS.map((opt) => (
+                      <label
+                        key={opt.key}
+                        className="flex items-start gap-3 rounded-md p-2 hover:bg-muted/40"
+                      >
+                        <Switch
+                          checked={currentSteps.includes(opt.key)}
+                          onCheckedChange={(v) => toggleStep(opt.key, v === true)}
+                          className="mt-0.5"
+                        />
+                        <span className="space-y-0.5">
+                          <span className="block text-sm font-medium">{opt.label}</span>
+                          <span className="block text-xs text-muted-foreground">{opt.hint}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">Acompanhamento da empresa</p>
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      dia após o primeiro contato
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Em que dias enviar cada mensagem? Para vendas rápidas (sites, SEO) o padrão
+                    0/3/7/14 funciona bem. Para vendas industriais longas, use semanas (ex.:
+                    0, 7, 30, 60).
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {currentCadence.map((day, i) => (
+                      <div key={i} className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">{CADENCE_LABELS[i]}</Label>
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            value={String(day)}
+                            onChange={(e) => updateCadenceDay(i, e.target.value)}
+                            className="h-9"
+                            aria-label={`dia da ${CADENCE_LABELS[i]}`}
+                          />
+                          <span className="text-xs text-muted-foreground">dias</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
