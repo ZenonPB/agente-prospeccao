@@ -280,9 +280,9 @@ export function LeadList() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-tour="oportunidades-lista">
       {/* Presets Rápidos */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div data-tour="oportunidades-filtros" className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
           Filtros Rápidos:
         </span>
@@ -322,7 +322,7 @@ export function LeadList() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div data-tour="oportunidades-busca" className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 sm:w-64">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input

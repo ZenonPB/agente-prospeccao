@@ -132,7 +132,7 @@ export default function ConfiguracoesPage() {
       />
 
       {/* Perfil */}
-      <Card>
+      <Card data-tour="configuracoes-perfil">
         <CardHeader>
           <CardTitle>Perfil</CardTitle>
           <CardDescription>
@@ -324,17 +324,21 @@ export default function ConfiguracoesPage() {
         </CardContent>
       </Card>
 
-      {/* Organização (nome — 3.3.1) */}
+      {/* Organização */}
       <OrgNameCard />
 
-      {/* Chaves de API (BYOK) */}
-      <OrgSecretsCard />
+      {/* Chaves de API */}
+      <div data-tour="configuracoes-chaves">
+        <OrgSecretsCard />
+      </div>
 
-      {/* Cotas de uso de IA e dados (item 4.14) */}
+      {/* Cotas de uso de IA e dados */}
       <OrgQuotaCard />
 
-      {/* Envio de follow-ups (item 3.7) */}
-      <OrgSendSettings />
+      {/* Envio de follow-ups */}
+      <div data-tour="configuracoes-envio">
+        <OrgSendSettings />
+      </div>
 
       {/* Prazos de leads parados */}
       <OrgSlaSettings />
@@ -342,10 +346,10 @@ export default function ConfiguracoesPage() {
       {/* Threshold de qualificação */}
       <OrgThresholdSettings />
 
-      {/* Integrações (4.20) */}
+      {/* Integrações */}
       <OrgIntegrationsCard />
 
-      {/* Playbooks por consultor (4.21) */}
+      {/* Mensagens salvas por consultor */}
       <PlaybooksCard />
 
       {/* Tutorial Interativo */}

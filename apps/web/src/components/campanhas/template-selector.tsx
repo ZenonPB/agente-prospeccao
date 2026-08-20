@@ -1,38 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, Sparkles, Plus, Trash2, BookOpen, Search, CalendarClock } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useScoringTemplates, usePatchScoringTemplate } from '@/hooks/use-api';
-import type { ScoringTemplate, ScoringTemplateInput, Playbook, EnrichmentStep } from '@/lib/api';
-import { toast } from 'sonner';
-
-const DEFAULT_CADENCE = [0, 3, 7, 14];
-
-// Templates antigos não têm `enrichment_steps` — deriva dos flags binários
-// (mesmo critério do backend) para o switch aparecer preenchido.
-function deriveSteps(tmpl: ScoringTemplate): EnrichmentStep[] {
-  const steps: EnrichmentStep[] = [];
-  if (tmpl.requires_technical_report) steps.push('technical_site');
-  if (tmpl.requires_business_data) steps.push('cnpj_receita');
-  steps.push('business_social');
-  return Array.from(new Set(steps));
-}
-
-const STEP_OPTIONS: { key: EnrichmentStep; label: string; hint: string }[] = [
-  { key: 'technical_site', label: 'Site da empresa', hint: 'Tecnologias, segurança e desempenho do site' },
-  { key: 'cnpj_receita', label: 'Dados da Receita Federal (CNPJ)', hint: 'Porte, ramo de atividade, tempo de empresa' },
-  { key: 'business_social', label: 'Reputação no Google', hint: 'Nota e quantidade de avaliações' },
-];
-
-const CADENCE_LABELS = ['1ª mensagem', '2ª mensagem', '3ª mensagem', 'Encerramento'];
+import { Loader2, Sparkles, Lock } from 'lucide-react';
+import { useScoringTemplates, useOrgMembership } from '@/hooks/use-api';
+import type { ScoringTemplate } from '@/lib/api';
+import { TemplateEditor, STEP_OPTIONS, deriveSteps } from '@/components/vertentes/template-editor';
 
 interface TemplateSelectorProps {
   value: string | null;
@@ -41,178 +16,43 @@ interface TemplateSelectorProps {
 
 export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
   const { data, isLoading } = useScoringTemplates({ scope: 'all', include_inactive: true });
-  const patchTemplate = usePatchScoringTemplate();
+  const { data: membership } = useOrgMembership();
   const templates = data?.templates ?? [];
   const selected = templates.find((t) => t.id === value) ?? null;
-  const [draft, setDraft] = useState<Partial<ScoringTemplateInput> | null>(null);
-  const [saving, setSaving] = useState(false);
+
+  const myRole = membership?.membership?.role;
+  const canEdit =
+    myRole === 'OWNER' || myRole === 'ADMIN' || membership?.membership?.sales_role === 'MANAGER';
 
   const handleSelect = (id: string) => {
     const tmpl = templates.find((t) => t.id === id) ?? null;
-    setDraft(null);
     onChange(id, tmpl);
-  };
-
-  const handleSave = async () => {
-    if (!selected || !draft) return;
-    // O backend rejeita (422) sinais com label vazio — valida antes para não
-    // "quebrar" o wizard com um erro não tratado.
-    const groups = ['positive_signals', 'negative_signals', 'context_signals'] as const;
-    const emptyLabel = groups.some((g) =>
-      (draft[g] ?? []).some((s) => !(s.label ?? '').trim())
-    );
-    if (emptyLabel) {
-      toast.error('Preencha o nome de todos os sinais (ou remova os vazios) antes de salvar.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await patchTemplate.mutateAsync({ id: selected.id, data: draft });
-      setDraft(null);
-      toast.success('Template atualizado com sucesso.');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Falha ao salvar o template.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const updateSignal = (
-    group: 'positive_signals' | 'negative_signals' | 'context_signals',
-    index: number,
-    patch: Partial<{ label: string; description: string; weight_hint: string }>,
-  ) => {
-    const base = selected;
-    if (!base) return;
-    const current = draft ?? {
-      positive_signals: base.positive_signals,
-      negative_signals: base.negative_signals,
-      context_signals: base.context_signals,
-    };
-    const signals = [...(current[group] ?? [])];
-    signals[index] = { ...signals[index], ...patch };
-    setDraft({ ...current, [group]: signals });
-  };
-
-  const addSignal = (group: 'positive_signals' | 'negative_signals' | 'context_signals') => {
-    const base = selected;
-    if (!base) return;
-    const current = draft ?? {
-      positive_signals: base.positive_signals,
-      negative_signals: base.negative_signals,
-      context_signals: base.context_signals,
-    };
-    const signals = [...(current[group] ?? []), { label: '', description: '', weight_hint: 'medium' }];
-    setDraft({ ...current, [group]: signals });
-  };
-
-  const removeSignal = (group: 'positive_signals' | 'negative_signals' | 'context_signals', index: number) => {
-    const base = selected;
-    if (!base) return;
-    const current = draft ?? {
-      positive_signals: base.positive_signals,
-      negative_signals: base.negative_signals,
-      context_signals: base.context_signals,
-    };
-    const signals = [...(current[group] ?? [])];
-    signals.splice(index, 1);
-    setDraft({ ...current, [group]: signals });
-  };
-
-  const groups: { key: 'positive_signals' | 'negative_signals' | 'context_signals'; title: string; hint: string; tone: string }[] = [
-    { key: 'positive_signals', title: 'Sinais positivos', hint: 'Aumentam o score quando presentes', tone: 'text-green-700' },
-    { key: 'negative_signals', title: 'Sinais negativos', hint: 'Reduzem o score quando presentes', tone: 'text-red-700' },
-    { key: 'context_signals', title: 'Sinais contextuais', hint: 'Contexto extra (região, segmento)', tone: 'text-muted-foreground' },
-  ];
-
-  const updatePlaybook = (patch: Partial<Playbook>) => {
-    const base = selected;
-    if (!base) return;
-    const current = draft ?? { playbook: base.playbook ?? {} };
-    setDraft({ ...current, playbook: { ...(current.playbook ?? {}), ...patch } });
-  };
-
-  const playbook: Playbook = draft?.playbook ?? selected?.playbook ?? {};
-
-  const addPlaybookItem = (key: 'hooks' | 'subject_ideas') => {
-    updatePlaybook({ [key]: [...(playbook[key] ?? []), ''] });
-  };
-
-  const updatePlaybookItem = (key: 'hooks' | 'subject_ideas', index: number, value: string) => {
-    const items = [...(playbook[key] ?? [])];
-    items[index] = value;
-    updatePlaybook({ [key]: items });
-  };
-
-  const removePlaybookItem = (key: 'hooks' | 'subject_ideas', index: number) => {
-    const items = [...(playbook[key] ?? [])];
-    items.splice(index, 1);
-    updatePlaybook({ [key]: items });
-  };
-
-  const objections = playbook.objections ?? [];
-  const updateObjection = (index: number, patch: Partial<{ objection: string; approach: string }>) => {
-    const items = [...objections];
-    items[index] = { ...items[index], ...patch };
-    updatePlaybook({ objections: items });
-  };
-
-  const addObjection = () => {
-    updatePlaybook({ objections: [...objections, { objection: '', approach: '' }] });
-  };
-
-  const removeObjection = (index: number) => {
-    const items = [...objections];
-    items.splice(index, 1);
-    updatePlaybook({ objections: items });
-  };
-
-  const currentSteps: EnrichmentStep[] = selected
-    ? (draft?.enrichment_steps ?? deriveSteps(selected))
-    : [];
-  const currentCadence: number[] = selected
-    ? (draft?.cadence_schedule ?? selected.cadence_schedule ?? DEFAULT_CADENCE)
-    : DEFAULT_CADENCE;
-
-  const toggleStep = (step: EnrichmentStep, enabled: boolean) => {
-    if (!selected) return;
-    const next = new Set(currentSteps);
-    if (enabled) next.add(step);
-    else next.delete(step);
-    setDraft({ ...(draft ?? {}), enrichment_steps: Array.from(next) });
-  };
-
-  const updateCadenceDay = (index: number, value: string) => {
-    if (!selected) return;
-    const days = [...currentCadence];
-    days[index] = value === '' ? 0 : Number(value);
-    setDraft({ ...(draft ?? {}), cadence_schedule: days });
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          Template de critérios
-          <Badge variant="secondary">como a IA avalia os leads</Badge>
+          Critérios de avaliação dos leads
+          <Badge variant="secondary">como a IA escolhe as melhores oportunidades</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Carregando templates...
+            Carregando vertentes...
           </div>
         ) : (
           <>
             <div className="space-y-2">
-              <Label>Escolher template</Label>
+              <Label>Escolher vertente</Label>
               <Select value={selected?.id ?? ''} onValueChange={(id) => id && handleSelect(id)}>
                 <SelectTrigger>
                   <SelectValue>
                     {(value) => {
                       const t = templates.find((tpl) => tpl.id === value);
-                      return t ? `${t.service_label}${t.is_generated ? ' (gerado)' : ''}` : 'Selecione um template';
+                      return t ? `${t.service_label}${t.is_generated ? ' (gerada por IA)' : ''}` : 'Selecione uma vertente';
                     }}
                   </SelectValue>
                 </SelectTrigger>
@@ -220,25 +60,25 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                   {templates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.service_label}
-                      {t.is_generated ? ' (gerado)' : ''}
+                      {t.is_generated ? ' (gerada por IA)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {!selected && (
                 <p className="text-xs text-muted-foreground">
-                  Sem template específico: a IA roteia automaticamente o melhor critério para o segmento.
+                  Sem vertente específica: a IA escolhe os melhores critérios para o segmento automaticamente.
                 </p>
               )}
             </div>
 
             {selected && (
               <>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {selected.is_generated && (
                     <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
                       <Sparkles className="mr-1 h-3 w-3" />
-                      Gerado por IA — revisar antes de usar em massa
+                      Gerada por IA — revise antes de usar em massa
                     </Badge>
                   )}
                   {STEP_OPTIONS.filter((o) => deriveSteps(selected).includes(o.key)).map((o) => (
@@ -248,230 +88,18 @@ export function TemplateSelector({ value, onChange }: TemplateSelectorProps) {
                   ))}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Instruções extras (opcional)</Label>
-                  <Input
-                    value={draft?.extra_instructions ?? selected.extra_instructions ?? ''}
-                    onChange={(e) =>
-                      setDraft({ ...(draft ?? {}), extra_instructions: e.target.value })
-                    }
-                    placeholder="Orientação simples enviada para a Inteligência Artificial"
-                  />
-                </div>
-
-                <div className="space-y-3 rounded-lg border p-3">
-                  <div className="flex items-center gap-2">
-                    <Search className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">O que analisar nesta empresa</p>
-                    <Badge variant="outline" className="text-[10px] font-normal">
-                      ajuste por tipo de serviço
-                    </Badge>
+                {!canEdit ? (
+                  <div className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                    <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                      Você pode usar as vertentes disponíveis, mas a edição é exclusiva
+                      de gestores e administradores. Peça ao gestor do time para ajustar
+                      a vertente desta campanha.
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Escolha as informações que o sistema deve buscar para avaliar se a empresa
-                    é uma boa oportunidade. Indústrias costumam render melhor com dados da
-                    Receita do que com auditoria de site.
-                  </p>
-                  <div className="space-y-2">
-                    {STEP_OPTIONS.map((opt) => (
-                      <label
-                        key={opt.key}
-                        className="flex items-start gap-3 rounded-md p-2 hover:bg-muted/40"
-                      >
-                        <Switch
-                          checked={currentSteps.includes(opt.key)}
-                          onCheckedChange={(v) => toggleStep(opt.key, v === true)}
-                          className="mt-0.5"
-                        />
-                        <span className="space-y-0.5">
-                          <span className="block text-sm font-medium">{opt.label}</span>
-                          <span className="block text-xs text-muted-foreground">{opt.hint}</span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-3 rounded-lg border p-3">
-                  <div className="flex items-center gap-2">
-                    <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Acompanhamento da empresa</p>
-                    <Badge variant="outline" className="text-[10px] font-normal">
-                      dia após o primeiro contato
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Em que dias enviar cada mensagem? Para vendas rápidas (sites, SEO) o padrão
-                    0/3/7/14 funciona bem. Para vendas industriais longas, use semanas (ex.:
-                    0, 7, 30, 60).
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    {currentCadence.map((day, i) => (
-                      <div key={i} className="space-y-1">
-                        <Label className="text-xs text-muted-foreground">{CADENCE_LABELS[i]}</Label>
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            min="0"
-                            value={String(day)}
-                            onChange={(e) => updateCadenceDay(i, e.target.value)}
-                            className="h-9"
-                            aria-label={`dia da ${CADENCE_LABELS[i]}`}
-                          />
-                          <span className="text-xs text-muted-foreground">dias</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {groups.map((group) => (
-                  <div key={group.key} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className={cn('text-sm font-medium', group.tone)}>{group.title}</p>
-                        <p className="text-xs text-muted-foreground">{group.hint}</p>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => addSignal(group.key)}>
-                        <Plus className="mr-1 h-3 w-3" /> Adicionar
-                      </Button>
-                    </div>
-                    {(draft?.[group.key] ?? selected[group.key] ?? []).map((sig, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <Input
-                          className="flex-1"
-                          placeholder="Sinal"
-                          value={sig.label ?? ''}
-                          onChange={(e) => updateSignal(group.key, i, { label: e.target.value })}
-                        />
-                        <Input
-                          className="hidden flex-1 md:block"
-                          placeholder="Descrição"
-                          value={sig.description ?? ''}
-                          onChange={(e) => updateSignal(group.key, i, { description: e.target.value })}
-                        />
-                        <Select
-                          value={sig.weight_hint ?? 'medium'}
-                          onValueChange={(v) => v && updateSignal(group.key, i, { weight_hint: v })}
-                        >
-                          <SelectTrigger className="w-24">
-                            <SelectValue>
-                              {(value) =>
-                                ({ high: 'alta', medium: 'média', low: 'baixa' })[value as string] ?? (value as string)
-                              }
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="high">alta</SelectItem>
-                            <SelectItem value="medium">média</SelectItem>
-                            <SelectItem value="low">baixa</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeSignal(group.key, i)}
-                          aria-label="Remover sinal"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-
-                <div className="space-y-3 rounded-lg border p-3">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Playbook de outreach (item 3.8)</p>
-                    <Badge variant="outline" className="text-[10px] font-normal">
-                      mensagens desta vertical
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Hooks, assuntos e objeções reais desta vertical — injetados na geração das
-                    mensagens para variarem conforme o serviço.
-                  </p>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-muted-foreground">Hooks de abordagem</Label>
-                      <Button variant="ghost" size="sm" onClick={() => addPlaybookItem('hooks')}>
-                        <Plus className="mr-1 h-3 w-3" /> Adicionar
-                      </Button>
-                    </div>
-                    {(playbook.hooks ?? []).map((hook, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <Input
-                          className="flex-1"
-                          placeholder="Ex.: Petshop perde dono local para o e-commerce"
-                          value={hook ?? ''}
-                          onChange={(e) => updatePlaybookItem('hooks', i, e.target.value)}
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => removePlaybookItem('hooks', i)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-muted-foreground">Ideias de assunto (subject)</Label>
-                      <Button variant="ghost" size="sm" onClick={() => addPlaybookItem('subject_ideas')}>
-                        <Plus className="mr-1 h-3 w-3" /> Adicionar
-                      </Button>
-                    </div>
-                    {(playbook.subject_ideas ?? []).map((subject, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <Input
-                          className="flex-1"
-                          placeholder="Ex.: Seus clientes te acham no Google?"
-                          value={subject ?? ''}
-                          onChange={(e) => updatePlaybookItem('subject_ideas', i, e.target.value)}
-                        />
-                        <Button variant="ghost" size="icon" onClick={() => removePlaybookItem('subject_ideas', i)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-muted-foreground">Objeções do decisor</Label>
-                      <Button variant="ghost" size="sm" onClick={addObjection}>
-                        <Plus className="mr-1 h-3 w-3" /> Adicionar
-                      </Button>
-                    </div>
-                    {objections.map((obj, i) => (
-                      <div key={i} className="space-y-1.5 rounded-md bg-muted/40 p-2">
-                        <Input
-                          className="flex-1"
-                          placeholder="Objeção"
-                          value={obj.objection ?? ''}
-                          onChange={(e) => updateObjection(i, { objection: e.target.value })}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Input
-                            className="flex-1"
-                            placeholder="Como abordar"
-                            value={obj.approach ?? ''}
-                            onChange={(e) => updateObjection(i, { approach: e.target.value })}
-                          />
-                          <Button variant="ghost" size="icon" onClick={() => removeObjection(i)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <Button onClick={handleSave} disabled={saving || !draft}>
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Salvar alterações no template
-                </Button>
+                ) : (
+                  <TemplateEditor template={selected} />
+                )}
               </>
             )}
           </>

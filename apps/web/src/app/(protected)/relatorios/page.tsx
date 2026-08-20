@@ -81,7 +81,7 @@ export default function RelatoriosPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="relatorios-conteudo">
       <div data-tour="relatorios-header">
         <PageHeader
           eyebrow="Relatórios"
@@ -90,12 +90,14 @@ export default function RelatoriosPage() {
         />
       </div>
 
-      <ReportControls
-        period={period}
-        onChange={setPeriod}
-        onExport={handleExport}
-        exporting={exportPdf.isPending}
-      />
+      <div data-tour="relatorios-controles">
+        <ReportControls
+          period={period}
+          onChange={setPeriod}
+          onExport={handleExport}
+          exporting={exportPdf.isPending}
+        />
+      </div>
 
       {anyLoading ? (
         <ReportSkeleton />

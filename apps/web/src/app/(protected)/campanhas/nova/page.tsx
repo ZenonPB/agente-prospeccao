@@ -392,7 +392,7 @@ export default function NovaCampanhaPage() {
 
                   {briefDraft.scoring_template_label && (
                     <div className="flex items-center gap-2 rounded-lg border bg-muted p-3 text-sm">
-                      <Badge variant="secondary">Template de critérios</Badge>
+                      <Badge variant="secondary">Critérios de avaliação</Badge>
                       <span>{briefDraft.scoring_template_label}</span>
                     </div>
                   )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { driver, Driver } from 'driver.js';
 import { TOUR_STEPS } from '@/config/tour-steps';
@@ -47,7 +47,7 @@ export function GuidedTourManager() {
   const pathname = usePathname();
   const { data: userData } = useUserMe();
   const { data: membership } = useOrgMembership();
-  const updateStatusMutation = useUpdateOnboardingStatus();
+  const { mutate: updateStatus } = useUpdateOnboardingStatus();
   
   const {
     status,
@@ -70,7 +70,10 @@ export function GuidedTourManager() {
     membership?.membership?.role !== 'OWNER' &&
     membership?.membership?.role !== 'ADMIN';
 
-  const visibleSteps = TOUR_STEPS.filter((step) => !step.analystOnly || !isConsultantOnly);
+  const visibleSteps = useMemo(
+    () => TOUR_STEPS.filter((step) => !step.analystOnly || !isConsultantOnly),
+    [isConsultantOnly],
+  );
 
   // Sincroniza status inicial vindo do backend se o local storage não tiver registrado
   useEffect(() => {
@@ -97,10 +100,15 @@ export function GuidedTourManager() {
     const currentStep = visibleSteps[currentStepIndex];
     if (!currentStep) return;
 
-    // Se estiver em outra rota, dispara a navegação antes de destacar
+    // Se estiver em outra rota, dispara a navegação antes de destacar. O
+    // driver é destruído aqui para o overlay antigo não bloquear a nova página.
     if (pathname !== currentStep.targetRoute && !isNavigatingRef.current) {
       isNavigatingRef.current = true;
       setIsWaitingForElement(true);
+      if (driverRef.current) {
+        driverRef.current.destroy();
+        driverRef.current = null;
+      }
       router.push(currentStep.targetRoute);
       return;
     }
@@ -131,13 +139,20 @@ export function GuidedTourManager() {
         popoverClass: 'agente-tour-popover',
         onCloseClick: () => {
           skipTour();
-          updateStatusMutation.mutate('DISMISSED');
+          updateStatus('DISMISSED');
         },
         onDestroyStarted: () => {
           if (driverRef.current) {
             driverRef.current.destroy();
             driverRef.current = null;
           }
+        },
+        // O driver.js desabilita o botão anterior quando a instância tem um
+        // único passo (é o nosso caso — um driver por etapa do tour). Como o
+        // "Voltar" navega para outra etapa/rota do tour, re-habilitamos aqui.
+        onPopoverRender: (popover) => {
+          popover.previousButton.disabled = isFirst;
+          popover.previousButton.classList.toggle('driver-popover-btn-disabled', isFirst);
         },
         steps: [
           {
@@ -153,7 +168,7 @@ export function GuidedTourManager() {
               onNextClick: () => {
                 if (isLast) {
                   completeTour();
-                  updateStatusMutation.mutate('COMPLETED');
+                  updateStatus('COMPLETED');
                   if (driverRef.current) driverRef.current.destroy();
                 } else {
                   nextStep();
@@ -188,7 +203,7 @@ export function GuidedTourManager() {
     prevStep,
     completeTour,
     skipTour,
-    updateStatusMutation,
+    updateStatus,
   ]);
 
   if (!isActive) return null;

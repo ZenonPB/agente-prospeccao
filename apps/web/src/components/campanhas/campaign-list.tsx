@@ -96,7 +96,7 @@ export function CampaignList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div data-tour="campanhas-lista" className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-medium">Todas as Campanhas</h3>
         <Link href="/campanhas/nova">
           <Button className="h-10">
@@ -106,6 +106,7 @@ export function CampaignList() {
         </Link>
       </div>
 
+      <div data-tour="campanhas-cards" className="space-y-4">
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -227,6 +228,7 @@ export function CampaignList() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

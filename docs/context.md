@@ -149,6 +149,49 @@
 - Migration `c2d3e4f5a6b7` (colunas `enrichment_steps`, `cadence_schedule`,
   `raw_business_data`).
 
+**Bloco 3 de melhorias (`docs/melhorias.md`) — gerenciador de vertentes na UI:**
+- **Permissão MANAGER+**: criar/editar/gerar/apagar vertente exige
+  MANAGER/owner/admin (`require_manager`); CONSULTOR/ANALYST usam as vertentes
+  existentes (leitura no wizard e na tela). NO wizard, não-gestor vê aviso
+  "edição exclusiva de gestores" em vez do editor.
+- **Geração por IA como rascunho**: `POST /api/scoring-templates/generate`
+  (manager+, rate-limit 15/min) recebe `service`/`segment`/`description` em
+  linguagem natural, usa `TemplateGenerationService.build_draft` (novo — gera
+  sem persistir, LLM + validação; quota 429, falha 502, label repetido 409) e
+  **persiste já como rascunho** `is_generated=True`/`is_active=False` — sem
+  persistência prévia, fechar a página sem querer perderia o trabalho.
+- **Duplicar vertente** (`source_template_id` opcional no POST): copia critérios,
+  fontes, cadência, instruções e playbook de uma global/da org como ponto de
+  partida ("quero algo como Eng. Mecânica ajustado pro meu ICP"); body explícito
+  tem precedência; globais continuam protegidas de PATCH/DELETE (400/404).
+- **DELETE `/api/scoring-templates/{id}`** (manager+): remove vertentes da org;
+  409 quando em uso por `N` campanha(s); globais invisíveis (404).
+- **Frontend `/configuracoes/vertentes`** (sidebar Gestão, ícone Layers):
+  lista (global/rascunho/gerada/inativa), busca, criação por IA em 1 campo,
+  duplicar (dialog com nome default "(cópia)"), excluir (AlertDialog), ativar/
+  inativar (switch), editor reutilizável. Editor extraído do wizard para
+  `components/vertentes/template-editor.tsx` (DRY com `template-selector.tsx`).
+- **Humanização da UI (editor inteiro, wizard + vertentes)**: "Sinais
+  positivos/negativos" → "Características que indicam/reduzem oportunidade";
+  "Playbook de outreach (item 3.8)" → "Como abordar esse tipo de empresa";
+  "subject" → "Assuntos para o e-mail"; "Hooks" → "Frases de abertura";
+  "Objeções do decisor" → "Dúvidas comuns do cliente"; "a IA roteia" → "a IA
+  escolhe os melhores critérios"; placeholder "Sinal" → "nome da característica".
+  Auditoria final: badge "Template de critérios" (wizard Agente) → "Critérios
+  de avaliação"; card de mensagens salvas em /configuracoes perdeu "playbook"/
+  "vertical" dos textos visíveis ("Salvar mensagem", "Segmento (opcional)");
+  badge redundante "Uso autorizado" removido da lista de vertentes.
+- **Testes**: `tests/test_vertentes_manager.py` (13) — permissão, duplicar,
+  rascunho por IA (quota/LLM), delete. Suíte em **381 passed**; compileall,
+  `tsc --noEmit`, `lint` e `npm run build` limpos.
+
+**Bugfix (2026-08-19) — loop infinito no tour guiado:** `guided-tour-manager.tsx`
+tinha deps instáveis no efeito de destaque (`visibleSteps` = array novo por
+render; `updateStatusMutation` = objeto novo do `useMutation`) → cada
+`setIsWaitingForElement` (aguardando elemento) reexecutava o efeito →
+"Maximum update depth exceeded". Fix: `visibleSteps` memoizado (`useMemo`) e
+uso do `mutate` estável no lugar do objeto da mutation.
+
 **Bloco 1 de melhorias (`docs/melhorias.md`):**
 - **Alerta de nota mínima baixa** (`OrgThresholdSettings` em `/configuracoes`, owner/admin): aviso visual quando o `qualification_threshold` fica abaixo de 50, sem jargão técnico.
 - **Proteção de entregabilidade de e-mail**: `AnalyticsService.check_email_deliverability()` + endpoint `GET /api/analytics/deliverability` (ANALYST/MANAGER). Scheduler `_deliverability_check_loop` (poll `DELIVERABILITY_POLL_SECONDS`, default 1h) pausa `auto_send_email` quando bounce > 5%. `EmailSuppression` ganhou `organization_id` (migration `b2c3d4e5f6a9`) para os alertas serem por organização.
@@ -159,6 +202,9 @@
 - `driver.js` com estilização nos temas Claro, Escuro e Alpha (tokens OKLCH e tipografia Space Grotesk / Inter).
 - Persistência híbrida no Postgres (`User.onboarding_status`) e `localStorage` com endpoints `GET /api/auth/me` e `PATCH /api/auth/onboarding`.
 - Opção para refazer tutorial no Header (menu de perfil) e no card de tutorial em `/configuracoes`.
+- **(2026-08-19) Tour profundo + botão Voltar**:
+  - **Botão "Voltar" corrigido**: o driver.js desabilita o botão anterior sempre que a instância tem um único passo (nosso caso, um driver por etapa). Agora `onPopoverRender` re-habilita o botão (desabilitado só no 1º passo) e o driver é destruído antes de navegar de rota — o overlay antigo não bloqueia a página de destino.
+  - **Tour aprofundado**: de 7 → 24 etapas cobrindo cada função por página (métricas clicáveis, funil, campanhas ativas, ações de hoje, linha do tempo; lista/cards/coleta de campanhas; filtros/busca/seleção em lote de oportunidades; kanban com WhatsApp/atribuição; período+PDF/visão executiva nos relatórios; criação/duplicação de vertentes; perfil/chaves/envio automático nas configurações). Novas âncoras `data-tour` adicionadas em dashboard, campanhas, oportunidades, vendas, relatórios, vertentes e configurações. `tsc`/`lint`/`build` limpos.
 
 **Bugfixes de qualidade de dados e UI (2026-08-04):**
 - **Limite de coleta**: `campaign-pipeline.tsx` agora busca até **50 leads** por coleta (era 10).
@@ -853,9 +899,17 @@ Branch `feat/universal-sector-scoring`:
 
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-17** — onde paramos:
+> **Atualizado 2026-08-19** — onde paramos:
 >
-> **Atualizado 2026-08-17** — onde paramos:
+> 0. **Gerenciador de vertentes na UI (branch `feat/block3-vertentes-ui`):** nova
+>    página `/configuracoes/vertentes` (sidebar Gestão) — criar vertente por IA
+>    em linguagem natural como rascunho (`is_generated=True`, `is_active=False`),
+>    duplicar uma vertente de fábrica (`source_template_id`), ativar/inativar,
+>    excluir (409 se em uso); criar/editar/gerar/apagar só MANAGER+/owner/admin;
+>    editor de template extraído do wizard (`template-editor.tsx`) e humanizado.
+>    Backend: `POST /scoring-templates/generate` (rate-limit 15/min),
+>    `DELETE /{id}` e duplicação no POST. **Verificação:** 381 tests, compileall
+>    OK, web lint/tsc/build limpos.
 >
 > 0. **Operações reais + reanálise seletiva (branch `feat/reanalise-nao-pontuados`, PR #94):**
 >    - **Base local inspecionada**: 20 leads (todos `QUALIFICADO`), 1 campanha
