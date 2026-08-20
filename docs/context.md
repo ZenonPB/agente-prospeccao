@@ -127,6 +127,11 @@
     `components/theme-provider.tsx` (classe no `<html>`, `useSyncExternalStore`,
     sync cross-tab, anti-flash via script inline SSR no `layout.tsx`).
 
+**Bloco 1 de melhorias (`docs/melhorias.md`):**
+- **Alerta de nota mínima baixa** (`OrgThresholdSettings` em `/configuracoes`, owner/admin): aviso visual quando o `qualification_threshold` fica abaixo de 50, sem jargão técnico.
+- **Proteção de entregabilidade de e-mail**: `AnalyticsService.check_email_deliverability()` + endpoint `GET /api/analytics/deliverability` (ANALYST/MANAGER). Scheduler `_deliverability_check_loop` (poll `DELIVERABILITY_POLL_SECONDS`, default 1h) pausa `auto_send_email` quando bounce > 5%. `EmailSuppression` ganhou `organization_id` (migration `b2c3d4e5f6a9`) para os alertas serem por organização.
+- **Webhook de importação `POST /api/webhooks/import`**: recebe `campaign_id` + array de até 500 empresas (n8n/Make/Zapier/Apps Script), protegido por `EMAIL_WEBHOOK_SECRET`; deduplica por `place_id`/site/CNPJ e cria contato opcional. Mensagens de erro em linguagem amigável.
+
 **Tutorial & Onboarding Interativo Multi-Páginas:**
 - Sistema completo de onboarding guiado em 7 etapas navegando pelas páginas da aplicação (`/dashboard` → `/campanhas` → `/oportunidades` → `/vendas` → `/relatorios` → `/configuracoes`).
 - `driver.js` com estilização nos temas Claro, Escuro e Alpha (tokens OKLCH e tipografia Space Grotesk / Inter).

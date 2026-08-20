@@ -242,7 +242,11 @@ def send_step(
         follow_up.status = FollowUpStatus.CANCELLED
         db.commit()
         try:
-            db.add(EmailSuppression(email=to_email, reason=(result.error or "bounce permanente")[:255]))
+            db.add(EmailSuppression(
+                email=to_email,
+                organization_id=lead.organization_id if lead else None,
+                reason=(result.error or "bounce permanente")[:255],
+            ))
             db.commit()
         except Exception:
             db.rollback()

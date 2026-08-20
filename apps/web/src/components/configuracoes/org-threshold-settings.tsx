@@ -39,7 +39,7 @@ function ThresholdForm({
 
   const handleSave = async () => {
     if (!isValid) {
-      toast.error("O threshold deve ser um inteiro entre 1 e 100.");
+      toast.error("Use um número inteiro entre 1 e 100.");
       return;
     }
     setPending(true);
@@ -48,9 +48,9 @@ function ThresholdForm({
         orgId,
         data: { qualification_threshold: thresholdNum },
       });
-      toast.success("Threshold de qualificação atualizado.");
+      toast.success("Nota mínima atualizada!");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao salvar.");
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar. Tente de novo.");
     } finally {
       setPending(false);
     }
@@ -61,11 +61,11 @@ function ThresholdForm({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gauge className="h-5 w-5 text-muted-foreground" />
-          Threshold de Qualificação
+          Qualificação das empresas
         </CardTitle>
         <CardDescription>
-          Limiar de score (0–100) para um lead ser classificado como QUALIFICADO e entrar
-          na fila de outreach automático da organização.
+          O sistema dá uma nota de 0 a 100 para cada empresa encontrada. Escolha a partir de
+          qual nota você quer considerá-la uma boa oportunidade para contato.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -73,20 +73,21 @@ function ThresholdForm({
           <div className="flex gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
             <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
             <div className="space-y-1 flex-1">
-              <p className="font-medium text-destructive">Threshold muito baixo</p>
+              <p className="font-medium text-destructive">Nota muito baixa — atenção</p>
               <p className="text-sm text-muted-foreground">
-                Valores abaixo de 50 fazem leads com pouca aderência entrarem na cadência
-                automática. Isso aumenta o risco de contatar empresas sem fit real,
-                desperdiçar créditos de e-mail e prejudicar a reputação do domínio.
-                Considere manter o padrão (60) ou ajustar apenas com base nos dados de
-                conversão da sua campanha.
+                Com uma nota mínima baixa, é mais provável que empresas pouco adequadas ao que
+                você vende sejam contatadas. Isso gasta seus e-mails e reduz a qualidade das
+                conversas. Recomendamos manter o padrão (60) e só reduzir se você tiver bons
+                resultados com empresas de nota mais baixa.
               </p>
             </div>
           </div>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="qualification_threshold">Score mínimo para QUALIFICADO</Label>
+          <Label htmlFor="qualification_threshold">
+            Nota mínima para entrar como oportunidade
+          </Label>
           <div className="flex items-center gap-3">
             <Input
               id="qualification_threshold"
@@ -99,13 +100,13 @@ function ThresholdForm({
               disabled={pending}
             />
             <span className="text-sm text-muted-foreground">
-              Padrão: <strong>{DEFAULT_THRESHOLD}</strong>
+              Padrão recomendado: <strong>{DEFAULT_THRESHOLD}</strong>
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
             {isLowThreshold
-              ? "⚠ Valor abaixo do recomendado — use com cautela."
-              : "Valor dentro da faixa recomendada (50–80)."}
+              ? "Atenção: valor bem abaixo do recomendado."
+              : "Boa escolha — você está dentro do recomendado."}
           </p>
         </div>
 
@@ -116,7 +117,7 @@ function ThresholdForm({
               Salvando...
             </>
           ) : (
-            "Salvar threshold"
+            "Salvar nota mínima"
           )}
         </Button>
       </CardContent>

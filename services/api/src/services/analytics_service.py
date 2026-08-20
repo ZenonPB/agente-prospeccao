@@ -1058,16 +1058,20 @@ class AnalyticsService:
         )
         sent_count = sent_query.scalar() or 0
 
-        # Conta bounces permanentes no período (LeadActivity com action BOUNCE/PERMANENT)
-        # Usamos EmailSuppression criado no período como proxy de bounces permanentes
+        # Conta bounces permanentes no período, restritos à organização.
+        # A coluna `organization_id` em email_suppressions evita misturar
+        # bounces de workspaces diferentes no alerta de entregabilidade.
         bounced_query = self.db.query(func.count(EmailSuppression.id)).filter(
+            EmailSuppression.organization_id == self.org_id,
             EmailSuppression.created_at >= start,
             EmailSuppression.created_at <= end,
         )
         bounced_count = bounced_query.scalar() or 0
 
-        # Total suprimidos
-        suppressed_total = self.db.query(func.count(EmailSuppression.id)).scalar() or 0
+        # Total suprimidos (só desta organização)
+        suppressed_total = self.db.query(func.count(EmailSuppression.id)).filter(
+            EmailSuppression.organization_id == self.org_id,
+        ).scalar() or 0
 
         # Hoje (em UTC)
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1080,6 +1084,7 @@ class AnalyticsService:
         ).scalar() or 0
 
         bounced_today = self.db.query(func.count(EmailSuppression.id)).filter(
+            EmailSuppression.organization_id == self.org_id,
             EmailSuppression.created_at >= today_start,
         ).scalar() or 0
 
@@ -1095,8 +1100,9 @@ class AnalyticsService:
             "suppressed_count": suppressed_total,
             "should_pause": should_pause,
             "alert_message": (
-                f"⚠ Taxa de bounce de {bounce_rate:.1f}% excede o limite de 5%. "
-                f"O envio automático será pausado para proteger a reputação do domínio."
+                f"Muitos e-mails estão voltando sem chegar ({bounce_rate:.1f}%). "
+                f"Por segurança, o envio automático foi pausado para proteger a "
+                f"reputação do seu e-mail. Revise a lista de contatos antes de reativar."
             ) if should_pause else None,
             "period": {
                 "from": start.isoformat(),

@@ -92,21 +92,18 @@ def generate_place_id(name: str, website: Optional[str], cnpj: Optional[str]) ->
 def import_leads_from_webhook(
     db: Session,
     campaign_id: str,
-    organization_id: str,
     leads_data: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Importa leads a partir de um array de dicionários.
+    """Importa empresas a partir de um array de dicionários.
 
-    Retorna relatório estruturado com contagens e detalhes de erros.
+    A campanha é resolvida pelo ID e o destino é a organização dona da
+    campanha (o webhook é autenticado por segredo compartilhado, não por
+    usuário). Retorna relatório estruturado com contagens e detalhes.
     """
-    campaign = db.query(Campaign).filter(
-        Campaign.id == campaign_id,
-        Campaign.organization_id == organization_id,
-    ).first()
+    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
     if not campaign:
-        raise ValueError("Campanha não encontrada ou não pertence à organização")
+        raise ValueError("Campanha não encontrada")
 
-    # Use the campaign's organization_id
     organization_id = str(campaign.organization_id)
 
     total_rows = len(leads_data)
@@ -129,7 +126,7 @@ def import_leads_from_webhook(
                 errors.append({
                     "row": idx + 1,
                     "field": "name",
-                    "message": "Nome/Empresa é obrigatório",
+                    "message": "Informe o nome da empresa",
                 })
                 continue
 
@@ -162,7 +159,7 @@ def import_leads_from_webhook(
                 errors.append({
                     "row": idx + 1,
                     "field": "duplicate",
-                    "message": f"Lead duplicado (já existe: {existing.company_name or existing.name})",
+                    "message": f"Empresa já cadastrada: {existing.company_name or existing.name}",
                     "existing_lead_id": str(existing.id),
                 })
                 continue

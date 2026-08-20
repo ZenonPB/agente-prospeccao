@@ -91,7 +91,6 @@ def webhook_import_leads(
         result = import_leads_from_webhook(
             db,
             campaign_id=payload.campaign_id,
-            organization_id="",  # será resolvido a partir da campanha
             leads_data=[lead.model_dump() for lead in payload.leads],
         )
         return {"ok": True, **result}
