@@ -134,24 +134,28 @@ def import_leads_from_webhook(
             phone = normalized.get("phone")
             whatsapp = normalized.get("whatsapp")
             email = normalized.get("email")
-            city = normalized.get("city")
-            state = normalized.get("state")
+            city = normalized.get("city") or campaign.target_city
+            state = normalized.get("state") or campaign.target_state
             address = normalized.get("address")
             cnpj = clean_cnpj(normalized.get("cnpj"))
             category = normalized.get("category")
             contact_name = normalized.get("contact_name")
             linkedin = normalized.get("linkedin")
             instagram = normalized.get("instagram")
-
-            # Deduplicação por (organization_id, website/cnpj/place_id)
+            normalized_domain = normalize_domain(website)
             place_id = generate_place_id(name, website, cnpj)
+
+            # Deduplicação por (organization_id, place_id/website/cnpj) — cada
+            # condição só é aplicada quando o valor existe (CNPJ/site nulo é
+            # comum em importação e não deve excluir a checagem por place_id).
+            dedup_conditions = [Lead.place_id == place_id]
+            if website:
+                dedup_conditions.append(Lead.website == website)
+            if cnpj:
+                dedup_conditions.append(Lead.cnpj == cnpj)
             existing = db.query(Lead).filter(
                 Lead.organization_id == organization_id,
-                or_(
-                    Lead.place_id == place_id,
-                    (Lead.website == website) & (website is not None),
-                    (Lead.cnpj == cnpj) & (cnpj is not None),
-                ),
+                or_(*dedup_conditions),
             ).first()
 
             if existing:
@@ -171,6 +175,7 @@ def import_leads_from_webhook(
                 company_name=name,
                 place_id=place_id,
                 website=website,
+                normalized_domain=normalized_domain,
                 phone=phone,
                 whatsapp=whatsapp,
                 email=email,
@@ -179,22 +184,32 @@ def import_leads_from_webhook(
                 address=address,
                 cnpj=cnpj,
                 category=category,
+                instagram_url=instagram,
                 status=LeadStatus.NOVO,
-                source="webhook",
             )
             db.add(lead)
             db.flush()
 
-            # Cria contato se houver dados
-            if contact_name or email or phone or whatsapp or linkedin or instagram:
+            # Sincroniza o modelo de 3 entidades (Company/Person) como o CSV
+            # import faz — falha de sincronização nunca derruba a importação.
+            try:
+                from services.company_person_service import CompanyPersonService
+                CompanyPersonService.sync_lead_entities(db, lead)
+            except Exception:  # noqa: BLE001 — sync é best-effort
+                logger.warning(
+                    "Webhook: falha ao sincronizar 3 entidades do lead %s (%s)",
+                    lead.id, name,
+                )
+
+            # Cria o contato apenas com nome válido (`contacts.name` é NOT
+            # NULL) — e-mail/telefone sem decisor não vira contato fantasma.
+            if contact_name:
                 contact = Contact(
-                    organization_id=organization_id,
                     lead_id=lead.id,
                     name=contact_name,
                     email=email,
                     phone=phone or whatsapp,
                     linkedin_url=linkedin,
-                    instagram_url=instagram,
                     role=ContactRole.OUTRO,
                     confidence=50 if (email or phone) else 20,
                     source="webhook",
