@@ -297,14 +297,43 @@ Retorne um JSON com EXATAMENTE esta estrutura:
 """
 
 
+def _cap(text: Any, limit: int = 120) -> str:
+    """Encurta um texto injetado no prompt (corte em limite de palavra).
+
+    Sem cortar palavras no meio; preserva o início, que é onde fica o núcleo
+    do sinal/evidência. Reduz os tokens de entrada por chamada de scoring sem
+    trocar a natureza do fato ('a empresa é lenta: 4800ms' permanece, o resto
+    de uma descrição longa é cortado com reticências).
+    """
+    value = str(text or "").strip()
+    if len(value) <= limit:
+        return value
+    cut = value[:limit]
+    last_space = cut.rfind(" ")
+    if last_space > limit // 2:
+        cut = cut[:last_space]
+    return f"{cut}…"
+
+
+def _cap_items(items: Optional[List[Any]], limit: int = 6, per_item: int = 120) -> List[str]:
+    """Limita uma lista injetada no prompt (quantidade e tamanho de cada item)."""
+    out: List[str] = []
+    for item in items or []:
+        if len(out) >= limit:
+            out.append("…")
+            break
+        out.append(_cap(item, per_item))
+    return out
+
+
 def _format_signals(signals: List[Dict[str, Any]], header: str) -> str:
     """Formata uma lista de sinais (positive/negative/context) em texto para o prompt."""
     if not signals:
         return f"{header}:\n  (nenhum)\n"
     lines = [f"{header}:"]
     for s in signals:
-        label = s.get("label", "")
-        desc = s.get("description", "")
+        label = _cap(s.get("label", ""), 120)
+        desc = _cap(s.get("description", ""), 200)
         weight = s.get("weight_hint", "medium")
         lines.append(f"  - [{weight}] {label}: {desc}")
     return "\n".join(lines) + "\n"
@@ -426,7 +455,7 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
         facts.append(f"Load time: {lt}ms")
     missing = hh.get("security_headers_missing") or []
     if missing:
-        facts.append(f"Headers de segurança ausentes: {', '.join(missing)}")
+        facts.append(f"Headers de segurança ausentes: {', '.join(_cap_items(missing, limit=5, per_item=40))}")
     else:
         facts.append("Headers de segurança presentes")
 
@@ -444,13 +473,13 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
     if seo:
         issues = seo.get("issues") or []
         if issues:
-            facts.append(f"SEO/LGPD issues: {', '.join(issues)}")
+            facts.append(f"SEO/LGPD issues: {', '.join(_cap_items(issues, limit=5, per_item=60))}")
         else:
             facts.append("SEO e menção a LGPD OK")
 
     exposed = report.get("exposed_paths") or []
     if exposed:
-        facts.append(f"Caminhos sensíveis expostos: {', '.join(exposed)}")
+        facts.append(f"Caminhos sensíveis expostos: {', '.join(_cap_items(exposed, limit=5, per_item=60))}")
     else:
         facts.append("Nenhum caminho sensível exposto")
 
@@ -491,31 +520,31 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
 
     warnings = report.get("warnings") or []
     if warnings:
-        facts.append(f"Avisos gerais: {', '.join(warnings[:5])}")
+        facts.append(f"Avisos gerais: {', '.join(_cap_items(warnings, limit=5, per_item=60))}")
     errors = report.get("errors") or []
     if errors:
-        facts.append(f"Erros gerais: {', '.join(errors[:5])}")
+        facts.append(f"Erros gerais: {', '.join(_cap_items(errors, limit=5, per_item=60))}")
 
     domain_copy = report.get("domain_copy") or {}
     if domain_copy:
         meta_desc = domain_copy.get("meta_description")
         if meta_desc:
-            facts.append(f"Descrição do negócio no site: {meta_desc}")
+            facts.append(f"Descrição do negócio no site: {_cap(meta_desc, 160)}")
         headings = domain_copy.get("headings")
         if headings:
-            facts.append(f"Destaques/Serviços no site: {'; '.join(headings)}")
+            facts.append(f"Destaques/Serviços no site: {'; '.join(_cap_items(headings, limit=5, per_item=80))}")
         kw_mech = domain_copy.get("keywords_mechanical")
         if kw_mech:
-            facts.append(f"Capacidades/Processos industriais detectados no site: {', '.join(kw_mech)}")
+            facts.append(f"Capacidades/Processos industriais detectados no site: {', '.join(_cap_items(kw_mech, limit=6, per_item=40))}")
         kw_craft = domain_copy.get("keywords_custom_craft")
         if kw_craft:
-            facts.append(f"Produtos/Serviços sob medida detectados no site: {', '.join(kw_craft)}")
+            facts.append(f"Produtos/Serviços sob medida detectados no site: {', '.join(_cap_items(kw_craft, limit=6, per_item=40))}")
         kw_sys = domain_copy.get("keywords_systems")
         if kw_sys:
-            facts.append(f"Termos de sistemas/tecnologia no site: {', '.join(kw_sys)}")
+            facts.append(f"Termos de sistemas/tecnologia no site: {', '.join(_cap_items(kw_sys, limit=6, per_item=40))}")
         snippet = domain_copy.get("snippet")
         if snippet and len(snippet) > 40:
-            facts.append(f"Trecho resumo do site: {snippet[:200]}")
+            facts.append(f"Trecho resumo do site: {_cap(snippet, 200)}")
 
     return facts
 

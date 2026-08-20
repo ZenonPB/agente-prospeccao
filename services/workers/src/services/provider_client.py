@@ -14,6 +14,7 @@ Uso em novos serviços:
 import asyncio
 import json
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -55,6 +56,26 @@ def _parse_retry_after(value: Optional[str]) -> Optional[float]:
         return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
     except ValueError:
         return None
+
+
+def _parse_duration(value: Optional[str]) -> Optional[float]:
+    """Interpreta durações da Groq nos headers `x-ratelimit-reset-*`.
+
+    Formatos aceitos: segundos puros ("3"), com sufixo ("28.117s") ou
+    composta ("2m52.8s", "1h5m"). Sem unidade e sem casas, "3" = 3s.
+    """
+    if not value:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.isdigit():
+        return float(text)
+    total = 0.0
+    for number, unit in re.findall(r"(\d+(?:\.\d+)?)([smh])", text):
+        factor = {"s": 1, "m": 60, "h": 3600}[unit]
+        total += float(number) * factor
+    return total if total > 0 else None
 
 
 def create_http_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] = None) -> httpx.AsyncClient:
@@ -156,9 +177,20 @@ async def groq_json_chat(
             continue
         retriable = response.status_code in (429, 500, 502, 503, 504)
         if retriable and attempts < max_attempts:
-            retry_after = _parse_retry_after(response.headers.get("Retry-After"))
-            if response.status_code == 429 and retry_after is not None:
-                delay = min(retry_after, retry_cap)
+            if response.status_code == 429:
+                # 429 por TOKEN (janela de TPM) é o caso típico em batch de
+                # scoring: o `Retry-After` diz pouco (3-13s) enquanto a janela
+                # só refaz em ~30-40s (`x-ratelimit-reset-tokens`). Esperar o
+                # maior dos resets evita queimar as tentativas na parede.
+                retry_after = _parse_retry_after(response.headers.get("Retry-After"))
+                tokens_reset = _parse_duration(
+                    response.headers.get("x-ratelimit-reset-tokens")
+                )
+                resets = [v for v in (retry_after, tokens_reset) if v is not None]
+                if resets:
+                    delay = min(retry_cap, max(resets))
+                else:
+                    delay = min(retry_cap, retry_base * (2 ** (attempts - 1)))
             else:
                 delay = min(retry_cap, retry_base * (2 ** (attempts - 1)))
             logger.warning(
