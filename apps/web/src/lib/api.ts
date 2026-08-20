@@ -828,6 +828,7 @@ export interface ScoringTemplateInput {
   extra_instructions?: string;
   playbook?: Playbook;
   is_active?: boolean;
+  source_template_id?: string;
 }
 
 export const scoringTemplatesApi = {
@@ -845,6 +846,15 @@ export const scoringTemplatesApi = {
     request<ScoringTemplate>(`/api/scoring-templates/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    }),
+  generate: (data: { service: string; segment?: string; description?: string }) =>
+    request<ScoringTemplate>("/api/scoring-templates/generate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  remove: (id: string) =>
+    request<{ deleted: boolean; id: string }>(`/api/scoring-templates/${id}`, {
+      method: "DELETE",
     }),
 };
 

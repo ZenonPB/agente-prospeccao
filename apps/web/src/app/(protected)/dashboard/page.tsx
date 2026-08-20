@@ -35,15 +35,23 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column - Charts */}
         <div className="lg:col-span-2 space-y-6">
-          <FunnelChart onFilter={setActiveFilter} activeFilter={activeFilter} />
-          <ActiveCampaigns />
+          <div data-tour="dashboard-funnel">
+            <FunnelChart onFilter={setActiveFilter} activeFilter={activeFilter} />
+          </div>
+          <div data-tour="dashboard-campanhas">
+            <ActiveCampaigns />
+          </div>
         </div>
 
         {/* Right Column - Activity & Actions */}
         <div className="space-y-6">
-          <TodayActions />
+          <div data-tour="dashboard-hoje">
+            <TodayActions />
+          </div>
           <QuickActions />
-          <ActivityTimeline />
+          <div data-tour="dashboard-timeline">
+            <ActivityTimeline />
+          </div>
         </div>
       </div>
     </div>

@@ -76,12 +76,18 @@ Regras:
 """
 
 
-def build_prompt(target_service: str, target_segment: str = "") -> str:
-    """Monta o prompt do usuário com a oferta a ser qualificada."""
+def build_prompt(target_service: str, target_segment: str = "", description: str = "") -> str:
+    """Monta o prompt do usuário com a oferta a ser qualificada.
+
+    `description` é um contexto livre em linguagem natural (ex.: público-alvo,
+    diferencial, dor a resolver) usado pelo criador visual de vertentes.
+    """
     lines: list[str] = []
     lines.append("== OFERTA A SER QUALIFICADA ==")
     lines.append(f"Serviço que queremos vender: {target_service or '(não informado)'}")
     lines.append(f"Segmento prospectado: {target_segment or '(não informado)'}")
+    if description:
+        lines.append(f"Contexto adicional: {description}")
     lines.append("")
     lines.append("Defina os critérios de qualificação mais relevantes para esta oferta.")
     lines.append("Lembre-se: sinais devem ser observáveis passivamente (site, CNPJ, porte, categoria).")
@@ -242,6 +248,7 @@ class TemplateGenerationService:
         self,
         target_service: str,
         target_segment: str,
+        description: str = "",
         db=None,
         organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -252,7 +259,7 @@ class TemplateGenerationService:
                 api_key=self.api_key,
                 model=GROQ_MODEL,
                 system_prompt=SYSTEM_PROMPT,
-                user_prompt=build_prompt(target_service, target_segment),
+                user_prompt=build_prompt(target_service, target_segment, description),
                 url=GROQ_URL,
                 max_tokens=2000,
                 temperature=0.3,
@@ -266,3 +273,26 @@ class TemplateGenerationService:
         if parsed is None:
             return None
         return _validate(parsed)
+
+    async def build_draft(
+        self,
+        db: Session,
+        target_service: str,
+        target_segment: str = "",
+        description: str = "",
+        organization_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Gera um rascunho de template validado SEM persistir.
+
+        Usado pelo criador visual de vertentes (`POST /scoring-templates/
+        generate`): o rascunho é persistido pela rota como `is_generated=True`
+        e `is_active=False`, para o usuário revisar/refinar antes de ativar.
+        Retorna `None` se a LLM falhar ou o JSON sair inválido.
+        """
+        generated = await self._call_llm(
+            target_service, target_segment, description=description,
+            db=db, organization_id=organization_id,
+        )
+        if generated is None:
+            return None
+        return generated

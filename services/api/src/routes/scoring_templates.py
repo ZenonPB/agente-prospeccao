@@ -1,11 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
+import os
+import sys
 
 from src.db.dependencies import get_db
-from src.db.models import CampaignScoringTemplate, User, Organization
-from src.auth.dependencies import get_current_user, get_user_organization
+from src.db.models import Campaign, CampaignScoringTemplate, User, Organization, OrganizationMember
+from src.auth.dependencies import get_current_user, get_user_organization, require_manager
+from src.middleware.rate_limit import limiter
+
+# Importa o serviço de geração dos workers (reaproveitando a fonte única).
+_workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
+if _workers_path not in sys.path:
+    sys.path.insert(0, _workers_path)
 
 router = APIRouter(prefix="/scoring-templates", tags=["scoring-templates"])
 
@@ -37,6 +45,9 @@ class CreateScoringTemplateRequest(BaseModel):
     cadence_schedule: Optional[List[int]] = None
     extra_instructions: Optional[str] = Field(None, max_length=4000)
     playbook: Optional[Playbook] = None
+    # Duplicar uma vertente existente (global ou da org) como ponto de partida.
+    # Sem isso, a criação parte dos critérios em branco.
+    source_template_id: Optional[str] = None
 
     @field_validator("enrichment_steps")
     @classmethod
@@ -58,6 +69,18 @@ class CreateScoringTemplateRequest(BaseModel):
         if any(not isinstance(d, int) or d < 0 for d in v):
             raise ValueError("os dias devem ser inteiros maiores ou iguais a 0")
         return v
+
+
+class GenerateScoringTemplateRequest(BaseModel):
+    """Corpo do POST /scoring-templates/generate.
+
+    `service` é a oferta (ex.: "manutenção de compressores") e `description`
+    contextualiza quem é o público-alvo, em linguagem natural — usados para a
+    IA propor os critérios. O resultado é um rascunho (`is_generated=True`).
+    """
+    service: str = Field(..., min_length=2, max_length=255)
+    segment: Optional[str] = Field(None, max_length=100)
+    description: Optional[str] = Field(None, max_length=1000)
 
 
 class PatchScoringTemplateRequest(BaseModel):
@@ -152,6 +175,23 @@ def _to_signal_dicts(signals) -> list:
     return result
 
 
+def _template_query(db: Session, template_id: str, org_id) -> Optional[CampaignScoringTemplate]:
+    """Busca um template visível à org (global ou da própria org)."""
+    return db.query(CampaignScoringTemplate).filter(
+        CampaignScoringTemplate.id == template_id,
+        (CampaignScoringTemplate.organization_id.is_(None)) |
+        (CampaignScoringTemplate.organization_id == org_id),
+    ).first()
+
+
+def _label_conflict(db: Session, label: str, org_id) -> bool:
+    return db.query(CampaignScoringTemplate).filter(
+        (CampaignScoringTemplate.service_label == label) &
+        ((CampaignScoringTemplate.organization_id.is_(None)) |
+         (CampaignScoringTemplate.organization_id == org_id)),
+    ).first() is not None
+
+
 @router.get("")
 def list_scoring_templates(
     scope: str = Query("all", pattern="^(all|global|org)$"),
@@ -198,11 +238,7 @@ def get_scoring_template(
     _user: User = Depends(get_current_user),
     org: Organization = Depends(get_user_organization),
 ):
-    tmpl = db.query(CampaignScoringTemplate).filter(
-        CampaignScoringTemplate.id == template_id,
-        (CampaignScoringTemplate.organization_id.is_(None)) |
-        (CampaignScoringTemplate.organization_id == org.id),
-    ).first()
+    tmpl = _template_query(db, template_id, org.id)
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template não encontrado")
     return _serialize(tmpl)
@@ -214,33 +250,124 @@ def create_scoring_template(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(require_manager()),
 ):
-    """Cria um template na org do usuário (escopo local).
+    """Cria uma vertente na org do usuário (escopo local).
 
-    Templates criados manualmente são `is_generated=False`. A chave natural
-    `service_label` é única por org — duplicar label dentro da mesma org
-    retorna 409.
+    `source_template_id` opcional duplica uma vertente existente (global ou da
+    própria org) como ponto de partida — o fluxo mais comum para personalizar
+    uma vertente de fábrica para o ICP próprio. Critérios explícitos no body
+    têm precedência sobre a fonte. A chave natural `service_label` é única por
+    org — duplicar label dentro da mesma org retorna 409.
     """
-    existing = db.query(CampaignScoringTemplate).filter(
-        (CampaignScoringTemplate.service_label == body.service_label) &
-        ((CampaignScoringTemplate.organization_id.is_(None)) |
-         (CampaignScoringTemplate.organization_id == org.id)),
-    ).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Já existe um template com este label")
+    updates = body.model_dump(exclude_unset=True)
+
+    if body.source_template_id:
+        source = _template_query(db, body.source_template_id, org.id)
+        if not source:
+            raise HTTPException(status_code=404, detail="Vertente de origem não encontrada")
+        fields = {
+            "positive_signals": source.positive_signals or [],
+            "negative_signals": source.negative_signals or [],
+            "context_signals": source.context_signals or [],
+            "requires_technical_report": source.requires_technical_report,
+            "requires_business_data": source.requires_business_data,
+            "enrichment_steps": source.enrichment_steps,
+            "cadence_schedule": source.cadence_schedule,
+            "extra_instructions": source.extra_instructions,
+            "playbook": source.playbook or {},
+        }
+        fields.update({k: v for k, v in updates.items() if k not in ("source_template_id",)})
+    else:
+        fields = {
+            "positive_signals": _to_signal_dicts(body.positive_signals),
+            "negative_signals": _to_signal_dicts(body.negative_signals),
+            "context_signals": _to_signal_dicts(body.context_signals),
+            "requires_technical_report": body.requires_technical_report,
+            "requires_business_data": body.requires_business_data,
+            "enrichment_steps": body.enrichment_steps,
+            "cadence_schedule": body.cadence_schedule,
+            "extra_instructions": body.extra_instructions,
+            "playbook": _playbook_dict(body.playbook),
+        }
+
+    label = updates.get("service_label", body.service_label)
+    if _label_conflict(db, label, org.id):
+        raise HTTPException(status_code=409, detail="Já existe uma vertente com este nome")
 
     tmpl = CampaignScoringTemplate(
-        service_label=body.service_label,
-        positive_signals=_to_signal_dicts(body.positive_signals),
-        negative_signals=_to_signal_dicts(body.negative_signals),
-        context_signals=_to_signal_dicts(body.context_signals),
-        requires_technical_report=body.requires_technical_report,
-        requires_business_data=body.requires_business_data,
-        enrichment_steps=body.enrichment_steps,
-        cadence_schedule=body.cadence_schedule,
-        extra_instructions=body.extra_instructions,
-        playbook=_playbook_dict(body.playbook),
+        service_label=label,
+        positive_signals=fields["positive_signals"],
+        negative_signals=fields["negative_signals"],
+        context_signals=fields["context_signals"],
+        requires_technical_report=fields["requires_technical_report"],
+        requires_business_data=fields["requires_business_data"],
+        enrichment_steps=fields["enrichment_steps"],
+        cadence_schedule=fields["cadence_schedule"],
+        extra_instructions=fields["extra_instructions"],
+        playbook=fields["playbook"],
         is_active=True,
+        organization_id=org.id,
+    )
+    db.add(tmpl)
+    db.commit()
+    db.refresh(tmpl)
+    return _serialize(tmpl)
+
+
+@router.post("/generate", status_code=201)
+@limiter.limit("15/minute")
+async def generate_scoring_template(
+    request: Request,
+    body: GenerateScoringTemplateRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(require_manager()),
+):
+    """Gera uma vertente por IA como rascunho (`is_generated=True`, inativa).
+
+    A IA propõe critérios, fontes de informação e instruções para a oferta
+    `service`/`segment`/`description`; o rascunho já é persistido para o
+    usuário refinar no editor e ativar quando estiver bom. Sem persistência
+    prévia, um clique acidental apagaria o trabalho — persiste direto.
+    """
+    from services.provider_client import quota_ok
+    from services.secret_service import SecretService
+    from services.template_generation_service import TemplateGenerationService
+
+    if not quota_ok(db, str(org.id), "GROQ_API_KEY"):
+        raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
+
+    keys = await SecretService.resolve_all(db, str(org.id))
+    service = TemplateGenerationService(api_key=keys.get("GROQ_API_KEY"))
+    generated = await service.build_draft(
+        db,
+        body.service,
+        body.segment or "",
+        body.description or "",
+        organization_id=str(org.id),
+    )
+    if not generated:
+        raise HTTPException(status_code=502, detail="Não foi possível gerar os critérios agora. Tente novamente.")
+
+    label = generated["service_label"]
+    if _label_conflict(db, label, org.id):
+        raise HTTPException(status_code=409, detail=f"Já existe uma vertente chamada \"{label}\"")
+
+    tmpl = CampaignScoringTemplate(
+        service_label=label,
+        positive_signals=generated["positive_signals"],
+        negative_signals=generated["negative_signals"],
+        context_signals=generated["context_signals"],
+        requires_technical_report=generated["requires_technical_report"],
+        requires_business_data=generated["requires_business_data"],
+        enrichment_steps=generated.get("enrichment_steps"),
+        cadence_schedule=generated.get("cadence_schedule"),
+        extra_instructions=generated.get("extra_instructions"),
+        playbook={},
+        is_generated=True,
+        is_active=False,
         organization_id=org.id,
     )
     db.add(tmpl)
@@ -256,18 +383,15 @@ def patch_scoring_template(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(require_manager()),
 ):
-    """Atualiza um template da org do usuário (ou global, se compartilhado).
+    """Atualiza uma vertente da org do usuário (ou global, se compartilhada).
 
-    Usado tanto para o editor de sinais no wizard quanto para a
-    revisão humana de templates gerados — o usuário pode editar
-    sinais/flags/instruções antes de ativar em massa.
+    Usado tanto para o editor de critérios no wizard quanto para a revisão
+    humana de rascunhos gerados — o usuário pode ajustar critérios/flags/
+    instruções antes de ativar em massa.
     """
-    tmpl = db.query(CampaignScoringTemplate).filter(
-        CampaignScoringTemplate.id == template_id,
-        (CampaignScoringTemplate.organization_id.is_(None)) |
-        (CampaignScoringTemplate.organization_id == org.id),
-    ).first()
+    tmpl = _template_query(db, template_id, org.id)
     if not tmpl:
         raise HTTPException(status_code=404, detail="Template não encontrado")
     if tmpl.organization_id is None:
@@ -280,7 +404,14 @@ def patch_scoring_template(
 
     updates = body.model_dump(exclude_unset=True)
     if "service_label" in updates:
-        tmpl.service_label = updates["service_label"]
+        new_label = updates["service_label"]
+        existing = db.query(CampaignScoringTemplate).filter(
+            (CampaignScoringTemplate.service_label == new_label) &
+            (CampaignScoringTemplate.id != tmpl.id),
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Já existe uma vertente com este nome")
+        tmpl.service_label = new_label
     if "positive_signals" in updates:
         tmpl.positive_signals = _to_signal_dicts(updates["positive_signals"])
     if "negative_signals" in updates:
@@ -305,3 +436,35 @@ def patch_scoring_template(
     db.commit()
     db.refresh(tmpl)
     return _serialize(tmpl)
+
+
+@router.delete("/{template_id}")
+def delete_scoring_template(
+    template_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(require_manager()),
+):
+    """Remove uma vertente criada pela própria org (globais são protegidas).
+
+    Vertentes em uso por alguma campanha não podem ser removidas — retorna 409
+    para o usuário reativá-la ou trocar a campanha de vertente.
+    """
+    tmpl = db.query(CampaignScoringTemplate).filter(
+        CampaignScoringTemplate.id == template_id,
+        CampaignScoringTemplate.organization_id == org.id,
+    ).first()
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Template não encontrado")
+
+    in_use = db.query(Campaign).filter(Campaign.scoring_template_id == tmpl.id).count()
+    if in_use:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Esta vertente está em uso em {in_use} campanha(s). Troque a vertente nas campanhas antes de remover.",
+        )
+
+    db.delete(tmpl)
+    db.commit()
+    return {"deleted": True, "id": str(tmpl.id)}

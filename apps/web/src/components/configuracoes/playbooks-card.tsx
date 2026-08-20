@@ -48,7 +48,7 @@ export function PlaybooksCard() {
         body,
         tags: [],
       });
-      toast.success("Mensagem salva no seu playbook.");
+      toast.success("Mensagem salva.");
       setSubject("");
       setBody("");
       setVertical("");
@@ -72,7 +72,7 @@ export function PlaybooksCard() {
         <div className="space-y-3 rounded-md border border-dashed p-3">
           <p className="text-sm font-medium">Nova mensagem</p>
           <div className="space-y-2">
-            <Label htmlFor="pb-vertical">Vertical / segmento</Label>
+            <Label htmlFor="pb-vertical">Segmento (opcional)</Label>
             <Input
               id="pb-vertical"
               placeholder="Ex.: academias, restaurantes, escritórios de advocacia"
@@ -106,7 +106,7 @@ export function PlaybooksCard() {
               ) : (
                 <Plus className="mr-2 h-4 w-4" />
               )}
-              Salvar no meu playbook
+              Salvar mensagem
             </Button>
           </div>
         </div>
@@ -139,7 +139,7 @@ export function PlaybooksCard() {
                           size="sm"
                           onClick={() => remove.mutate(p.id)}
                           disabled={remove.isPending}
-                          aria-label="Remover playbook"
+                          aria-label="Remover mensagem"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -154,7 +154,7 @@ export function PlaybooksCard() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Nenhum playbook salvo ainda na organização.
+              Nenhuma mensagem salva ainda na organização.
             </p>
           )}
         </div>

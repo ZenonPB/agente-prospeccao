@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Inter, Space_Grotesk, Geist_Mono } from "next/font/google";
@@ -39,7 +40,9 @@ export default async function RootLayout({
       )}
     >
       <body className="font-sans antialiased bg-background text-foreground">
-        <script
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var s=localStorage.getItem('app-theme')||'alpha',r=document.documentElement;['light','dark','alpha'].forEach(function(t){r.classList.remove(t)});r.classList.add(['light','dark','alpha'].indexOf(s)>-1?s:'alpha')}catch(e){}})();`,
           }}

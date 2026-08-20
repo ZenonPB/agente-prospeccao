@@ -147,6 +147,27 @@ export function useCreateScoringTemplate() {
   });
 }
 
+export function useGenerateScoringTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Parameters<typeof scoringTemplatesApi.generate>[0]) =>
+      scoringTemplatesApi.generate(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scoring-templates"] });
+    },
+  });
+}
+
+export function useDeleteScoringTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => scoringTemplatesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scoring-templates"] });
+    },
+  });
+}
+
 export function usePatchScoringTemplate() {
   const queryClient = useQueryClient();
   return useMutation({

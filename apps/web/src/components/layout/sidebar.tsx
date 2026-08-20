@@ -13,6 +13,7 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
@@ -52,6 +53,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Gestão',
     items: [
+      { name: 'Vertentes', href: '/configuracoes/vertentes', icon: Layers },
       { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
       { name: 'Configurações', href: '/configuracoes', icon: Settings },
     ],
