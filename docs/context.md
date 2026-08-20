@@ -127,6 +127,28 @@
     `components/theme-provider.tsx` (classe no `<html>`, `useSyncExternalStore`,
     sync cross-tab, anti-flash via script inline SSR no `layout.tsx`).
 
+**Bloco 2 de melhorias (`docs/melhorias.md`) — vertentes flexíveis:**
+- **Enriquecimento por perfil de vertente**: `CampaignScoringTemplate.enrichment_steps`
+  declara as fontes de informação (`technical_site` | `cnpj_receita` |
+  `business_social`); fallback pelos flags antigos quando ausente. O
+  `enrichment_orchestrator` agora RODA o passo cadastral (`CnpjService.lookup`)
+  para vertentes industriais — persiste em `Enrichment.raw_business_data` com
+  TTL 30d (`enrichment_timestamps["cnpj"]`) e injeta `cnae_info` +
+  `company_size_info` nos facts do scoring (os dois caminhos). Falha do
+  provedor (Receita/BrasilAPI) loga warning e segue o batch — nunca derruba.
+  Seeds: Eng. Mecânica usa `["cnpj_receita","business_social"]` (sem site).
+- **Cadência longa por template**: `CampaignScoringTemplate.cadence_schedule`
+  define os dias das 4 mensagens (padrão 0/3/7/14; Eng. Mecânica 0/7/30/60).
+  `schedule_cadence` aceita `day_offsets` (invalido → fallback); `cadence/start`
+  resolve o calendário pelo template da campanha e devolve em `schedule`.
+  Rótulos das etapas deixaram de citar "dia N" (a UI mostra a data agendada).
+- **UI (wizard campanha, passo 4)**: seções "O que analisar nesta empresa"
+  (toggles de Site/Receita/Reputação Google) e "Acompanhamento da empresa"
+  (4 dias configuráveis) no `template-selector`; `CadencePanel` sem textos
+  fixos 0/3/7/14.
+- Migration `c2d3e4f5a6b7` (colunas `enrichment_steps`, `cadence_schedule`,
+  `raw_business_data`).
+
 **Bloco 1 de melhorias (`docs/melhorias.md`):**
 - **Alerta de nota mínima baixa** (`OrgThresholdSettings` em `/configuracoes`, owner/admin): aviso visual quando o `qualification_threshold` fica abaixo de 50, sem jargão técnico.
 - **Proteção de entregabilidade de e-mail**: `AnalyticsService.check_email_deliverability()` + endpoint `GET /api/analytics/deliverability` (ANALYST/MANAGER). Scheduler `_deliverability_check_loop` (poll `DELIVERABILITY_POLL_SECONDS`, default 1h) pausa `auto_send_email` quando bounce > 5%. `EmailSuppression` ganhou `organization_id` (migration `b2c3d4e5f6a9`) para os alertas serem por organização.

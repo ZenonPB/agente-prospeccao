@@ -15,6 +15,7 @@ TTL_HOURS: Dict[str, int] = {
     "linkedin": 30 * 24,  # candidato de perfil (pessoa/empresa) — 30 dias
     "site": 7 * 24,       # análise técnica do site — 7 dias
     "reviews": 24,        # reputação no Google (rating/avaliações) — 24h
+    "cnpj": 30 * 24,      # dados cadastrais da Receita Federal — 30 dias
 }
 
 

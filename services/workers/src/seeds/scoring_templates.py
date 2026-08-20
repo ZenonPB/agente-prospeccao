@@ -37,6 +37,10 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s %(message)s')
 #   context_signals: sinais contextuais adicionais (região, segmento etc.)
 #   requires_technical_report: se a análise técnica do site é relevante
 #   requires_business_data: se dados cadastrais (categoria/porte) são relevantes
+#   enrichment_steps: opcional — fontes de informação ("technical_site" |
+#     "cnpj_receita" | "business_social"); ausente = derivado dos flags
+#   cadence_schedule: opcional — [dia 1ª msg, dia 2ª msg, dia 3ª msg, dia
+#     encerramento]; ausente = [0, 3, 7, 14]
 #   extra_instructions: instrução textual livre injetada no prompt
 
 DEFAULT_TEMPLATES = [
@@ -166,8 +170,15 @@ DEFAULT_TEMPLATES = [
     # ----- Industrial / Engenharia / Fabricação -----
     {
         "service_label": "Engenharia Mecânica & Desenhos Técnicos CAD",
-        "requires_technical_report": True,
+        "requires_technical_report": False,
         "requires_business_data": True,
+        # Fontes de informação: Receita Federal (porte/CNAE/idade) + reputação
+        # Google. Auditoria de site não faz sentido para indústria — muitos
+        # prospects nem têm site relevante.
+        "enrichment_steps": ["cnpj_receita", "business_social"],
+        # Ciclo de venda longo (3-6 meses): espaça as 4 mensagens ao longo de
+        # 2 meses em vez de 2 semanas (default 0/3/7/14).
+        "cadence_schedule": [0, 7, 30, 60],
         "playbook": {
             "hooks": [
                 "Empresa necessita de detalhamento de projetos mecânicos 3D/CAD e desenhos técnicos para produção",
@@ -313,6 +324,8 @@ def upsert_template(db, tmpl: dict) -> CampaignScoringTemplate:
         "context_signals": tmpl.get("context_signals", []),
         "requires_technical_report": tmpl.get("requires_technical_report", True),
         "requires_business_data": tmpl.get("requires_business_data", True),
+        "enrichment_steps": tmpl.get("enrichment_steps"),
+        "cadence_schedule": tmpl.get("cadence_schedule"),
         "extra_instructions": tmpl.get("extra_instructions"),
         "playbook": tmpl.get("playbook", {}),
         "is_active": True,

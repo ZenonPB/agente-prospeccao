@@ -1301,7 +1301,8 @@ async def start_lead_cadence(
 
     from services.secret_service import SecretService
     from services.outreach_service import OutreachService
-    from services.template_router import get_playbook_for_campaign
+    from services.template_router import get_playbook_for_campaign, route_scoring_template
+    from src.services.cadence_service import schedule_cadence, _normalize_cadence_days, DEFAULT_CADENCE_DAYS
 
     keys = await SecretService.resolve_all(db, str(_org.id))
     groq = keys.get("GROQ_API_KEY")
@@ -1315,6 +1316,27 @@ async def start_lead_cadence(
         organization_id=str(_org.id),
     )
 
+    # Calendário do acompanhamento vem do template da campanha (pode ser
+    # diferente do padrão 0/3/7/14 para ciclos industriais longos).
+    template_schedule = None
+    if campaign:
+        try:
+            route_result = await route_scoring_template(
+                db,
+                target_service=campaign.target_service or "",
+                target_segment=campaign.target_segment or "",
+                explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
+                api_key=groq,
+                organization_id=str(_org.id),
+            )
+            tmpl = route_result.get("template") or {}
+            declared = tmpl.get("cadence_schedule")
+            if declared and len(declared) == 4:
+                template_schedule = declared
+        except Exception:  # noqa: BLE001 — nunca impede de gerar a cadência
+            logger.warning("Falha ao resolver calendário do template para cadência", exc_info=True)
+    day_offsets = _normalize_cadence_days(template_schedule)
+
     lead_dict = _build_lead_dict(lead, db)
     result = await OutreachService(api_key=groq).generate_sequence(
         lead_dict, context_service or "", context_segment or "", playbook,
@@ -1324,22 +1346,23 @@ async def start_lead_cadence(
     if result is None:
         raise HTTPException(status_code=502, detail="Falha ao gerar mensagens da cadência")
 
-    from src.services.cadence_service import schedule_cadence
     follow_ups = schedule_cadence(
         db, lead, result,
         organization=_org,
         user_id=str(_user.id) if _user else None,
+        day_offsets=day_offsets,
     )
 
     # NENHUM envio automático aqui. O scheduler (`run_due`) envia
-    # cada etapa quando `scheduled_at` vence (dia 0/3/7/14) apenas para orgs
-    # com `auto_send_email`. Enviar o ciclo inteiro de uma vez queimava a
+    # cada etapa quando `scheduled_at` vence apenas para orgs com
+    # `auto_send_email`. Enviar o ciclo inteiro de uma vez queimava a
     # entregabilidade.
 
     return {
         "lead_id": str(lead.id),
         "playbook_applied": bool(playbook),
         "auto_send": bool(_org.auto_send_email),
+        "schedule": day_offsets,
         "follow_ups": [_follow_up_dict(f, db) for f in follow_ups],
     }
 

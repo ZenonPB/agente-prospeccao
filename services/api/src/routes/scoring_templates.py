@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
 from src.db.dependencies import get_db
@@ -8,6 +8,9 @@ from src.db.models import CampaignScoringTemplate, User, Organization
 from src.auth.dependencies import get_current_user, get_user_organization
 
 router = APIRouter(prefix="/scoring-templates", tags=["scoring-templates"])
+
+# Fontes de informação de uma empresa usadas na avaliação do lead.
+ENRICHMENT_STEP_KEYS = {"technical_site", "cnpj_receita", "business_social"}
 
 
 class Signal(BaseModel):
@@ -30,8 +33,31 @@ class CreateScoringTemplateRequest(BaseModel):
     context_signals: List[Signal] = Field(default_factory=list)
     requires_technical_report: bool = True
     requires_business_data: bool = True
+    enrichment_steps: Optional[List[str]] = None
+    cadence_schedule: Optional[List[int]] = None
     extra_instructions: Optional[str] = Field(None, max_length=4000)
     playbook: Optional[Playbook] = None
+
+    @field_validator("enrichment_steps")
+    @classmethod
+    def _validate_steps(cls, v):
+        if v is None:
+            return None
+        invalid = [s for s in v if s not in ENRICHMENT_STEP_KEYS]
+        if invalid:
+            raise ValueError(f"fontes de informação inválidas: {invalid}")
+        return list(dict.fromkeys(v))
+
+    @field_validator("cadence_schedule")
+    @classmethod
+    def _validate_schedule(cls, v):
+        if v is None:
+            return None
+        if len(v) != 4:
+            raise ValueError("o acompanhamento precisa de exatamente 4 dias")
+        if any(not isinstance(d, int) or d < 0 for d in v):
+            raise ValueError("os dias devem ser inteiros maiores ou iguais a 0")
+        return v
 
 
 class PatchScoringTemplateRequest(BaseModel):
@@ -41,9 +67,32 @@ class PatchScoringTemplateRequest(BaseModel):
     context_signals: Optional[List[Signal]] = None
     requires_technical_report: Optional[bool] = None
     requires_business_data: Optional[bool] = None
+    enrichment_steps: Optional[List[str]] = None
+    cadence_schedule: Optional[List[int]] = None
     extra_instructions: Optional[str] = Field(None, max_length=4000)
     is_active: Optional[bool] = None
     playbook: Optional[Playbook] = None
+
+    @field_validator("enrichment_steps")
+    @classmethod
+    def _validate_steps(cls, v):
+        if v is None:
+            return None
+        invalid = [s for s in v if s not in ENRICHMENT_STEP_KEYS]
+        if invalid:
+            raise ValueError(f"fontes de informação inválidas: {invalid}")
+        return list(dict.fromkeys(v))
+
+    @field_validator("cadence_schedule")
+    @classmethod
+    def _validate_schedule(cls, v):
+        if v is None:
+            return None
+        if len(v) != 4:
+            raise ValueError("o acompanhamento precisa de exatamente 4 dias")
+        if any(not isinstance(d, int) or d < 0 for d in v):
+            raise ValueError("os dias devem ser inteiros maiores ou iguais a 0")
+        return v
 
 
 def _serialize(tmpl: CampaignScoringTemplate) -> dict:
@@ -55,6 +104,8 @@ def _serialize(tmpl: CampaignScoringTemplate) -> dict:
         "context_signals": tmpl.context_signals or [],
         "requires_technical_report": tmpl.requires_technical_report,
         "requires_business_data": tmpl.requires_business_data,
+        "enrichment_steps": getattr(tmpl, "enrichment_steps", None) or None,
+        "cadence_schedule": getattr(tmpl, "cadence_schedule", None) or None,
         "extra_instructions": tmpl.extra_instructions,
         "playbook": tmpl.playbook or {},
         "is_generated": tmpl.is_generated,
@@ -185,6 +236,8 @@ def create_scoring_template(
         context_signals=_to_signal_dicts(body.context_signals),
         requires_technical_report=body.requires_technical_report,
         requires_business_data=body.requires_business_data,
+        enrichment_steps=body.enrichment_steps,
+        cadence_schedule=body.cadence_schedule,
         extra_instructions=body.extra_instructions,
         playbook=_playbook_dict(body.playbook),
         is_active=True,
@@ -238,6 +291,10 @@ def patch_scoring_template(
         tmpl.requires_technical_report = updates["requires_technical_report"]
     if "requires_business_data" in updates:
         tmpl.requires_business_data = updates["requires_business_data"]
+    if "enrichment_steps" in updates:
+        tmpl.enrichment_steps = updates["enrichment_steps"] or None
+    if "cadence_schedule" in updates:
+        tmpl.cadence_schedule = updates["cadence_schedule"] or None
     if "extra_instructions" in updates:
         tmpl.extra_instructions = updates["extra_instructions"]
     if "is_active" in updates:

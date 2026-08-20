@@ -31,6 +31,112 @@ from services import enrichment_ts
 
 logger = logging.getLogger(__name__)
 
+# Fontes de informação de uma empresa que um serviço pode usar para avaliar
+# um lead. Declaradas no template (`enrichment_steps`) — o orquestrador roda
+# apenas as fontes selecionadas, sem scraping desnecessário.
+ENRICHMENT_STEP_KEYS = frozenset({
+    "technical_site",   # auditoria do site (CMS, SSL, performance)
+    "cnpj_receita",     # dados cadastrais via Receita Federal (porte/CNAE/idade)
+    "business_social",  # reputação Google (rating/avaliações) — já coletada no Places
+})
+
+DEFAULT_ENRICHMENT_STEPS = ["technical_site", "cnpj_receita", "business_social"]
+
+
+def resolve_enrichment_steps(
+    scoring_template: Optional[Dict[str, Any]],
+) -> list:
+    """Resolve as fontes de informação que o pipeline deve ativar.
+
+    Template novo (com `enrichment_steps` preenchido) usa a lista declarada.
+    Template antigo (só flags binários) faz fallback por compatibilidade:
+    `requires_technical_report` → technical_site; `requires_business_data` →
+    cnpj_receita. `business_social` é sempre incluída (a reputação Google já
+    chega da coleta).
+    """
+    if scoring_template is None:
+        return list(DEFAULT_ENRICHMENT_STEPS)
+
+    declared = scoring_template.get("enrichment_steps")
+    if declared:
+        return list(dict.fromkeys(s for s in declared if s in ENRICHMENT_STEP_KEYS))
+
+    steps: list = []
+    if scoring_template.get("requires_technical_report", True):
+        steps.append("technical_site")
+    if scoring_template.get("requires_business_data", True):
+        steps.append("cnpj_receita")
+    steps.append("business_social")
+    return list(dict.fromkeys(steps))
+
+
+async def _enrich_cnpj_facts(
+    db: Session,
+    lead: Lead,
+    want_cnpj: bool,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Busca dados cadastrais via CNPJ (Receita Federal) e devolve facts.
+
+    Falha do provedor (fora do ar, rate-limit, CNPJ inexistente) NUNCA
+    interrompe o batch: loga warning e devolve (None, None) — mesmo padrão do
+    `TechnicalEnrichmentService` para site inacessível. Usa TTL de 30 dias
+    (`enrichment_ts`), persistindo o DTO em `Enrichment.raw_business_data`.
+    """
+    if not want_cnpj or not lead or not lead.cnpj:
+        return None, None
+
+    fresh = enrichment_ts.is_fresh(enrichment_ts.get_stamp(lead, "cnpj"), "cnpj")
+    if not fresh:
+        from services.cnpj_service import CnpjService
+
+        try:
+            dto = await CnpjService().lookup(lead.cnpj)
+        except Exception as e:  # noqa: BLE001 — nunca derruba o batch
+            logger.warning(
+                "Cadastral: falha ao consultar CNPJ %s do lead %s — seguindo sem.",
+                lead.cnpj, lead.company_name,
+            )
+            logger.debug("Detalhe da falha cadastral: %s", e)
+            return None, None
+        if not dto:
+            logger.warning(
+                "Cadastral: CNPJ %s do lead %s não localizado — seguindo sem.",
+                lead.cnpj, lead.company_name,
+            )
+            return None, None
+
+        enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+        if enrichment is None:
+            enrichment = Enrichment(lead_id=lead.id)
+            db.add(enrichment)
+        enrichment.raw_business_data = dto
+        enrichment_ts.stamp(lead, "cnpj")
+    else:
+        enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+        if enrichment is None or not enrichment.raw_business_data:
+            return None, None
+        dto = enrichment.raw_business_data
+
+    company = dto.get("company") or {}
+    cnae_info = None
+    cnae_code = company.get("cnae_principal")
+    cnae_label = company.get("cnae_principal_label")
+    if cnae_code or cnae_label:
+        cnae_info = f"{cnae_code or ''} - {cnae_label or ''}".lstrip(" -")
+
+    porte = company.get("porte") or company.get("porte_label")
+    idade = company.get("idade_anos")
+    capital = company.get("capital_social")
+    size_parts: list = []
+    if porte:
+        size_parts.append(f"porte: {porte}")
+    if idade is not None:
+        size_parts.append(f"idade: {idade} anos")
+    if capital is not None:
+        size_parts.append(f"capital social: R$ {capital}")
+    company_size_info = "; ".join(size_parts) if size_parts else None
+    return cnae_info, company_size_info
+
 
 async def process_single_lead(
     lead: Lead,
@@ -66,15 +172,21 @@ async def process_single_lead(
         if org and org.qualification_threshold is not None:
             qualification_threshold = org.qualification_threshold
 
-    # Decisão: usar análise técnica? O template pode dizer 'não' mesmo que a
-    # campanha esteja marcada como WEB_PRESENCE originalmente.
-    use_technical_report = True
-    if scoring_template is not None:
-        use_technical_report = bool(scoring_template.get("requires_technical_report", True))
+    # Decisão: fontes de informação declaradas no template. O template pode
+    # dizer 'não quero auditoria de site' mesmo que a campanha esteja marcada
+    # como WEB_PRESENCE originalmente (ex.: Engenharia Mecânica).
+    steps = resolve_enrichment_steps(scoring_template)
+    use_technical_report = "technical_site" in steps
 
     # Lead sem site não pode fazer análise técnica — força path business.
     if not lead.website:
         use_technical_report = False
+
+    # Dados cadastrais (Receita via CNPJ) quando o template pede — falha do
+    # provedor só avisa e segue (nunca derruba o batch).
+    cnae_info, company_size_info = await _enrich_cnpj_facts(
+        db, lead, want_cnpj="cnpj_receita" in steps,
+    )
 
     if use_technical_report:
         technical_report = await enrichment_service.enrich_website(lead.website)
@@ -119,6 +231,8 @@ async def process_single_lead(
             website=lead.website,
             google_rating=lead.google_rating,
             google_rating_count=lead.google_rating_count,
+            cnae_info=cnae_info,
+            company_size_info=company_size_info,
             db=db,
             organization_id=str(lead.organization_id) if lead.organization_id else None,
         )
@@ -146,6 +260,8 @@ async def process_single_lead(
             template=scoring_template,
             google_rating=lead.google_rating,
             google_rating_count=lead.google_rating_count,
+            cnae_info=cnae_info,
+            company_size_info=company_size_info,
             db=db,
             organization_id=str(lead.organization_id) if lead.organization_id else None,
         )

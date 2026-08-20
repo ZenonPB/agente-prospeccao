@@ -110,8 +110,9 @@ class OnboardingStatus(enum.Enum):
 class FollowUpStep(enum.Enum):
     """Etapas da cadência de follow-up — regras de business-rules.
 
-    Dia 0 (abertura) → dia 3 (follow-up 1) → dia 7 (follow-up 2) → dia 14
-    (encerramento). O `day_offset` é usado para agendar `scheduled_at`.
+    Sequência padrão: abertura → follow-up 1 → follow-up 2 → encerramento.
+    O `day_offset` é o calendário default (0/3/7/14); templates de vertical
+    podem sobrescrever os dias (`cadence_schedule`) ao agendar.
     """
     OPENING = "OPENING"
     FOLLOWUP_1 = "FOLLOWUP_1"
@@ -129,10 +130,12 @@ class FollowUpStep(enum.Enum):
 
     @property
     def label(self) -> str:
-        return {FollowUpStep.OPENING: "Abertura (dia 0)",
-                FollowUpStep.FOLLOWUP_1: "Follow-up 1 (dia 3)",
-                FollowUpStep.FOLLOWUP_2: "Follow-up 2 (dia 7)",
-                FollowUpStep.CLOSING: "Encerramento (dia 14)",
+        # Sem "dia N" fixo — a data de cada etapa é agendada conforme o
+        # template/vertical e exibida na UI (dia corrido do calendário).
+        return {FollowUpStep.OPENING: "Primeira mensagem",
+                FollowUpStep.FOLLOWUP_1: "Segunda mensagem",
+                FollowUpStep.FOLLOWUP_2: "Terceira mensagem",
+                FollowUpStep.CLOSING: "Encerramento",
                 FollowUpStep.POST_SALE: "Pós-venda"}[self]
 
 class FollowUpStatus(enum.Enum):
@@ -465,6 +468,16 @@ class CampaignScoringTemplate(Base):
     requires_technical_report = Column(Boolean, default=True)
     # Indica se dados cadastrais (categoria/porte/segmento) são relevantes.
     requires_business_data = Column(Boolean, default=True)
+    # Fontes de informação da empresa que este serviço usa para avaliar um
+    # lead. Valores: "technical_site" (auditoria do site), "cnpj_receita"
+    # (porte/CNAE/idade via Receita Federal) e "business_social" (reputação
+    # Google). Vazia -> derivada dos flags binários acima (compat retroativa).
+    enrichment_steps = Column(JSONB)
+    # Dias (a partir do envio) das 4 mensagens de acompanhamento:
+    # [1ª mensagem, 2ª mensagem, 3ª mensagem, encerramento].
+    # Ex.: [0, 7, 30, 60] para ciclos longos (Engenharia Mecânica/indústria).
+    # Vazia -> [0, 3, 7, 14] (default histórico).
+    cadence_schedule = Column(JSONB)
     # Instruções extras, free-text, injetadas no prompt.
     extra_instructions = Column(Text)
     # Playbook de outreach por vertical: hooks de abordagem,
@@ -610,6 +623,9 @@ class Enrichment(Base):
     load_time_ms = Column(Integer) 
     security_issues = Column(ARRAY(String)) 
     raw_technical_data = Column(JSONB)
+    # DTO do enriquecimento cadastral (Receita Federal via CNPJ): porte, CNAE,
+    # idade da empresa, capital social e sócios. Usado no scoring e no pitch.
+    raw_business_data = Column(JSONB)
 
     lead = relationship("Lead", back_populates="enrichments")
 

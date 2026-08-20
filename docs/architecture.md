@@ -222,7 +222,9 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
   `places_query`, `scoring_template_id`, `analysis_profile`.
 - **campaign_scoring_templates** — sinais (positive/negative/context JSONB),
   flags `requires_technical_report`/`requires_business_data`,
-  `extra_instructions`, `playbook`, `is_generated`, `organization_id`.
+  `enrichment_steps` (fontes de informação) e `cadence_schedule` (dias das
+  4 mensagens) — ver `business-rules.md`; `extra_instructions`, `playbook`,
+  `is_generated`, `organization_id`.
 - **organizations** — `name`, `slug`, `auto_send_email`, `email_from`,
   `daily_email_limit` e `send_window_start/end` (item 4.3: teto diário e janela
   de espalhamento do envio automático); `organization_members` ganha

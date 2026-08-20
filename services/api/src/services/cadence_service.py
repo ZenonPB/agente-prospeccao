@@ -54,20 +54,44 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 
 
+DEFAULT_CADENCE_DAYS = [0, 3, 7, 14]
+
+
+def _normalize_cadence_days(day_offsets) -> List[int]:
+    """Valida a lista de dias do acompanhamento (4 inteiros >= 0).
+
+    Entrada inválida → fallback para o calendário padrão (0/3/7/14). Nunca
+    quebra o agendamento.
+    """
+    if (
+        isinstance(day_offsets, (list, tuple))
+        and len(day_offsets) == 4
+        and all(isinstance(d, int) and d >= 0 for d in day_offsets)
+    ):
+        return list(day_offsets)
+    return DEFAULT_CADENCE_DAYS
+
+
 def schedule_cadence(
     db: Session,
     lead: Lead,
     messages: dict,
     organization: Optional[Organization] = None,
     user_id: Optional[str] = None,
+    day_offsets: Optional[List[int]] = None,
 ) -> List[FollowUp]:
-    """Cria as 4 etapas da cadência (dia 0/3/7/14) a partir das mensagens.
+    """Cria as 4 etapas da cadência a partir das mensagens.
 
     `messages` deve conter as chaves do OutreachService:
     `subject`, `body_opening`, `followup_1`, `followup_2`, `closing`.
+
+    `day_offsets` (opcional) define os dias das mensagens — ex. [0, 7, 30, 60]
+    para ciclos industriais longos. Ausente/inválido → 0/3/7/14.
+
     Etapas anteriores pendentes são canceladas (reagendamento limpo).
     """
     now = datetime.now(timezone.utc)
+    days = _normalize_cadence_days(day_offsets)
 
     for old in db.query(FollowUp).filter(
         FollowUp.lead_id == lead.id,
@@ -84,7 +108,9 @@ def schedule_cadence(
 
     created: List[FollowUp] = []
     for step, (subject, content) in steps_content.items():
-        scheduled = now + timedelta(days=step.day_offset)
+        # Ordem de chegada no dict = dia da mensagem correspondente.
+        offset = days[len(created)]
+        scheduled = now + timedelta(days=offset)
         fu = FollowUp(
             lead_id=lead.id,
             step=step,
@@ -105,7 +131,7 @@ def schedule_cadence(
         db, lead,
         action=LeadActivityAction.MESSAGE_GENERATED,
         user_id=user_id,
-        detail="Cadência agendada: dia 0/3/7/14",
+        detail=f"Cadência agendada: dias {', '.join(str(d) for d in days)}",
     )
     db.commit()
     return created

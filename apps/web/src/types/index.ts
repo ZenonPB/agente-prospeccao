@@ -267,6 +267,7 @@ export interface LeadCadence {
   lead_id: string;
   opt_out: boolean;
   organization_auto_send: boolean;
+  schedule?: number[];
   follow_ups: FollowUpItem[];
 }
 

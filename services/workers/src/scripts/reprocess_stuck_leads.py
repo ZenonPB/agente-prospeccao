@@ -87,6 +87,8 @@ def _template_dict(template: CampaignScoringTemplate) -> dict:
         "extra_instructions": template.extra_instructions,
         "requires_technical_report": bool(template.requires_technical_report),
         "requires_business_data": bool(template.requires_business_data),
+        "enrichment_steps": template.enrichment_steps or None,
+        "cadence_schedule": template.cadence_schedule or None,
     }
 
 

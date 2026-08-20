@@ -109,6 +109,8 @@ def _serialize(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
         "context_signals": tmpl.context_signals or [],
         "requires_technical_report": bool(tmpl.requires_technical_report),
         "requires_business_data": bool(tmpl.requires_business_data),
+        "enrichment_steps": tmpl.enrichment_steps or None,
+        "cadence_schedule": tmpl.cadence_schedule or None,
         "extra_instructions": tmpl.extra_instructions,
         "playbook": tmpl.playbook or {},
     }
