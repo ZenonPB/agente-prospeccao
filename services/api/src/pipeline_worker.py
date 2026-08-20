@@ -23,7 +23,7 @@ sys.path.insert(0, workers_path)
 from services.places_service import GooglePlacesService
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
-from services.enrichment_orchestrator import process_single_lead
+from services.enrichment_orchestrator import process_single_lead, resolve_enrichment_steps
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.cnae_discovery_service import CnaeDiscoveryService
@@ -503,8 +503,9 @@ async def run_pipeline(
             yield {"type": "log", "message": "Nenhum lead novo para analisar", "timestamp": _ts()}
         else:
             total_to_process = len(leads_to_process)
-            req_tech = scoring_template.get("requires_technical_report", True) if scoring_template else True
-            req_biz = scoring_template.get("requires_business_data", True) if scoring_template else True
+            steps = resolve_enrichment_steps(scoring_template)
+            use_tech_site = "technical_site" in steps
+            use_cnpj_receita = "cnpj_receita" in steps
 
             for i, lead in enumerate(leads_to_process):
                 yield {
@@ -513,12 +514,12 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
 
-                # Log granular por step de enriquecimento adaptativo
-                if not req_tech or not lead.website:
-                    reason = "template não exige relatório técnico" if not req_tech else "lead sem website registrado"
+                # Log granular por fonte de informação ativa (template)
+                if not use_tech_site or not lead.website:
+                    reason = "o template não pede auditoria de site" if not use_tech_site else "empresa sem website registrado"
                     yield {
                         "type": "log",
-                        "message": f"Pulando auditoria técnica de site para {lead.company_name} ({reason}).",
+                        "message": f"Pulando auditoria de site para {lead.company_name} ({reason}).",
                         "timestamp": _ts(),
                     }
                 else:
@@ -528,12 +529,19 @@ async def run_pipeline(
                         "timestamp": _ts(),
                     }
 
-                if req_biz and (lead.cnpj or lead.company_name):
-                    yield {
-                        "type": "log",
-                        "message": f"Consultando dados cadastrais/CNAE...",
-                        "timestamp": _ts(),
-                    }
+                if use_cnpj_receita:
+                    if lead.cnpj:
+                        yield {
+                            "type": "log",
+                            "message": f"Buscando dados da empresa na Receita Federal (CNPJ)...",
+                            "timestamp": _ts(),
+                        }
+                    else:
+                        yield {
+                            "type": "log",
+                            "message": f"{lead.company_name} sem CNPJ cadastrado — seguindo sem dados da Receita.",
+                            "timestamp": _ts(),
+                        }
 
                 _, scoring_result = await process_single_lead(
                     lead, enrichment_service, scoring_service, db,

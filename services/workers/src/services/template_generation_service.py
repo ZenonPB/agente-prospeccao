@@ -120,10 +120,24 @@ def _validate(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             })
         return out
 
+    # Fontes de informação coerentes com os flags gerados pela LLM.
+    steps: list = []
+    if data.get("requires_technical_report", True):
+        steps.append("technical_site")
+    if data.get("requires_business_data", True):
+        steps.append("cnpj_receita")
+    if not steps:
+        steps.append("technical_site")
+    steps.append("business_social")
+
     return {
         "service_label": label[:80],
         "requires_technical_report": bool(data.get("requires_technical_report", True)),
         "requires_business_data": bool(data.get("requires_business_data", True)),
+        "enrichment_steps": list(dict.fromkeys(steps)),
+        # Ciclos longos (engenharia/indústria) não mudam o calendário padrão
+        # aqui — o template gerado assume o padrão 0/3/7/14; o dono ajusta na UI.
+        "cadence_schedule": None,
         "positive_signals": _norm(positive),
         "negative_signals": _norm(negative),
         "context_signals": _norm(context),
@@ -139,6 +153,8 @@ def _serialize(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
         "context_signals": tmpl.context_signals or [],
         "requires_technical_report": bool(tmpl.requires_technical_report),
         "requires_business_data": bool(tmpl.requires_business_data),
+        "enrichment_steps": tmpl.enrichment_steps or None,
+        "cadence_schedule": tmpl.cadence_schedule or None,
         "extra_instructions": tmpl.extra_instructions,
         "is_generated": bool(tmpl.is_generated),
     }
@@ -210,6 +226,8 @@ class TemplateGenerationService:
             context_signals=generated["context_signals"],
             requires_technical_report=generated["requires_technical_report"],
             requires_business_data=generated["requires_business_data"],
+            enrichment_steps=generated.get("enrichment_steps"),
+            cadence_schedule=generated.get("cadence_schedule"),
             extra_instructions=generated["extra_instructions"],
             is_generated=True,
             organization_id=organization_id,

@@ -704,6 +704,8 @@ class AIScoringService:
         website: Optional[str] = None,
         google_rating: Optional[float] = None,
         google_rating_count: Optional[int] = None,
+        cnae_info: Optional[str] = None,
+        company_size_info: Optional[str] = None,
         db=None,
         organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -720,6 +722,8 @@ class AIScoringService:
                       Se None, a LLM infere os critérios.
             company_name / category / city / state / website: dados cadastrais
                 complementares, usados para enriquecer facts de business.
+            cnae_info / company_size_info: dados da Receita Federal (CNPJ)
+                quando o template pede enriquecimento cadastral.
 
         Returns:
             Dicionário normalizado com qualification_score, primary_need,
@@ -736,6 +740,8 @@ class AIScoringService:
             website=website,
             google_rating=google_rating,
             google_rating_count=google_rating_count,
+            cnae_info=cnae_info,
+            company_size_info=company_size_info,
         )
         prompt = build_prompt(
             target_service=target_service,
@@ -761,6 +767,8 @@ class AIScoringService:
         template: Optional[Dict[str, Any]] = None,
         google_rating: Optional[float] = None,
         google_rating_count: Optional[int] = None,
+        cnae_info: Optional[str] = None,
+        company_size_info: Optional[str] = None,
         db=None,
         organization_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -778,6 +786,8 @@ class AIScoringService:
             website=website,
             google_rating=google_rating,
             google_rating_count=google_rating_count,
+            cnae_info=cnae_info,
+            company_size_info=company_size_info,
         )
         prompt = build_prompt(
             target_service=target_service,
