@@ -11,7 +11,6 @@ import {
   Search,
   Loader2,
   Lock,
-  X,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -301,13 +300,17 @@ export default function VertentesPage() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="link"
-                      className="h-auto p-0 text-left font-semibold text-foreground"
-                      onClick={() => canManage && setEditingId(t.id)}
-                    >
-                      {t.service_label}
-                    </Button>
+                    {canManage ? (
+                      <Button
+                        variant="link"
+                        className="h-auto p-0 text-left font-semibold text-foreground"
+                        onClick={() => setEditingId(t.id)}
+                      >
+                        {t.service_label}
+                      </Button>
+                    ) : (
+                      <span className="font-semibold text-foreground">{t.service_label}</span>
+                    )}
                     {statusBadges(t)}
                   </div>
                   <p className="text-xs text-muted-foreground">{stepsLabel(t)}</p>
@@ -391,10 +394,26 @@ export default function VertentesPage() {
           ) : (
             <div className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
               <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>
-                Vertentes de fábrica são compartilhadas por todos os times e não podem ser
-                alteradas. Use <strong>Duplicar</strong> para criar a sua própria versão.
-              </p>
+              <div className="space-y-3">
+                <p>
+                  Vertentes de fábrica são compartilhadas por todos os times e não podem ser
+                  alteradas. Duplique para criar a sua própria versão e editá-la.
+                </p>
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (editing) {
+                        setEditingId(null);
+                        openDuplicate(editing);
+                      }
+                    }}
+                  >
+                    <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar esta vertente
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>

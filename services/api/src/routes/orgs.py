@@ -812,7 +812,7 @@ def list_webhook_logs(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     _org: Organization = Depends(get_user_organization),
-    actor: OrganizationMember = Depends(require_manager),
+    actor: OrganizationMember = Depends(require_manager()),
 ):
     """Lista histórico de disparos de webhooks da organização (MANAGER+)."""
     if str(actor.organization_id) != org_id:
@@ -847,7 +847,7 @@ def list_job_logs(
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
     _org: Organization = Depends(get_user_organization),
-    actor: OrganizationMember = Depends(require_manager),
+    actor: OrganizationMember = Depends(require_manager()),
 ):
     """Lista histórico de jobs de coleta/pipeline da organização (MANAGER+)."""
     if str(actor.organization_id) != org_id:

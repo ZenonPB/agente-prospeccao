@@ -135,7 +135,12 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
   - remetente dedicado por consultor (`organization_members.email_from`) →
     org (`organizations.email_from`) → global (`SMTP_FROM_EMAIL`);
   - `opt_out` do lead cancela as etapas pendentes;
-  - destinatário com `email_verified = True`.
+  - destinatário com `email_verified = True`;
+  - **pausa por entregabilidade**: quando a taxa de bounce da org passa de 5%
+    no período, o monitor (`_deliverability_check_loop`) desliga o
+    `auto_send_email` para proteger a reputação do remetente. A reativação é
+    manual (owner/admin no `/configuracoes`) — o monitor não religa sozinho;
+  - monitora (`GET /api/analytics/deliverability`, ANALYST/MANAGER).
 - Inbound (`POST /webhooks/email/inbound`, valida `EMAIL_WEBHOOK_SECRET`):
   resposta → `RESPONDIDO` (cancela a cadência); STOP → `opt_out`.
 - Tracking de abertura/clique por etapa (`tracking_token`) quando
