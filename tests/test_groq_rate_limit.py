@@ -8,6 +8,8 @@ rate-limit, garantindo que:
 """
 import asyncio
 
+import pytest
+
 from services.provider_client import groq_json_chat
 
 
@@ -124,3 +126,61 @@ def test_413_exhausts_reductions_returns_none(monkeypatch):
     )
     assert result is None
     assert client.calls == 2
+
+
+# ---------- 429 por janela de tokens (TPM) ----------
+
+
+def test_parse_duration_aceita_formatos_da_groq():
+    from services.provider_client import _parse_duration
+
+    assert _parse_duration("3") == 3.0
+    assert _parse_duration("28.117s") == pytest.approx(28.117)
+    assert _parse_duration("2m52.8s") == pytest.approx(172.8)
+    assert _parse_duration("8m38.4s") == pytest.approx(518.4)
+    assert _parse_duration("1h5m") == pytest.approx(3900.0)
+    assert _parse_duration(None) is None
+    assert _parse_duration("") is None
+    assert _parse_duration("..s") is None
+
+
+def test_429_espera_reset_de_tokens_e_nao_somente_retry_after(monkeypatch):
+    """429 típico de batch: retry-after curto + janela de TPM maior. O retry
+    precisa esperar o reset de tokens (maior dos dois), senão queima tentativas."""
+    from services import provider_client
+
+    sleeps: list = []
+
+    async def _fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(provider_client, "_parse_duration", lambda v: 40.0 if v == "40s" else None)
+    monkeypatch.setattr(provider_client.asyncio, "sleep", _fake_sleep)
+    client = _patch(
+        monkeypatch,
+        [FakeResponse(429, headers={"Retry-After": "3", "x-ratelimit-reset-tokens": "40s"}), _ok()],
+        retries=2,
+    )
+    result = asyncio.run(groq_json_chat("k", "m", "s", "u", "http://x", db=None))
+    assert result == {"ok": True}
+    assert client.calls == 2
+    assert sleeps == [40.0]
+
+
+def test_429_usa_maior_valor_entre_retry_after_e_reset(monkeypatch):
+    from services import provider_client
+
+    sleeps: list = []
+
+    async def _fake_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(provider_client, "_parse_duration", lambda v: 5.0 if v == "5s" else None)
+    monkeypatch.setattr(provider_client.asyncio, "sleep", _fake_sleep)
+    _patch(
+        monkeypatch,
+        [FakeResponse(429, headers={"Retry-After": "15", "x-ratelimit-reset-tokens": "5s"}), _ok()],
+        retries=2,
+    )
+    asyncio.run(groq_json_chat("k", "m", "s", "u", "http://x", db=None))
+    assert sleeps == [15.0]
