@@ -693,9 +693,12 @@ class EmailSuppression(Base):
 
     Um endereço que queimou uma vez não é re-tentado em nenhuma cadência até
     ser removido manualmente — protege a reputação do domínio remetente.
+    A organização é anotada para que os alertas de entregabilidade sejam
+    calculados por workspace, sem misturar bounces de organizações diferentes.
     """
     __tablename__ = "email_suppressions"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
     email = Column(String(255), nullable=False, unique=True)
     reason = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())

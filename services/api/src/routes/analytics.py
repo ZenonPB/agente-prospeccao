@@ -201,6 +201,20 @@ def threshold_suggestion(
     )
 
 
+@router.get("/deliverability")
+def deliverability(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Verifica saúde de entregabilidade de e-mail da organização.
+
+    Retorna taxa de bounce, contadores e sinaliza se o envio automático
+    deve ser pausado (bounce rate > 5%).
+    """
+    return analytics.check_email_deliverability(from_date=from_date, to_date=to_date)
+
+
 @router.get("/message-variants")
 def message_variants(
     from_date: Optional[str] = Query(None, alias="from"),

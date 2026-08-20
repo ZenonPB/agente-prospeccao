@@ -11,7 +11,7 @@ Fonte de dados:
 - `OrganizationMember` (consultores da org)
 - `FollowUp`/`Message` (funil ponta-a-ponta — 1º contato e resposta)
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import and_, func, or_
@@ -34,6 +34,7 @@ from src.db.models import (
     ContractOutcome,
     LostReason,
     SalesTarget,
+    EmailSuppression,
 )
 
 # Faixas de score usadas no overview (0-100).
@@ -1000,6 +1001,113 @@ class AnalyticsService:
             "open_leads_count": len(open_leads),
             "pipeline_by_stage": by_stage,
             "lost_reasons_breakdown": lost_reasons,
+        }
+
+    # ---------------------------------------------------------------- deliverability
+    def check_email_deliverability(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+    ) -> dict:
+        """Verifica saúde de entregabilidade de e-mail da organização.
+
+        Calcula taxa de bounce no período e retorna alerta se exceder o limiar
+        de 5%. O scheduler (main.py) pode chamar periodicamente para pausar
+        `auto_send_email` e notificar o owner.
+
+        Retorna:
+        - `bounce_rate`: % de bounces / envios no período
+        - `sent_today`: e-mails enviados hoje
+        - `bounced_today`: bounces permanentes hoje
+        - `suppressed_count`: total de e-mails na lista de supressão
+        - `should_pause`: True se bounce_rate > 5%
+        - `alert_message`: mensagem de alerta se should_pause
+        """
+        from datetime import datetime, timezone
+        from sqlalchemy import func
+
+        # Período padrão: últimos 7 dias
+        if from_date:
+            try:
+                start = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+            except ValueError:
+                start = None
+        else:
+            start = datetime.now(timezone.utc) - timedelta(days=7)
+
+        if to_date:
+            try:
+                end = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
+            except ValueError:
+                end = None
+        else:
+            end = datetime.now(timezone.utc)
+
+        if not start or not end:
+            start = datetime.now(timezone.utc) - timedelta(days=7)
+            end = datetime.now(timezone.utc)
+
+        # Conta envios no período (Messages do canal EMAIL)
+        sent_query = self.db.query(func.count(Message.id)).join(
+            Lead, Message.lead_id == Lead.id
+        ).filter(
+            Lead.organization_id == self.org_id,
+            Message.channel == MessageChannel.EMAIL,
+            Message.sent_at >= start,
+            Message.sent_at <= end,
+        )
+        sent_count = sent_query.scalar() or 0
+
+        # Conta bounces permanentes no período, restritos à organização.
+        # A coluna `organization_id` em email_suppressions evita misturar
+        # bounces de workspaces diferentes no alerta de entregabilidade.
+        bounced_query = self.db.query(func.count(EmailSuppression.id)).filter(
+            EmailSuppression.organization_id == self.org_id,
+            EmailSuppression.created_at >= start,
+            EmailSuppression.created_at <= end,
+        )
+        bounced_count = bounced_query.scalar() or 0
+
+        # Total suprimidos (só desta organização)
+        suppressed_total = self.db.query(func.count(EmailSuppression.id)).filter(
+            EmailSuppression.organization_id == self.org_id,
+        ).scalar() or 0
+
+        # Hoje (em UTC)
+        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        sent_today = self.db.query(func.count(Message.id)).join(
+            Lead, Message.lead_id == Lead.id
+        ).filter(
+            Lead.organization_id == self.org_id,
+            Message.channel == MessageChannel.EMAIL,
+            Message.sent_at >= today_start,
+        ).scalar() or 0
+
+        bounced_today = self.db.query(func.count(EmailSuppression.id)).filter(
+            EmailSuppression.organization_id == self.org_id,
+            EmailSuppression.created_at >= today_start,
+        ).scalar() or 0
+
+        bounce_rate = (bounced_count / sent_count * 100) if sent_count > 0 else 0.0
+        should_pause = bounce_rate > 5.0
+
+        return {
+            "bounce_rate": round(bounce_rate, 2),
+            "sent_in_period": sent_count,
+            "bounced_in_period": bounced_count,
+            "sent_today": sent_today,
+            "bounced_today": bounced_today,
+            "suppressed_count": suppressed_total,
+            "should_pause": should_pause,
+            "alert_message": (
+                f"Muitos e-mails estão voltando sem chegar ({bounce_rate:.1f}%). "
+                f"Por segurança, o envio automático foi pausado para proteger a "
+                f"reputação do seu e-mail. Revise a lista de contatos antes de reativar."
+            ) if should_pause else None,
+            "period": {
+                "from": start.isoformat(),
+                "to": end.isoformat(),
+            },
         }
 
     # ---------------------------------------------------------------- threshold

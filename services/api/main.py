@@ -107,11 +107,51 @@ async def _cadence_close_loop():
         await asyncio.sleep(settings.CADENCE_CLOSE_POLL_SECONDS)
 
 
+async def _deliverability_check_loop():
+    """Loop periódico: verifica saúde de entregabilidade de e-mail por org.
+
+    Se bounce_rate > 5% no período recente, pausa `auto_send_email` da org
+    e registra alerta no log. Poll lento (default 1h).
+    """
+    from src.db.session import SessionLocal
+    from src.services.analytics_service import AnalyticsService
+    from src.db.models import Organization
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                orgs = db.query(Organization).filter(
+                    Organization.auto_send_email.is_(True)
+                ).all()
+                for org in orgs:
+                    try:
+                        analytics = AnalyticsService(db, org.id)
+                        result = analytics.check_email_deliverability()
+                        if result.get("should_pause"):
+                            org.auto_send_email = False
+                            db.commit()
+                            logger.warning(
+                                "Entregabilidade: org %s (%s) — auto_send_email DESATIVADO. "
+                                "Bounce rate: %.1f%% (enviados: %d, bounces: %d)",
+                                org.id, org.name, result["bounce_rate"],
+                                result["sent_in_period"], result["bounced_in_period"]
+                            )
+                    except Exception as e:
+                        logger.error("Erro ao verificar entregabilidade da org %s: %s", org.id, e)
+            finally:
+                db.close()
+        except Exception as e:
+            logger.error("Erro no deliverability check: %s", e)
+        await asyncio.sleep(settings.DELIVERABILITY_POLL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(_cadence_scheduler_loop())
     requeue_task = asyncio.create_task(_lost_requeue_loop())
     cadence_close_task = asyncio.create_task(_cadence_close_loop())
+    deliverability_task = asyncio.create_task(_deliverability_check_loop())
     from src.jobs_consumer import job_consumer_loop
     jobs_task = asyncio.create_task(job_consumer_loop())
     logger.info("Cadence scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
@@ -123,6 +163,9 @@ async def lifespan(app: FastAPI):
         "Cadence close iniciado (carência %dd, poll %ds)",
         settings.CADENCE_CLOSE_GRACE_DAYS, settings.CADENCE_CLOSE_POLL_SECONDS,
     )
+    logger.info(
+        "Deliverability check iniciado (poll %ds)", settings.DELIVERABILITY_POLL_SECONDS,
+    )
     logger.info("Job-consumer do pipeline iniciado (poll %ds)", settings.JOB_POLL_SECONDS)
     try:
         yield
@@ -130,6 +173,7 @@ async def lifespan(app: FastAPI):
         task.cancel()
         requeue_task.cancel()
         cadence_close_task.cancel()
+        deliverability_task.cancel()
         jobs_task.cancel()
         try:
             await task
@@ -141,6 +185,10 @@ async def lifespan(app: FastAPI):
             pass
         try:
             await cadence_close_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await deliverability_task
         except asyncio.CancelledError:
             pass
         try:

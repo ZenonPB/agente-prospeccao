@@ -15,6 +15,7 @@ import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { OrgSecretsCard } from '@/components/configuracoes/org-secrets-card';
 import { OrgSendSettings } from '@/components/configuracoes/org-send-settings';
 import { OrgSlaSettings } from '@/components/configuracoes/org-sla-settings';
+import { OrgThresholdSettings } from '@/components/configuracoes/org-threshold-settings';
 import { OrgQuotaCard } from '@/components/configuracoes/org-quota-card';
 import { OrgNameCard } from '@/components/configuracoes/org-name-card';
 import { OrgIntegrationsCard } from '@/components/configuracoes/org-integrations-card';
@@ -337,6 +338,9 @@ export default function ConfiguracoesPage() {
 
       {/* Prazos de leads parados */}
       <OrgSlaSettings />
+
+      {/* Threshold de qualificação */}
+      <OrgThresholdSettings />
 
       {/* Integrações (4.20) */}
       <OrgIntegrationsCard />

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     CADENCE_CLOSE_GRACE_DAYS: int = Field(7, description='Dias após o encerramento (dia 14) sem resposta até marcar PERDIDO (0 desativa)')
     CADENCE_CLOSE_POLL_SECONDS: int = Field(3600, description='Segundos entre verificações de cadências encerradas sem resposta')
 
+    # Deliverability monitor — verifica taxa de bounce e pausa auto_send_email se > 5%.
+    DELIVERABILITY_POLL_SECONDS: int = Field(3600, description='Segundos entre verificações de saúde de entregabilidade de e-mail')
+
     # Job-consumer do pipeline (background): intervalo do poll de Jobs PENDING.
     # A coleta/enriquecimento roda em um loop dedicado (não na request) e um job
     # por vez — a fila respeita o pacing da Groq (rate-limit).
