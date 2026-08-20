@@ -117,9 +117,15 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
 
 ## Cadência de follow-up e envio (3.7/4.3)
 
-- Etapas `FollowUpStep`: `OPENING` (dia 0) → `FOLLOWUP_1` (dia 3) →
-  `FOLLOWUP_2` (dia 7) → `CLOSING` (dia 14) + `POST_SALE` (pós-venda, mesmo
-  motor). Status: `PENDING/SENT/SKIPPED/CANCELLED`.
+- Etapas `FollowUpStep`: `OPENING` (1ª mensagem) → `FOLLOWUP_1` (2ª mensagem) →
+  `FOLLOWUP_2` (3ª mensagem) → `CLOSING` (encerramento) + `POST_SALE`
+  (pós-venda, mesmo motor). Status: `PENDING/SENT/SKIPPED/CANCELLED`.
+- **Calendário configurável por template** (`CampaignScoringTemplate.cadence_schedule`):
+  4 dias em que mensagens são enviadas a partir do 1º contato. Padrão
+  `[0, 3, 7, 14]` (vendas rápidas); vertentes industriais usam ciclos longos
+  (ex.: `[0, 7, 30, 60]` p/ Eng. Mecânica). Lista inválida cai no padrão.
+  `cadence/start` resolve o calendário pelo template da campanha e devolve em
+  `schedule`.
 - **Humano no loop por padrão**; envio automático só com opt-in da org
   (`auto_send_email`), e respeita:
   - teto diário por org (`daily_email_limit`, default 40) e janela de
