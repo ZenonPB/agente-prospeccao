@@ -1,7 +1,7 @@
 import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
-import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, ConsultantPlaybook, LeadDuplicate } from "@/types";
+import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -169,6 +169,14 @@ export const leadsApi = {
       method: "PATCH",
       body: JSON.stringify(data),
     }),
+
+  getCadenceStepVersions: (
+    id: string,
+    step: "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE",
+  ) =>
+    request<{ versions: FollowUpVersion[]; current: { subject: string | null; content: string | null; variant: string | null } }>(
+      `/api/leads/${id}/cadence/step/${step}/versions`,
+    ),
 
   listPlaybooks: (params?: { vertical?: string; author_id?: string; limit?: number }) =>
     request<{ items: ConsultantPlaybook[] }>("/api/playbooks", {

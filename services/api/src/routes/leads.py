@@ -1435,6 +1435,29 @@ def update_cadence_step(
             detail="Etapa já enviada — não é possível alterar variante/conteúdo",
         )
 
+    # Salvar versão antes de editar (se houver mudança de conteúdo)
+    content_changed = body.content is not None and body.content != fu.content
+    subject_changed = body.subject is not None and body.subject != fu.subject
+    variant_changed = body.variant is not None and body.variant != fu.variant
+
+    if content_changed or subject_changed or variant_changed:
+        from src.db.models import FollowUpVersion
+        # Calcular próximo número de versão
+        last_version = db.query(FollowUpVersion).filter(
+            FollowUpVersion.follow_up_id == fu.id,
+        ).order_by(FollowUpVersion.version_number.desc()).first()
+        next_version = (last_version.version_number + 1) if last_version else 1
+
+        version = FollowUpVersion(
+            follow_up_id=fu.id,
+            version_number=next_version,
+            subject=fu.subject,
+            content=fu.content,
+            variant=fu.variant,
+            edited_by_id=_user.id if _user else None,
+        )
+        db.add(version)
+
     if body.variant is not None:
         fu.variant = body.variant.strip().upper()[:32] or None
     if body.subject is not None:
@@ -1445,6 +1468,72 @@ def update_cadence_step(
     db.commit()
     db.refresh(fu)
     return _follow_up_dict(fu, db)
+
+
+@router.get("/{lead_id}/cadence/step/{step}/versions")
+def get_cadence_step_versions(
+    lead_id: str,
+    step: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Retorna histórico de versões de uma etapa da cadência.
+
+    Lista todas as versões salvas antes de edições, ordenadas da mais
+    recente para a mais antiga. Útil para comparar mudanças de copywriting
+    e reverter se necessário.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    try:
+        fstep = FollowUpStep(step)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Etapa inválida: {step}")
+
+    fu = db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.step == fstep,
+    ).order_by(FollowUp.created_at.desc()).first()
+    if not fu:
+        raise HTTPException(status_code=404, detail="Etapa de cadência não encontrada")
+
+    from src.db.models import FollowUpVersion, User as UserModel
+
+    versions = db.query(FollowUpVersion).filter(
+        FollowUpVersion.follow_up_id == fu.id,
+    ).order_by(FollowUpVersion.version_number.desc()).all()
+
+    result = []
+    for v in versions:
+        editor = None
+        if v.edited_by_id:
+            user = db.query(UserModel).filter(UserModel.id == v.edited_by_id).first()
+            editor = user.name if user else None
+        result.append({
+            "id": str(v.id),
+            "version_number": v.version_number,
+            "subject": v.subject,
+            "content": v.content,
+            "variant": v.variant,
+            "edited_by": editor,
+            "edit_reason": v.edit_reason,
+            "created_at": v.created_at.isoformat() if v.created_at else None,
+        })
+
+    return {"versions": result, "current": {
+        "subject": fu.subject,
+        "content": fu.content,
+        "variant": fu.variant,
+    }}
 
 
 @router.post("/{lead_id}/cadence/send/{step}")

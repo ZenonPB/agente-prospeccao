@@ -263,6 +263,17 @@ export interface FollowUpItem {
   clicked_at?: string | null;
 }
 
+export interface FollowUpVersion {
+  id: string;
+  version_number: number;
+  subject: string | null;
+  content: string | null;
+  variant: string | null;
+  edited_by: string | null;
+  edit_reason: string | null;
+  created_at: string | null;
+}
+
 export interface LeadCadence {
   lead_id: string;
   opt_out: boolean;

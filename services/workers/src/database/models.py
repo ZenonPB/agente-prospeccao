@@ -704,6 +704,34 @@ class FollowUp(Base):
         return f"<FollowUp(lead='{self.lead_id}', step='{self.step.value}', status='{self.status.value}')>"
 
 
+class FollowUpVersion(Base):
+    """Snapshot de uma versão de mensagem antes de edição.
+
+    Cada vez que o consultor edita o conteúdo/assunto de uma etapa da
+    cadência (via PATCH /cadence/step/{step}), o sistema salva o estado
+    anterior como versão. Permite comparar, reverter e auditar mudanças
+    no copywriting — essencial para tuning de mensagens IA.
+    """
+    __tablename__ = "follow_up_versions"
+    __table_args__ = (
+        Index("ix_follow_up_versions_follow_up_id", "follow_up_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    follow_up_id = Column(UUID(as_uuid=True), ForeignKey("follow_ups.id"), nullable=False)
+    version_number = Column(Integer, nullable=False, default=1)
+    subject = Column(String(255))
+    content = Column(Text)
+    variant = Column(String(32))
+    edited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    edit_reason = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    follow_up = relationship("FollowUp")
+
+    def __repr__(self):
+        return f"<FollowUpVersion(follow_up='{self.follow_up_id}', v{self.version_number})>"
+
+
 class EmailSuppression(Base):
     """Endereços de e-mail com bounce permanente (5xx).
 

@@ -308,7 +308,16 @@ export function useUpdateCadenceStep() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence"] });
       queryClient.invalidateQueries({ queryKey: ["analytics", "message-variants"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence-versions", variables.step] });
     },
+  });
+}
+
+export function useCadenceStepVersions(leadId: string | null, step: string | null) {
+  return useQuery({
+    queryKey: ["leads", leadId, "cadence-versions", step],
+    queryFn: () => leadsApi.getCadenceStepVersions(leadId!, step as "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE"),
+    enabled: !!leadId && !!step,
   });
 }
 
