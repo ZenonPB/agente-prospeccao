@@ -55,6 +55,28 @@ async def _rate_limit_cnpja():
 
 
 class CnaeDiscoveryService:
+    # Mapeamento de porte para categorias de tamanho (para filtragem B2B)
+    PORTE_SIZE_MAP = {
+        "me": "pequeno",
+        "epp": "pequeno",
+        "empresa individual": "pequeno",
+        "ltda": "medio",
+        "slu": "medio",
+        "ssa": "medio",
+        "eireli": "medio",
+        "s.a.": "grande",
+        "s.a": "grande",
+        "sociedade anonima": "grande",
+    }
+
+    @staticmethod
+    def _classify_porte(porte: Optional[str]) -> str:
+        """Classifica o porte em categorias: pequeno, medio, grande."""
+        if not porte:
+            return "desconhecido"
+        porte_lower = porte.strip().lower()
+        return CnaeDiscoveryService.PORTE_SIZE_MAP.get(porte_lower, "medio")
+
     @staticmethod
     async def fetch_cnpj_details(cnpj: str, client: Optional[httpx.AsyncClient] = None) -> Optional[Dict[str, Any]]:
         """Busca detalhes de um CNPJ com fallback resiliente entre BrasilAPI, Minha Receita e CNPJá."""
@@ -108,11 +130,16 @@ class CnaeDiscoveryService:
         city: Optional[str] = None,
         limit: int = 20,
         cnpjs_input: Optional[List[str]] = None,
+        porte_category: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Descobre/busca lista de empresas pertencentes ao CNAE fornecido.
         
         Se `cnpjs_input` for fornecido, enriquece a lista de CNPJs dada e filtra os pertencentes ao CNAE.
         Senão, realiza a consulta/descoberta.
+        
+        Args:
+            porte_category: Filtra por categoria de porte ('pequeno', 'medio', 'grande'). 
+                           None retorna todos.
         """
         clean_cnae = normalize_cnae(cnae_code)
         results: List[Dict[str, Any]] = []
@@ -126,6 +153,10 @@ class CnaeDiscoveryService:
                         if not clean_cnae or clean_cnae in lead_cnae or lead_cnae in clean_cnae:
                             if not state or (details.get("state") or "").upper() == state.upper():
                                 if not city or (city.lower() in (details.get("city") or "").lower()):
+                                    # Filtro de porte
+                                    if porte_category:
+                                        if details.get("porte_category") != porte_category:
+                                            continue
                                     results.append(details)
             else:
                 # Se não foram fornecidos CNPJs explicitos, pode-se enriquecer através de requisições encadeadas
@@ -135,6 +166,7 @@ class CnaeDiscoveryService:
 
     @staticmethod
     def _parse_brasilapi_response(data: Dict[str, Any]) -> Dict[str, Any]:
+        porte = data.get("porte")
         return {
             "name": data.get("nome_fantasia") or data.get("razao_social") or "Sem nome",
             "razao_social": data.get("razao_social"),
@@ -146,12 +178,15 @@ class CnaeDiscoveryService:
             "address": f"{data.get('logradouro', '')}, {data.get('numero', '')} - {data.get('bairro', '')}".strip(" ,-"),
             "cnae_code": str(data.get("cnae_fiscal", "")),
             "cnae_description": data.get("cnae_fiscal_descricao"),
+            "porte": porte,
+            "porte_category": CnaeDiscoveryService._classify_porte(porte),
             "source": "brasilapi",
             "place_id": f"cnae_{data.get('cnpj')}",
         }
 
     @staticmethod
     def _parse_minhareceita_response(data: Dict[str, Any]) -> Dict[str, Any]:
+        porte = data.get("porte")
         return {
             "name": data.get("nome_fantasia") or data.get("razao_social") or "Sem nome",
             "razao_social": data.get("razao_social"),
@@ -163,6 +198,8 @@ class CnaeDiscoveryService:
             "address": f"{data.get('logradouro', '')}, {data.get('numero', '')}".strip(" ,-"),
             "cnae_code": str(data.get("cnae_fiscal", "")),
             "cnae_description": data.get("cnae_fiscal_descricao"),
+            "porte": porte,
+            "porte_category": CnaeDiscoveryService._classify_porte(porte),
             "source": "minhareceita",
             "place_id": f"cnae_{data.get('cnpj')}",
         }
@@ -172,6 +209,7 @@ class CnaeDiscoveryService:
         company = data.get("company", {})
         address_info = data.get("address", {})
         main_cnae = data.get("mainActivity", {})
+        porte = (data.get("size") or {}).get("text")
         return {
             "name": data.get("alias") or company.get("name") or "Sem nome",
             "razao_social": company.get("name"),
@@ -183,6 +221,8 @@ class CnaeDiscoveryService:
             "address": f"{address_info.get('street', '')}, {address_info.get('number', '')}".strip(" ,-"),
             "cnae_code": str(main_cnae.get("id", "")),
             "cnae_description": main_cnae.get("text"),
+            "porte": porte,
+            "porte_category": CnaeDiscoveryService._classify_porte(porte),
             "source": "cnpja",
             "place_id": f"cnae_{data.get('taxId')}",
         }

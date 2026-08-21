@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import type { SlaAlertItem } from '@/types';
@@ -71,19 +71,19 @@ function groupLeadsByColumn(leads: LeadData[]): Record<string, LeadData[]> {
 
 function KanbanColumnSkeleton() {
   return (
-    <div className="min-w-[280px] flex-1">
-      <div className="rounded-xl bg-muted/50 p-3">
+    <div className="min-w-[300px] w-[300px] flex-shrink-0">
+      <div className="rounded-xl bg-muted/40 p-3">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Skeleton className="h-2 w-2 rounded-full" />
+            <Skeleton className="h-2.5 w-2.5 rounded-full" />
             <Skeleton className="h-4 w-28" />
           </div>
           <Skeleton className="h-5 w-6 rounded-full" />
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {[1, 2].map((i) => (
             <Card key={i}>
-              <CardContent className="p-4">
+              <CardContent className="p-3.5">
                 <div className="mb-3 flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <Skeleton className="h-4 w-4" />
@@ -116,8 +116,12 @@ export function KanbanBoard() {
   const mySalesRole = membership?.membership?.sales_role;
   const canAssignOthers = myRole === 'OWNER' || myRole === 'ADMIN' || mySalesRole === 'MANAGER';
   const { data: membersData } = useOrgMembers(canAssignOthers ? orgId : undefined);
+
+  const [myLeadsOnly, setMyLeadsOnly] = useState(false);
+
   const { data, isLoading, isError, error, refetch } = useAllLeads({
     status: SALES_STATUSES,
+    assigned: myLeadsOnly && currentUserId ? currentUserId : undefined,
   });
   const { data: slaData } = useSlaAlerts(100);
 
@@ -176,9 +180,14 @@ export function KanbanBoard() {
     updateStatus.mutate(
       { id: draggableId, status: newStatus },
       {
-        onSuccess: () => {
+        onSuccess: (res) => {
           setDraftColumns(null);
-          toast.success('Lead movido para ' + destination.droppableId);
+          const colTitle = COLUMNS.find((c) => c.id === newStatus)?.title || newStatus;
+          toast.success(`Lead movido para ${colTitle}`, {
+            description: res.suggested_next_action_at
+              ? `Próxima ação sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
+              : undefined,
+          });
         },
         onError: () => {
           setDraftColumns(null);
@@ -221,7 +230,7 @@ export function KanbanBoard() {
 
   if (isLoading) {
     return (
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
         {COLUMNS.map((col) => (
           <KanbanColumnSkeleton key={col.id} />
         ))}
@@ -276,32 +285,51 @@ export function KanbanBoard() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="hidden text-sm font-medium text-muted-foreground sm:block">
-          Arraste os cartões entre as colunas para atualizar o status do funil
-        </p>
-        <p className="text-sm font-medium text-muted-foreground sm:hidden">
-          Toque num cartão para abrir o lead · arraste pelo puxador ou use “Mover para” para mudar de etapa
-        </p>
-        {slaAlertsCount > 0 && (
-          <div className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-            <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-            {slaAlertsCount} lead{slaAlertsCount !== 1 ? 's' : ''} parado{slaAlertsCount !== 1 ? 's' : ''}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <p className="hidden text-sm font-medium text-muted-foreground sm:block">
+            Arraste os cartões entre as colunas para atualizar o status do funil
+          </p>
+          <p className="text-sm font-medium text-muted-foreground sm:hidden">
+            Toque num cartão para abrir o lead · arraste pelo puxador ou use &ldquo;Mover para&rdquo; para mudar de etapa
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {currentUserId && (
+            <Button
+              variant={myLeadsOnly ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-1.5 rounded-full px-3 text-xs font-medium"
+              onClick={() => setMyLeadsOnly(!myLeadsOnly)}
+            >
+              {myLeadsOnly ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Users className="h-3.5 w-3.5" />
+              )}
+              Meus Leads
+            </Button>
+          )}
+          {slaAlertsCount > 0 && (
+            <div className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+              {slaAlertsCount} lead{slaAlertsCount !== 1 ? 's' : ''} parado{slaAlertsCount !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
           {COLUMNS.map((column) => (
-            <div key={column.id} className="min-w-[280px] flex-1">
-              <div className="rounded-xl bg-muted/50 p-3">
+            <div key={column.id} className="min-w-[300px] w-[300px] flex-shrink-0 snap-start">
+              <div className="rounded-xl bg-muted/40 p-3">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${column.color}`} />
-                    <h3 className="font-medium">{column.title}</h3>
+                    <div className={`h-2.5 w-2.5 rounded-full ${column.color}`} />
+                    <h3 className="text-sm font-semibold">{column.title}</h3>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs font-semibold">
                       {visibleColumns[column.id]?.length || 0}
                     </Badge>
                     {slaCountByColumn[column.id] > 0 && (
@@ -322,8 +350,10 @@ export function KanbanBoard() {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`min-h-[200px] space-y-3 rounded-lg transition-colors ${
-                        snapshot.isDraggingOver ? 'bg-primary/10' : ''
+                      className={`min-h-[120px] space-y-2.5 rounded-lg border-2 border-dashed p-2 transition-all duration-200 ${
+                        snapshot.isDraggingOver
+                          ? 'border-primary/50 bg-primary/5 scale-[1.01]'
+                          : 'border-transparent bg-transparent'
                       }`}
                     >
                       {(visibleColumns[column.id] || []).map((lead, index) => (
@@ -347,16 +377,22 @@ export function KanbanBoard() {
                                   router.push(`/oportunidades/${lead.id}`);
                                 }
                               }}
-                              className={`cursor-pointer rounded-lg border bg-card p-4 shadow-sm transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                                snapshot.isDragging ? 'shadow-lg' : 'hover:shadow-md'
+                              className={`group rounded-lg border bg-card p-3.5 shadow-sm transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                                snapshot.isDragging
+                                  ? 'shadow-xl ring-2 ring-primary/30 rotate-[1.5deg] scale-[1.03]'
+                                  : 'hover:shadow-md hover:border-primary/20'
                               }`}
                             >
                               <div className="mb-2 flex items-start justify-between gap-2">
                                 <div className="flex min-w-0 items-center gap-2">
                                   {/* Arrastar só pelo puxador — tocar no cartão abre o lead
                                       (drag handle separado evita conflito de gestos no mobile). */}
-                                  <span {...provided.dragHandleProps} className="shrink-0 cursor-grab touch-none active:cursor-grabbing" aria-label="Arrastar para mudar de etapa">
-                                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                                  <span
+                                    {...provided.dragHandleProps}
+                                    className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground active:cursor-grabbing"
+                                    aria-label="Arrastar para mudar de etapa"
+                                  >
+                                    <GripVertical className="h-4 w-4" />
                                   </span>
                                   <h4 className="truncate font-medium">{lead.company_name}</h4>
                                 </div>
@@ -592,7 +628,13 @@ export function KanbanBoard() {
                                               updateStatus.mutate(
                                                 { id: lead.id, status: c.id },
                                                 {
-                                                  onSuccess: () => toast.success(`Lead movido para ${c.title}`),
+                                                  onSuccess: (res) => {
+                                                    toast.success(`Lead movido para ${c.title}`, {
+                                                      description: res.suggested_next_action_at
+                                                        ? `Próxima ação sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
+                                                        : undefined,
+                                                    });
+                                                  },
                                                   onError: () => toast.error('Erro ao mover lead'),
                                                 }
                                               );
@@ -612,8 +654,16 @@ export function KanbanBoard() {
                       ))}
                       {provided.placeholder}
                       {(visibleColumns[column.id] || []).length === 0 && !snapshot.isDraggingOver && (
-                        <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-                          Nenhum lead nesta etapa
+                        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 p-6 text-center">
+                          <div className="mb-2 rounded-full bg-muted p-2">
+                            <Filter className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                          <p className="text-sm font-medium text-muted-foreground">
+                            {myLeadsOnly ? 'Nenhum lead seu nesta etapa' : 'Nenhum lead nesta etapa'}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground/70">
+                            {myLeadsOnly ? 'Desative o filtro ou atribua leads a você' : 'Arraste leads de outras colunas'}
+                          </p>
                         </div>
                       )}
                     </div>

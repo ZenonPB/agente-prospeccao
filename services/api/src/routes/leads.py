@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from urllib.parse import quote
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import uuid
 import os
 import sys
@@ -27,6 +27,23 @@ from services.outreach_service import OutreachService  # noqa: E402
 from src.services.pitch_service import build_pitch_one_pager, build_site_audit  # noqa: E402
 from src.services.linkedin_assist_service import linkedin_match_status  # noqa: E402
 from services.enrichment_ts import freshness_snapshot, read_stamps  # noqa: E402
+
+
+def _suggest_next_action_at(status: LeadStatus) -> Optional[datetime]:
+    """Sugere data/hora para próxima ação baseada no estágio do funil."""
+    now = datetime.now(timezone.utc)
+    suggestions = {
+        LeadStatus.QUALIFICADO: timedelta(days=1),
+        LeadStatus.CONTATADO: timedelta(days=3),
+        LeadStatus.RESPONDIDO: timedelta(days=2),
+        LeadStatus.REUNIAO_MARCADA: timedelta(days=7),
+        LeadStatus.REUNIAO_FEITA: timedelta(days=3),
+        LeadStatus.PROPOSTA_ENVIADA: timedelta(days=5),
+    }
+    delta = suggestions.get(status)
+    if delta:
+        return now + delta
+    return None
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -429,6 +446,7 @@ def update_lead_status(
         "id": str(lead.id),
         "company_name": lead.company_name,
         "status": lead.status.value if lead.status else None,
+        "suggested_next_action_at": _suggest_next_action_at(body.status).isoformat() if _suggest_next_action_at(body.status) else None,
     }
 
 

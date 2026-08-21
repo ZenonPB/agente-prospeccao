@@ -93,6 +93,7 @@ async def _run_job(job: Job) -> None:
             source=payload.get("source") or "places",
             cnae_code=payload.get("cnae_code"),
             cnpjs=payload.get("cnpjs"),
+            porte_category=payload.get("porte_category"),
         ):
             # Lê conexões dinamicamente (WS pode conectar após o job começar).
             connections = active_connections.get(str(job.id), [])

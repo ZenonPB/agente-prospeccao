@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Search, Building, Loader2, Info } from "lucide-react";
+import { Search, Building, Loader2, Info, Filter } from "lucide-react";
 import { toast } from "sonner";
 
 interface CnaeDiscoveryModalProps {
@@ -29,6 +30,7 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
   const [cnaeCode, setCnaeCode] = useState("");
   const [cnpjsRaw, setCnpjsRaw] = useState("");
   const [maxLeads, setMaxLeads] = useState(10);
+  const [porteCategory, setPorteCategory] = useState<string>("all");
   const collectCnae = useCollectCnae();
 
   const handleStartCollection = useCallback(async () => {
@@ -48,6 +50,7 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
         cnaeCode: cnaeCode || undefined,
         cnpjs: cnpjs.length > 0 ? cnpjs : undefined,
         maxLeads,
+        porteCategory: porteCategory !== "all" ? porteCategory : undefined,
       });
 
       toast.success("Coleta por CNAE iniciada em segundo plano!");
@@ -59,7 +62,7 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao iniciar busca por CNAE");
     }
-  }, [campaignId, cnaeCode, cnpjsRaw, maxLeads, collectCnae, onJobStarted]);
+  }, [campaignId, cnaeCode, cnpjsRaw, maxLeads, porteCategory, collectCnae, onJobStarted]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -120,6 +123,34 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
               value={maxLeads}
               onChange={(e) => setMaxLeads(parseInt(e.target.value) || 10)}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="porte-filter" className="flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5" aria-hidden="true" />
+              Porte da Empresa (opcional)
+            </Label>
+            <Select value={porteCategory} onValueChange={(v) => setPorteCategory(v || "all")}>
+              <SelectTrigger id="porte-filter">
+                <SelectValue>
+                  {(value) => {
+                    const labels: Record<string, string> = {
+                      all: "Todos os portes",
+                      pequeno: "Pequeno (ME, EPP)",
+                      medio: "Médio (LTDA, SLU)",
+                      grande: "Grande (S.A.)",
+                    };
+                    return labels[value || "all"] || "Todos os portes";
+                  }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os portes</SelectItem>
+                <SelectItem value="pequeno">Pequeno (ME, EPP)</SelectItem>
+                <SelectItem value="medio">Médio (LTDA, SLU)</SelectItem>
+                <SelectItem value="grande">Grande (S.A.)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
