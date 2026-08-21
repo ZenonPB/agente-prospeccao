@@ -704,6 +704,34 @@ class FollowUp(Base):
         return f"<FollowUp(lead='{self.lead_id}', step='{self.step.value}', status='{self.status.value}')>"
 
 
+class FollowUpVersion(Base):
+    """Snapshot de uma versão de mensagem antes de edição.
+
+    Cada vez que o consultor edita o conteúdo/assunto de uma etapa da
+    cadência (via PATCH /cadence/step/{step}), o sistema salva o estado
+    anterior como versão. Permite comparar, reverter e auditar mudanças
+    no copywriting — essencial para tuning de mensagens IA.
+    """
+    __tablename__ = "follow_up_versions"
+    __table_args__ = (
+        Index("ix_follow_up_versions_follow_up_id", "follow_up_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    follow_up_id = Column(UUID(as_uuid=True), ForeignKey("follow_ups.id"), nullable=False)
+    version_number = Column(Integer, nullable=False, default=1)
+    subject = Column(String(255))
+    content = Column(Text)
+    variant = Column(String(32))
+    edited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    edit_reason = Column(String(255))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    follow_up = relationship("FollowUp")
+
+    def __repr__(self):
+        return f"<FollowUpVersion(follow_up='{self.follow_up_id}', v{self.version_number})>"
+
+
 class EmailSuppression(Base):
     """Endereços de e-mail com bounce permanente (5xx).
 
@@ -988,3 +1016,41 @@ class Job(Base):
 
     def __repr__(self):
         return f"<Job(id='{self.id}', type='{self.job_type.value}', status='{self.status.value}')>"
+
+
+class NotificationType(enum.Enum):
+    """Tipos de notificação in-app."""
+    LEAD_RESPONDED = "LEAD_RESPONDED"
+    LEAD_ASSIGNED = "LEAD_ASSIGNED"
+    SLA_ALERT = "SLA_ALERT"
+    CADENCE_DUE = "CADENCE_DUE"
+
+
+class Notification(Base):
+    """Notificações in-app do consultor.
+
+    Criadas em background quando eventos relevantes acontecem
+    (lead responde, lead atribuído, alerta SLA, cadência pendente).
+    O frontend consulta via polling (useNotifications) e exibe badge.
+    """
+    __tablename__ = "notifications"
+    __table_args__ = (
+        Index("ix_notifications_user_id_read", "user_id", "is_read"),
+        Index("ix_notifications_created_at", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    notification_type = Column(Enum(NotificationType, name='notification_type', create_type=True), nullable=False)
+    title = Column(String(255), nullable=False)
+    message = Column(Text)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=True)
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")
+    organization = relationship("Organization")
+    lead = relationship("Lead")
+
+    def __repr__(self):
+        return f"<Notification(id='{self.id}', type='{self.notification_type.value}', user='{self.user_id}', read={self.is_read})>"

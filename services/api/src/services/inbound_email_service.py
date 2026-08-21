@@ -6,7 +6,8 @@ serviço:
 
 - Detecta "STOP" (subject/body) → marca `opt_out` (do-not-contact) e cancela a cadência.
 - Detecta resposta (qualquer outra) → move o lead para `RESPONDIDO`, cancela
-  follow-ups pendentes (o lead respondeu — para de enviar) e grava na trilha.
+  follow-ups pendentes (o lead respondeu — para de enviar), grava na trilha
+  e cria notificação in-app para o consultor atribuído.
 
 Sem token/secreto válido a rota é 404 — nenhum dado de terceiro é aceito.
 """
@@ -134,6 +135,13 @@ def process_inbound_email(db: Session, from_email: str, subject: str, body: str)
         _record_response_message(db, lead, body or "", now)
         log_inbound_activity(db, lead, "Resposta recebida (inbound)", now)
         logger.info("Lead %s marcado RESPONDIDO via inbound de %s", lead.id, sender)
+
+        # Notificação in-app para o consultor atribuído
+        try:
+            from src.services.notification_service import create_lead_responded_notification
+            create_lead_responded_notification(db, lead, lead.organization_id)
+        except Exception as e:
+            logger.warning("Falha ao criar notificação de resposta: %s", e)
 
     db.commit()
     return {"matched": True, "stop_requested": stop}

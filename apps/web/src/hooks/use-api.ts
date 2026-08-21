@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, type ScoringTemplateInput } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, type ScoringTemplateInput } from "@/lib/api";
 import type { SalesRole, OrgRole, OnboardingStatus } from "@/types";
 
 export type SegmentSuggestion = {
@@ -308,7 +308,16 @@ export function useUpdateCadenceStep() {
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence"] });
       queryClient.invalidateQueries({ queryKey: ["analytics", "message-variants"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id, "cadence-versions", variables.step] });
     },
+  });
+}
+
+export function useCadenceStepVersions(leadId: string | null, step: string | null) {
+  return useQuery({
+    queryKey: ["leads", leadId, "cadence-versions", step],
+    queryFn: () => leadsApi.getCadenceStepVersions(leadId!, step as "OPENING" | "FOLLOWUP_1" | "FOLLOWUP_2" | "CLOSING" | "POST_SALE"),
+    enabled: !!leadId && !!step,
   });
 }
 
@@ -905,6 +914,34 @@ export function useUpdateOnboardingStatus() {
     mutationFn: (status: OnboardingStatus) => authApi.updateOnboardingStatus(status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user", "me"] });
+    },
+  });
+}
+
+export function useNotifications(params?: { limit?: number; unread_only?: boolean }) {
+  return useQuery({
+    queryKey: ["notifications", params],
+    queryFn: () => notificationsApi.list(params),
+    refetchInterval: 15000, // Poll a cada 15s
+  });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => notificationsApi.markAllRead(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
 }
