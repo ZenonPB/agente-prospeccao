@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
   Play, CheckCircle, XCircle, Loader2,
-  ExternalLink, Sparkles, RefreshCw,
+  ExternalLink, Sparkles, RefreshCw, WifiOff,
 } from 'lucide-react';
 import { useStartPipeline, useReanalyzeCampaign, usePipelineJobs, useInvalidateJobs } from '@/hooks/use-api';
+import { useReconnectableWs } from '@/hooks/use-reconnectable-ws';
 import { createPipelineWs } from '@/lib/api';
+import { toast } from 'sonner';
 
 // Mantém o DOM/renders finitos mesmo em rodadas longas (anti-congelamento).
 const MAX_LOG_LINES = 150;
@@ -56,12 +58,45 @@ export function CampaignPipeline({
   const [summary, setSummary] = useState<PipelineEvent['summary'] | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const startPipeline = useStartPipeline();
   const reanalyzeCampaign = useReanalyzeCampaign();
   const jobsQuery = usePipelineJobs(campaignId, 5);
   const invalidateJobs = useInvalidateJobs();
+
+  const { isReconnecting, reconnectCount, connect, disconnect } = useReconnectableWs({
+    maxRetries: 5,
+    baseDelay: 1000,
+    onMessage: (data) => {
+      const event = data as PipelineEvent;
+      setEvents((prev) => [...prev.slice(-MAX_LOG_LINES + 1), event]);
+
+      if (event.type === 'progress' && event.percent !== undefined) {
+        setProgress(event.percent);
+        if (event.step) setCurrentStep(event.step);
+      }
+
+      if (event.type === 'done') {
+        setSummary(event.summary);
+        setIsRunning(false);
+        invalidateJobs();
+      }
+
+      if (event.type === 'error') {
+        setIsRunning(false);
+        setErrorMessage(event.message || 'Erro durante o pipeline');
+        invalidateJobs();
+      }
+    },
+    onOpen: () => {
+      if (reconnectCount > 0) {
+        toast.success('Reconectado ao pipeline');
+      }
+    },
+    onClose: () => {
+      setIsRunning(false);
+    },
+  });
 
   // Com o pipeline em background (job-consumer), o usuário pode sair da tela e
   // voltar: o resumo é restaurado do último job COMPLETED da campanha.
@@ -99,46 +134,16 @@ export function CampaignPipeline({
             });
       invalidateJobs();
 
-      const ws = createPipelineWs(result.job_id);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-        const data: PipelineEvent = JSON.parse(event.data);
-        setEvents((prev) => [...prev, data]);
-
-        if (data.type === 'progress' && data.percent !== undefined) {
-          setProgress(data.percent);
-          if (data.step) setCurrentStep(data.step);
-        }
-
-        if (data.type === 'done') {
-          setSummary(data.summary);
-          setIsRunning(false);
-          invalidateJobs();
-        }
-
-        if (data.type === 'error') {
-          setIsRunning(false);
-          setErrorMessage(data.message || 'Erro durante o pipeline');
-          invalidateJobs();
-        }
-      };
-
-      ws.onerror = () => {
-        setIsRunning(false);
-        setEvents((prev) => [...prev, { type: 'error', message: 'Erro na conexão WebSocket' }]);
-      };
-
-      ws.onclose = () => {
-        setIsRunning(false);
-      };
+      // Usar hook de reconexão automática
+      const wsUrl = createPipelineWs(result.job_id).url;
+      connect(wsUrl);
     } catch (e) {
       setIsRunning(false);
       const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';
       setErrorMessage(msg);
       setEvents((prev) => [...prev, { type: 'error', message: msg }]);
     }
-  }, [campaignId, startPipeline, reanalyzeCampaign, invalidateJobs]);
+  }, [campaignId, startPipeline, reanalyzeCampaign, invalidateJobs, connect]);
 
   useEffect(() => {
     // Auto-start intencional: navegação com ?start=true dispara a coleta uma
@@ -151,10 +156,7 @@ export function CampaignPipeline({
   }, [autoStart]);
 
   const handleStop = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    disconnect();
     setIsRunning(false);
   };
 
@@ -229,6 +231,19 @@ export function CampaignPipeline({
                 <h3 className="text-sm font-semibold text-red-800">Erro</h3>
                 <p className="text-sm text-red-700 mt-1">{errorMessage}</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {isReconnecting && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 text-sm text-amber-800">
+              <WifiOff className="h-4 w-4 shrink-0 animate-pulse" />
+              <span>
+                Conexão perdida — reconectando... (tentativa {reconnectCount}/5)
+              </span>
             </div>
           </CardContent>
         </Card>

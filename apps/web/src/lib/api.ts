@@ -962,3 +962,33 @@ export function createPipelineWs(jobId: string): WebSocket {
   });
   return ws;
 }
+
+export interface NotificationItem {
+  id: string;
+  notification_type: string;
+  title: string;
+  message?: string;
+  lead_id?: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export const notificationsApi = {
+  list: (params?: { limit?: number; unread_only?: boolean }) =>
+    request<{ notifications: NotificationItem[]; unread_count: number; total: number }>(
+      "/api/notifications",
+      { params: params as Record<string, string | number | boolean | undefined> },
+    ),
+
+  markRead: (id: string) =>
+    request<{ success: boolean; unread_count: number }>(
+      `/api/notifications/${id}/read`,
+      { method: "PATCH" },
+    ),
+
+  markAllRead: () =>
+    request<{ success: boolean; unread_count: number }>(
+      "/api/notifications/read-all",
+      { method: "PATCH" },
+    ),
+};

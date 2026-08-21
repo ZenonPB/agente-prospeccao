@@ -6,9 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Pause, Loader2, Play } from 'lucide-react';
+import { Pause, Loader2, Play, WifiOff } from 'lucide-react';
 import { useStartPipeline, usePipelineJobs, useInvalidateJobs } from '@/hooks/use-api';
+import { useReconnectableWs } from '@/hooks/use-reconnectable-ws';
 import { createPipelineWs } from '@/lib/api';
+import { toast } from 'sonner';
 
 // Mantém o DOM/renders finitos mesmo em rodadas longas (anti-congelamento).
 const MAX_LOG_LINES = 150;
@@ -39,12 +41,44 @@ export function PipelineMonitor() {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [summary, setSummary] = useState<PipelineEvent['summary'] | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const startPipeline = useStartPipeline();
   const jobsQuery = usePipelineJobs(undefined, 5);
   const invalidateJobs = useInvalidateJobs();
+
+  const { isReconnecting, reconnectCount, connect, disconnect } = useReconnectableWs({
+    maxRetries: 5,
+    baseDelay: 1000,
+    onMessage: (data) => {
+      const event = data as PipelineEvent;
+      setEvents((prev) => [...prev.slice(-MAX_LOG_LINES + 1), event]);
+
+      if (event.type === 'progress' && event.percent !== undefined) {
+        setProgress(event.percent);
+        if (event.step) setCurrentStep(event.step);
+      }
+
+      if (event.type === 'done') {
+        setSummary(event.summary);
+        setIsRunning(false);
+        invalidateJobs();
+      }
+
+      if (event.type === 'error') {
+        setIsRunning(false);
+        invalidateJobs();
+      }
+    },
+    onOpen: () => {
+      if (reconnectCount > 0) {
+        toast.success('Reconectado ao pipeline');
+      }
+    },
+    onClose: () => {
+      setIsRunning(false);
+    },
+  });
 
   // Restaura o resumo do último job da organização após reload/navegação.
   const latestJob = jobsQuery.data?.jobs?.[0] ?? null;
@@ -72,38 +106,9 @@ export function PipelineMonitor() {
       });
       invalidateJobs();
 
-      const ws = createPipelineWs(result.job_id);
-      wsRef.current = ws;
-
-      ws.onmessage = (event) => {
-        const data: PipelineEvent = JSON.parse(event.data);
-        setEvents((prev) => [...prev, data]);
-
-        if (data.type === 'progress' && data.percent !== undefined) {
-          setProgress(data.percent);
-          if (data.step) setCurrentStep(data.step);
-        }
-
-        if (data.type === 'done') {
-          setSummary(data.summary);
-          setIsRunning(false);
-          invalidateJobs();
-        }
-
-        if (data.type === 'error') {
-          setIsRunning(false);
-          invalidateJobs();
-        }
-      };
-
-      ws.onerror = () => {
-        setIsRunning(false);
-        setEvents((prev) => [...prev, { type: 'error', message: 'Erro na conexão WebSocket' }]);
-      };
-
-      ws.onclose = () => {
-        setIsRunning(false);
-      };
+      // Usar hook de reconexão automática
+      const wsUrl = createPipelineWs(result.job_id).url;
+      connect(wsUrl);
     } catch {
       setIsRunning(false);
       setEvents((prev) => [...prev, { type: 'error', message: 'Erro ao iniciar pipeline' }]);
@@ -111,10 +116,7 @@ export function PipelineMonitor() {
   };
 
   const handleStop = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    disconnect();
     setIsRunning(false);
   };
 
@@ -152,6 +154,20 @@ export function PipelineMonitor() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reconnection banner */}
+      {isReconnecting && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardContent className="py-3">
+            <div className="flex items-center gap-2 text-sm text-amber-800">
+              <WifiOff className="h-4 w-4 shrink-0 animate-pulse" />
+              <span>
+                Conexão perdida — reconectando... (tentativa {reconnectCount}/5)
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress Bar */}
       {(isRunning || events.length > 0 || restoredSummary) && (
