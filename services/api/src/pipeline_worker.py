@@ -132,6 +132,7 @@ async def run_pipeline(
     source: str = "places",
     cnae_code: str | None = None,
     cnpjs: list[str] | None = None,
+    porte_category: str | None = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Executa o pipeline completo (coleta + enriquecimento + scoring) e gera
@@ -210,6 +211,7 @@ async def run_pipeline(
                 city=target_city,
                 limit=max_leads,
                 cnpjs_input=cnpjs,
+                porte_category=porte_category,
             )
 
             logger.info("Pipeline CNAE discovery collected %d results", len(results))

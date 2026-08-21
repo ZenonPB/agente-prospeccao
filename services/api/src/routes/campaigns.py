@@ -45,6 +45,7 @@ class CollectCnaeRequest(BaseModel):
     cnae_code: Optional[str] = Field(None, description="Código CNAE (ex: '2869100' ou '28.69-1-00')")
     cnpjs: Optional[List[str]] = Field(None, description="Lista de CNPJs a buscar/validar")
     max_leads: int = Field(20, ge=1, le=100)
+    porte_category: Optional[str] = Field(None, description="Filtro de porte: 'pequeno', 'medio', 'grande'")
 
 
 class SuggestSegmentRequest(BaseModel):
@@ -527,6 +528,7 @@ async def collect_campaign_cnae(
             "cnae_code": data.cnae_code,
             "cnpjs": data.cnpjs,
             "max_leads": data.max_leads,
+            "porte_category": data.porte_category,
         },
     )
     db.add(job)

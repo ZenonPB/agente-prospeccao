@@ -139,7 +139,7 @@ export const leadsApi = {
     }),
 
   updateStatus: (id: string, status: string) =>
-    request<{ id: string; company_name: string; status: string }>(`/api/leads/${id}/status`, {
+    request<{ id: string; company_name: string; status: string; suggested_next_action_at?: string | null }>(`/api/leads/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
@@ -396,7 +396,7 @@ export const campaignsApi = {
     });
   },
 
-  collectCnae: (campaignId: string, data: { cnae_code?: string; cnpjs?: string[]; max_leads?: number }) =>
+  collectCnae: (campaignId: string, data: { cnae_code?: string; cnpjs?: string[]; max_leads?: number; porte_category?: string }) =>
     request<{ job_id: string; status: string; cnae_code?: string }>(`/api/campaigns/${campaignId}/collect-cnae`, {
       method: "POST",
       body: JSON.stringify(data),
