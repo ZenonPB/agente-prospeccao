@@ -3,6 +3,7 @@ import io
 import hashlib
 import os
 import sys
+import unicodedata
 from typing import List, Dict, Any, Optional, Tuple
 
 # Garante que `services.*` dos workers resolva independente da ordem de import
@@ -18,25 +19,74 @@ from src.db.models import Lead, LeadStatus, Campaign, Contact, ContactRole
 from services.domain_utils import normalize_domain, is_social_domain, is_instagram_url, extract_instagram_url
 
 
+def _strip_accents(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    return "".join(ch for ch in normalized if not unicodedata.combining(ch))
+
+
+# Campos específicos de listas de associados (FIESP/ABIMAQ/sindicatos) vêm
+# ANTES de `name` na ordem do dict para que a checagem por substring os
+# priorize quando o cabeçalho mistura os dois (ex.: "Razão Social/Nome").
 HEADER_ALIASES = {
-    "name": ["name", "nome", "empresa", "company_name", "razao_social", "nome_fantasia"],
-    "website": ["website", "site", "url", "web_site", "domain", "dominio"],
-    "phone": ["phone", "telefone", "tel", "celular", "phone_number"],
+    "razao_social": ["razao_social", "denominacao_social"],
+    "nome_fantasia": ["nome_fantasia", "fantasia"],
+    "name": [
+        "name",
+        "nome",
+        "empresa",
+        "company_name",
+        "empresa_associada",
+        "associada",
+        "associado",
+        "fornecedor",
+        "denominacao",
+        "nome_da_empresa",
+    ],
+    "website": ["website", "site", "url", "web_site", "domain", "dominio", "pagina_web", "homepage"],
+    "phone": ["phone", "telefone", "tel", "celular", "phone_number", "telefone_comercial", "telefone_1", "telefone1", "fone", "ddd_telefone"],
     "whatsapp": ["whatsapp", "wpp", "zap", "whats"],
     "email": ["email", "e-mail", "mail", "email_contato", "email_principal"],
     "city": ["city", "cidade", "municipio"],
     "state": ["state", "uf", "estado"],
     "address": ["address", "endereco", "logradouro", "rua"],
     "cnpj": ["cnpj", "documento", "tax_id"],
-    "category": ["category", "categoria", "ramo", "segmento", "nicho"],
-    "contact_name": ["contact_name", "contato", "nome_contato", "decisor", "responsavel"],
+    "category": [
+        "category",
+        "categoria",
+        "ramo",
+        "segmento",
+        "nicho",
+        "atividade",
+        "atividade_economica",
+        "ramo_de_atividade",
+        "descricao_atividade",
+        "produtos",
+        "produto",
+        "servicos",
+        "servico",
+        "setor",
+    ],
+    "contact_name": [
+        "contact_name",
+        "contato",
+        "nome_contato",
+        "decisor",
+        "responsavel",
+        "representante",
+        "representante_legal",
+        "dirigente",
+        "presidente",
+        "contato_comercial",
+    ],
     "linkedin": ["linkedin", "perfil_linkedin", "linkedin_url"],
     "instagram": ["instagram", "instagram_url", "perfil_instagram", "ig"],
 }
 
+_NAME_FIELDS = ("name", "razao_social", "nome_fantasia")
+
 
 def normalize_header(header: str) -> str:
-    cleaned = header.strip().lower().replace(" ", "_").replace("-", "_")
+    cleaned = _strip_accents(str(header).strip().lower()).replace(" ", "_").replace("-", "_").replace("/", "_")
     for field, aliases in HEADER_ALIASES.items():
         if cleaned in aliases:
             return field
@@ -45,6 +95,25 @@ def normalize_header(header: str) -> str:
         if any(alias in cleaned for alias in aliases):
             return field
     return cleaned
+
+
+def find_header_row(rows: List[List[str]]) -> Optional[int]:
+    """Localiza a linha de cabeçalho entre as primeiras linhas do arquivo.
+
+    Listas setoriais costumam trazer títulos ("Diretório Sindical Patronal"),
+    datas de emissão e linhas em branco antes do cabeçalho real. Uma linha é
+    cabeçalho quando pelo menos 2 células mapeiam para campos conhecidos.
+    """
+    for idx, row in enumerate(rows[:15]):
+        score = sum(
+            1
+            for cell in row
+            if cell.strip()
+            and normalize_header(cell) in HEADER_ALIASES
+        )
+        if score >= 2:
+            return idx
+    return None
 
 
 def clean_url(url: Optional[str]) -> Optional[str]:
@@ -100,27 +169,29 @@ class CsvImportService:
         sample = file_content[:2048]
         delimiter = ";" if sample.count(";") > sample.count(",") else ","
 
-        reader = csv.reader(io.StringIO(file_content), delimiter=delimiter)
-        try:
-            raw_headers = next(reader)
-        except StopIteration:
+        rows = list(csv.reader(io.StringIO(file_content), delimiter=delimiter))
+        header_idx = find_header_row(rows)
+        if header_idx is None:
             return {
                 "total_rows": 0,
                 "imported_count": 0,
                 "duplicate_count": 0,
                 "error_count": 1,
-                "errors": [{"line": 0, "reason": "Arquivo CSV vazio ou sem cabeçalho."}],
+                "layout_detected": "desconhecido",
+                "errors": [{"line": 0, "reason": "Não encontramos a linha de cabeçalho — verifique se o arquivo tem colunas como 'Nome/Empresa' ou 'Razão Social'."}],
             }
 
+        raw_headers = rows[header_idx]
         headers = [normalize_header(h) for h in raw_headers]
-        
-        if "name" not in headers:
+
+        if not any(field in headers for field in _NAME_FIELDS):
             return {
                 "total_rows": 0,
                 "imported_count": 0,
                 "duplicate_count": 0,
                 "error_count": 1,
-                "errors": [{"line": 1, "reason": "Cabeçalho obrigatório 'nome' ou 'empresa' (name) não encontrado."}],
+                "layout_detected": "setorial" if header_idx > 0 else "padrao",
+                "errors": [{"line": header_idx + 1, "reason": "Cabeçalho obrigatório não encontrado: informe ao menos uma coluna de 'Nome', 'Empresa' ou 'Razão Social'."}],
             }
 
         # Busca websites, domínios e CNPJs existentes na organização para deduplicação rápida
@@ -137,9 +208,10 @@ class CsvImportService:
         imported_contacts: List[Contact] = []
         errors: List[Dict[str, Any]] = []
         duplicate_count = 0
-        line_num = 1
+        line_num = header_idx
 
-        for row in reader:
+        data_rows = rows[header_idx + 1:]
+        for row in data_rows:
             line_num += 1
             if not row or not any(field.strip() for field in row):
                 continue  # Pula linhas vazias
@@ -149,7 +221,13 @@ class CsvImportService:
                 if idx < len(headers):
                     row_data[headers[idx]] = val.strip()
 
-            name = row_data.get("name")
+            # Listas setoriais separam razão social e nome fantasia; o
+            # fantasia é a melhor exibição, a razão social é obrigatória.
+            name = (
+                row_data.get("name")
+                or row_data.get("nome_fantasia")
+                or row_data.get("razao_social")
+            )
             if not name:
                 errors.append({"line": line_num, "reason": "Nome da empresa/lead ausente."})
                 continue
@@ -197,7 +275,7 @@ class CsvImportService:
                 campaign_id=campaign.id,
                 place_id=place_id,
                 name=name,
-                company_name=name,
+                company_name=row_data.get("razao_social") or name,
                 website=website,
                 normalized_domain=normalized_domain,
                 phone=phone,
@@ -255,12 +333,13 @@ class CsvImportService:
 
             db.commit()
 
-        total_rows = line_num - 1
+        total_rows = len(data_rows)
         return {
             "total_rows": total_rows,
             "imported_count": len(imported_leads),
             "contacts_count": len(imported_contacts),
             "duplicate_count": duplicate_count,
             "error_count": len(errors),
+            "layout_detected": "setorial" if header_idx > 0 else "padrao",
             "errors": errors[:50],  # Limita os primeiros 50 erros para não inflar payload
         }
