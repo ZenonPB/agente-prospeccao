@@ -93,3 +93,49 @@ jobs:
           GOOGLE_API_KEY: test
           SECRETS_ENCRYPTION_KEY: ""
         run: python -m src.seeds.scoring_templates
+
+  e2e:
+    name: E2E outreach cycle (Postgres real)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/test
+      E2E_DATABASE_URL: postgresql://test:test@localhost:5432/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps (api + workers)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Apply migrations
+        working-directory: services/workers
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+          PGADMIN_EMAIL: admin@test.local
+          PGADMIN_PASSWORD: admin
+          GROQ_API_KEY: test
+          GOOGLE_API_KEY: test
+          SECRETS_ENCRYPTION_KEY: ""
+        run: alembic upgrade head
+      - name: Run E2E outreach cycle
+        env:
+          JWT_SECRET: ci-e2e-secret
+        run: python -m pytest tests/e2e_outreach_cycle.py -q -m e2e
