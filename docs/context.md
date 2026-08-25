@@ -1831,3 +1831,46 @@ Branch `fix/p3-review`:
   empate) que havia quebrado no review pass `d555c56`.
 - **VerificaÃ§Ã£o**: `pytest` **244 passed**; `compileall` services limpo;
   migration aplicada no Postgres local (`f7a8b9c0d1e2` head).
+
+---
+
+### Bloco B2B/Infra de melhorias (2026-08-24)
+
+Branch `feat/melhorias-b2b-infra` — itens 6, 7, 8, 9, 12 e 14 de
+`docs/melhorias.md`:
+
+- **Fix CI**: `services/api/src/db/models.py` reexporta `Notification`
+  (`ImportError` no job de unit do GitHub Actions).
+- **Item 14 — E2E com banco real no CI**: job `e2e` no `ci.yml` (Postgres
+  service + `alembic upgrade head` +
+  `pytest tests/e2e_outreach_cycle.py -q -m e2e`). Deps via
+  `requirements-dev.txt`; `E2E_DATABASE_URL` aponta para o service.
+- **Item 6 — Múltiplos decisores na cadência**: `_recipient_email` roteia por
+  etapa — abertura/followup_1 vão ao decisor principal; FOLLOWUP_2/CLOSING
+  escalam para outro contato por autoridade (`SOCIO > CEO > DIRETOR >
+  ADMINISTRADOR > OUTRO`, primário à frente), sem repetir quem já recebeu.
+  Gate de `email_verified` mantido no envio automático.
+  `FollowUp.recipient` (migration `a9b8c7d6e5f4`) registra o destinatário
+  efetivo; `GET /cadence` expõe `recipient` planejado por etapa pendente;
+  trilha grava "Enviado: <etapa> ? <e-mail>"; CadencePanel mostra o destino.
+- **Item 7 — Sequência de conteúdo por estágio**: `playbook.stage_angles`
+  (JSONB, sem migration) declara o eixo por etapa
+  (`body_opening/followup_1/followup_2/closing`); `outreach_service.build_prompt`
+  injeta como diretriz obrigatória quando presente. Editor de vertentes ganhou
+  a seção "Foco de conteúdo por mensagem"; CRUD aceita/exibe `stage_angles`.
+- **Item 9 — Loop de aprendizado por vertente**:
+  `AnalyticsService.template_insights()` + endpoint
+  `GET /api/analytics/template-insights` correlacionam `score_factors[]` de
+  convertidos × perdidos (frequência relativa; mínimo de amostra dos dois
+  lados + gap = 15pp) e sugerem reforçar/reduzir características — sugestão
+  apenas, edição segue manual. Card "O que os resultados dizem sobre suas
+  vertentes" em `/configuracoes/vertentes` (manager+).
+- **Item 12 — Split da página de oportunidade**: `page.tsx` de 1191 ? ~430
+  linhas. Extraídos `follow-up-card`, `overview-tab`, `conversion-dialog`,
+  `outreach-messages-modal`; `contacts-tab` atualizado com a versão rica
+  (cópias + associar LinkedIn) e `activities-tab` agora é usado pela página.
+- **Testes**: `tests/test_cadence_routing_and_insights.py` (14) — roteamento
+  multi-decisor (escala, não repete, gate verificado, ordem de papel,
+  primário) + insights (reforçar/reduzir/neutro, base mínima, dedup por lead).
+  Suíte em **421 passed**; compileall, lint, tsc e build limpos; migration
+  aplicada no Postgres local (head `a9b8c7d6e5f4`).
