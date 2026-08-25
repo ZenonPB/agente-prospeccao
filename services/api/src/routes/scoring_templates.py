@@ -32,6 +32,8 @@ class Playbook(BaseModel):
     hooks: List[str] = Field(default_factory=list)
     subject_ideas: List[str] = Field(default_factory=list)
     objections: List[dict] = Field(default_factory=list)
+    # Eixo de conteúdo por etapa da cadência (educativo → caso → proposta).
+    stage_angles: Optional[dict] = None
 
 
 class CreateScoringTemplateRequest(BaseModel):
@@ -148,6 +150,7 @@ def _playbook_dict(pb) -> dict:
         "hooks": pb.get("hooks") or [],
         "subject_ideas": pb.get("subject_ideas") or [],
         "objections": pb.get("objections") or [],
+        "stage_angles": pb.get("stage_angles") or None,
     }
 
 
