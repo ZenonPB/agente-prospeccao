@@ -16,6 +16,7 @@ from database.models import (
     MessageChannel,
     Job,
     User,
+    Notification,
     Contact,
     CompanyRecord,
     Conversion,
