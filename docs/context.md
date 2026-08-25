@@ -899,7 +899,38 @@ Branch `feat/universal-sector-scoring`:
 
 ### PrÃ³ximo passo imediato
 
-> **Atualizado 2026-08-19** â€” onde paramos:
+> **Atualizado 2026-08-24 (2)** â€” onde paramos:
+>
+> 0. **Listas setoriais + licitaÃ§Ãµes pÃºblicas (itens 10 e 11 de
+>    `docs/melhorias.md`):**
+>    - **ImportaÃ§Ã£o de listas setoriais** (`csv_import_service`): detecta a
+>      linha de cabeÃ§alho real entre tÃ­tulos/linhas em branco
+>      (`find_header_row`, regra: â‰¥ 2 colunas reconhecidas), reconhece
+>      colunas de federaÃ§Ãµes/sindicatos ("RazÃ£o Social", "Nome Fantasia",
+>      "Atividade EconÃ´mica", "Representante Legal", "PÃ¡gina Web",
+>      "Telefone Comercial"â€¦) com normalizaÃ§Ã£o de acentos no cabeÃ§alho,
+>      separa razÃ£o social (`company_name`) de nome fantasia (`name`) e
+>      devolve `layout_detected` ("setorial"/"padrao"/"desconhecido") no
+>      relatÃ³rio do import.
+>    - **Coleta via PNCP** (`services/workers/src/services/pncp_service.py`,
+>      novo): consulta a API pÃºblica de contratos do PNCP
+>      (`/api/consulta/v1/contratos`, sem chave e sem custo), descarta
+>      pessoa fÃ­sica, dedup por fornecedor CNPJ (contrato mais recente
+>      primeiro), cruza cada CNPJ com a Receita (nome/CNAE/porte/cidade â€”
+>      `fetch_cnpj_details`) e grava o histÃ³rico pÃºblico nas **notas do
+>      lead** ("N contrato(s) no perÃ­odo â€” R$ X Â· Ãºltimo: objeto Â· Ã³rgÃ£o").
+>      Pipeline aceita `source="pncp"`; rota nova
+>      `POST /api/campaigns/{id}/collect-pncp` (janela 1â€“90 dias resolvida no
+>      servidor, UF opcional, palavra-chave no objeto); job-consumer repassa
+>      os parÃ¢metros. Modal **"Buscar em LicitaÃ§Ãµes"** na pÃ¡gina da campanha.
+>      Smoke real (7 dias): Prati Donaduzzi (Toledo/PR, 8 contratos) e Medilar
+>      (Vera Cruz/RS) enriquecidos corretamente.
+>    - **Testes**: `tests/test_sectoral_import.py` (11) +
+>      `tests/test_pncp_service.py` (12) â€” suÃ­te em **444 passed**;
+>      compileall OK; web lint/tsc/build limpos. Item 13 (licenÃ§a) segue
+>      pendente de decisÃ£o da diretoria.
+>
+> **HistÃ³rico (2026-08-19):**
 >
 > 0. **Gerenciador de vertentes na UI (branch `feat/block3-vertentes-ui`):** nova
 >    pÃ¡gina `/configuracoes/vertentes` (sidebar GestÃ£o) â€” criar vertente por IA
@@ -1836,41 +1867,41 @@ Branch `fix/p3-review`:
 
 ### Bloco B2B/Infra de melhorias (2026-08-24)
 
-Branch `feat/melhorias-b2b-infra` — itens 6, 7, 8, 9, 12 e 14 de
+Branch `feat/melhorias-b2b-infra` ï¿½ itens 6, 7, 8, 9, 12 e 14 de
 `docs/melhorias.md`:
 
 - **Fix CI**: `services/api/src/db/models.py` reexporta `Notification`
   (`ImportError` no job de unit do GitHub Actions).
-- **Item 14 — E2E com banco real no CI**: job `e2e` no `ci.yml` (Postgres
+- **Item 14 ï¿½ E2E com banco real no CI**: job `e2e` no `ci.yml` (Postgres
   service + `alembic upgrade head` +
   `pytest tests/e2e_outreach_cycle.py -q -m e2e`). Deps via
   `requirements-dev.txt`; `E2E_DATABASE_URL` aponta para o service.
-- **Item 6 — Múltiplos decisores na cadência**: `_recipient_email` roteia por
-  etapa — abertura/followup_1 vão ao decisor principal; FOLLOWUP_2/CLOSING
+- **Item 6 ï¿½ Mï¿½ltiplos decisores na cadï¿½ncia**: `_recipient_email` roteia por
+  etapa ï¿½ abertura/followup_1 vï¿½o ao decisor principal; FOLLOWUP_2/CLOSING
   escalam para outro contato por autoridade (`SOCIO > CEO > DIRETOR >
-  ADMINISTRADOR > OUTRO`, primário à frente), sem repetir quem já recebeu.
-  Gate de `email_verified` mantido no envio automático.
-  `FollowUp.recipient` (migration `a9b8c7d6e5f4`) registra o destinatário
-  efetivo; `GET /cadence` expõe `recipient` planejado por etapa pendente;
+  ADMINISTRADOR > OUTRO`, primï¿½rio ï¿½ frente), sem repetir quem jï¿½ recebeu.
+  Gate de `email_verified` mantido no envio automï¿½tico.
+  `FollowUp.recipient` (migration `a9b8c7d6e5f4`) registra o destinatï¿½rio
+  efetivo; `GET /cadence` expï¿½e `recipient` planejado por etapa pendente;
   trilha grava "Enviado: <etapa> ? <e-mail>"; CadencePanel mostra o destino.
-- **Item 7 — Sequência de conteúdo por estágio**: `playbook.stage_angles`
+- **Item 7 ï¿½ Sequï¿½ncia de conteï¿½do por estï¿½gio**: `playbook.stage_angles`
   (JSONB, sem migration) declara o eixo por etapa
   (`body_opening/followup_1/followup_2/closing`); `outreach_service.build_prompt`
-  injeta como diretriz obrigatória quando presente. Editor de vertentes ganhou
-  a seção "Foco de conteúdo por mensagem"; CRUD aceita/exibe `stage_angles`.
-- **Item 9 — Loop de aprendizado por vertente**:
+  injeta como diretriz obrigatï¿½ria quando presente. Editor de vertentes ganhou
+  a seï¿½ï¿½o "Foco de conteï¿½do por mensagem"; CRUD aceita/exibe `stage_angles`.
+- **Item 9 ï¿½ Loop de aprendizado por vertente**:
   `AnalyticsService.template_insights()` + endpoint
   `GET /api/analytics/template-insights` correlacionam `score_factors[]` de
-  convertidos × perdidos (frequência relativa; mínimo de amostra dos dois
-  lados + gap = 15pp) e sugerem reforçar/reduzir características — sugestão
-  apenas, edição segue manual. Card "O que os resultados dizem sobre suas
+  convertidos ï¿½ perdidos (frequï¿½ncia relativa; mï¿½nimo de amostra dos dois
+  lados + gap = 15pp) e sugerem reforï¿½ar/reduzir caracterï¿½sticas ï¿½ sugestï¿½o
+  apenas, ediï¿½ï¿½o segue manual. Card "O que os resultados dizem sobre suas
   vertentes" em `/configuracoes/vertentes` (manager+).
-- **Item 12 — Split da página de oportunidade**: `page.tsx` de 1191 ? ~430
-  linhas. Extraídos `follow-up-card`, `overview-tab`, `conversion-dialog`,
-  `outreach-messages-modal`; `contacts-tab` atualizado com a versão rica
-  (cópias + associar LinkedIn) e `activities-tab` agora é usado pela página.
-- **Testes**: `tests/test_cadence_routing_and_insights.py` (14) — roteamento
-  multi-decisor (escala, não repete, gate verificado, ordem de papel,
-  primário) + insights (reforçar/reduzir/neutro, base mínima, dedup por lead).
-  Suíte em **421 passed**; compileall, lint, tsc e build limpos; migration
+- **Item 12 ï¿½ Split da pï¿½gina de oportunidade**: `page.tsx` de 1191 ? ~430
+  linhas. Extraï¿½dos `follow-up-card`, `overview-tab`, `conversion-dialog`,
+  `outreach-messages-modal`; `contacts-tab` atualizado com a versï¿½o rica
+  (cï¿½pias + associar LinkedIn) e `activities-tab` agora ï¿½ usado pela pï¿½gina.
+- **Testes**: `tests/test_cadence_routing_and_insights.py` (14) ï¿½ roteamento
+  multi-decisor (escala, nï¿½o repete, gate verificado, ordem de papel,
+  primï¿½rio) + insights (reforï¿½ar/reduzir/neutro, base mï¿½nima, dedup por lead).
+  Suï¿½te em **421 passed**; compileall, lint, tsc e build limpos; migration
   aplicada no Postgres local (head `a9b8c7d6e5f4`).
