@@ -1222,6 +1222,56 @@ class AnalyticsService:
 
         return {"variants": variants}
 
+    # ------------------------------------------------- aprendizado da vertente
+    def template_insights(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        campaign_id: Optional[str] = None,
+    ) -> dict:
+        """Correlaciona características (`score_factors[]`) de leads convertidos
+        × perdidos e sugere ajustes de peso por frequência relativa.
+
+        Para cada característica com amostra suficiente compara a taxa em que
+        aparece entre convertidos e perdidos: sobre-representada nos perdidos →
+        sugere reduzir o peso; nos convertidos → reforçar. Ajuste é sugestão
+        (nunca automático) — a calibração continua sendo decisão humana no
+        editor da vertente.
+        """
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+
+        def _perioded(q):
+            if f:
+                q = q.filter(Lead.created_at >= f)
+            if t:
+                q = q.filter(Lead.created_at <= t)
+            if campaign_id:
+                q = q.filter(Lead.campaign_id == campaign_id)
+            return q
+
+        lost_q = _perioded(
+            self.db.query(Lead.score_factors)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Lead.status == LeadStatus.PERDIDO,
+                Lead.score_factors.isnot(None),
+            )
+        )
+        converted_q = _perioded(
+            self.db.query(Lead.score_factors)
+            .join(Conversion, Conversion.lead_id == Lead.id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Lead.score_factors.isnot(None),
+            )
+        )
+
+        return compute_signal_insights(
+            converted_factors=[r[0] for r in converted_q.all()],
+            lost_factors=[r[0] for r in lost_q.all()],
+        )
+
 
 def compute_threshold_candidates(
     scored: list,
@@ -1313,6 +1363,109 @@ def compute_threshold_candidates(
 # KPIs da planilha Alphamec por consultor.
 # Funções puras — testáveis sem banco.
 # ---------------------------------------------------------------------------
+
+# Amostra mínima por característica para a sugestão ter valor estatístico.
+INSIGHT_MIN_OCCURRENCES = 3
+# Diferença mínima (pontos percentuais) entre as taxas convertidos × perdidos.
+INSIGHT_MIN_GAP_PP = 15.0
+
+
+def compute_signal_insights(
+    converted_factors: list,
+    lost_factors: list,
+    min_occurrences: int = INSIGHT_MIN_OCCURRENCES,
+    min_gap_pp: float = INSIGHT_MIN_GAP_PP,
+) -> dict:
+    """Sugestões de calibração de vertente por frequência relativa.
+
+    `converted_factors` / `lost_factors`: listas do JSONB `score_factors[]`
+    (cada item um dict com `label`). Normaliza o rótulo (lowercase, sem
+    espaços extras) para agrupar variações da mesma característica.
+
+    Retorna insights ordenados pela força do desvio: `reforcado` quando a
+    característica aparece proporcionalmente mais entre convertidos,
+    `reduzir` quando mais entre perdidos, `neutro` dentro da margem.
+    """
+    def _labels(factor_list):
+        labels = []
+        for factors in factor_list or []:
+            if not isinstance(factors, list):
+                continue
+            seen_in_lead: set = set()
+            for f in factors:
+                if not isinstance(f, dict):
+                    continue
+                label = str(f.get("label") or "").strip().lower()
+                if label and label not in seen_in_lead:
+                    seen_in_lead.add(label)
+            labels.extend(seen_in_lead)
+        return labels
+
+    converted_labels = _labels(converted_factors)
+    lost_labels = _labels(lost_factors)
+
+    converted_leads = sum(1 for fl in converted_factors or [] if isinstance(fl, list))
+    lost_leads = sum(1 for fl in lost_factors or [] if isinstance(fl, list))
+
+    from collections import Counter
+
+    conv_counter = Counter(converted_labels)
+    lost_counter = Counter(lost_labels)
+
+    # Sem base dos dois lados a taxa é enganosa (1 conversão = 100%).
+    if converted_leads < min_occurrences or lost_leads < min_occurrences:
+        return {
+            "insights": [],
+            "converted_total": converted_leads,
+            "lost_total": lost_leads,
+            "min_occurrences": min_occurrences,
+            "min_gap_pp": min_gap_pp,
+            "rationale": (
+                f"Amostra pequena ({converted_leads} convertidos × {lost_leads} "
+                f"perdidos; mínimo {min_occurrences} de cada). As sugestões "
+                "aparecem conforme o time trabalha mais leads."
+            ),
+        }
+
+    insights = []
+    for label in sorted(set(conv_counter) | set(lost_counter)):
+        c_count = conv_counter.get(label, 0)
+        l_count = lost_counter.get(label, 0)
+        if c_count + l_count < min_occurrences:
+            continue
+        c_rate = compute_rate(c_count, converted_leads)
+        l_rate = compute_rate(l_count, lost_leads)
+        gap = round(c_rate - l_rate, 1)
+        if abs(gap) < min_gap_pp:
+            suggestion = "neutro"
+        elif gap > 0:
+            suggestion = "reforcar"
+        else:
+            suggestion = "reduzir"
+        insights.append({
+            "label": label,
+            "converted": c_count,
+            "lost": l_count,
+            "converted_rate": c_rate,
+            "lost_rate": l_rate,
+            "gap_pp": gap,
+            "suggestion": suggestion,
+        })
+
+    insights.sort(key=lambda i: -abs(i["gap_pp"]))
+    return {
+        "insights": insights,
+        "converted_total": converted_leads,
+        "lost_total": lost_leads,
+        "min_occurrences": min_occurrences,
+        "min_gap_pp": min_gap_pp,
+        "rationale": (
+            f"Base: {converted_leads} convertidos × {lost_leads} perdidos. "
+            "Características com amostra pequena ficam de fora; sugestões não "
+            "alteram pesos automaticamente."
+        ),
+    }
+
 
 def compute_rate(part: float, whole: float) -> float:
     """Porcentagem (0–100, 1 casa) de `part` sobre `whole`. 0 quando `whole` é 0."""

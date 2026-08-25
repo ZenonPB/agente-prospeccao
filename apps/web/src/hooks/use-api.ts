@@ -564,6 +564,13 @@ export function useAnalyticsMessageVariants(period?: AnalyticsPeriod) {
   });
 }
 
+export function useAnalyticsTemplateInsights(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "template-insights", period],
+    queryFn: () => analyticsApi.templateInsights(period),
+  });
+}
+
 export function useExportAnalyticsPdf() {
   return useMutation({
     mutationFn: (period?: AnalyticsPeriod) => analyticsApi.exportPdf(period),
