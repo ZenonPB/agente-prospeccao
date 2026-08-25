@@ -749,6 +749,13 @@ export function useCollectCnae() {
   });
 }
 
+export function useCollectPncp() {
+  return useMutation({
+    mutationFn: ({ campaignId, daysBack, uf, keyword, maxLeads }: { campaignId: string; daysBack?: number; uf?: string; keyword?: string; maxLeads?: number }) =>
+      campaignsApi.collectPncp(campaignId, { days_back: daysBack, uf, keyword, max_leads: maxLeads }),
+  });
+}
+
 export function useEnrichContacts() {
   const queryClient = useQueryClient();
   return useMutation({

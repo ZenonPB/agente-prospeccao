@@ -410,6 +410,12 @@ export const campaignsApi = {
       body: JSON.stringify(data),
     }),
 
+  collectPncp: (campaignId: string, data: { days_back?: number; uf?: string; keyword?: string; max_leads?: number }) =>
+    request<{ job_id: string; status: string; pncp_start: string; pncp_end: string }>(`/api/campaigns/${campaignId}/collect-pncp`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   exportGoogleSheets: (campaignId: string) =>
     request<Blob>(`/api/campaigns/${campaignId}/export/google-sheets`, {
       responseType: "blob",

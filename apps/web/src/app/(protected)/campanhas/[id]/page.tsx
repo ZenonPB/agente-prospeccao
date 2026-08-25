@@ -6,6 +6,7 @@ import { useCampaign, useLeads } from '@/hooks/use-api';
 import { CampaignPipeline } from '@/components/campanhas/campaign-pipeline';
 import { CsvImportModal } from '@/components/campanhas/csv-import-modal';
 import { CnaeDiscoveryModal } from '@/components/campanhas/cnae-discovery-modal';
+import { PncpDiscoveryModal } from '@/components/campanhas/pncp-discovery-modal';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,6 +92,7 @@ export default function CampaignDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <PncpDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} />
           <CnaeDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} />
           <CsvImportModal campaignId={campaign.id} campaignName={campaign.name} />
           <Button variant="outline" size="sm" onClick={handleExportGoogleSheets} className="gap-1.5 text-xs">
