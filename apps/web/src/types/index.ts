@@ -261,6 +261,8 @@ export interface FollowUpItem {
   status: 'PENDING' | 'SENT' | 'SKIPPED' | 'CANCELLED' | null;
   opened_at?: string | null;
   clicked_at?: string | null;
+  // Roteamento multi-decisor: destinatário efetivo (enviada) ou planejado.
+  recipient?: string | null;
 }
 
 export interface FollowUpVersion {
@@ -539,6 +541,27 @@ export interface MessageVariantStats {
 
 export interface MessageVariants {
   variants: MessageVariantStats[];
+}
+
+// Loop de aprendizado: sugestão de calibração de vertente por frequência
+// relativa das características em convertidos × perdidos.
+export interface TemplateInsightItem {
+  label: string;
+  converted: number;
+  lost: number;
+  converted_rate: number;
+  lost_rate: number;
+  gap_pp: number;
+  suggestion: 'reforcar' | 'reduzir' | 'neutro';
+}
+
+export interface TemplateInsights {
+  insights: TemplateInsightItem[];
+  converted_total: number;
+  lost_total: number;
+  min_occurrences: number;
+  min_gap_pp: number;
+  rationale: string;
 }
 
 export interface ConsultantPlaybook {

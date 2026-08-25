@@ -1217,7 +1217,7 @@ def _build_lead_dict(lead: Lead, db: Session) -> dict:
     }
 
 
-def _follow_up_dict(fu: FollowUp, db: Session) -> dict:
+def _follow_up_dict(fu: FollowUp, db: Session, lead: Optional[Lead] = None) -> dict:
     # Tracking 4.2: abertura/clique vêm do `Message` ligado pelo token.
     opened_at = clicked_at = None
     if fu.tracking_token:
@@ -1229,6 +1229,16 @@ def _follow_up_dict(fu: FollowUp, db: Session) -> dict:
         if msg:
             opened_at = msg.opened_at
             clicked_at = msg.clicked_at
+    # Roteamento multi-decisor: etapa pendente mostra para quem vai sair.
+    recipient = fu.recipient
+    if not recipient and lead and fu.status == FollowUpStatus.PENDING and fu.content:
+        from src.services.cadence_service import _planned_recipient, _recipients_so_far
+
+        recipient = _planned_recipient(
+            lead,
+            step=fu.step,
+            sent_to=_recipients_so_far(db, str(lead.id)),
+        )
     return {
         "id": str(fu.id),
         "step": fu.step.value,
@@ -1243,6 +1253,7 @@ def _follow_up_dict(fu: FollowUp, db: Session) -> dict:
         "opened_at": opened_at.isoformat() if opened_at else None,
         "clicked_at": clicked_at.isoformat() if clicked_at else None,
         "variant": fu.variant,
+        "recipient": recipient,
     }
 
 
@@ -1276,7 +1287,7 @@ def get_lead_cadence(
         "organization_auto_send": bool(
             _org.auto_send_email if _org else False
         ),
-        "follow_ups": [_follow_up_dict(f, db) for f in fups],
+        "follow_ups": [_follow_up_dict(f, db, lead=lead) for f in fups],
     }
 
 
