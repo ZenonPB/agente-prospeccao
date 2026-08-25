@@ -6,28 +6,6 @@
 
 ## Operação
 
-1. **Avisar o consultor quando o lead responde.** O inbound de e-mail marca
-   `RESPONDIDO` (e cancela a cadência), mas ninguém é notificado — o consultor
-   só descobre abrindo o app. Em vendas, velocidade de resposta decide. Mínimo
-   viável: alerta in-app (badge no kanban + "Ações de hoje") para o responsável
-   do lead.
-2. **Reconexão automática do WebSocket.** Se a conexão cai no meio de uma
-   coleta (link móvel), `campaign-pipeline.tsx` e `pipeline-monitor.tsx`
-   travam ("Erro na conexão WebSocket") sem tentar reconectar. O job é
-   resgatável (`GET /api/pipeline/jobs`), falta o re-connect com backoff +
-   banner de re-sync do estado.
-3. **Filtro "ver só os meus" no kanban.** A lista de oportunidades já tem o
-   preset `my_leads`; o kanban mistura todos os consultores. Um toggle reusando
-   `assigned=me` do backend resolve — cenário com 4–5 consultores.
-4. **Sugerir o próximo contato (`next_action_at`).** Hoje o preenchimento é
-   manual — e na prática ninguém preenche. Sugerir por estágio do funil (ex.:
-   `QUALIFICADO` → +1 dia, `RESPONDIDO` → +2 dias) no PATCH de status,
-   mantendo a edição manual.
-5. **Histórico de versões das mensagens geradas pela IA.** Gerar ou editar uma
-   mensagem descarta a anterior — sem comparar nem recuperar. Persistir versões
-   (rascunho × enviada) por lead resolve a perda de trabalho de tuning de
-   copywriting.
-
 ## B2B industrial / generalidade
 
 6. **Múltiplos decisores na cadência.** `_recipient_email` envia para um único
