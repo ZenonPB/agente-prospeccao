@@ -27,6 +27,7 @@ from services.enrichment_orchestrator import process_single_lead, resolve_enrich
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.cnae_discovery_service import CnaeDiscoveryService
+from services.pncp_service import PncpService, default_date_window, format_contract_note
 from services.secret_service import SecretService
 from services.domain_utils import normalize_domain
 from services.company_person_service import CompanyPersonService
@@ -133,6 +134,10 @@ async def run_pipeline(
     cnae_code: str | None = None,
     cnpjs: list[str] | None = None,
     porte_category: str | None = None,
+    pncp_start: str | None = None,
+    pncp_end: str | None = None,
+    pncp_uf: str | None = None,
+    pncp_keyword: str | None = None,
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Executa o pipeline completo (coleta + enriquecimento + scoring) e gera
@@ -263,6 +268,101 @@ async def run_pipeline(
 
             org_id = campaign.organization_id if campaign else None
             _dispatch_lead_created_webhooks(db, org_id, cnae_created_ids)
+        elif source == "pncp":
+            start, end = pncp_start, pncp_end
+            if not start or not end:
+                start, end = default_date_window(days_back=30)
+            uf_label = f" · UF {pncp_uf}" if pncp_uf else ""
+            yield {"type": "log", "message": f"Consultando licitações públicas (PNCP): contratos de {start} a {end}{uf_label}...", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 10}
+
+            suppliers = await PncpService.search_supplier_contracts(
+                start,
+                end,
+                uf=pncp_uf,
+                keyword=pncp_keyword,
+                max_suppliers=max_leads,
+            )
+
+            logger.info("Pipeline PNCP coletou %d fornecedores", len(suppliers))
+            yield {"type": "log", "message": f"{len(suppliers)} fornecedores vencedores localizados no PNCP", "timestamp": _ts()}
+            yield {"type": "progress", "step": "coleta", "percent": 30}
+
+            org_id = campaign.organization_id if campaign else None
+            existing_ids = {
+                row[0]
+                for row in db.query(Lead.place_id).filter(Lead.organization_id == org_id).all()
+                if row[0]
+            }
+            existing_domains = {
+                row[0]
+                for row in db.query(Lead.normalized_domain)
+                .filter(Lead.organization_id == org_id, Lead.normalized_domain.isnot(None))
+                .all()
+                if row[0]
+            }
+            existing_cnpjs = {
+                row[0]
+                for row in db.query(Lead.cnpj).filter(Lead.organization_id == org_id).all()
+                if row[0]
+            }
+
+            pncp_created_ids: list[str] = []
+            for supplier in suppliers:
+                details = (await PncpService.enrich_supplier(supplier)).get("details") or {}
+                company_name = details.get("name") or supplier.get("supplier_name")
+                cnpj_val = supplier.get("cnpj")
+                place_id_val = supplier.get("place_id_candidate") or f"pncp_{cnpj_val}"
+                website_val = details.get("website")
+                normalized_domain = normalize_domain(website_val)
+
+                if place_id_val in existing_ids or cnpj_val in existing_cnpjs:
+                    continue
+                if normalized_domain and normalized_domain in existing_domains:
+                    continue
+
+                target_state = campaign.target_state if campaign else None
+                target_city = campaign.target_city if campaign else None
+                new_lead = Lead(
+                    organization_id=org_id,
+                    place_id=place_id_val,
+                    name=details.get("name"),
+                    company_name=company_name or f"CNPJ {cnpj_val}",
+                    cnpj=cnpj_val,
+                    website=website_val,
+                    normalized_domain=normalized_domain,
+                    phone=details.get("phone"),
+                    address=details.get("address"),
+                    category=details.get("cnae_description")
+                    or (campaign.target_segment if campaign else None),
+                    city=details.get("city") or target_city or "",
+                    state=details.get("state") or target_state,
+                    status=LeadStatus.NOVO,
+                    campaign_id=campaign.id if campaign else None,
+                    notes=format_contract_note(supplier),
+                )
+                try:
+                    with db.begin_nested():
+                        CompanyPersonService.sync_lead_entities(db, new_lead)
+                        db.add(new_lead)
+                        db.flush()
+                except IntegrityError as exc:
+                    logger.warning("Lead duplicado ignorado na coleta PNCP: %s", exc.orig or exc)
+                    continue
+
+                if new_lead.id is not None:
+                    pncp_created_ids.append(str(new_lead.id))
+                    existing_ids.add(place_id_val)
+                    if cnpj_val:
+                        existing_cnpjs.add(cnpj_val)
+                    if normalized_domain:
+                        existing_domains.add(normalized_domain)
+                collected_count += 1
+
+                yield {"type": "log", "message": f"Coletado (licitante): {new_lead.company_name}", "timestamp": _ts()}
+
+            db.commit()
+            _dispatch_lead_created_webhooks(db, org_id, [lid for lid in pncp_created_ids if lid])
         else:
             yield {"type": "log", "message": "Conectando ao Google Maps...", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 0}

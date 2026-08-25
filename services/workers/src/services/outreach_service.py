@@ -247,6 +247,27 @@ def build_prompt(
                     lines.append(f"  - Objeção: {o.get('objection', '')} → abordagem: {o.get('approach', '')}")
                 else:
                     lines.append(f"  - {o}")
+
+        # Sequência de conteúdo por estágio: a vertente pode declarar o eixo
+        # de cada etapa (educativo → caso → proposta) em `stage_angles`.
+        # Ausente → o modelo segue o eixo padrão das instruções.
+        stage_angles = playbook.get("stage_angles") or {}
+        if isinstance(stage_angles, dict) and stage_angles:
+            labels = [
+                ("body_opening", "Abertura"),
+                ("followup_1", "Follow-up 1"),
+                ("followup_2", "Follow-up 2"),
+                ("closing", "Encerramento"),
+            ]
+            declared = [
+                f"  - {label}: {str(stage_angles[key]).strip()}"
+                for key, label in labels
+                if str(stage_angles.get(key) or "").strip()
+            ]
+            if declared:
+                lines.append("Eixo de conteúdo OBRIGATÓRIO por etapa (awareness → interesse → proposta):")
+                lines.extend(declared)
+
         lines.append("Use estes hooks/objeções como referência REAL da vertical — cite-os com naturalidade, nunca como lista.")
         lines.append("")
 

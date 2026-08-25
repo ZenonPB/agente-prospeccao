@@ -899,7 +899,38 @@ Branch `feat/universal-sector-scoring`:
 
 ### Próximo passo imediato
 
-> **Atualizado 2026-08-19** — onde paramos:
+> **Atualizado 2026-08-24 (2)** — onde paramos:
+>
+> 0. **Listas setoriais + licitações públicas (itens 10 e 11 de
+>    `docs/melhorias.md`):**
+>    - **Importação de listas setoriais** (`csv_import_service`): detecta a
+>      linha de cabeçalho real entre títulos/linhas em branco
+>      (`find_header_row`, regra: ≥ 2 colunas reconhecidas), reconhece
+>      colunas de federações/sindicatos ("Razão Social", "Nome Fantasia",
+>      "Atividade Econômica", "Representante Legal", "Página Web",
+>      "Telefone Comercial"…) com normalização de acentos no cabeçalho,
+>      separa razão social (`company_name`) de nome fantasia (`name`) e
+>      devolve `layout_detected` ("setorial"/"padrao"/"desconhecido") no
+>      relatório do import.
+>    - **Coleta via PNCP** (`services/workers/src/services/pncp_service.py`,
+>      novo): consulta a API pública de contratos do PNCP
+>      (`/api/consulta/v1/contratos`, sem chave e sem custo), descarta
+>      pessoa física, dedup por fornecedor CNPJ (contrato mais recente
+>      primeiro), cruza cada CNPJ com a Receita (nome/CNAE/porte/cidade —
+>      `fetch_cnpj_details`) e grava o histórico público nas **notas do
+>      lead** ("N contrato(s) no período — R$ X · último: objeto · órgão").
+>      Pipeline aceita `source="pncp"`; rota nova
+>      `POST /api/campaigns/{id}/collect-pncp` (janela 1–90 dias resolvida no
+>      servidor, UF opcional, palavra-chave no objeto); job-consumer repassa
+>      os parâmetros. Modal **"Buscar em Licitações"** na página da campanha.
+>      Smoke real (7 dias): Prati Donaduzzi (Toledo/PR, 8 contratos) e Medilar
+>      (Vera Cruz/RS) enriquecidos corretamente.
+>    - **Testes**: `tests/test_sectoral_import.py` (11) +
+>      `tests/test_pncp_service.py` (12) — suíte em **444 passed**;
+>      compileall OK; web lint/tsc/build limpos. Item 13 (licença) segue
+>      pendente de decisão da diretoria.
+>
+> **Histórico (2026-08-19):**
 >
 > 0. **Gerenciador de vertentes na UI (branch `feat/block3-vertentes-ui`):** nova
 >    página `/configuracoes/vertentes` (sidebar Gestão) — criar vertente por IA
@@ -1831,3 +1862,46 @@ Branch `fix/p3-review`:
   empate) que havia quebrado no review pass `d555c56`.
 - **Verificação**: `pytest` **244 passed**; `compileall` services limpo;
   migration aplicada no Postgres local (`f7a8b9c0d1e2` head).
+
+---
+
+### Bloco B2B/Infra de melhorias (2026-08-24)
+
+Branch `feat/melhorias-b2b-infra` � itens 6, 7, 8, 9, 12 e 14 de
+`docs/melhorias.md`:
+
+- **Fix CI**: `services/api/src/db/models.py` reexporta `Notification`
+  (`ImportError` no job de unit do GitHub Actions).
+- **Item 14 � E2E com banco real no CI**: job `e2e` no `ci.yml` (Postgres
+  service + `alembic upgrade head` +
+  `pytest tests/e2e_outreach_cycle.py -q -m e2e`). Deps via
+  `requirements-dev.txt`; `E2E_DATABASE_URL` aponta para o service.
+- **Item 6 � M�ltiplos decisores na cad�ncia**: `_recipient_email` roteia por
+  etapa � abertura/followup_1 v�o ao decisor principal; FOLLOWUP_2/CLOSING
+  escalam para outro contato por autoridade (`SOCIO > CEO > DIRETOR >
+  ADMINISTRADOR > OUTRO`, prim�rio � frente), sem repetir quem j� recebeu.
+  Gate de `email_verified` mantido no envio autom�tico.
+  `FollowUp.recipient` (migration `a9b8c7d6e5f4`) registra o destinat�rio
+  efetivo; `GET /cadence` exp�e `recipient` planejado por etapa pendente;
+  trilha grava "Enviado: <etapa> ? <e-mail>"; CadencePanel mostra o destino.
+- **Item 7 � Sequ�ncia de conte�do por est�gio**: `playbook.stage_angles`
+  (JSONB, sem migration) declara o eixo por etapa
+  (`body_opening/followup_1/followup_2/closing`); `outreach_service.build_prompt`
+  injeta como diretriz obrigat�ria quando presente. Editor de vertentes ganhou
+  a se��o "Foco de conte�do por mensagem"; CRUD aceita/exibe `stage_angles`.
+- **Item 9 � Loop de aprendizado por vertente**:
+  `AnalyticsService.template_insights()` + endpoint
+  `GET /api/analytics/template-insights` correlacionam `score_factors[]` de
+  convertidos � perdidos (frequ�ncia relativa; m�nimo de amostra dos dois
+  lados + gap = 15pp) e sugerem refor�ar/reduzir caracter�sticas � sugest�o
+  apenas, edi��o segue manual. Card "O que os resultados dizem sobre suas
+  vertentes" em `/configuracoes/vertentes` (manager+).
+- **Item 12 � Split da p�gina de oportunidade**: `page.tsx` de 1191 ? ~430
+  linhas. Extra�dos `follow-up-card`, `overview-tab`, `conversion-dialog`,
+  `outreach-messages-modal`; `contacts-tab` atualizado com a vers�o rica
+  (c�pias + associar LinkedIn) e `activities-tab` agora � usado pela p�gina.
+- **Testes**: `tests/test_cadence_routing_and_insights.py` (14) � roteamento
+  multi-decisor (escala, n�o repete, gate verificado, ordem de papel,
+  prim�rio) + insights (refor�ar/reduzir/neutro, base m�nima, dedup por lead).
+  Su�te em **421 passed**; compileall, lint, tsc e build limpos; migration
+  aplicada no Postgres local (head `a9b8c7d6e5f4`).

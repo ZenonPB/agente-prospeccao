@@ -410,6 +410,12 @@ export const campaignsApi = {
       body: JSON.stringify(data),
     }),
 
+  collectPncp: (campaignId: string, data: { days_back?: number; uf?: string; keyword?: string; max_leads?: number }) =>
+    request<{ job_id: string; status: string; pncp_start: string; pncp_end: string }>(`/api/campaigns/${campaignId}/collect-pncp`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   exportGoogleSheets: (campaignId: string) =>
     request<Blob>(`/api/campaigns/${campaignId}/export/google-sheets`, {
       responseType: "blob",
@@ -788,6 +794,11 @@ export const analyticsApi = {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 
+  templateInsights: (params?: { from?: string; to?: string; campaign_id?: string }) =>
+    request<import("@/types").TemplateInsights>("/api/analytics/template-insights", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
   exportPdf: (params?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();
     if (params?.from) qs.set("from", params.from);
@@ -803,6 +814,8 @@ export interface Playbook {
   hooks?: string[];
   subject_ideas?: string[];
   objections?: { objection?: string; approach?: string }[];
+  // Eixo de conteúdo por etapa da cadência (educativo → caso → proposta).
+  stage_angles?: Partial<Record<"body_opening" | "followup_1" | "followup_2" | "closing", string>>;
 }
 
 export type EnrichmentStep = "technical_site" | "cnpj_receita" | "business_social";

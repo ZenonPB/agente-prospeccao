@@ -3,12 +3,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Mail, Phone, UserPlus, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import {
+  Mail,
+  Phone,
+  UserPlus,
+  UserCheck,
+  Loader2,
+  Copy,
+  ShieldCheck,
+  ShieldAlert,
+} from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import { useEnrichContacts } from '@/hooks/use-api';
 import { toast } from 'sonner';
 import type { ContactItem, Lead } from '@/types';
 
+// Estado de match do LinkedIn derivado da fonte/confiança (ver
+// linkedin_match_status na API). NOT_FOUND não ganha badge — o bloco
+// "Associar perfil" já aparece no lugar.
 const LINKEDIN_MATCH_META: Record<NonNullable<ContactItem['linkedin_match_status']>, { label: string; className: string }> = {
   NOT_FOUND: { label: 'Não encontrado', className: '' },
   CANDIDATE: { label: 'Candidato', className: 'border-slate-200 bg-slate-50 text-slate-600' },
@@ -16,6 +28,7 @@ const LINKEDIN_MATCH_META: Record<NonNullable<ContactItem['linkedin_match_status
   VERIFIED: { label: 'Confirmado', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
 };
 
+// Proveniência do e-mail do decisor (onde foi encontrado).
 const emailSourceLabels: Record<string, string> = {
   hunter: 'Hunter',
   site: 'Site',
@@ -44,10 +57,16 @@ function formatLinkedinSource(rawData: unknown): string | null {
 
 interface ContactsTabProps {
   lead: Lead;
+  onAssociate: (contact: ContactItem) => void;
 }
 
-export function ContactsTab({ lead }: ContactsTabProps) {
+export function ContactsTab({ lead, onAssociate }: ContactsTabProps) {
   const enrichContacts = useEnrichContacts();
+
+  const copyToClipboard = (text: string, message: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(message);
+  };
 
   return (
     <Card>
@@ -101,36 +120,76 @@ export function ContactsTab({ lead }: ContactsTabProps) {
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                       <a href={`mailto:${contact.email}`} className="text-primary hover:underline">{contact.email}</a>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.email || '', 'E-mail copiado.')} aria-label="Copiar e-mail">
+                        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
                       {contact.email_verified ? (
-                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-label="E-mail verificado" />
+                        <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                          <ShieldCheck className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+                          E-mail verificado
+                        </Badge>
                       ) : (
-                        <ShieldAlert className="h-3.5 w-3.5 text-amber-500" aria-label="E-mail não verificado" />
+                        <Badge variant="outline" className="text-[10px] font-normal gap-1">
+                          <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />
+                          Não verificado
+                        </Badge>
                       )}
                       {formatEmailSource(contact.raw_data) && (
-                        <span className="text-xs text-muted-foreground">({formatEmailSource(contact.raw_data)})</span>
+                        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                          Fonte: {formatEmailSource(contact.raw_data)}
+                        </Badge>
                       )}
                     </div>
                   )}
                   {contact.phone && (
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                      <a href={`tel:${contact.phone}`} className="text-primary hover:underline">{contact.phone}</a>
+                      <span>{contact.phone}</span>
                     </div>
                   )}
-                  {contact.linkedin_url && (
+                  {contact.linkedin_url ? (
                     <div className="flex items-center gap-2">
-                      <LinkedInIcon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                      <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        LinkedIn
+                      <LinkedInIcon className="h-4 w-4 text-primary" />
+                      <a
+                        href={contact.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline truncate max-w-[280px]"
+                      >
+                        {contact.linkedin_url}
                       </a>
-                      {contact.linkedin_match_status && contact.linkedin_match_status !== 'NOT_FOUND' && (
-                        <Badge variant="outline" className={`text-[10px] ${LINKEDIN_MATCH_META[contact.linkedin_match_status]?.className || ''}`}>
-                          {LINKEDIN_MATCH_META[contact.linkedin_match_status]?.label || contact.linkedin_match_status}
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.linkedin_url || '', 'Link do LinkedIn copiado.')} aria-label="Copiar LinkedIn">
+                        <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                      {contact.linkedin_match_status && contact.linkedin_match_status !== 'NOT_FOUND' ? (
+                        <Badge variant="outline" className={`text-[10px] font-normal gap-1 ${LINKEDIN_MATCH_META[contact.linkedin_match_status].className}`}>
+                          {contact.linkedin_match_status === 'VERIFIED' && <ShieldCheck className="h-3 w-3 text-emerald-500" aria-hidden="true" />}
+                          {contact.linkedin_match_status === 'NEEDS_REVIEW' && <ShieldAlert className="h-3 w-3 text-amber-500" aria-hidden="true" />}
+                          {contact.linkedin_match_status === 'CANDIDATE' && <UserCheck className="h-3 w-3 text-slate-500" aria-hidden="true" />}
+                          {LINKEDIN_MATCH_META[contact.linkedin_match_status].label}
+                        </Badge>
+                      ) : null}
+                      {formatLinkedinSource(contact.raw_data) && (
+                        <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                          {formatLinkedinSource(contact.raw_data)}
                         </Badge>
                       )}
-                      {formatLinkedinSource(contact.raw_data) && (
-                        <span className="text-xs text-muted-foreground">({formatLinkedinSource(contact.raw_data)})</span>
-                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <LinkedInIcon className="h-4 w-4" />
+                        LinkedIn não encontrado.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1 text-[11px]"
+                        onClick={() => onAssociate(contact)}
+                      >
+                        <UserPlus className="h-3 w-3" aria-hidden="true" />
+                        Associar perfil
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -138,9 +197,13 @@ export function ContactsTab({ lead }: ContactsTabProps) {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Nenhum contato de decisor encontrado. Clique em &ldquo;Enriquecer decisores&rdquo; para buscar automaticamente.
-          </p>
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <UserPlus className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Nenhum contato de decisor cadastrado ainda. Use &quot;Enriquecer decisores&quot; para buscar
+              sócios via Receita Federal e enriquecer com e-mail e LinkedIn (busca passiva).
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>

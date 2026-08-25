@@ -231,6 +231,26 @@ def message_variants(
     return analytics.message_variants(from_date=from_date, to_date=to_date)
 
 
+@router.get("/template-insights")
+def template_insights(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    campaign_id: Optional[str] = Query(None, alias="campaign_id"),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Sugestões de calibração de vertente (loop de aprendizado).
+
+    Correlaciona `score_factors[]` de leads convertidos × perdidos e sugere
+    reforçar/reduzir características com desvio relevante. ANALYST/MANAGER
+    leem; a edição dos pesos segue manual no editor da vertente.
+    """
+    return analytics.template_insights(
+        from_date=from_date,
+        to_date=to_date,
+        campaign_id=campaign_id,
+    )
+
+
 @router.get("/export/pdf")
 def export_pdf(
     from_date: Optional[str] = Query(None, alias="from"),

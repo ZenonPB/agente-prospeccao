@@ -564,6 +564,13 @@ export function useAnalyticsMessageVariants(period?: AnalyticsPeriod) {
   });
 }
 
+export function useAnalyticsTemplateInsights(period?: AnalyticsPeriod) {
+  return useQuery({
+    queryKey: ["analytics", "template-insights", period],
+    queryFn: () => analyticsApi.templateInsights(period),
+  });
+}
+
 export function useExportAnalyticsPdf() {
   return useMutation({
     mutationFn: (period?: AnalyticsPeriod) => analyticsApi.exportPdf(period),
@@ -739,6 +746,13 @@ export function useCollectCnae() {
   return useMutation({
     mutationFn: ({ campaignId, cnaeCode, cnpjs, maxLeads, porteCategory }: { campaignId: string; cnaeCode?: string; cnpjs?: string[]; maxLeads?: number; porteCategory?: string }) =>
       campaignsApi.collectCnae(campaignId, { cnae_code: cnaeCode, cnpjs, max_leads: maxLeads, porte_category: porteCategory }),
+  });
+}
+
+export function useCollectPncp() {
+  return useMutation({
+    mutationFn: ({ campaignId, daysBack, uf, keyword, maxLeads }: { campaignId: string; daysBack?: number; uf?: string; keyword?: string; maxLeads?: number }) =>
+      campaignsApi.collectPncp(campaignId, { days_back: daysBack, uf, keyword, max_leads: maxLeads }),
   });
 }
 

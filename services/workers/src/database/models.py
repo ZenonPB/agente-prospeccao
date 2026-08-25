@@ -696,6 +696,10 @@ class FollowUp(Base):
     # Rótulo da variante A/B escolhida para esta etapa (ex.: "A"/"B"). Permite
     # medir resposta por variante via `GET /api/analytics/message-variants`.
     variant = Column(String(32))
+    # Destinatário efetivo desta etapa (roteamento multi-decisor: abertura
+    # vai ao contato principal; follow-up tardio/closing podem escalar para
+    # outro sócio/diretor do lead).
+    recipient = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     lead = relationship("Lead", back_populates="follow_ups")

@@ -139,6 +139,11 @@ export function CadencePanel({ leadId }: { leadId: string }) {
                         Agendado {formatDate(fu.scheduled_at)}
                         {isSent && fu.sent_at ? ` · enviado ${formatDate(fu.sent_at)}` : ""}
                       </p>
+                      {fu.recipient && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {isSent ? "Destinatário" : "Vai para"}: {fu.recipient}
+                        </p>
+                      )}
                       {isSent && (fu.opened_at || fu.clicked_at) && (
                         <div className="mt-1 flex items-center gap-2 text-xs">
                           {fu.opened_at && (

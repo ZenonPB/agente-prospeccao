@@ -47,6 +47,7 @@ import {
   useOrgMembership,
 } from '@/hooks/use-api';
 import { TemplateEditor, STEP_OPTIONS } from '@/components/vertentes/template-editor';
+import { TemplateInsightsCard } from '@/components/vertentes/template-insights-card';
 import type { ScoringTemplate } from '@/lib/api';
 import type { EnrichmentStep } from '@/lib/api';
 
@@ -219,6 +220,8 @@ export default function VertentesPage() {
           </p>
         </div>
       )}
+
+      {canManage && <TemplateInsightsCard />}
 
       {createOpen && canManage && (
         <Card>

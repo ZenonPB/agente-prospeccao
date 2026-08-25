@@ -38,6 +38,7 @@ from src.db.models import (
     FollowUpStep,
     Lead,
     LeadStatus,
+    ContactRole,
     Message,
     MessageChannel,
     Organization,
@@ -168,7 +169,13 @@ def send_step(
     # Envio automático (scheduler, sem user_id) exige e-mail verificado — um
     # e-mail heurístico (adivinhado) nunca vai sozinho.
     require_verified = user_id is None
-    to_email = _recipient_email(lead, require_verified=require_verified)
+    sent_to = _recipients_so_far(db, follow_up.lead_id)
+    to_email = _recipient_email(
+        lead,
+        require_verified=require_verified,
+        step=follow_up.step,
+        sent_to=sent_to,
+    )
     if not to_email:
         logger.info("Lead %s sem e-mail — etapa %s pulada (sem destino)",
                     lead.id if lead else follow_up.lead_id, follow_up.step.value)
@@ -217,6 +224,7 @@ def send_step(
     if result.sent:
         follow_up.sent_at = datetime.now(timezone.utc)
         follow_up.status = FollowUpStatus.SENT
+        follow_up.recipient = to_email
         follow_up.message_id = result.message_id
         db.commit()
 
@@ -234,7 +242,7 @@ def send_step(
             db, lead,
             action=LeadActivityAction.CONTACTED,
             user_id=user_id,
-            detail=f"Enviado: {follow_up.step.label}",
+            detail=f"Enviado: {follow_up.step.label} → {to_email}",
         )
         # Primeiro contato via cadência move o lead para CONTATADO.
         if lead and lead.status in (
@@ -493,21 +501,106 @@ def run_due(db: Session) -> Tuple[int, int]:
     return sent_count, deferred
 
 
-def _recipient_email(lead: Optional[Lead], require_verified: bool = False) -> Optional[str]:
+def _role_rank(contact) -> int:
+    """Prioridade de autoridade do decisor (menor = mais sênior)."""
+    order = {
+        ContactRole.SOCIO: 0,
+        ContactRole.CEO: 1,
+        ContactRole.DIRETOR: 2,
+        ContactRole.ADMINISTRADOR: 3,
+        ContactRole.OUTRO: 4,
+    }
+    return order.get(getattr(contact, "role", None), 5)
+
+
+def _candidate_emails(lead: Optional[Lead], require_verified: bool = False) -> List[str]:
+    """Destinatários candidatos em ordem de prioridade.
+
+    E-mail direto do lead primeiro, depois os contatos ordenados por
+    autoridade (sócio/CEO antes de administrador), com o contato primário
+    à frente dos demais do mesmo nível. O gate `require_verified`
+    (envio automático) vale para os contatos — o e-mail heurístico só sai
+    por ação humana explícita.
+    """
     if not lead:
-        return None
+        return []
+    candidates: List[str] = []
     if lead.email:
-        return lead.email
-    for c in lead.contacts or []:
-        if not c.email:
-            continue
-        # Envio automático (scheduler) exige e-mail com
-        # entregabilidade passiva confirmada (`email_verified`). E-mail
-        # heurístico/não verificado só sai por ação humana explícita.
+        candidates.append(lead.email)
+    contacts = sorted(
+        [c for c in (lead.contacts or []) if c.email],
+        key=lambda c: (_role_rank(c), not bool(c.is_primary)),
+    )
+    for c in contacts:
         if require_verified and not getattr(c, "email_verified", False):
             continue
-        return c.email
-    return None
+        email = (c.email or "").strip()
+        if email and email not in candidates:
+            candidates.append(email)
+    return candidates
+
+
+# Etapas que escalam para um decisor diferente do que recebeu a abertura:
+# nos ciclos industriais, follow-up tardio e encerramento ganham resposta
+# quando chegam a quem decide, não só a quem atende.
+_ESCALATION_STEPS = {FollowUpStep.FOLLOWUP_2, FollowUpStep.CLOSING}
+
+
+def _planned_recipient(
+    lead: Optional[Lead],
+    step: Optional[FollowUpStep] = None,
+    require_verified: bool = False,
+    sent_to: Optional[List[str]] = None,
+) -> Optional[str]:
+    """Destinatário da etapa.
+
+    Abertura/followup_1 vão para o decisor principal; FOLLOWUP_2/CLOSING
+    tentam escalar para outro contato de autoridade igual ou superior
+    (ex.: compras → diretoria). Sem alternativo elegível, mantém o
+    principal. `sent_to` lista quem já recebeu etapas anteriores.
+    """
+    candidates = _candidate_emails(lead, require_verified=require_verified)
+    if not candidates:
+        return None
+    primary = candidates[0]
+    if step is None or step not in _ESCALATION_STEPS:
+        return primary
+    already = set(sent_to or [])
+    for email in candidates[1:]:
+        if email not in already:
+            return email
+    return primary
+
+
+def _recipients_so_far(db: Session, lead_id: str) -> List[str]:
+    """E-mails já usados nas etapas SENT desta cadência."""
+    rows = (
+        db.query(FollowUp.recipient)
+        .filter(
+            FollowUp.lead_id == lead_id,
+            FollowUp.status == FollowUpStatus.SENT,
+        )
+        .all()
+    )
+    seen: List[str] = []
+    for (email,) in rows:
+        if email and email not in seen:
+            seen.append(email)
+    return seen
+
+
+def _recipient_email(
+    lead: Optional[Lead],
+    require_verified: bool = False,
+    step: Optional[FollowUpStep] = None,
+    sent_to: Optional[List[str]] = None,
+) -> Optional[str]:
+    return _planned_recipient(
+        lead,
+        step=step,
+        require_verified=require_verified,
+        sent_to=sent_to,
+    )
 
 
 def log_cadence_event(

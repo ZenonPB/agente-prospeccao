@@ -176,6 +176,11 @@ export function TemplateEditor({
     updatePlaybook({ objections: items });
   };
 
+  const stageAngles: NonNullable<Playbook['stage_angles']> = playbook.stage_angles ?? {};
+  const updateStageAngle = (key: keyof NonNullable<Playbook['stage_angles']>, value: string) => {
+    updatePlaybook({ stage_angles: { ...stageAngles, [key]: value || undefined } });
+  };
+
   const currentSteps: EnrichmentStep[] = draft?.enrichment_steps ?? template.enrichment_steps ?? deriveSteps(template);
   const currentCadence: number[] = draft?.cadence_schedule ?? template.cadence_schedule ?? DEFAULT_CADENCE;
 
@@ -419,6 +424,31 @@ export function TemplateEditor({
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Foco de conteúdo por mensagem</Label>
+            <p className="text-xs text-muted-foreground">
+              O que cada etapa da sequência deve abordar — do educativo à proposta. Em branco usa o padrão do sistema.
+            </p>
+            {(
+              [
+                ['body_opening', 'Primeira mensagem', 'Ex.: diagnóstico educativo da situação atual'],
+                ['followup_1', 'Follow-up 1', 'Ex.: novo ângulo — custo de não agir'],
+                ['followup_2', 'Follow-up 2', 'Ex.: caso de empresa similar + resultado'],
+                ['closing', 'Encerramento', 'Ex.: proposta direta de reunião curta'],
+              ] as const
+            ).map(([key, label, placeholder]) => (
+              <div key={key} className="flex items-center gap-2">
+                <span className="w-32 shrink-0 text-xs text-muted-foreground">{label}</span>
+                <Input
+                  className="flex-1"
+                  placeholder={placeholder}
+                  value={stageAngles[key] ?? ''}
+                  onChange={(e) => updateStageAngle(key, e.target.value)}
+                />
               </div>
             ))}
           </div>
