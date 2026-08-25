@@ -48,6 +48,13 @@ class CollectCnaeRequest(BaseModel):
     porte_category: Optional[str] = Field(None, description="Filtro de porte: 'pequeno', 'medio', 'grande'")
 
 
+class CollectPncpRequest(BaseModel):
+    days_back: int = Field(30, ge=1, le=90, description="Janela de publicação de contratos (dias)")
+    uf: Optional[str] = Field(None, min_length=2, max_length=2, description="Filtro por UF do órgão contratante")
+    keyword: Optional[str] = Field(None, max_length=120, description="Palavra-chave no objeto do contrato")
+    max_leads: int = Field(10, ge=1, le=100)
+
+
 class SuggestSegmentRequest(BaseModel):
     """Corpo do POST /api/campaigns/suggest-segment.
 
@@ -536,6 +543,59 @@ async def collect_campaign_cnae(
     db.refresh(job)
 
     return {"job_id": str(job.id), "status": "queued", "cnae_code": data.cnae_code}
+
+
+@router.post("/{campaign_id}/collect-pncp")
+@limiter.limit("10/minute")
+async def collect_campaign_pncp(
+    request: Request,
+    campaign_id: str,
+    data: CollectPncpRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+):
+    """Agenda a coleta de fornecedores de contratos públicos (PNCP).
+
+    Executado no job-consumer em background; a request só insere o Job e
+    devolve o `job_id` para o WS / `GET /api/pipeline/jobs`.
+    """
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == _org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    from services.pncp_service import default_date_window
+
+    pncp_start, pncp_end = default_date_window(days_back=data.days_back)
+
+    job = Job(
+        job_type=JobType.LEAD_COLLECTION,
+        status=JobStatus.PENDING,
+        campaign_id=campaign.id,
+        organization_id=_org.id,
+        payload={
+            "campaign_id": str(campaign.id),
+            "source": "pncp",
+            "pncp_start": pncp_start,
+            "pncp_end": pncp_end,
+            "pncp_uf": (data.uf or "").upper() or None,
+            "pncp_keyword": data.keyword,
+            "max_leads": data.max_leads,
+        },
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    return {
+        "job_id": str(job.id),
+        "status": "queued",
+        "pncp_start": pncp_start,
+        "pncp_end": pncp_end,
+    }
 
 
 @router.get("/{campaign_id}/export/google-sheets")
