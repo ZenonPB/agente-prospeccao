@@ -1,6 +1,6 @@
 @echo off
 REM ===========================================================================
-REM  dev.cmd - Sobe/paro o sistema no Windows (pode dar duplo clique).
+REM  dev.cmd - Sobe/para o sistema no Windows (pode dar duplo clique).
 REM  Uso:  dev.cmd start | stop | status | restart
 REM  Sem argumento: sobe tudo (start).
 REM ===========================================================================

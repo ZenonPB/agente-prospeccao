@@ -37,7 +37,7 @@ def test_api_app_importa():
     spec.loader.exec_module(main)
 
     app = main.app
-    assert app.title == "Agente Prospecção API"
+    assert app.title == "Prospect.ai API"
     paths = _all_paths(app)
     # Rotas internas dos routers incluídos vêm sem o prefixo `/api`.
     assert "/api/leads" in paths or "/leads" in paths

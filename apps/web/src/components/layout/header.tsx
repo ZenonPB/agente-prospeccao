@@ -68,7 +68,7 @@ export function Header() {
         </Button>
         <Link href="/dashboard" className="flex items-center gap-2 lg:hidden">
           <BrandLogo className="h-6 w-6 text-primary" />
-          <span className="text-[15px] font-semibold tracking-tight">Prospecção</span>
+          <span className="text-[15px] font-semibold tracking-tight">Prospect.ai</span>
         </Link>
       </div>
 

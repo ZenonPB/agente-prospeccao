@@ -1,4 +1,4 @@
-# Roadmap de Evolução — Agente Prospecção (uso comercial da EJ)
+# Roadmap de Evolução — Prospect.ai (uso comercial da EJ)
 
 > **Documento-norte** do sistema de prospecção B2B da EJ, construído para
 > substituir ferramentas pagas (ex.: Apollo) que são inviáveis financeiramente.

@@ -20,9 +20,12 @@ mkdir -p "${BACKUP_DIR}"
 if [[ -n "${DATABASE_URL:-}" ]]; then
   pg_dump --no-owner --format=custom "${DATABASE_URL}" -f "${BACKUP_DIR}/prospeccao_${STAMP}.dump"
 else
-  docker compose exec -T db pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-prospeccao}" \
-    --no-owner --format=custom -f "/backups/prospeccao_${STAMP}.dump"
-  # o volume db_backups é montado em /backups no container do Postgres.
+  # O volume db_backups é montado em /backups no container (não no host), então
+  # o dump sai para /tmp e é copiado para BACKUP_DIR via docker compose cp.
+  docker compose exec -T db pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-agente_prospeccao}" \
+    --no-owner --format=custom -f "/tmp/prospeccao_${STAMP}.dump"
+  docker compose cp "db:/tmp/prospeccao_${STAMP}.dump" "${BACKUP_DIR}/prospeccao_${STAMP}.dump"
+  docker compose exec -T db rm -f "/tmp/prospeccao_${STAMP}.dump"
 fi
 
 echo "Backup criado: ${BACKUP_DIR}/prospeccao_${STAMP}.dump"
@@ -59,7 +62,7 @@ if [[ "${1:-}" == "--verify-restore" ]]; then
     PGHOST="${PGHOST:-localhost}"
     PGPORT="${PGPORT:-5432}"
     PGUSER="${POSTGRES_USER:-postgres}"
-    SRC_DB="${POSTGRES_DB:-prospeccao}"
+    SRC_DB="${POSTGRES_DB:-agente_prospeccao}"
   fi
 
   TEST_DB="prospeccao_restore_check"
@@ -83,11 +86,17 @@ if [[ "${1:-}" == "--verify-restore" ]]; then
     docker compose exec -T db pg_restore -U "${PGUSER}" -d "${TEST_DB}" --no-owner --exit-on-error - < "${LATEST}"
   fi
 
-  TABLES="organizations campaigns leads contacts enrichment messages follow_ups daily_sent_usage quota_usage"
+  # Lista principal do modelo atual; tabelas ausentes na origem são puladas.
+  TABLES="organizations organization_members users campaigns campaign_scoring_templates leads contacts enrichments messages follow_ups conversions lead_activities provider_usage email_suppressions"
 
   FAIL=0
   echo "Comparando contagens de linhas entre origem e restore..."
   for t in ${TABLES}; do
+    EXISTS="$(_psql -d "${SRC_DB}" -tAc "SELECT to_regclass('public.${t}') IS NOT NULL")"
+    if [[ "${EXISTS}" != "t" ]]; then
+      echo "  [skip] ${t}: não existe na origem"
+      continue
+    fi
     SRC_COUNT="$(_psql -d "${SRC_DB}" -tAc "SELECT count(*) FROM ${t}")"
     DST_COUNT="$(_psql -d "${TEST_DB}" -tAc "SELECT count(*) FROM ${t}")"
     if [[ "${SRC_COUNT}" != "${DST_COUNT}" ]]; then

@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     SMTP_PORT: int = Field(587, description='Porta SMTP')
     SMTP_USER: str = Field("", description='Usuário SMTP')
     SMTP_PASSWORD: str = Field("", description='Senha SMTP')
-    SMTP_FROM_EMAIL: str = Field("noreply@agente-prospeccao.com", description='E-mail remetente')
-    SMTP_FROM_NAME: str = Field("Agente Prospecção", description='Nome do remetente')
+    SMTP_FROM_EMAIL: str = Field("noreply@prospect.ai", description='E-mail remetente')
+    SMTP_FROM_NAME: str = Field("Prospect.ai", description='Nome do remetente')
 
     # Inbound email — segredo compartilhado com o provedor de
     # inbound (Postmark/SendGrid). Vazio = webhook desativado (404).

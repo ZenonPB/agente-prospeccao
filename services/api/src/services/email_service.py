@@ -59,7 +59,7 @@ def _is_smtp_configured() -> bool:
     return bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
 
 
-def _message_id_from(result: Optional[str], hostname: str = "agente-prospeccao.com") -> str:
+def _message_id_from(result: Optional[str], hostname: str = "prospect.ai") -> str:
     """Gera um Message-ID estável para thread (ou reutiliza um já existente)."""
     if result:
         return result
@@ -70,7 +70,7 @@ def _build_html_tracked(
     body: str,
     base_url: str,
     token: str,
-    sender_name: str = "Agente Prospecção",
+    sender_name: str = "Prospect.ai",
     sender_email: str = "",
 ) -> str:
     """Constrói a parte HTML do e-mail de cadência com links rastreados,
@@ -147,7 +147,7 @@ def send_email(
 def send_password_reset_email(to_email: str, reset_link: str, user_name: str, from_email: Optional[str] = None, from_name: Optional[str] = None) -> bool:
     """Envia e-mail de redefinição de senha (template transacional), ou
     dry-run em dev."""
-    subject = "Redefinição de senha - Agente Prospecção"
+    subject = "Redefinição de senha - Prospect.ai"
     body = f"""Olá {user_name},
 
 Recebemos uma solicitação de redefinição de senha para sua conta.
@@ -161,7 +161,7 @@ Este link expira em {settings.RESET_TOKEN_EXPIRY_HOURS} horas.
 Se você não solicitou esta alteração, ignore este e-mail.
 
 Atenciosamente,
-Equipe Agente Prospecção
+Equipe Prospect.ai
 """
     html_body = render_transactional_email(
         title="Redefinição de senha",
@@ -205,7 +205,7 @@ def send_invite_email(
 ) -> bool:
     """Envia convite para entrar na organização (template transacional)."""
     subject = f"Você foi convidado para {org_name}"
-    body = f"""Você foi convidado para participar da organização {org_name} no Agente Prospecção.
+    body = f"""Você foi convidado para participar da organização {org_name} no Prospect.ai.
 
 Para aceitar o convite, acesse:
 
@@ -214,14 +214,14 @@ Para aceitar o convite, acesse:
 O convite expira em 7 dias.
 
 Atenciosamente,
-Equipe Agente Prospecção
+Equipe Prospect.ai
 """
     by = f" por {html.escape(invited_by_name)}" if invited_by_name else ""
     html_body = render_transactional_email(
         title=f"Convite para {html.escape(org_name)}",
         body_html=(
             f"<p style=\"margin:0 0 14px 0;\">Você foi convidado{by} para "
-            "participar da organização do Agente Prospecção. Ao aceitar, você "
+            "participar da organização no Prospect.ai. Ao aceitar, você "
             "passa a gerenciar leads, campanhas e relatórios junto com a "
             "equipe.</p>"
         ),

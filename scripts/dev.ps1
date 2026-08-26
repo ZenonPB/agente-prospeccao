@@ -2,7 +2,8 @@
 # dev.ps1 — Ambiente de desenvolvimento para Windows (SEM Docker).
 #
 # Uso:
-#   .\scripts\dev.ps1 start      # sobe PostgreSQL, API (8000) e Web (3001)
+#   .\scripts\dev.ps1 start      # sobe PostgreSQL, aplica migrations+seed,
+#                                # API (8000) e Web (3001, mudável via WEB_PORT)
 #   .\scripts\dev.ps1 stop       # para tudo (inclui o Postgres embarcado, se foi
 #                                # ele quem subiu; um Postgres já existente fica)
 #   .\scripts\dev.ps1 status     # mostra o que está rodando
@@ -23,6 +24,9 @@ param(
 
 $ErrorActionPreference = 'Continue'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
+
+# Console em UTF-8 (acentos do PT-BR corretos em qualquer janela).
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $API_PORT = if ($env:API_PORT) { $env:API_PORT } else { '8000' }
 $WEB_PORT = if ($env:WEB_PORT) { $env:WEB_PORT } else { '3001' }
@@ -119,6 +123,24 @@ function Stop-Postgres {
 }
 
 # ---------------------------------------------------------------------------
+# Banco — migrations + seed idempotentes (schema e templates sempre em dia)
+# ---------------------------------------------------------------------------
+function Invoke-DbMigrate {
+    $workersPy = Join-Path $RepoRoot "services\workers\venv\Scripts\python.exe"
+    if (-not (Test-Path $workersPy)) { Write-Warn "venv dos workers ausente — pulando migrations/seed. Rode .\scripts\setup.ps1."; return }
+    Write-Info "Aplicando migrations (alembic upgrade head)"
+    Push-Location (Join-Path $RepoRoot "services\workers")
+    try {
+        & $workersPy -m alembic upgrade head
+        if ($LASTEXITCODE -ne 0) { Write-Warn "alembic upgrade head falhou — veja mensagem acima."; return }
+        & $workersPy -m src.seeds.scoring_templates
+        if ($LASTEXITCODE -ne 0) { Write-Warn "seed de templates falhou — veja mensagem acima." }
+    } finally {
+        Pop-Location
+    }
+}
+
+# ---------------------------------------------------------------------------
 # API (uvicorn no venv)
 # ---------------------------------------------------------------------------
 function Test-ApiRunning { Test-TcpPort $API_PORT }
@@ -156,7 +178,7 @@ function Start-Web {
     # Cache do Turbopack já serviu chunks corrompidos (500 MODULE_NOT_FOUND) —
     # sempre subir com compilação limpa.
     Remove-Item -Recurse -Force (Join-Path $webDir ".next") -ErrorAction SilentlyContinue
-    Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev") -WorkingDirectory $webDir `
+    Start-Process -FilePath "npm.cmd" -ArgumentList @("run", "dev", "--", "-p", $WEB_PORT) -WorkingDirectory $webDir `
         -RedirectStandardOutput $WEBLog -RedirectStandardError $WEBLogErr -WindowStyle Hidden | Out-Null
     if (-not (Wait-Port $WEB_PORT "Web")) { Write-Warn "Web não respondeu. Veja $WEBLog" }
     else { Write-OK "Web no ar (http://localhost:$WEB_PORT)" }
@@ -189,16 +211,17 @@ function Show-Status {
 # ---------------------------------------------------------------------------
 switch ($Action.ToLower()) {
     'start' {
-        Write-Host ""; Write-Host "=== Iniciando Agente Prospecção ===" -ForegroundColor Cyan; Write-Host ""
+        Write-Host ""; Write-Host "=== Iniciando Prospect.ai ===" -ForegroundColor Cyan; Write-Host ""
         Start-Postgres
         Start-Sleep -Seconds 1
+        Invoke-DbMigrate
         Start-Api
         Start-Web
         Show-Status
         Write-Host "Logs: API=$APILog  Web=$WEBLog" -ForegroundColor Gray
     }
     'stop' {
-        Write-Host ""; Write-Host "=== Parando Agente Prospecção ===" -ForegroundColor Cyan; Write-Host ""
+        Write-Host ""; Write-Host "=== Parando Prospect.ai ===" -ForegroundColor Cyan; Write-Host ""
         Stop-Web
         Stop-Api
         Stop-Postgres

@@ -17,7 +17,7 @@ branco quente #fffaf8, com a marca do radar como elemento de assinatura.
 import html
 from typing import Optional
 
-_BRAND_WORDMARK = "AlphaMec"
+_BRAND_WORDMARK = "Prospect.ai"
 _BRAND_SUPTITLE = "Prospecção B2B inteligente"
 
 _FONT_STACK = (

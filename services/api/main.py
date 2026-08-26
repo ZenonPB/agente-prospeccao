@@ -198,8 +198,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Agente Prospecção API",
-    description="API para gestão de prospecção de leads",
+    title="Prospect.ai API",
+    description="Plataforma de inteligência comercial e prospecção B2B",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -236,7 +236,7 @@ app.include_router(tracking.router)
 
 @app.get("/")
 def root():
-    return {"message": "Agente Prospecção API", "docs": "/docs"}
+    return {"message": "Prospect.ai API", "docs": "/docs"}
 
 
 @app.get("/health")

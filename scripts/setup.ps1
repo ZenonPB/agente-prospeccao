@@ -317,8 +317,8 @@ SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
-SMTP_FROM_EMAIL=noreply@agente-prospeccao.com
-SMTP_FROM_NAME=Agente Prospecção
+SMTP_FROM_EMAIL=noreply@prospect.ai
+SMTP_FROM_NAME=Prospect.ai
 "@
     Set-Content -Path $envPath -Value $content -Encoding UTF8
     Write-OK ".env criado — preencha GROQ_API_KEY e GOOGLE_API_KEY nele"
@@ -421,7 +421,7 @@ function Setup-WebDeps {
 }
 
 # ===========================================================================
-Write-Host "=== Setup do Agente Prospecção (Windows, sem Docker) ===" -ForegroundColor Cyan
+Write-Host "=== Setup do Prospect.ai (Windows, sem Docker) ===" -ForegroundColor Cyan
 Write-Host "Repositório: $RepoRoot"
 Write-Host "Postgres:    $PGRoot (porta $DBPort, banco $DBName)" -ForegroundColor Gray
 
