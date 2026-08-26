@@ -307,7 +307,7 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
     size: A4;
     margin: 2cm 1.8cm;
     @bottom-center {{
-      content: "Agente Prospecção — Página " counter(page) " de " counter(pages);
+      content: "Prospect.ai — Página " counter(page) " de " counter(pages);
       font-size: 8pt;
       color: #94a3b8;
     }}
@@ -486,7 +486,7 @@ def _build_html(org_name: str, from_label: str, to_label: str, data: dict) -> st
   {pitches_html}
 
   <div class="footer-note">
-    Relatório gerado automaticamente pelo Agente Prospecção. Dados restritos à organização
+    Relatório gerado automaticamente pelo Prospect.ai. Dados restritos à organização
     e ao período selecionado. Análise de sites 100% passiva (Lei 12.737/2012).
   </div>
 </body>

@@ -121,7 +121,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                 />
                 <div>
                   <p className="text-md font-semibold tracking-tight text-[#4c0000]">
-                    Agente Prospecção
+                    Prospect.ai
                   </p>
                   <p className="text-xs font-medium uppercase tracking-widest text-[#910001]">
                     por AlphaMec
@@ -133,7 +133,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             )}
             {!isAlpha && (
               <div>
-                <p className="text-base font-semibold tracking-tight">Agente Prospecção</p>
+                <p className="text-base font-semibold tracking-tight">Prospect.ai</p>
                 <p className="text-xs text-sidebar-foreground/50">Inteligência comercial</p>
               </div>
             )}
@@ -287,7 +287,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               isAlpha ? "text-[#4c0000]/50" : "text-sidebar-foreground/40"
             }`}
           >
-            © {new Date().getFullYear()} Agente Prospecção — feito para a sua empresa.
+            © {new Date().getFullYear()} Prospect.ai — feito para a sua empresa.
           </p>
         </div>
       </div>
@@ -310,7 +310,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
                   className="h-8 w-8 object-contain"
                 />
                 <span className="font-heading text-lg font-semibold tracking-tight text-[#4c0000]">
-                  Agente Prospecção
+                  Prospect.ai
                 </span>
               </>
             ) : (
@@ -318,7 +318,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
             )}
             {!isAlpha && (
               <span className="font-heading text-lg font-semibold tracking-tight">
-                Agente Prospecção
+                Prospect.ai
               </span>
             )}
           </div>

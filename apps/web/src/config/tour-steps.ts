@@ -14,7 +14,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'welcome',
     targetRoute: '/dashboard',
     elementSelector: '[data-tour="dashboard-header"]',
-    title: 'Boas-vindas ao Agente Prospecção',
+    title: 'Boas-vindas ao Prospect.ai',
     description:
       'Esta é a plataforma de prospecção B2B da sua equipe: ela encontra empresas que combinam com o seu serviço, analisa cada uma e organiza o contato. Vamos percorrer cada tela para você conhecer todas as funções. Use "Próximo" para avançar e "Voltar" para revisar qualquer etapa.',
     popoverSide: 'bottom',

@@ -1,4 +1,4 @@
-"""Testes dos templates HTML de e-mail (marca AlphaMec).
+"""Testes dos templates HTML de e-mail (marca Prospect.ai).
 
 Cobrem a estrutura dos templates de cadência e transacional:
 preheader, DOCTYPE, marca, CTA com fallback MSO, dark mode e footer.
@@ -25,7 +25,7 @@ def test_outreach_template_estrutura_completa():
     assert "João Vendas" in out and "joao@empresa.com.br" in out
     assert "#910001" in out  # vinho da marca (radar)
     assert "font-family" in out  # system stack
-    assert "© AlphaMec" in out  # footer
+    assert "© Prospect.ai" in out  # footer
     assert "mso-hide:all" in out  # preheader oculto
     assert "prefers-color-scheme" in out  # dark mode
 

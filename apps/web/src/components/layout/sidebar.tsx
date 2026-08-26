@@ -99,7 +99,7 @@ export function Sidebar() {
             <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
               <BrandLogo className="h-7 w-7 text-sidebar-primary" />
               <span className="truncate text-[15px] font-semibold tracking-tight text-sidebar-foreground">
-                Agente Prospecção
+                Prospect.ai
               </span>
             </Link>
           )}

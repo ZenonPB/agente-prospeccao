@@ -1,4 +1,4 @@
-# Guia de Inicialização - Agente Prospecção
+# Guia de Inicialização - Prospect.ai
 
 > **Modo automático (Windows, sem Docker):** o jeito mais fácil é dar **duplo
 > clique em `scripts\setup.cmd`** (setup completo uma única vez) e depois em
