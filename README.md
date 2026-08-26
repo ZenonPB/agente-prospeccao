@@ -12,7 +12,7 @@ Coleta multi-fonte · Enriquecimento automático · Qualificação com IA explic
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
-[![License](https://img.shields.io/badge/license-unspecified-lightgrey?style=flat)](#)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat)](LICENSE)
 
 </div>
 
@@ -343,7 +343,7 @@ Contribuições são bem-vindas! Antes de abrir um Pull Request:
 
 ## 📄 Licença
 
-Este repositório ainda não especifica uma licença. Entre em contato com o mantenedor ([@ZenonPB](https://github.com/ZenonPB)) para mais informações sobre uso e distribuição.
+Este projeto é distribuído sob a licença [MIT](LICENSE).
 
 ---
 
