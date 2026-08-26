@@ -74,7 +74,9 @@ def _record_response_message(
         sent_at=now,
         responded_at=now,
         is_response=True,
-        tracking_token=last_sent.tracking_token,
+        # Sem tracking_token: ele é único por envio (uq_messages_tracking_token)
+        # e só se aplica a outbound; a resposta herda apenas a variante.
+        tracking_token=None,
         variant=last_sent.variant,
     ))
 
