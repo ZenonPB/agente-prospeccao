@@ -1,4 +1,4 @@
-# agente-prospeccao — Context
+# Prospect.ai — Context
 
 > Leia este arquivo primeiro. Ele indica o que ler em seguida.
 
@@ -898,6 +898,68 @@ Branch `feat/universal-sector-scoring`:
 - **Verificação**: `compileall` OK, suíte de 347 testes Pytest passando (incluindo `test_universal_scoring.py`), `npm run lint`, `npx tsc --noEmit` e `npm run build` do Next.js 16 limpos.
 
 ### Próximo passo imediato
+
+> **Atualizado 2026-08-25 (2) — Auditoria dos scripts + README novo:**
+>
+> - **`scripts/` auditado e corrigido contra o sistema atual:**
+>   - `dev.ps1`: agora aplica **migrations + seed a cada start** (paridade com
+>     `dev.sh`, que também ganhou `alembic upgrade head` antes do seed) e
+>     repassa `WEB_PORT` ao Next (`npm run dev -- -p $WEB_PORT`; verificado que
+>     o último `-p` vence). Console UTF-8 como no setup. Testado ponta a ponta:
+>     start subiu Postgres+migrations+seed+API (`/health ok`)+Web (HTTP 200).
+>   - `dev.sh`: ganhou ação **restart** e uso atualizado.
+>   - `setup.sh`: agora gera `SECRETS_ENCRYPTION_KEY` Fernet (como o
+>     `setup.ps1` já fazia) em vez de deixar vazia.
+>   - `backup.sh`: dump do caminho Docker ia para o volume `/backups` do
+>     container e nunca saía no host — agora sai via `docker compose cp`;
+>     fallback de `POSTGRES_DB` corrigido para `agente_prospeccao`.
+>   - **`backup.ps1` NOVO** (Windows, paridade com o .sh): localiza pg_dump
+>     (PATH → Program Files → embarcado), lê `DATABASE_URL` do `.env`,
+>     rotação por `-RetentionDays` e `-VerifyRestore` com comparação de
+>     contagens por tabela. **Validado real**: dump + restore verificado
+>     (14 tabelas OK). Lista de tabelas atualizada nos dois backups
+>     (`enrichments`, `provider_usage`; fora as extintas `enrichment`,
+>     `daily_sent_usage`, `quota_usage`) e tolerante a tabela ausente na
+>     origem. Quirk: neste build de pg_dump 16.14 o `-f` precisa vir ANTES da
+>     URL de conexão.
+>   - `settings.py` da API: default `SMTP_FROM_EMAIL` ainda era
+>     `noreply@agente-prospeccao.com` — migrado para `prospect.ai`
+>     (rebranding residual). Suíte **444 passed** + compileall após tudo.
+>   - Sintaxe validada (PSParser/bash -n onde disponível); aprendizado:
+>     `.ps1` novo precisa ser gravado em UTF-8 **com BOM** (PowerShell 5.1).
+> - **README.md reescrito**: índice, badge real de CI, seção "Como funciona"
+>   com funil e regra de score, funcionalidades por área (incluindo PNCP,
+>   vertentes por IA, tracking, multi-org), tabela de scripts atualizada,
+>   tabela de env vars principais, estrutura de pastas correta, testes/CI,
+>   backup via scripts próprios e troubleshooting ampliado.
+
+> **Atualizado 2026-08-25 — Rebranding para Prospect.ai:**
+>
+> O nome do sistema passou de "Agente Prospecção" para **Prospect.ai** em toda
+> a superfície visível:
+> - **Web**: `layout.tsx` (metadata title), `auth-shell.tsx` (marca nos temas,
+>   mantendo "por AlphaMec"/atribuição da empresa), `sidebar.tsx`,
+>   `header.tsx` (mobile) e tour guiado (`tour-steps.ts`).
+> - **API**: título do FastAPI + rota raiz (`main.py`), default
+>   `SMTP_FROM_NAME` (`settings.py`), e-mails transacionais de reset/convite
+>   (`email_service.py`) e wordmark dos templates HTML (`email_templates.py`,
+>   `_BRAND_WORDMARK` → "Prospect.ai").
+> - **PDF executivo**: rodapé de página e nota de geração
+>   (`pdf_report_service.py`).
+> - **Ops/docs**: `.env.example`, `README.md`, `QUICKSTART.md`, títulos de
+>   `roadmap-vendas.md`/`context.md`, mensagens e template SMTP dos scripts
+>   `setup.ps1`/`setup.sh`/`dev.ps1`.
+> - **Testes** atualizados: `test_api_imports.py` (título) e
+>   `test_email_templates.py` (footer).
+> - **Preservado de propósito**: identificadores de infraestrutura — banco
+>   `agente_prospeccao`, paths `~/.local/agente-prospeccao`, container Docker
+>   e o nome da pasta do repositório (quebrariam instalações existentes sem
+>   ganho de marca); atribuições à AlphaMec/Zenon (empresa, não produto);
+>   termos genéricos de domínio ("prospecção", "Relatório de Prospecção",
+>   "Nova Busca de Prospecção").
+> - **Verificação:** suíte **444 passed**, compileall OK; web lint/tsc/build
+>   limpos.
+>
 
 > **Atualizado 2026-08-24 (2)** — onde paramos:
 >
