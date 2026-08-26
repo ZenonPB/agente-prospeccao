@@ -102,6 +102,9 @@ def fake_providers(monkeypatch):
 
 
 def _cleanup(db, org: Organization, user: User) -> None:
+    # Falhas no meio do ciclo deixam a sessão pendente de rollback —
+    # recupera antes de tocar nos objetos para não mascarar o erro original.
+    db.rollback()
     org_id = org.id
     lead_ids = [r[0] for r in db.query(Lead.id).filter(Lead.organization_id == org_id).all()]
     for model in (LeadActivity, FollowUp, Message, Contact, Enrichment):

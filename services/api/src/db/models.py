@@ -17,6 +17,7 @@ from database.models import (
     Job,
     User,
     Notification,
+    NotificationType,
     Contact,
     CompanyRecord,
     Conversion,

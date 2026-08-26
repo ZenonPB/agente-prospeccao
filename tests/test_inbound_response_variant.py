@@ -3,7 +3,8 @@
 Cobre:
 - derivar a variante da última `Message` enviada do lead;
 - não criar `Message` quando não há envio anterior;
-- não duplicar em re-chamada do webhook (última `Message` já é resposta).
+- não duplicar em re-chamada do webhook (última `Message` já é resposta);
+- `tracking_token` fica nulo no espelho (é único por envio outbound).
 """
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -56,7 +57,7 @@ def test_variante_da_ultima_mensagem_enviada():
     resp = db.added[0]
     assert resp.is_response is True
     assert resp.variant == "A"
-    assert resp.tracking_token == "tok-1"
+    assert resp.tracking_token is None  # uq_messages_tracking_token: único por envio
     assert resp.sent_at == now
     assert resp.responded_at == now
 
