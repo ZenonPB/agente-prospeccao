@@ -103,7 +103,7 @@ agente-prospeccao/
 │   │   └── src/{config,auth,db,middleware,routes,services,pipeline_worker.py,jobs_consumer.py}
 │   └── workers/              ← fonte única de models (src/database/models.py) e migrations
 │       └── src/{config,database,seeds,services,scripts}
-├── scripts/                  ← setup.sh/.ps1/.cmd · dev.sh/.ps1/.cmd · backup.sh
+├── scripts/                  ← setup.sh/.ps1/.cmd · dev.sh/.ps1/.cmd · backup.sh/.ps1
 ├── tests/                    ← pytest unit (sem DB) + e2e_outreach_cycle.py (banco real) — rodar da raiz
 ├── docs/                     ← documentação em PT (context/architecture/business-rules/decisions/coding-standards/agents/roadmap-*)
 └── graphify-out/             ← grafo de conhecimento (gitignored; gerar se ausente)

@@ -2,9 +2,10 @@
 # Ambiente de desenvolvimento local SEM root (Postgres embarcado + API + Web).
 #
 # Uso:
-#   scripts/dev.sh start      # sobe Postgres, API (8000) e Web (3001)
+#   scripts/dev.sh start      # sobe Postgres, aplica migrations+seed, API (8000) e Web (3001)
 #   scripts/dev.sh stop       # para tudo
 #   scripts/dev.sh status     # mostra o que está rodando
+#   scripts/dev.sh restart    # stop + start
 #
 # Pré-requisitos (configurados nesta máquina):
 #   - Postgres 16 embarcado em ~/.local/agente-prospeccao (binários zonky)
@@ -92,6 +93,13 @@ api_start() {
   echo "API iniciando em http://127.0.0.1:$API_PORT/docs (log: $API_LOG)"
 }
 
+# Migrations idempotentes: garante que o schema acompanhe o código a cada
+# start (seguro rodar sempre — alembic aplica só o que falta).
+run_migrations() {
+  echo "Migrations (alembic upgrade head)"
+  ( cd "$REPO_ROOT/services/workers" && ./venv/bin/python -m alembic upgrade head )
+}
+
 # Seed idempotente dos templates de scoring: garante que mudanças nos
 # templates default cheguem ao banco em cada start (mesmo comportamento do
 # setup.sh). Seguro rodar sempre — usa service_label como chave e só atualiza.
@@ -109,7 +117,7 @@ web_start() {
   # Cache persistente do Turbopack já serviu chunks corrompidos (500
   # MODULE_NOT_FOUND em internals de next/*). Sempre subir com compilação limpa.
   rm -rf .next
-  setsid nohup npm run dev > "$WEB_LOG" 2>&1 < /dev/null &
+  setsid nohup npm run dev -- -p "$WEB_PORT" > "$WEB_LOG" 2>&1 < /dev/null &
   disown 2>/dev/null || true
   echo "Web iniciando em http://localhost:$WEB_PORT (log: $WEB_LOG)"
 }
@@ -147,6 +155,7 @@ status() {
 case "${1:-start}" in
   start)
     pg_start
+    run_migrations || echo "AVISO: migrations falharam — verifique o Postgres/log acima." >&2
     seed_templates
     api_start
     wait_for_up "$API_PORT" "API" "$API_LOG"
@@ -163,8 +172,13 @@ case "${1:-start}" in
   status)
     status
     ;;
+  restart)
+    "${BASH_SOURCE[0]}" stop
+    sleep 2
+    "${BASH_SOURCE[0]}" start
+    ;;
   *)
-    echo "Uso: $0 {start|stop|status}" >&2
+    echo "Uso: $0 {start|stop|status|restart}" >&2
     exit 1
     ;;
 esac

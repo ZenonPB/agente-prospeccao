@@ -141,9 +141,10 @@ setup_env() {
     return
   fi
   step "Criando .env na raiz"
-  local jwt secret
+  local jwt secret fernet
   jwt=$(python3 -c "import secrets; print(secrets.token_hex(32))")
   secret=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+  fernet=$(python3 -c "import base64,os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())")
   cat > "$REPO_ROOT/.env" <<EOF
 # ===== PostgreSQL local (sem root, binários zonky em $PG_ROOT) =====
 POSTGRES_USER=$DB_USER
@@ -165,7 +166,7 @@ ENVIRONMENT=development
 CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 CADENCE_POLL_SECONDS=60
 EMAIL_WEBHOOK_SECRET=
-SECRETS_ENCRYPTION_KEY=
+SECRETS_ENCRYPTION_KEY=$fernet
 RESET_TOKEN_EXPIRY_HOURS=2
 APP_BASE_URL=http://localhost:3001
 
@@ -174,8 +175,8 @@ SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
-SMTP_FROM_EMAIL=noreply@agente-prospeccao.com
-SMTP_FROM_NAME=Agente Prospecção
+SMTP_FROM_EMAIL=noreply@prospect.ai
+SMTP_FROM_NAME=Prospect.ai
 EOF
   ok ".env criado — preencha GROQ_API_KEY e GOOGLE_API_KEY nele"
 }
