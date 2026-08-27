@@ -19,6 +19,7 @@
     "date-fns": "^4.4.0",
     "driver.js": "^1.8.0",
     "geist": "^1.7.2",
+    "jose": "^6.2.10",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.23.0",
     "next": "16.2.10",
