@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
+
 export async function middleware(request: NextRequest) {
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    console.error("[middleware] NEXTAUTH_SECRET não configurado");
+    return NextResponse.next();
+  }
+
+  const token = await getToken({ req: request, secret });
 
   const { pathname } = request.nextUrl;
 
@@ -41,7 +45,9 @@ export async function middleware(request: NextRequest) {
 
   // Content Security Policy
   const isDev = process.env.NODE_ENV === "development";
-  const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+  const nonceBytes = new Uint8Array(16);
+  crypto.getRandomValues(nonceBytes);
+  const nonce = btoa(String.fromCharCode(...nonceBytes));
 
   // A API pode viver em outro domínio (deploy separado). O connect-src precisa
   // autorizar a origem da API + o WebSocket correspondente (item 4.9).
