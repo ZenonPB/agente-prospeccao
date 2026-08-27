@@ -1,20 +1,28 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
 export async function middleware(request: NextRequest) {
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) {
-    console.error("[middleware] NEXTAUTH_SECRET não configurado");
     return NextResponse.next();
   }
 
-  const token = await getToken({ req: request, secret });
+  const token = request.cookies.get("next-auth.session-token")?.value
+    ?? request.cookies.get("__Secure-next-auth.session-token")?.value;
+
+  let isAuthenticated = false;
+  if (token) {
+    try {
+      await jwtVerify(token, new TextEncoder().encode(secret));
+      isAuthenticated = true;
+    } catch {
+      // token inválido ou expirado
+    }
+  }
 
   const { pathname } = request.nextUrl;
 
-  // Allow public routes
-  // Também permite /esqueci-senha e /resetar-senha sem autenticação
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/register") ||
@@ -23,34 +31,29 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/aceitar-convite") ||
     pathname.startsWith("/api/auth")
   ) {
-    if (token && pathname.startsWith("/login")) {
+    if (isAuthenticated && pathname.startsWith("/login")) {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     return NextResponse.next();
   }
 
-  // Protect all other routes
-  if (!token) {
+  if (!isAuthenticated) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // Security headers
   const response = NextResponse.next();
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
-  // Content Security Policy
   const isDev = process.env.NODE_ENV === "development";
   const nonceBytes = new Uint8Array(16);
   crypto.getRandomValues(nonceBytes);
   const nonce = btoa(String.fromCharCode(...nonceBytes));
 
-  // A API pode viver em outro domínio (deploy separado). O connect-src precisa
-  // autorizar a origem da API + o WebSocket correspondente (item 4.9).
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   let apiOrigin = "http://localhost:8000";
   let apiWsOrigin = "ws://localhost:8000";
@@ -96,14 +99,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api/auth (NextAuth API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     "/((?!api/auth|_next/static|_next/image|favicon.ico|public).*)",
   ],
 };
