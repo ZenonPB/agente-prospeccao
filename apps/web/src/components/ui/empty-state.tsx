@@ -10,7 +10,8 @@ interface EmptyStateProps {
 
 /**
  * Estado vazio que orienta o usuário: explica o que fazer em vez de
- * apenas dizer "não há nada aqui".
+ * apenas dizer "não há nada aqui". O ícone pulsa como um radar à
+ * espera de sinais — a assinatura visual do produto.
  */
 export function EmptyState({
   icon,
@@ -22,12 +23,12 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center",
+        "flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed px-6 py-14 text-center animate-fade-up",
         className,
       )}
     >
       {icon && (
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="sonar flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
           {icon}
         </div>
       )}
