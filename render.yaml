@@ -1,0 +1,28 @@
+# Render Blueprint - Deploy gratuito do Prospect.ai
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # Backend API (FastAPI) - usando Dockerfile simplificado
+  - type: web
+    name: prospect-api
+    runtime: docker
+    plan: free
+    dockerfilePath: services/api/Dockerfile.render
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: SECRETS_ENCRYPTION_KEY
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: PYTHONPATH
+        value: /app/services/api/src
+    healthCheckPath: /

@@ -1967,3 +1967,62 @@ Branch `feat/melhorias-b2b-infra` ï¿½ itens 6, 7, 8, 9, 12 e 14 de
   primï¿½rio) + insights (reforï¿½ar/reduzir/neutro, base mï¿½nima, dedup por lead).
   Suï¿½te em **421 passed**; compileall, lint, tsc e build limpos; migration
   aplicada no Postgres local (head `a9b8c7d6e5f4`).
+
+### Renovação UI/UX — "Radar Vivo" (frontend)
+
+Redesign da camada visual do `apps/web` sem mudanças de rotas, dados ou contratos de API.
+Sistema de movimento novo em `globals.css` (keyframes `fade-up/scale-in/sonar/sheen/shimmer/float`,
+elevações `--shadow-soft/lift` via `color-mix`, utilitários `.card-lift/.btn-sheen/.sonar/.radar-dot/
+.aurora-blob/.skeleton-shimmer/.heading-underline/.stagger-*`) + primitivos em `components/ui/motion.tsx`
+(`Reveal` com IntersectionObserver, `AnimatedNumber` count-up rAF, `PageTransition` por rota).
+Assinatura visual: motivo radar/sonar (estado vazio, banner, sidebar) + auroras ambientes.
+
+- **Command palette** novo: `components/layout/command-menu.tsx` (Ctrl/?+K ou evento
+  `open-command-menu`) — navegação global respeitando permissão de Relatórios; gatilhos no `header.tsx`.
+- **`(protected)/layout.tsx`** envolve children em `PageTransition` (entrada suave por rota).
+- `page-header.tsx` com eyebrow pontilhado + sublinhado gradiente; `empty-state.tsx` com anéis sonar;
+  `skeleton.tsx` com shimmer; `button.tsx` variant default com sheen; `card.tsx` com sombra suave default.
+- `sidebar.tsx`: indicador ativo animado, ícones com zoom no hover, `sr-only`/`title` no modo
+  recolhido (a11y), footer com status "Radar operando".
+- Dashboard: `metrics.tsx` com números animados, chips de cor por métrica, card-lift, teclado
+  (role=button + Enter/Espaço) e copy sem jargão ("Prontas para contato", "bem avaliadas pela IA");
+  `process-banner.tsx` com auroras, passos em cascata e copy simples ("A IA avalia", "Faça o contato").
+- Tudo respeita `prefers-reduced-motion` (regra global em `globals.css`).
+- Validado: `npm run lint` limpo, `tsc --noEmit` limpo, `npm run build` OK (18 rotas), `/login`
+  renderiza 200 em dev. QA visual por screenshot ficou pendente (browser automation não subiu a tempo).
+
+Próximo passo sugerido: aplicar `Reveal`/stagger nas demais páginas (relatorios, vendas kanban,
+oportunidades/[id]) e revisar linguagem dos cards internos (playbooks, SLA, templates).
+
+### Tour mais fluido + Kanban arrastável de verdade (frontend)
+
+**Tutorial (`guided-tour-manager.tsx`, `tour-steps.ts`, `tour-styles.css`):**
+- Boas-vindas e encerramento agora são passos **centralizados** (`elementSelector: null`), sem elemento.
+- Indicador "Preparando a próxima parada…" (pílula fixa com spinner + contador) durante a
+  espera de elemento/navegação entre paradas — cobre o vácuo do overlay.
+- Barra de progresso real injetada no popover (`onPopoverRender`, insere `.agente-tour-progress`
+  antes do footer) + animação de entrada do popover + estilo do botão Voltar desabilitado.
+- Toast de celebração ao concluir. Copy de todas as 20 etapas reescrita: 1–2 frases diretas
+  ("o que é + o que fazer"), sem jargão (SLA ? "lead parado volta ao radar", etc.).
+
+**Kanban (`kanban-board.tsx`):**
+- Alça de arraste ampliada: agora é a **linha inteira do topo do cartão** (puxador maior + nome
+  + nota), com `touch-none` (mobile arrasta sem quebrar o scroll do corpo) e cursor grab/grabbing.
+  O corpo do cartão continua livre para clique/botões.
+- Feedback de arraste: `onDragStart` guarda a coluna de origem ? colunas-alvo ganham borda
+  tracejada visível, cartões não arrastados ficam esmaecidos (`opacity-40 saturate-50`), board
+  com cursor grabbing; cartão arrastado com ring mais forte.
+- Textos de ajuda atualizados ("Segure o topo de um cartão e arraste…").
+- Validado: lint, tsc e build limpos.
+
+### Reveal/stagger nas telas restantes + revisão de copy (frontend)
+
+- **Reveal/stagger estendido**: `relatorios/page.tsx` (6 blocos com delays incrementais 0–350ms),
+  `vendas/page.tsx` (kanban, delay 80ms), `oportunidades/[id]/page.tsx` (card de gancho com Reveal
+  delay 60 + tabs com animate-fade-up stagger-2). Dashboard e páginas base já cobertos antes.
+- **Copy de configurações**: varrido todos os cards (`configuracoes/*.tsx`, `vertentes/*.tsx`).
+  A copy já estava majoritariamente em linguagem simples (trabalho anterior: "Nota mínima",
+  "Prazos de atendimento", "Modelos de Mensagens"). Único jargão restante corrigido em
+  `org-secrets-card.tsx`: "Pool global" ? "Chave compartilhada" (badge com ícone Share2),
+  toast e AlertDialog ajustados ("chaves compartilhadas do sistema").
+- Validado: lint, tsc e build limpos (18 rotas).

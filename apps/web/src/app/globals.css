@@ -192,3 +192,222 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   Motion & assinatura — "Radar Vivo"
+   Curvas, elevações e keyframes compartilhados por todo o app.
+   Tudo respeita prefers-reduced-motion (regra global acima).
+   ============================================================ */
+
+@layer base {
+  :root {
+    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --shadow-soft:
+      0 1px 2px color-mix(in oklch, var(--foreground) 5%, transparent),
+      0 6px 24px -8px color-mix(in oklch, var(--foreground) 10%, transparent);
+    --shadow-lift:
+      0 2px 4px color-mix(in oklch, var(--foreground) 6%, transparent),
+      0 20px 40px -16px color-mix(in oklch, var(--foreground) 18%, transparent);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sonar-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes sheen-sweep {
+  from {
+    transform: translateX(-130%) skewX(-12deg);
+  }
+  to {
+    transform: translateX(230%) skewX(-12deg);
+  }
+}
+
+@keyframes shimmer-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0) scale(1.04);
+  }
+}
+
+@layer utilities {
+  /* Entrada coreografada */
+  .animate-fade-up {
+    animation: fade-up 0.6s var(--ease-out-expo) both;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.5s ease-out both;
+  }
+  .animate-scale-in {
+    animation: scale-in 0.35s var(--ease-spring) both;
+  }
+  .stagger-1 { animation-delay: 50ms; }
+  .stagger-2 { animation-delay: 100ms; }
+  .stagger-3 { animation-delay: 150ms; }
+  .stagger-4 { animation-delay: 200ms; }
+  .stagger-5 { animation-delay: 250ms; }
+  .stagger-6 { animation-delay: 300ms; }
+  .stagger-7 { animation-delay: 350ms; }
+  .stagger-8 { animation-delay: 400ms; }
+
+  /* Elevação em dois níveis, temática via color-mix */
+  .elevate {
+    box-shadow: var(--shadow-soft);
+  }
+  .card-lift {
+    transition:
+      box-shadow 0.35s var(--ease-out-expo),
+      transform 0.35s var(--ease-out-expo),
+      border-color 0.35s var(--ease-out-expo);
+  }
+  .card-lift:hover {
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-2px);
+  }
+
+  /* Brilho que atravessa o botão primário no hover */
+  .btn-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-sheen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 42%,
+      rgb(255 255 255 / 22%) 50%,
+      transparent 58%
+    );
+    transform: translateX(-130%) skewX(-12deg);
+  }
+  .btn-sheen:hover::after {
+    animation: sheen-sweep 0.7s var(--ease-out-expo);
+  }
+
+  /* Anéis de sonar — assinatura "radar" do produto */
+  .sonar {
+    position: relative;
+  }
+  .sonar::before,
+  .sonar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1.5px solid currentColor;
+    pointer-events: none;
+    animation: sonar-ring 2.6s var(--ease-out-expo) infinite;
+  }
+  .sonar::after {
+    animation-delay: 1.3s;
+  }
+
+  /* Ponto pulsante de status (radar operando) */
+  .radar-dot {
+    position: relative;
+  }
+  .radar-dot::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    animation: sonar-ring 2s ease-out infinite;
+  }
+
+  /* Shimmer dos skeletons */
+  .skeleton-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklch, var(--foreground) 7%, transparent),
+      transparent
+    );
+    animation: shimmer-slide 1.6s ease-in-out infinite;
+  }
+
+  /* Auroras ambientes de fundo */
+  .aurora-blob {
+    position: absolute;
+    border-radius: 9999px;
+    pointer-events: none;
+    filter: blur(48px);
+    animation: float-slow 12s ease-in-out infinite;
+  }
+
+  /* Sublinhado gradiente do título de página */
+  .heading-underline {
+    background-image: linear-gradient(
+      90deg,
+      var(--primary),
+      color-mix(in oklch, var(--primary) 35%, transparent)
+    );
+    background-repeat: no-repeat;
+    background-size: 3.5rem 2px;
+    background-position: 0 100%;
+    padding-bottom: 0.55rem;
+  }
+}

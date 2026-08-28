@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { KeyRound, Eye, EyeOff, Loader2, Save, Trash2, ShieldCheck } from "lucide-react";
+import { KeyRound, Eye, EyeOff, Loader2, Save, Trash2, ShieldCheck, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useOrgMembership,
@@ -92,7 +92,7 @@ export function OrgSecretsCard() {
     setPendingKey(keyName);
     try {
       await deleteSecret.mutateAsync({ orgId, keyName });
-      toast.success(`${labelFor(keyName)} removida — voltou a usar o pool global.`);
+      toast.success(`${labelFor(keyName)} removida — o sistema volta a usar as chaves compartilhadas.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao remover a chave.");
     } finally {
@@ -160,7 +160,10 @@ export function OrgSecretsCard() {
                           Configurada
                         </Badge>
                       ) : (
-                        <Badge variant="outline">Pool global</Badge>
+                        <Badge variant="outline" className="gap-1">
+                          <Share2 className="h-3 w-3" />
+                          Chave compartilhada
+                        </Badge>
                       )}
                     </Label>
                     <p className="mt-0.5 text-xs text-muted-foreground">{key.description}</p>
@@ -222,7 +225,7 @@ export function OrgSecretsCard() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>Remover chave {key.label}?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              A organização volta a usar a chave do pool global.
+                              A organização volta a usar as chaves compartilhadas do sistema.
                               A chave removida não pode ser recuperada.
                             </AlertDialogDescription>
                           </AlertDialogHeader>

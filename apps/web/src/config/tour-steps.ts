@@ -1,7 +1,8 @@
 export interface TourStep {
   id: string;
   targetRoute: string;
-  elementSelector: string;
+  /** Seletor do elemento a destacar. Omita (ou use null) para um popover centralizado. */
+  elementSelector?: string | null;
   title: string;
   description: string;
   popoverSide?: 'top' | 'bottom' | 'left' | 'right';
@@ -13,20 +14,18 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
     targetRoute: '/dashboard',
-    elementSelector: '[data-tour="dashboard-header"]',
+    elementSelector: null,
     title: 'Boas-vindas ao Prospect.ai',
     description:
-      'Esta é a plataforma de prospecção B2B da sua equipe: ela encontra empresas que combinam com o seu serviço, analisa cada uma e organiza o contato. Vamos percorrer cada tela para você conhecer todas as funções. Use "Próximo" para avançar e "Voltar" para revisar qualquer etapa.',
-    popoverSide: 'bottom',
-    popoverAlign: 'start',
+      'Este sistema encontra empresas com perfil para o seu serviço, analisa cada uma e organiza o contato até a reunião. O tour passa pelas telas principais em poucos minutos — e você pode pausar quando quiser: ele lembra onde parou.',
   },
   {
     id: 'metrics',
     targetRoute: '/dashboard',
     elementSelector: '[data-tour="dashboard-metrics"]',
-    title: 'Números do seu funil',
+    title: 'Os números do funil',
     description:
-      'Aqui você vê, em tempo real: quantos leads foram coletados, quantos foram qualificados (aptos para contato), a taxa de conversão até o fechamento e o faturamento gerado. Clique em um cartão para filtrar o restante do painel por aquele critério — é uma forma rápida de focar no que importa.',
+      'Em tempo real: empresas encontradas, prontas para contato, em conversa e reuniões marcadas. Clique em um cartão para filtrar o painel inteiro por aquele número.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -34,9 +33,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'funnel',
     targetRoute: '/dashboard',
     elementSelector: '[data-tour="dashboard-funnel"]',
-    title: 'Funil e tendência',
+    title: 'O caminho até a venda',
     description:
-      'O gráfico mostra o caminho completo do lead: do primeiro contato até a venda fechada. Acompanhe quantos leads estão em cada estágio e onde eles costumam parar. Se um estágio está com muita gente presa, é um sinal de que o trabalho ali precisa de atenção.',
+      'Da primeira busca ao fechamento, etapa por etapa. Repare onde os leads se acumulam — é ali que vale agir.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -44,9 +43,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'active-campaigns',
     targetRoute: '/dashboard',
     elementSelector: '[data-tour="dashboard-campanhas"]',
-    title: 'Suas buscas em andamento',
+    title: 'Buscas em andamento',
     description:
-      'Esta lista mostra as campanhas ativas e o quanto cada uma avançou: quantos leads já foram encontrados e qual a aptidão média deles. É o lugar para perceber se uma busca está rendendo bem ou se vale pausar e ajustar a estratégia.',
+      'Cada linha é uma busca e o quanto ela já rendeu. Use para decidir quando pausar, ajustar ou reforçar.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -56,7 +55,7 @@ export const TOUR_STEPS: TourStep[] = [
     elementSelector: '[data-tour="dashboard-hoje"]',
     title: 'O que precisa de você hoje',
     description:
-      'Aqui ficam os compromissos pendentes: leads que passaram tempo demais parados, respostas que precisam de próximo passo e contatos agendados. Revisar esse painel todo dia garante que nenhuma oportunidade esfrie na sua mesa.',
+      'Leads parados há tempo demais, respostas pendentes e reuniões próximas. Comece o dia por aqui para nenhuma oportunidade esfriar.',
     popoverSide: 'bottom',
     popoverAlign: 'end',
   },
@@ -64,9 +63,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'timeline',
     targetRoute: '/dashboard',
     elementSelector: '[data-tour="dashboard-timeline"]',
-    title: 'Histórico de atividade',
+    title: 'Histórico do time',
     description:
-      'A linha do tempo registra o movimento da equipe: coleta, análise, contato, respostas e conversões. Todos os acontecimentos importantes ficam anotados automaticamente — você sempre sabe o que foi feito e quando.',
+      'Coletas, análises, contatos e respostas — tudo registrado automaticamente. Você sempre sabe o que foi feito e quando.',
     popoverSide: 'bottom',
     popoverAlign: 'end',
   },
@@ -76,7 +75,7 @@ export const TOUR_STEPS: TourStep[] = [
     elementSelector: '[data-tour="campanhas-header"]',
     title: 'Campanhas: onde tudo começa',
     description:
-      'Uma campanha é uma busca de prospecção: quem você quer encontrar, onde procurar e como avaliar. Você pode criá-la no wizard em passos guiados ou deixar a IA interpretar uma descrição sua. Cada campanha coleta empresas e as qualifica automaticamente.',
+      'Uma campanha é uma busca: quem encontrar, onde procurar e como avaliar. A IA monta a campanha a partir de uma frase sua — ou você cria passo a passo.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -84,9 +83,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'campaign-list',
     targetRoute: '/campanhas',
     elementSelector: '[data-tour="campanhas-lista"]',
-    title: 'Suas campanhas e a nova campanha',
+    title: 'Criar uma nova campanha',
     description:
-      'O botão "Nova Campanha" abre o assistente de criação em 4 passos: nome, segmento e cidade, tipo de análise e a vertente de critérios. Vale explorar também o modo Agente — você descreve em uma frase o que vende e a IA monta a campanha para você.',
+      'O botão "Nova Campanha" abre o assistente em 4 passos. No modo Agente, descreva o que você vende e a IA prepara tudo — depois é só revisar.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -94,9 +93,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'campaign-cards',
     targetRoute: '/campanhas',
     elementSelector: '[data-tour="campanhas-cards"]',
-    title: 'Card de campanha e coleta',
+    title: 'Acompanhar cada busca',
     description:
-      'Cada card resume: quantos leads foram encontrados, o status da busca (em andamento, pausada, concluída) e a aptidão média. O botão "Iniciar Coleta" roda uma rodada de prospecção agora mesmo. Pelo menu de três pontos você pausa, retoma, duplica ou arquiva a busca. O detalhe da campanha tem entradas para importar CSV e buscar empresas por ramo de atividade (CNAE).',
+      'Cada card mostra quantos leads a busca trouxe e a nota média deles. "Iniciar Coleta" roda uma rodada agora; no menu ⋯ você pausa, duplica ou arquiva.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -104,9 +103,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'opportunities',
     targetRoute: '/oportunidades',
     elementSelector: '[data-tour="oportunidades-header"]',
-    title: 'Oportunidades: seus leads analisados',
+    title: 'Oportunidades: leads analisados',
     description:
-      'Aqui estão todas as empresas coletadas, já avaliadas com uma nota de 0 a 100. A nota reflete o quanto cada empresa combina com o que você vende. Abra um card para ver o dossiê completo: dados cadastrais, análise do site, contatos e sugestão de abordagem.',
+      'Todas as empresas coletadas com uma nota de 0 a 100 — quanto maior, mais combina com o que você vende. Abra um card para ver o dossiê completo.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -116,7 +115,7 @@ export const TOUR_STEPS: TourStep[] = [
     elementSelector: '[data-tour="oportunidades-filtros"]',
     title: 'Filtros rápidos',
     description:
-      'Três atalhos resumem os filtros mais usados: "Leads Quentes" (nota 80 ou mais), "Aptos para Contato" (nota 60 ou mais) e "Meus Leads" (só os que estão atribuídos a você). Um clique alterna o conteúdo da tela inteira.',
+      'Atalhos para o que mais se usa: Quentes (nota 80+), Prontos (60+) e Meus Leads. Um clique muda a lista inteira.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -124,9 +123,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'opportunities-search',
     targetRoute: '/oportunidades',
     elementSelector: '[data-tour="oportunidades-busca"]',
-    title: 'Busca, campanha e ordenação',
+    title: 'Busca e ordenação',
     description:
-      'Use a busca para achar uma empresa pelo nome. O seletor de campanha limita a lista a uma busca específica. E a ordenação decide a prioridade da listagem — por aptidão (maior/menor nota) ou por data (mais recentes ou antigos).',
+      'Ache uma empresa pelo nome, limite a lista a uma campanha e escolha a ordem — por nota ou por data.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -134,9 +133,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'opportunities-cards',
     targetRoute: '/oportunidades',
     elementSelector: '[data-tour="oportunidades-lista"]',
-    title: 'Cards, seleção e ações em lote',
+    title: 'Cards e ações em lote',
     description:
-      'Cada card mostra a nota, a prioridade (quente/morno/frio), a necessidade detectada e o status do lead. Marque vários cards para abrir as ações em lote: atribuir a um consultor, mover o funil em massa ou exportar em CSV. Clique no card para abrir o dossiê completo do lead.',
+      'Nota, prioridade e necessidade de cada empresa. Marque vários para agir em lote: atribuir, mover no funil ou exportar.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -146,7 +145,7 @@ export const TOUR_STEPS: TourStep[] = [
     elementSelector: '[data-tour="vendas-header"]',
     title: 'Negociações: o funil de vendas',
     description:
-      'Esta tela organiza seus contatos como um quadro de negociações. Cada coluna é um estágio: novo, apto, contatado, respondeu, reunião marcada, reunião feita, proposta enviada — até o resultado final, fechou ou perdeu.',
+      'Cada coluna é uma etapa do comercial: do lead novo até a proposta enviada. É o quadro que o time acompanha todo dia.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -154,9 +153,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'sales-kanban',
     targetRoute: '/vendas',
     elementSelector: '[data-tour="vendas-kanban"]',
-    title: 'Mover, acionar e acompanhar',
+    title: 'Mover pelo quadro',
     description:
-      'Arraste um card para trocar o estágio — isso registra o status no sistema e na linha do tempo. No card, você vê o valor estimado, os dias sem resposta e atalhos: enviar WhatsApp com 1 clique e atribuir o lead a um consultor. Leads vencidos recebem um alerta para você não deixá-los esfriar.',
+      'Segure o topo de um cartão e arraste para a próxima etapa — o status atualiza na hora. No cartão há atalhos de WhatsApp e atribuição; alertas vermelhos marcam leads parados.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
   },
@@ -164,9 +163,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'analytics',
     targetRoute: '/relatorios',
     elementSelector: '[data-tour="relatorios-header"]',
-    title: 'Relatórios: a visão do time',
+    title: 'Relatórios: os números do negócio',
     description:
-      'Aqui está a inteligência de negócio: KPIs executivos, funil completo com taxas de conversão, receita realizada, previsão ponderada e o desempenho de cada consultor. Use para decidir onde a equipe deve focar e quanto faturamento está a caminho.',
+      'Funil com taxas de conversão, receita, previsão e desempenho por consultor. É daqui que saem as decisões de foco.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
     analystOnly: true,
@@ -175,9 +174,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'analytics-controls',
     targetRoute: '/relatorios',
     elementSelector: '[data-tour="relatorios-controles"]',
-    title: 'Período e exportação em PDF',
+    title: 'Período e PDF para a diretoria',
     description:
-      'Escolha o período do relatório — últimos 30 dias, 90 dias ou um intervalo personalizado — e tudo é recalculado na hora. O botão de exportar gera um PDF executivo com visual, funil, campanhas, consultores e as melhores oportunidades para enviar à diretoria.',
+      'Escolha o período — 30 dias, 90 dias ou um intervalo seu — e tudo é recalculado na hora. O botão de exportação gera um PDF executivo pronto para enviar.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
     analystOnly: true,
@@ -186,9 +185,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'analytics-content',
     targetRoute: '/relatorios',
     elementSelector: '[data-tour="relatorios-conteudo"]',
-    title: 'Mapa, scorebands e rankings',
+    title: 'Mapa, faixas de nota e rankings',
     description:
-      'Nesta tela você encontra o mapa de oportunidades por região, a taxa de conversão por faixa de nota (entende qual "perfil" de lead fecha mais), as melhores oportunidades, o ranking por consultor e a evolução temporal. É o raio-x do negócio todo.',
+      'Oportunidades por região, conversão por faixa de nota (qual perfil fecha mais) e ranking dos consultores — o raio-x do negócio.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
     analystOnly: true,
@@ -197,9 +196,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'vertentes-header',
     targetRoute: '/configuracoes/vertentes',
     elementSelector: '[data-tour="vertentes-header"]',
-    title: 'Vertentes: os perfis que a IA avalia',
+    title: 'Vertentes: como a IA avalia',
     description:
-      'Uma vertente define como a IA avalia e aborda um tipo de empresa: quais informações buscar, o que indica oportunidade e como acompanhar. Existem vertentes de fábrica (para todos os times) e vertentes criadas pelo seu. Gestores podem criar, duplicar e ativar.',
+      'Uma vertente ensina a IA a avaliar e abordar um tipo de empresa. Existem vertentes prontas e as criadas pelo seu time — gestores podem criar e ajustar.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -207,9 +206,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'vertentes-busca',
     targetRoute: '/configuracoes/vertentes',
     elementSelector: '[data-tour="vertentes-busca"]',
-    title: 'Criar, duplicar e usar vertentes',
+    title: 'Criar ou duplicar',
     description:
-      'Pesquise pelo nome da vertente. Gestores podem criar uma nova descrevendo em uma frase o que vendem (ex.: "manutenção de compressores para indústrias de alimentos") — a IA gera um rascunho revisável. Ou duplique uma vertente de fábrica como ponto de partida e ajuste os critérios ao seu público.',
+      'Descreva o que você vende em uma frase (ex.: "manutenção de compressores para indústrias") e a IA gera um rascunho revisável. Ou duplique uma pronta e ajuste os critérios.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -219,7 +218,7 @@ export const TOUR_STEPS: TourStep[] = [
     elementSelector: '[data-tour="configuracoes-perfil"]',
     title: 'Seu perfil e aparência',
     description:
-      'Edite seu nome, veja seu papel na equipe, altere a senha e troque o tema do sistema (Claro, Escuro ou AlphaMec). As preferências ficam salvas no seu navegador.',
+      'Nome, papel na equipe, senha e o tema do sistema: Claro, Escuro ou AlphaMec.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -227,9 +226,9 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'settings-keys',
     targetRoute: '/configuracoes',
     elementSelector: '[data-tour="configuracoes-chaves"]',
-    title: 'Chaves de IA e envio automático',
+    title: 'Chaves de IA e do Google',
     description:
-      'Nas chaves de API você conecta as chaves da sua organização para IA e Google (a equipe define quem pode gerenciá-las). Ajuste também o envio automático de acompanhamentos: limite diário, horário de envio e o remetente usado.',
+      'Conecte as chaves da sua organização (quem pode mexer nelas é definido pela equipe). Sem isso, o sistema usa o pool global.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
@@ -237,20 +236,18 @@ export const TOUR_STEPS: TourStep[] = [
     id: 'settings-envio',
     targetRoute: '/configuracoes',
     elementSelector: '[data-tour="configuracoes-envio"]',
-    title: 'Enviar mensagens automaticamente',
+    title: 'Envio automático de mensagens',
     description:
-      'Esta seção controla os follow-ups automáticos: se o envio está ativo, quantas mensagens por dia podem sair e em que janela de horário. Também dá para configurar prazos de SLA — quando um lead parado deve voltar ao radar — e o limite de nota para a fila de contato.',
+      'Quantas mensagens por dia, em que horários e os prazos em que um lead parado volta ao radar. Configure com calma — é o motor dos follow-ups.',
     popoverSide: 'bottom',
     popoverAlign: 'start',
   },
   {
     id: 'settings-finish',
     targetRoute: '/configuracoes',
-    elementSelector: '[data-tour="configuracoes-tour-card"]',
-    title: 'Tudo pronto!',
+    elementSelector: null,
+    title: 'Tudo pronto! 🎉',
     description:
-      'Você conheceu as principais telas: dashboard, campanhas, oportunidades, negociações, relatórios, vertentes e configurações. Pode refazer este tour a qualquer momento por este cartão ou pelo menu do seu perfil no topo. Bom trabalho em campo!',
-    popoverSide: 'top',
-    popoverAlign: 'start',
+      'Você conheceu as telas principais: dashboard, campanhas, oportunidades, negociações, relatórios, vertentes e configurações. Refaça este tour quando quiser — pelo menu do seu perfil ou pelo cartão de tour nas Configurações. Bom trabalho!',
   },
 ];

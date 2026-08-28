@@ -2,6 +2,7 @@
 
 import { KanbanBoard } from '@/components/vendas/kanban-board';
 import { PageHeader } from '@/components/ui/page-header';
+import { Reveal } from '@/components/ui/motion';
 
 export default function VendasPage() {
   return (
@@ -15,7 +16,9 @@ export default function VendasPage() {
       </div>
 
       <div data-tour="vendas-kanban">
-        <KanbanBoard />
+        <Reveal delay={80}>
+          <KanbanBoard />
+        </Reveal>
       </div>
     </div>
   );

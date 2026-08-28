@@ -207,8 +207,14 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — origins configuráveis via settings.CORS_ORIGINS (deploy: domínio do frontend).
-_cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
+# CORS — origins configuráveis via settings.CORS_ORIGINS (deploy: domínio do
+# frontend). Aceita lista (pydantic) ou CSV legado, para não quebrar deploys
+# antigos que definem a variável como string separada por vírgula.
+_cors_raw = settings.CORS_ORIGINS
+if isinstance(_cors_raw, str):
+    _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+else:
+    _cors_origins = [str(o).strip() for o in _cors_raw if str(o).strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,

@@ -8,32 +8,32 @@ import { Target, Sparkles, MessageSquare, CalendarCheck, ArrowRight } from 'luci
 const steps = [
   {
     step: '01',
-    title: 'Criar Busca',
+    title: 'Crie sua busca',
     desc: 'Escolha cidade e segmento',
     href: '/campanhas/nova',
     icon: Target,
-    badge: 'Início',
+    badge: 'Você',
   },
   {
     step: '02',
-    title: 'Qualificação IA',
-    desc: 'IA descobre dores e nota 0-100',
+    title: 'A IA avalia',
+    desc: 'Cada empresa recebe uma nota e um motivo',
     href: '/oportunidades',
     icon: Sparkles,
     badge: 'Automático',
   },
   {
     step: '03',
-    title: 'Abordar Leads',
-    desc: 'E-mails e WhatsApp com 1 clique',
+    title: 'Faça o contato',
+    desc: 'Mensagens prontas para e-mail e WhatsApp',
     href: '/oportunidades',
     icon: MessageSquare,
-    badge: 'Outreach',
+    badge: '1 clique',
   },
   {
     step: '04',
-    title: 'Fechar Reunião',
-    desc: 'Kanban comercial da equipe',
+    title: 'Marque a reunião',
+    desc: 'Acompanhe cada negociação no quadro do time',
     href: '/vendas',
     icon: CalendarCheck,
     badge: 'Conversão',
@@ -42,20 +42,21 @@ const steps = [
 
 export function ProcessBanner() {
   return (
-    <Card className="relative overflow-hidden border-sidebar-border bg-gradient-to-r from-sidebar/95 via-sidebar to-sidebar/90 text-sidebar-foreground shadow-sm">
-      {/* Background ambient lighting */}
-      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-sidebar-primary/20 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-accent/15 blur-3xl" />
+    <Card className="relative overflow-hidden border-sidebar-border bg-gradient-to-r from-sidebar/95 via-sidebar to-sidebar/90 text-sidebar-foreground shadow-[var(--shadow-soft)]">
+      {/* Auroras ambientes */}
+      <div className="aurora-blob -right-20 -top-24 h-64 w-64 bg-sidebar-primary/20" />
+      <div className="aurora-blob -bottom-24 -left-20 h-64 w-64 bg-accent/15 [animation-delay:-6s]" />
 
       <CardContent className="relative z-10 p-5 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-sidebar-primary/20 px-2.5 py-0.5 text-xs font-semibold text-sidebar-primary">
+              <span className="flex items-center gap-1.5 rounded-full bg-sidebar-primary/20 px-2.5 py-0.5 text-xs font-semibold text-sidebar-primary">
+                <span className="radar-dot inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary" />
                 Guia Comercial EJ
               </span>
               <span className="text-xs text-sidebar-foreground/60">
-                Fluxo de prospecção inteligente
+                Do primeiro clique à reunião marcada
               </span>
             </div>
             <h3 className="font-heading text-lg font-semibold tracking-tight text-sidebar-foreground sm:text-xl">
@@ -71,19 +72,19 @@ export function ProcessBanner() {
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {steps.map((item) => (
-            <Link key={item.step} href={item.href} className="group block">
-              <div className="flex h-full flex-col justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-3.5 transition-all group-hover:border-sidebar-primary/50 group-hover:bg-sidebar-accent">
+          {steps.map((item, i) => (
+            <Link key={item.step} href={item.href} className="group block animate-fade-up" style={{ animationDelay: `${120 + i * 80}ms` }}>
+              <div className="flex h-full flex-col justify-between rounded-lg border border-sidebar-border bg-sidebar-accent/40 p-3.5 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-sidebar-primary/50 group-hover:bg-sidebar-accent group-hover:shadow-lg">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sidebar-accent text-sidebar-primary group-hover:bg-sidebar-primary group-hover:text-sidebar-primary-foreground transition-colors">
-                    <item.icon className="h-4 w-4" aria-hidden="true" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-sidebar-accent text-sidebar-primary transition-colors duration-300 group-hover:bg-sidebar-primary group-hover:text-sidebar-primary-foreground">
+                    <item.icon className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" aria-hidden="true" />
                   </div>
                   <span className="font-mono text-xs font-bold text-sidebar-foreground/40">
                     {item.step}
                   </span>
                 </div>
                 <div className="mt-3">
-                  <p className="text-sm font-semibold text-sidebar-foreground group-hover:text-sidebar-primary transition-colors">
+                  <p className="text-sm font-semibold text-sidebar-foreground transition-colors group-hover:text-sidebar-primary">
                     {item.title}
                   </p>
                   <p className="mt-0.5 text-xs text-sidebar-foreground/60">

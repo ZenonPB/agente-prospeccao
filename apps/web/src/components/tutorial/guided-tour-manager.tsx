@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { driver, Driver } from 'driver.js';
+import { Loader2, Compass } from 'lucide-react';
 import { TOUR_STEPS } from '@/config/tour-steps';
 import { useOnboardingStore } from '@/stores/useOnboardingStore';
 import { useUserMe, useUpdateOnboardingStatus, useOrgMembership } from '@/hooks/use-api';
+import { toast } from 'sonner';
 import './tour-styles.css';
 
 function waitForElement(selector: string, timeout = 4000): Promise<HTMLElement | null> {
@@ -53,6 +55,7 @@ export function GuidedTourManager() {
     status,
     currentStepIndex,
     isActive,
+    isWaitingForElement,
     startTour,
     nextStep,
     prevStep,
@@ -117,7 +120,10 @@ export function GuidedTourManager() {
 
     async function highlightStep() {
       setIsWaitingForElement(true);
-      const element = await waitForElement(currentStep.elementSelector);
+      // Passos sem seletor (boas-vindas/encerramento) ficam centralizados.
+      const element = currentStep.elementSelector
+        ? await waitForElement(currentStep.elementSelector)
+        : null;
 
       if (!isSubscribed) return;
       setIsWaitingForElement(false);
@@ -149,10 +155,20 @@ export function GuidedTourManager() {
         },
         // O driver.js desabilita o botão anterior quando a instância tem um
         // único passo (é o nosso caso — um driver por etapa do tour). Como o
-        // "Voltar" navega para outra etapa/rota do tour, re-habilitamos aqui.
+        // "Voltar" navega para outra etapa/rota do tour, re-habilitamos aqui
+        // e injetamos a barra de progresso do tour.
         onPopoverRender: (popover) => {
           popover.previousButton.disabled = isFirst;
           popover.previousButton.classList.toggle('driver-popover-btn-disabled', isFirst);
+
+          const pct = ((currentStepIndex + 1) / visibleSteps.length) * 100;
+          let track = popover.wrapper.querySelector<HTMLDivElement>('.agente-tour-progress');
+          if (!track) {
+            track = document.createElement('div');
+            track.className = 'agente-tour-progress';
+            popover.wrapper.insertBefore(track, popover.footer);
+          }
+          track.innerHTML = `<span class="agente-tour-progress-fill" style="width:${pct}%"></span>`;
         },
         steps: [
           {
@@ -170,6 +186,9 @@ export function GuidedTourManager() {
                   completeTour();
                   updateStatus('COMPLETED');
                   if (driverRef.current) driverRef.current.destroy();
+                  toast.success('Tour concluído! 🎉', {
+                    description: 'Agora é com você — comece criando sua primeira busca.',
+                  });
                 } else {
                   nextStep();
                 }
@@ -207,6 +226,26 @@ export function GuidedTourManager() {
   ]);
 
   if (!isActive) return null;
+
+  // Entre uma parada e outra (navegação de rota / espera de elemento) o
+  // overlay do driver fica fora do ar — este indicador cobre o vácuo e
+  // evita a sensação de tour " piscando ".
+  if (isWaitingForElement) {
+    return (
+      <div
+        className="animate-fade-in fixed bottom-6 left-1/2 z-[100001] flex -translate-x-1/2 items-center gap-2.5 rounded-full border bg-card px-4 py-2.5 shadow-[var(--shadow-lift)]"
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+        <span className="text-sm font-medium text-foreground">Preparando a próxima parada…</span>
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Compass className="h-3.5 w-3.5" />
+          Etapa {Math.min(currentStepIndex + 1, visibleSteps.length)} de {visibleSteps.length}
+        </span>
+      </div>
+    );
+  }
 
   return null;
 }
