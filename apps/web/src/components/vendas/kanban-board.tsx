@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users } from 'lucide-react';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
@@ -137,6 +137,14 @@ export function KanbanBoard() {
   const [draftColumns, setDraftColumns] = useState<Record<string, LeadData[]> | null>(null);
   const visibleColumns = draftColumns ?? columns;
 
+  // Coluna de origem do arraste em curso: usada para realçar os alvos de
+  // drop e esmaecer os cartões que não estão sendo arrastados.
+  const [activeDragFrom, setActiveDragFrom] = useState<string | null>(null);
+
+  const onDragStart = useCallback((start: DragStart) => {
+    setActiveDragFrom(start.source.droppableId);
+  }, []);
+
   // Alerta de leads parados por lead: mapeia o alerta e o conta por coluna
   // (coluna do status do alerta).
   const slaByLead = useMemo(() => {
@@ -163,6 +171,7 @@ export function KanbanBoard() {
 
   const onDragEnd = useCallback((result: DropResult) => {
     const { draggableId, destination, source } = result;
+    setActiveDragFrom(null);
     if (!destination) return;
     if (destination.droppableId === source.droppableId) return;
 
@@ -287,10 +296,10 @@ export function KanbanBoard() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="hidden text-sm font-medium text-muted-foreground sm:block">
-            Arraste os cartões entre as colunas para atualizar o status do funil
+            Segure o topo de um cartão e arraste entre as colunas para atualizar a etapa
           </p>
           <p className="text-sm font-medium text-muted-foreground sm:hidden">
-            Toque num cartão para abrir o lead · arraste pelo puxador ou use &ldquo;Mover para&rdquo; para mudar de etapa
+            Toque no cartão para abrir o lead · segure o topo para arrastar de etapa
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -318,8 +327,8 @@ export function KanbanBoard() {
         </div>
       </div>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
+      <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <div className={`flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory ${activeDragFrom ? 'cursor-grabbing select-none' : ''}`}>
           {COLUMNS.map((column) => (
             <div key={column.id} className="min-w-[300px] w-[300px] flex-shrink-0 snap-start">
               <div className="rounded-xl bg-muted/40 p-3">
@@ -352,8 +361,10 @@ export function KanbanBoard() {
                       {...provided.droppableProps}
                       className={`min-h-[120px] space-y-2.5 rounded-lg border-2 border-dashed p-2 transition-all duration-200 ${
                         snapshot.isDraggingOver
-                          ? 'border-primary/50 bg-primary/5 scale-[1.01]'
-                          : 'border-transparent bg-transparent'
+                          ? 'scale-[1.01] border-primary/60 bg-primary/5'
+                          : activeDragFrom
+                            ? 'border-border/70 bg-muted/30'
+                            : 'border-transparent bg-transparent'
                       }`}
                     >
                       {(visibleColumns[column.id] || []).map((lead, index) => (
@@ -379,20 +390,26 @@ export function KanbanBoard() {
                               }}
                               className={`group rounded-lg border bg-card p-3.5 shadow-sm transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
                                 snapshot.isDragging
-                                  ? 'shadow-xl ring-2 ring-primary/30 rotate-[1.5deg] scale-[1.03]'
-                                  : 'hover:shadow-md hover:border-primary/20'
+                                  ? 'rotate-[1.5deg] scale-[1.03] shadow-xl ring-2 ring-primary/40'
+                                  : activeDragFrom
+                                    ? 'opacity-40 saturate-50'
+                                    : 'hover:border-primary/20 hover:shadow-md'
                               }`}
                             >
-                              <div className="mb-2 flex items-start justify-between gap-2">
+                              {/* Cabeçalho do cartão = alça de arraste. Área generosa
+                                  (puxador + nome + nota): segurar aqui arrasta; tocar
+                                  abre o lead. O corpo fica livre para os botões. */}
+                              <div
+                                {...provided.dragHandleProps}
+                                className="-mx-1 mb-2 flex cursor-grab touch-none select-none items-start justify-between gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60 active:cursor-grabbing"
+                                title="Segure e arraste para mudar de etapa"
+                              >
                                 <div className="flex min-w-0 items-center gap-2">
-                                  {/* Arrastar só pelo puxador — tocar no cartão abre o lead
-                                      (drag handle separado evita conflito de gestos no mobile). */}
                                   <span
-                                    {...provided.dragHandleProps}
-                                    className="shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-muted-foreground active:cursor-grabbing"
-                                    aria-label="Arrastar para mudar de etapa"
+                                    className="shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground"
+                                    aria-hidden="true"
                                   >
-                                    <GripVertical className="h-4 w-4" />
+                                    <GripVertical className="h-5 w-5" />
                                   </span>
                                   <h4 className="truncate font-medium">{lead.company_name}</h4>
                                 </div>
