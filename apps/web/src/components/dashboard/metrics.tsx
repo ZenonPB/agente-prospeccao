@@ -4,32 +4,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Target, Phone, Calendar, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react';
 import { useLeadStats } from '@/hooks/use-api';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AnimatedNumber, Reveal } from '@/components/ui/motion';
 
 interface MetricCardProps {
   title: string;
   value: string | number;
   description?: string;
   icon: React.ReactNode;
+  iconClassName?: string;
   trend?: 'up' | 'down' | 'neutral';
   trendValue?: string;
   onClick?: () => void;
   active?: boolean;
 }
 
-export function MetricCard({ title, value, description, icon, trend, trendValue, onClick, active }: MetricCardProps) {
+export function MetricCard({ title, value, description, icon, iconClassName, trend, trendValue, onClick, active }: MetricCardProps) {
+  const interactive = Boolean(onClick);
   return (
     <Card
-      className={`transition-all hover:shadow-md ${
-        onClick ? 'cursor-pointer' : ''
+      className={`card-lift ${
+        interactive ? 'cursor-pointer hover:ring-primary/40' : ''
       } ${active ? 'ring-2 ring-primary' : ''}`}
       onClick={onClick}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        <div className="rounded-lg bg-primary/10 p-2 text-primary">{icon}</div>
+        <div className={`rounded-lg p-2 transition-colors ${iconClassName ?? 'bg-primary/10 text-primary'}`}>{icon}</div>
       </CardHeader>
       <CardContent>
-        <div className="font-heading text-2xl font-semibold tabular-nums tracking-tight">{value}</div>
+        <div className="font-heading text-2xl font-semibold tracking-tight">
+          {typeof value === 'number' ? <AnimatedNumber value={value} /> : value}
+        </div>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
@@ -106,51 +123,48 @@ export function MetricsGrid({ onFilter, activeFilter }: MetricsGridProps) {
   const metrics = [
     {
       id: 'total',
-      title: 'Encontrados',
+      title: 'Encontradas',
       value: stats?.total || 0,
-      description: 'leads capturados',
-      icon: <Users className="h-4 w-4 text-muted-foreground" />,
-      trend: 'neutral' as const,
-      trendValue: '',
+      description: 'empresas capturadas nas buscas',
+      icon: <Users className="h-4 w-4" />,
+      iconClassName: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
     },
     {
       id: 'qualified',
-      title: 'Aptos para contato',
+      title: 'Prontas para contato',
       value: stats?.qualified_count || 0,
-      description: `score >= 60 (${stats?.qualified_pct || 0}%)`,
-      icon: <Target className="h-4 w-4 text-muted-foreground" />,
-      trend: 'neutral' as const,
-      trendValue: '',
+      description: `bem avaliadas pela IA (${stats?.qualified_pct || 0}%)`,
+      icon: <Target className="h-4 w-4" />,
+      iconClassName: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
     },
     {
       id: 'contacted',
-      title: 'Em contato',
+      title: 'Em conversa',
       value: (stats?.contacted_count) || 0,
       description: 'aguardando resposta',
-      icon: <Phone className="h-4 w-4 text-muted-foreground" />,
-      trend: 'neutral' as const,
-      trendValue: '',
+      icon: <Phone className="h-4 w-4" />,
+      iconClassName: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
     },
     {
       id: 'meetings',
       title: 'Reuniões marcadas',
       value: stats?.meetings_count || 0,
-      description: 'agendadas',
-      icon: <Calendar className="h-4 w-4 text-muted-foreground" />,
-      trend: 'neutral' as const,
-      trendValue: '',
+      description: 'resultados do time',
+      icon: <Calendar className="h-4 w-4" />,
+      iconClassName: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
     },
   ];
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {metrics.map((metric) => (
-        <MetricCard
-          key={metric.id}
-          {...metric}
-          onClick={() => onFilter?.(activeFilter === metric.id ? null : metric.id)}
-          active={activeFilter === metric.id}
-        />
+      {metrics.map((metric, i) => (
+        <Reveal key={metric.id} delay={i * 70}>
+          <MetricCard
+            {...metric}
+            onClick={() => onFilter?.(activeFilter === metric.id ? null : metric.id)}
+            active={activeFilter === metric.id}
+          />
+        </Reveal>
       ))}
     </div>
   );
