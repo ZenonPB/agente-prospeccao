@@ -17,6 +17,7 @@ import { ThresholdCard } from '@/components/relatorios/threshold-card';
 import { MessageVariantsCard } from '@/components/relatorios/message-variants-card';
 import { ReportControls, downloadBlob } from '@/components/relatorios/report-controls';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
+import { Reveal } from '@/components/ui/motion';
 import { toast } from 'sonner';
 
 export default function RelatoriosPage() {
@@ -105,38 +106,56 @@ export default function RelatoriosPage() {
         <ChartCardError title="Não foi possível carregar os relatórios" message={errMsg instanceof Error ? errMsg.message : 'Tente novamente mais tarde'} />
       ) : (
         <>
-          {overviewQ.data && <ExecutiveKpis overview={overviewQ.data} />}
-          {forecastQ.data && <ForecastCard forecast={forecastQ.data} />}
-          {funnelQ.data && <FunnelEndToEndCard funnel={funnelQ.data} />}
+          {overviewQ.data && (
+            <Reveal>
+              <ExecutiveKpis overview={overviewQ.data} />
+            </Reveal>
+          )}
+          {forecastQ.data && (
+            <Reveal delay={70}>
+              <ForecastCard forecast={forecastQ.data} />
+            </Reveal>
+          )}
+          {funnelQ.data && (
+            <Reveal delay={140}>
+              <FunnelEndToEndCard funnel={funnelQ.data} />
+            </Reveal>
+          )}
           {canView && (
-            <div className="grid gap-6 lg:grid-cols-2">
-              <ThresholdCard period={period} />
-              <MessageVariantsCard period={period} />
-            </div>
+            <Reveal delay={210}>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <ThresholdCard period={period} />
+                <MessageVariantsCard period={period} />
+              </div>
+            </Reveal>
           )}
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2 space-y-6">
-              {overviewQ.data && <FunnelCard overview={overviewQ.data} />}
-              {geoQ.data && <GeoCard states={geoQ.data.states} />}
-              {timelineQ.data && <TimelineCard timeline={timelineQ.data.timeline} />}
+          <Reveal delay={280}>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-2 space-y-6">
+                {overviewQ.data && <FunnelCard overview={overviewQ.data} />}
+                {geoQ.data && <GeoCard states={geoQ.data.states} />}
+                {timelineQ.data && <TimelineCard timeline={timelineQ.data.timeline} />}
+              </div>
+              <div className="space-y-6">
+                {overviewQ.data && (
+                  <>
+                    <RatesCard overview={overviewQ.data} />
+                    <ScoreBandsCard overview={overviewQ.data} />
+                    <NegotiationCard overview={overviewQ.data} />
+                  </>
+                )}
+                {consultantsQ.data && <ConsultantsCard consultants={consultantsQ.data.consultants} />}
+              </div>
             </div>
-            <div className="space-y-6">
-              {overviewQ.data && (
-                <>
-                  <RatesCard overview={overviewQ.data} />
-                  <ScoreBandsCard overview={overviewQ.data} />
-                  <NegotiationCard overview={overviewQ.data} />
-                </>
-              )}
-              {consultantsQ.data && <ConsultantsCard consultants={consultantsQ.data.consultants} />}
-            </div>
-          </div>
+          </Reveal>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            {campaignsQ.data && <CampaignsCard campaigns={campaignsQ.data.campaigns} />}
-            {rankingQ.data && <TopLeadsCard leads={rankingQ.data.items} />}
-          </div>
+          <Reveal delay={350}>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {campaignsQ.data && <CampaignsCard campaigns={campaignsQ.data.campaigns} />}
+              {rankingQ.data && <TopLeadsCard leads={rankingQ.data.items} />}
+            </div>
+          </Reveal>
         </>
       )}
     </div>

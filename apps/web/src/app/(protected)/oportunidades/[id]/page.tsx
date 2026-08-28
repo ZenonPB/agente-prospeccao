@@ -43,6 +43,7 @@ import { OutreachMessagesModal } from '@/components/oportunidades/outreach-messa
 import { toast } from 'sonner';
 import type { ContactItem, OutreachMessages, OutreachVariant } from '@/types/index';
 import { useState } from 'react';
+import { Reveal } from '@/components/ui/motion';
 
 const priorityBadgeConfig: Record<string, { label: string; color: string; emoji: string }> = {
   HOT: { label: 'Quente', color: 'bg-red-100 text-red-700', emoji: '🔥' },
@@ -265,7 +266,8 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
       {/* Highlight Card: Gancho Recomendado */}
       {lead.pitch_angle && (
-        <Card className="border-sidebar-border bg-gradient-to-r from-sidebar/95 to-sidebar text-sidebar-foreground shadow-sm">
+        <Reveal delay={60}>
+          <Card className="border-sidebar-border bg-gradient-to-r from-sidebar/95 to-sidebar text-sidebar-foreground shadow-sm">
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
@@ -294,9 +296,10 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
             </Button>
           </CardContent>
         </Card>
+        </Reveal>
       )}
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4 animate-fade-up stagger-2">
         <TabsList className="h-10">
           <TabsTrigger value="overview" className="h-9">Visão Geral</TabsTrigger>
           <TabsTrigger value="pitch" className="h-9">Resumo para o Vendedor</TabsTrigger>
