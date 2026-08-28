@@ -8,9 +8,38 @@
   border-radius: var(--radius) !important;
   padding: 1.25rem !important;
   max-width: 380px !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: var(--shadow-lift, 0 10px 25px -5px rgba(0, 0, 0, 0.2)) !important;
   font-family: var(--font-sans), sans-serif !important;
   z-index: 100000 !important;
+  animation: agente-tour-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+}
+
+@keyframes agente-tour-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Barra de progresso do tour (injetada antes do rodapé) */
+.agente-tour-progress {
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in oklch, var(--foreground) 10%, transparent);
+  margin-bottom: 0.85rem;
+}
+
+.agente-tour-progress .agente-tour-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--primary) 60%, var(--accent)));
+  transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .driver-popover.agente-tour-popover .driver-popover-title {
@@ -71,6 +100,11 @@
 .driver-popover.agente-tour-popover button.driver-popover-prev-btn:hover {
   background-color: var(--accent) !important;
   color: var(--accent-foreground) !important;
+}
+
+.driver-popover.agente-tour-popover button.driver-popover-prev-btn.driver-popover-btn-disabled {
+  opacity: 0.35 !important;
+  pointer-events: none !important;
 }
 
 .driver-popover.agente-tour-popover button.driver-popover-next-btn {
