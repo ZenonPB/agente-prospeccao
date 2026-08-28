@@ -1,9 +1,10 @@
 'use client';
 
 import { useSession, signOut } from 'next-auth/react';
-import { Menu, HelpCircle, Bell, CheckCheck } from 'lucide-react';
+import { Menu, HelpCircle, Bell, CheckCheck, Search } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { CommandMenu } from '@/components/layout/command-menu';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,8 +73,31 @@ export function Header() {
         </Link>
       </div>
 
-      {/* Right side — notifications + user menu */}
+      {/* Right side — search + notifications + user menu */}
       <div className="flex items-center gap-2">
+        {/* Paleta de comandos (Ctrl/⌘+K) — montada uma única vez */}
+        <CommandMenu />
+        <Button
+          variant="outline"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-command-menu'))}
+          className="hidden h-9 gap-2 rounded-full pr-2 text-muted-foreground md:inline-flex"
+          aria-label="Buscar e navegar (Ctrl+K)"
+        >
+          <Search className="h-4 w-4" />
+          <span className="text-sm">Buscar…</span>
+          <kbd className="pointer-events-none rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            Ctrl K
+          </kbd>
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => window.dispatchEvent(new CustomEvent('open-command-menu'))}
+          className="h-10 w-10 md:hidden"
+          aria-label="Buscar e navegar"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
         {/* Notification bell */}
         <DropdownMenu>
           <DropdownMenuTrigger
