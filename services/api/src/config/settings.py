@@ -48,7 +48,11 @@ class Settings(BaseSettings):
     DAILY_EMAIL_LIMIT: int = Field(40, description='Teto diário default de envios automáticos por org')
 
     # Origins permitidas no CORS (vírgula-separado). Deploy: incluir o domínio do frontend.
-    CORS_ORIGINS: str = Field("http://localhost:3000,http://localhost:3001", description='Origins CORS separadas por vírgula')
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://prospect-api-h1i0.onrender.com"
+    ]
 
     # Password reset
     RESET_TOKEN_EXPIRY_HOURS: int = Field(2, description='Horas até expiração do token de reset de senha')
