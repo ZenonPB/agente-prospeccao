@@ -43,8 +43,11 @@ uvicorn.log
 uvicorn.err.log
 next-dev.log
 next-dev.err.log
+api.log
+api.err.log
 apps/web/dev-*.log
 apps/api/dev-*.log
+.tmp-logs/
 
 # graphify outputs (nunca commitar no GitHub)
 graphify-out/
