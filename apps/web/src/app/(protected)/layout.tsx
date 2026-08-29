@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -6,6 +7,11 @@ import { Header } from "@/components/layout/header";
 import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { GuidedTourManager } from "@/components/tutorial/guided-tour-manager";
 import { PageTransition } from "@/components/ui/motion";
+
+export const metadata: Metadata = {
+  title: { default: "App", template: "%s · Prospect.ai" },
+  robots: { index: false, follow: false, nocache: true, googleBot: { index: false, follow: false } },
+};
 
 export default async function ProtectedLayout({
   children,
@@ -19,12 +25,14 @@ export default async function ProtectedLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-dvh w-full max-w-full min-h-0 overflow-hidden bg-background">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
-          <PageTransition>{children}</PageTransition>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 pb-24 sm:p-6 lg:pb-6">
+          <div className="min-w-0 max-w-full">
+            <PageTransition>{children}</PageTransition>
+          </div>
         </main>
       </div>
       <MobileBottomNav />

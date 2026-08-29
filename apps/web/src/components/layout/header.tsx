@@ -55,7 +55,7 @@ export function Header() {
   };
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-4 lg:px-6">
+    <header className="flex h-16 min-w-0 shrink-0 items-center justify-between gap-2 border-b bg-card px-4 lg:px-6">
       {/* Left side */}
       <div className="flex items-center gap-3">
         <Button
