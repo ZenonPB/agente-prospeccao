@@ -113,7 +113,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               <>
                 <Image
                   src="/imgs/alphamec/logo-alphamec.png"
-                  alt="AlphaMec Logo"
+                  alt="Logotipo da AlphaMec"
                   width={40}
                   height={40}
                   className="h-10 w-10 object-contain"
@@ -304,7 +304,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               <>
                 <Image
                   src="/imgs/alphamec/logo-alphamec.png"
-                  alt="AlphaMec Logo"
+                  alt="Logotipo da AlphaMec"
                   width={32}
                   height={32}
                   className="h-8 w-8 object-contain"

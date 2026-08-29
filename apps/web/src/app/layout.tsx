@@ -17,8 +17,44 @@ const spaceGrotesk = Space_Grotesk({
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Prospect.ai",
-  description: "Plataforma de Inteligência Comercial",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+  ),
+  title: {
+    default: "Prospect.ai — Radar comercial inteligente",
+    template: "%s · Prospect.ai",
+  },
+  description:
+    "Plataforma de prospecção B2B com coleta, enriquecimento e qualificação por IA para gerar reuniões qualificadas.",
+  applicationName: "Prospect.ai",
+  authors: [{ name: "AlphaMec" }],
+  keywords: [
+    "prospecção B2B",
+    "enriquecimento de leads",
+    "qualificação de leads",
+    "outreach automatizado",
+    "inteligência comercial",
+  ],
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: { index: false, follow: false },
+  },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Prospect.ai",
+    title: "Prospect.ai — Radar comercial inteligente",
+    description:
+      "Plataforma de prospecção B2B com coleta, enriquecimento e qualificação por IA.",
+  },
+  twitter: {
+    card: "summary",
+    title: "Prospect.ai — Radar comercial inteligente",
+    description:
+      "Plataforma de prospecção B2B com coleta, enriquecimento e qualificação por IA.",
+  },
 };
 
 export default async function RootLayout({

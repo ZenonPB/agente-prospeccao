@@ -23,17 +23,13 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Process Banner */}
       <ProcessBanner />
 
-      {/* Metrics */}
       <div data-tour="dashboard-metrics">
         <MetricsGrid onFilter={setActiveFilter} activeFilter={activeFilter} />
       </div>
 
-      {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left Column - Charts */}
         <div className="lg:col-span-2 space-y-6">
           <div data-tour="dashboard-funnel">
             <FunnelChart onFilter={setActiveFilter} activeFilter={activeFilter} />
@@ -43,7 +39,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right Column - Activity & Actions */}
         <div className="space-y-6">
           <div data-tour="dashboard-hoje">
             <TodayActions />

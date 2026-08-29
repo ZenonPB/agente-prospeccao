@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
+  HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
@@ -57,6 +58,10 @@ const navGroups: NavGroup[] = [
       { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
       { name: 'Configurações', href: '/configuracoes', icon: Settings },
     ],
+  },
+  {
+    label: 'Suporte',
+    items: [{ name: 'Ajuda', href: '/ajuda', icon: HelpCircle }],
   },
 ];
 

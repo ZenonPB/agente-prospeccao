@@ -192,6 +192,77 @@ render; `updateStatusMutation` = objeto novo do `useMutation`) â†’ cada
 "Maximum update depth exceeded". Fix: `visibleSteps` memoizado (`useMemo`) e
 uso do `mutate` estÃ¡vel no lugar do objeto da mutation.
 
+**Bugfix de responsividade mobile â€” overflow horizontal em KPIs/cards:**
+- `globals.css`: `html, body` agora com `max-width: 100vw` (defesa em
+  profundidade contra o body estourar em qualquer dispositivo).
+- `apps/web/src/app/(protected)/layout.tsx`: root `flex h-dvh w-full max-w-full
+  min-h-0 overflow-hidden` (substitui `h-screen`), container do `<main>` ganha
+  `min-w-0 flex-1 overflow-x-hidden overflow-y-auto` e wrapper interno com
+  `min-w-0 max-w-full` â€” em flex children sem `min-w-0` o `overflow-hidden`
+  do pai nÃ£o segura o conteÃºdo, e o kanban forÃ§ava 7Ã—300px = 2100px de
+  largura fazendo a pÃ¡gina inteira rolar lateralmente.
+- `components/layout/header.tsx`: `header` ganha `min-w-0 shrink-0 gap-2`
+  para o tÃ­tulo "Prospect.ai" do mobile nÃ£o tracionar o flex.
+- `components/vendas/kanban-board.tsx`: container do kanban com
+  `max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto
+  rounded-xl` envolvendo um `flex w-max gap-3 px-1` â€” isola o scroll
+  horizontal dentro do kanban (comportamento esperado: arrastar entre colunas
+  via swipe horizontal). Colunas passam de `min-w-[300px]` fixo para
+  `w-[260px] min-w-[260px] sm:w-[300px] sm:min-w-[300px]` para caber melhor no
+  celular. Skeleton espelhado.
+
+**Marketing/SEO/acessibilidade â€” checklist de site institucional:**
+- PÃ¡gina 404 personalizada em `app/not-found.tsx` (visitante sem login) e
+  `app/(protected)/not-found.tsx` (autenticado, mostra atalhos para Ã¡reas
+  conhecidas). `metadata.robots = { index: false }` em ambas â€” privadas.
+- `app/robots.ts` (Next MetadataRoute) bloqueia tudo exceto login, register,
+  esqueci/resetar-senha e aceitar-convite, com `sitemap` apontando para o
+  origin. `app/sitemap.ts` lista sÃ³ as URLs pÃºblicas acima (prioridade alta
+  para login/register, baixa para fluxos de token).
+- `app/layout.tsx`: `metadataBase` (env `NEXT_PUBLIC_SITE_URL`), `title`
+  com `default` + `template: "%s Â· Prospect.ai"`, descriÃ§Ã£o canÃ´nica,
+  OpenGraph/Twitter pt-BR, `robots: { index: false }` por padrÃ£o (app
+  interno) â€” pÃºblicas auth sobrescrevem.
+- `lib/metadata.ts` (novo): `buildPageMetadata({ title, description, noindex })`
+  para padronizar tÃ­tulos/descriÃ§Ãµes/OG/Twitter em todas as pages.
+- Layouts server por segmento (`app/(protected)/{campanhas,oportunidades,
+  configuracoes,relatorios}/layout.tsx` e sub-`[id]`/`nova`/`membros`/
+  `vertentes`/`consultores`) exportam `metadata` Ãºnico para a rota, herdado
+  por todas as children (client e server) sem refatorar page.tsx. Auth pages
+  idem em `app/(auth)/{login,register,esqueci-senha,resetar-senha,
+  aceitar-convite}/layout.tsx` com `noindex: false`.
+- Alt text: `brand-logo.tsx` e `auth-shell.tsx` (4 ocorrÃªncias) trocam
+  "AlphaMec Logo" por "Logotipo da AlphaMec"; fotos do carrossel da
+  auth-shell mantÃªm `alt={photo.caption}`. `not-found.tsx` Ã­cone + 404
+  interno idem (Ã­cones decorativos marcados com `aria-hidden`). PÃ¡gina de
+  configuraÃ§Ãµes: `aria-hidden` em `AvatarFallback` (iniciais decorativas) e
+  Ã­cones de botÃµes, `aria-label` nos botÃµes de tema, `aria-pressed` em
+  toggle de mostrar/ocultar senha e cards de tema.
+- PÃ¡gina `/ajuda` (nova) com 3 seÃ§Ãµes ancoradas (`#faq`, `#depoimentos`,
+  `#privacidade`) â€” FAQ em `<details>`/`<summary>` (HTML semÃ¢ntico, indexa
+  no Google), 3 cards de depoimentos e bloco de polÃ­tica de privacidade com
+  6 seÃ§Ãµes. ConteÃºdo marcado explicitamente com `TODO:` para o time
+  revisar/preencher antes de publicar. Sidebar ganha grupo "Suporte" com
+  link para `/ajuda`. `metadata` especÃ­fica (noindex).
+- CTA acima da dobra: `ProcessBanner` no `/dashboard` jÃ¡ exibe botÃ£o
+  "Nova Busca RÃ¡pida" no topo do viewport, antes de qualquer scroll â€”
+  ratificado sem alteraÃ§Ãµes.
+- Mobile/bottom-nav: a entrada `/ajuda` aparece no sidebar e respeita o
+  `lg:hidden` do `MobileBottomNav` (visÃ­vel no celular) com a regra de
+  `analystOnly` aplicada conforme a role do membro.
+- `npx tsc --noEmit`/`lint`/`build` limpos. `ts-prune` indica 5 candidatos
+  a dead code (levantamento, sem mexer ainda):
+  - `components/pipeline/pipeline-monitor.tsx:PipelineMonitor` â€” rota
+    `/pipeline` removida na unificaÃ§Ã£o; Ã³rfÃ£o.
+  - `components/oportunidades/version-history.tsx:VersionHistoryButton` â€”
+    export nÃ£o consumido (importaÃ§Ã£o interna: nenhum).
+  - `components/layout/org-switcher.tsx:getActiveOrgId` â€” export nÃ£o
+    consumido; manter se for API pÃºblica do mÃ³dulo.
+  - `components/relatorios/brazil-state-map.tsx:GeoCardError`,
+    `components/relatorios/list-cards.tsx:ListCardError` â€”
+    provavelmente cobertos por `ChartCardError` em
+    `relatorios/chart-cards.tsx` (jÃ¡ usado no `RelatoriosPage`).
+
 **Bloco 1 de melhorias (`docs/melhorias.md`):**
 - **Alerta de nota mÃ­nima baixa** (`OrgThresholdSettings` em `/configuracoes`, owner/admin): aviso visual quando o `qualification_threshold` fica abaixo de 50, sem jargÃ£o tÃ©cnico.
 - **ProteÃ§Ã£o de entregabilidade de e-mail**: `AnalyticsService.check_email_deliverability()` + endpoint `GET /api/analytics/deliverability` (ANALYST/MANAGER). Scheduler `_deliverability_check_loop` (poll `DELIVERABILITY_POLL_SECONDS`, default 1h) pausa `auto_send_email` quando bounce > 5%. `EmailSuppression` ganhou `organization_id` (migration `b2c3d4e5f6a9`) para os alertas serem por organizaÃ§Ã£o.
@@ -1968,61 +2039,61 @@ Branch `feat/melhorias-b2b-infra` ï¿½ itens 6, 7, 8, 9, 12 e 14 de
   Suï¿½te em **421 passed**; compileall, lint, tsc e build limpos; migration
   aplicada no Postgres local (head `a9b8c7d6e5f4`).
 
-### Renovação UI/UX — "Radar Vivo" (frontend)
+### Renovaï¿½ï¿½o UI/UX ï¿½ "Radar Vivo" (frontend)
 
-Redesign da camada visual do `apps/web` sem mudanças de rotas, dados ou contratos de API.
+Redesign da camada visual do `apps/web` sem mudanï¿½as de rotas, dados ou contratos de API.
 Sistema de movimento novo em `globals.css` (keyframes `fade-up/scale-in/sonar/sheen/shimmer/float`,
-elevações `--shadow-soft/lift` via `color-mix`, utilitários `.card-lift/.btn-sheen/.sonar/.radar-dot/
+elevaï¿½ï¿½es `--shadow-soft/lift` via `color-mix`, utilitï¿½rios `.card-lift/.btn-sheen/.sonar/.radar-dot/
 .aurora-blob/.skeleton-shimmer/.heading-underline/.stagger-*`) + primitivos em `components/ui/motion.tsx`
 (`Reveal` com IntersectionObserver, `AnimatedNumber` count-up rAF, `PageTransition` por rota).
 Assinatura visual: motivo radar/sonar (estado vazio, banner, sidebar) + auroras ambientes.
 
 - **Command palette** novo: `components/layout/command-menu.tsx` (Ctrl/?+K ou evento
-  `open-command-menu`) — navegação global respeitando permissão de Relatórios; gatilhos no `header.tsx`.
+  `open-command-menu`) ï¿½ navegaï¿½ï¿½o global respeitando permissï¿½o de Relatï¿½rios; gatilhos no `header.tsx`.
 - **`(protected)/layout.tsx`** envolve children em `PageTransition` (entrada suave por rota).
-- `page-header.tsx` com eyebrow pontilhado + sublinhado gradiente; `empty-state.tsx` com anéis sonar;
+- `page-header.tsx` com eyebrow pontilhado + sublinhado gradiente; `empty-state.tsx` com anï¿½is sonar;
   `skeleton.tsx` com shimmer; `button.tsx` variant default com sheen; `card.tsx` com sombra suave default.
-- `sidebar.tsx`: indicador ativo animado, ícones com zoom no hover, `sr-only`/`title` no modo
+- `sidebar.tsx`: indicador ativo animado, ï¿½cones com zoom no hover, `sr-only`/`title` no modo
   recolhido (a11y), footer com status "Radar operando".
-- Dashboard: `metrics.tsx` com números animados, chips de cor por métrica, card-lift, teclado
-  (role=button + Enter/Espaço) e copy sem jargão ("Prontas para contato", "bem avaliadas pela IA");
-  `process-banner.tsx` com auroras, passos em cascata e copy simples ("A IA avalia", "Faça o contato").
+- Dashboard: `metrics.tsx` com nï¿½meros animados, chips de cor por mï¿½trica, card-lift, teclado
+  (role=button + Enter/Espaï¿½o) e copy sem jargï¿½o ("Prontas para contato", "bem avaliadas pela IA");
+  `process-banner.tsx` com auroras, passos em cascata e copy simples ("A IA avalia", "Faï¿½a o contato").
 - Tudo respeita `prefers-reduced-motion` (regra global em `globals.css`).
 - Validado: `npm run lint` limpo, `tsc --noEmit` limpo, `npm run build` OK (18 rotas), `/login`
-  renderiza 200 em dev. QA visual por screenshot ficou pendente (browser automation não subiu a tempo).
+  renderiza 200 em dev. QA visual por screenshot ficou pendente (browser automation nï¿½o subiu a tempo).
 
-Próximo passo sugerido: aplicar `Reveal`/stagger nas demais páginas (relatorios, vendas kanban,
+Prï¿½ximo passo sugerido: aplicar `Reveal`/stagger nas demais pï¿½ginas (relatorios, vendas kanban,
 oportunidades/[id]) e revisar linguagem dos cards internos (playbooks, SLA, templates).
 
-### Tour mais fluido + Kanban arrastável de verdade (frontend)
+### Tour mais fluido + Kanban arrastï¿½vel de verdade (frontend)
 
 **Tutorial (`guided-tour-manager.tsx`, `tour-steps.ts`, `tour-styles.css`):**
-- Boas-vindas e encerramento agora são passos **centralizados** (`elementSelector: null`), sem elemento.
-- Indicador "Preparando a próxima parada…" (pílula fixa com spinner + contador) durante a
-  espera de elemento/navegação entre paradas — cobre o vácuo do overlay.
+- Boas-vindas e encerramento agora sï¿½o passos **centralizados** (`elementSelector: null`), sem elemento.
+- Indicador "Preparando a prï¿½xima paradaï¿½" (pï¿½lula fixa com spinner + contador) durante a
+  espera de elemento/navegaï¿½ï¿½o entre paradas ï¿½ cobre o vï¿½cuo do overlay.
 - Barra de progresso real injetada no popover (`onPopoverRender`, insere `.agente-tour-progress`
-  antes do footer) + animação de entrada do popover + estilo do botão Voltar desabilitado.
-- Toast de celebração ao concluir. Copy de todas as 20 etapas reescrita: 1–2 frases diretas
-  ("o que é + o que fazer"), sem jargão (SLA ? "lead parado volta ao radar", etc.).
+  antes do footer) + animaï¿½ï¿½o de entrada do popover + estilo do botï¿½o Voltar desabilitado.
+- Toast de celebraï¿½ï¿½o ao concluir. Copy de todas as 20 etapas reescrita: 1ï¿½2 frases diretas
+  ("o que ï¿½ + o que fazer"), sem jargï¿½o (SLA ? "lead parado volta ao radar", etc.).
 
 **Kanban (`kanban-board.tsx`):**
-- Alça de arraste ampliada: agora é a **linha inteira do topo do cartão** (puxador maior + nome
+- Alï¿½a de arraste ampliada: agora ï¿½ a **linha inteira do topo do cartï¿½o** (puxador maior + nome
   + nota), com `touch-none` (mobile arrasta sem quebrar o scroll do corpo) e cursor grab/grabbing.
-  O corpo do cartão continua livre para clique/botões.
+  O corpo do cartï¿½o continua livre para clique/botï¿½es.
 - Feedback de arraste: `onDragStart` guarda a coluna de origem ? colunas-alvo ganham borda
-  tracejada visível, cartões não arrastados ficam esmaecidos (`opacity-40 saturate-50`), board
-  com cursor grabbing; cartão arrastado com ring mais forte.
-- Textos de ajuda atualizados ("Segure o topo de um cartão e arraste…").
+  tracejada visï¿½vel, cartï¿½es nï¿½o arrastados ficam esmaecidos (`opacity-40 saturate-50`), board
+  com cursor grabbing; cartï¿½o arrastado com ring mais forte.
+- Textos de ajuda atualizados ("Segure o topo de um cartï¿½o e arrasteï¿½").
 - Validado: lint, tsc e build limpos.
 
-### Reveal/stagger nas telas restantes + revisão de copy (frontend)
+### Reveal/stagger nas telas restantes + revisï¿½o de copy (frontend)
 
-- **Reveal/stagger estendido**: `relatorios/page.tsx` (6 blocos com delays incrementais 0–350ms),
+- **Reveal/stagger estendido**: `relatorios/page.tsx` (6 blocos com delays incrementais 0ï¿½350ms),
   `vendas/page.tsx` (kanban, delay 80ms), `oportunidades/[id]/page.tsx` (card de gancho com Reveal
-  delay 60 + tabs com animate-fade-up stagger-2). Dashboard e páginas base já cobertos antes.
-- **Copy de configurações**: varrido todos os cards (`configuracoes/*.tsx`, `vertentes/*.tsx`).
-  A copy já estava majoritariamente em linguagem simples (trabalho anterior: "Nota mínima",
-  "Prazos de atendimento", "Modelos de Mensagens"). Único jargão restante corrigido em
-  `org-secrets-card.tsx`: "Pool global" ? "Chave compartilhada" (badge com ícone Share2),
+  delay 60 + tabs com animate-fade-up stagger-2). Dashboard e pï¿½ginas base jï¿½ cobertos antes.
+- **Copy de configuraï¿½ï¿½es**: varrido todos os cards (`configuracoes/*.tsx`, `vertentes/*.tsx`).
+  A copy jï¿½ estava majoritariamente em linguagem simples (trabalho anterior: "Nota mï¿½nima",
+  "Prazos de atendimento", "Modelos de Mensagens"). ï¿½nico jargï¿½o restante corrigido em
+  `org-secrets-card.tsx`: "Pool global" ? "Chave compartilhada" (badge com ï¿½cone Share2),
   toast e AlertDialog ajustados ("chaves compartilhadas do sistema").
 - Validado: lint, tsc e build limpos (18 rotas).

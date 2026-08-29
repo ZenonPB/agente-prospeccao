@@ -71,7 +71,7 @@ function groupLeadsByColumn(leads: LeadData[]): Record<string, LeadData[]> {
 
 function KanbanColumnSkeleton() {
   return (
-    <div className="min-w-[300px] w-[300px] flex-shrink-0">
+    <div className="w-[260px] min-w-[260px] flex-shrink-0 sm:w-[300px] sm:min-w-[300px]">
       <div className="rounded-xl bg-muted/40 p-3">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -328,9 +328,15 @@ export function KanbanBoard() {
       </div>
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className={`flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory ${activeDragFrom ? 'cursor-grabbing select-none' : ''}`}>
-          {COLUMNS.map((column) => (
-            <div key={column.id} className="min-w-[300px] w-[300px] flex-shrink-0 snap-start">
+        <div
+          className={`max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto rounded-xl pb-4 snap-x snap-mandatory ${activeDragFrom ? 'cursor-grabbing select-none' : ''}`}
+        >
+          <div className="flex w-max gap-3 px-1 sm:gap-4">
+            {COLUMNS.map((column) => (
+              <div
+                key={column.id}
+                className="flex w-[260px] min-w-[260px] flex-shrink-0 snap-start flex-col sm:w-[300px] sm:min-w-[300px]"
+              >
               <div className="rounded-xl bg-muted/40 p-3">
                 <div className="mb-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -689,6 +695,7 @@ export function KanbanBoard() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       </DragDropContext>
     </div>
