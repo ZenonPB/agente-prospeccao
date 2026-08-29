@@ -5,7 +5,6 @@ import { MapContainer, TileLayer, CircleMarker, Tooltip as LeafletTooltip } from
 import 'leaflet/dist/leaflet.css';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle } from 'lucide-react';
 import type { AnalyticsGeoState } from '@/lib/api';
 
 // Centroides aproximados das UFs brasileiras (lat, lng) — mapa por UF sem
@@ -55,7 +54,7 @@ export function BrazilStateMap({ states }: { states: AnalyticsGeoState[] }) {
       center={[-14.5, -52.5]}
       zoom={4}
       scrollWheelZoom={false}
-      className="h-full w-full rounded-lg"
+      className="h-full min-h-[260px] w-full min-w-0 rounded-lg"
       style={{ background: 'transparent' }}
     >
       <TileLayer
@@ -89,16 +88,16 @@ export function BrazilStateMap({ states }: { states: AnalyticsGeoState[] }) {
 
 export function GeoCard({ states }: { states: AnalyticsGeoState[] }) {
   return (
-    <Card className="flex flex-col">
+    <Card className="flex min-w-0 flex-col">
       <CardHeader>
         <CardTitle>Mapa de oportunidades</CardTitle>
         <CardDescription>
           Concentração de leads por estado. Quanto maior o círculo, mais leads; a cor reflete o score médio.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex-1">
-        <div className="flex h-full min-h-[320px] flex-col gap-3">
-          <div className="relative h-[300px] overflow-hidden rounded-lg border sm:h-[440px]">
+      <CardContent className="min-w-0 flex-1">
+        <div className="flex h-full min-h-[320px] min-w-0 flex-col gap-3">
+          <div className="relative h-[260px] w-full min-w-0 overflow-hidden rounded-lg border sm:h-[440px]">
             <BrazilStateMap states={states} />
           </div>
           <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
@@ -130,23 +129,6 @@ export function GeoCardSkeleton() {
       </CardHeader>
       <CardContent className="flex-1">
         <Skeleton className="h-[280px] w-full rounded-lg" />
-      </CardContent>
-    </Card>
-  );
-}
-
-export function GeoCardError({ message }: { message: string }) {
-  return (
-    <Card className="flex flex-col">
-      <CardHeader>
-        <CardTitle>Mapa de oportunidades</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 text-red-600">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <p className="text-sm font-medium">Erro ao carregar mapa</p>
-        </div>
-        <p className="mt-1 text-xs text-red-500">{message}</p>
       </CardContent>
     </Card>
   );

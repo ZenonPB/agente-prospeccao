@@ -28,13 +28,17 @@ export function ExecutiveKpis({ overview }: { overview: AnalyticsOverview }) {
         const Icon = m.icon;
         const value = (overview as unknown as Record<string, number>)[m.key] ?? 0;
         return (
-          <Card key={m.key} className="p-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1.5">
-                <p className="text-xs font-medium text-muted-foreground">{m.label}</p>
-                <p className="text-2xl font-bold tracking-tight">{formatValue(m.key, value)}</p>
+          <Card key={m.key} className="min-w-0 p-4">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 space-y-1">
+                <p className="text-[11px] font-medium leading-tight text-muted-foreground sm:text-xs">
+                  {m.label}
+                </p>
+                <p className="truncate text-lg font-bold tracking-tight sm:text-2xl">
+                  {formatValue(m.key, value)}
+                </p>
               </div>
-              <Icon className={`h-5 w-5 ${m.accent}`} />
+              <Icon className={`h-4 w-4 shrink-0 sm:h-5 sm:w-5 ${m.accent}`} />
             </div>
           </Card>
         );
@@ -47,9 +51,9 @@ export function ExecutiveKpisSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
       {Array.from({ length: 6 }).map((_, i) => (
-        <Card key={i} className="p-4">
+        <Card key={i} className="min-w-0 p-4">
           <Skeleton className="h-3 w-16" />
-          <Skeleton className="mt-2 h-7 w-20" />
+          <Skeleton className="mt-2 h-6 w-20 sm:h-7" />
         </Card>
       ))}
     </div>

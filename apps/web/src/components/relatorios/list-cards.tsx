@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle } from 'lucide-react';
 import type { AnalyticsConsultant, AnalyticsCampaign, AnalyticsRankingItem } from '@/lib/api';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -184,23 +183,6 @@ export function ListCardSkeleton() {
             <Skeleton className="h-2 w-full rounded-full" />
           </div>
         ))}
-      </CardContent>
-    </Card>
-  );
-}
-
-export function ListCardError({ title, message }: { title: string; message: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 text-red-600">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <p className="text-sm font-medium">Erro ao carregar</p>
-        </div>
-        <p className="mt-1 text-xs text-red-500">{message}</p>
       </CardContent>
     </Card>
   );

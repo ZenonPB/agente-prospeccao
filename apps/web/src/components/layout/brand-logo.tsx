@@ -26,7 +26,7 @@ export function BrandLogo({ className }: BrandLogoProps) {
     return (
       <Image
         src="/imgs/alphamec/logo-alphamec.png"
-        alt="AlphaMec Logo"
+        alt="Logotipo da AlphaMec"
         width={32}
         height={32}
         className={cn("h-8 w-8 shrink-0 object-contain", className)}

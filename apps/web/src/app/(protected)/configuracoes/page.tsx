@@ -131,7 +131,6 @@ export default function ConfiguracoesPage() {
         description="Gerencie suas preferências e informações da conta"
       />
 
-      {/* Perfil */}
       <Card data-tour="configuracoes-perfil">
         <CardHeader>
           <CardTitle>Perfil</CardTitle>
@@ -142,11 +141,11 @@ export default function ConfiguracoesPage() {
         <CardContent className="space-y-6">
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
-              <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+              <AvatarFallback className="text-lg" aria-hidden="true">{initials}</AvatarFallback>
             </Avatar>
             <div>
               <Button variant="outline" size="sm" disabled>
-                <Camera className="mr-1.5 h-4 w-4" />
+                <Camera className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 Alterar foto
               </Button>
               <p className="mt-1 text-xs text-muted-foreground">Em breve</p>
@@ -195,9 +194,9 @@ export default function ConfiguracoesPage() {
           <div className="flex justify-end">
             <Button onClick={handleSaveProfile} disabled={savingProfile}>
               {savingProfile ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
-                <Save className="mr-1.5 h-4 w-4" />
+                <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
               )}
               Salvar alterações
             </Button>
@@ -205,7 +204,6 @@ export default function ConfiguracoesPage() {
         </CardContent>
       </Card>
 
-      {/* Aparência */}
       <Card>
         <CardHeader>
           <CardTitle>Aparência</CardTitle>
@@ -228,9 +226,12 @@ export default function ConfiguracoesPage() {
                       ? 'border-primary shadow-sm'
                       : 'border-transparent bg-muted/50 hover:border-muted-foreground/20'
                   }`}
+                  aria-pressed={isActive}
+                  aria-label={`Aplicar tema ${themeItem.name}`}
                 >
                   <div
                     className={`flex h-20 w-full items-center justify-center rounded-lg border ${themeItem.preview} ${themeItem.previewText}`}
+                    aria-hidden="true"
                   >
                     <div className="flex flex-col items-center gap-1.5">
                       <div className={`h-2 w-12 rounded ${themeItem.previewAccent}`} />
@@ -238,16 +239,19 @@ export default function ConfiguracoesPage() {
                     </div>
                   </div>
 
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-5 w-5" aria-hidden="true" />
                   <div>
                     <p className="text-sm font-medium">{themeItem.name}</p>
                     <p className="text-xs text-muted-foreground">{themeItem.description}</p>
                   </div>
 
                   {isActive && (
-                    <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    <span
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+                      aria-hidden="true"
+                    >
                       ✓
-                    </div>
+                    </span>
                   )}
                 </button>
               );
@@ -256,7 +260,6 @@ export default function ConfiguracoesPage() {
         </CardContent>
       </Card>
 
-      {/* Segurança */}
       <Card>
         <CardHeader>
           <CardTitle>Segurança</CardTitle>
@@ -307,15 +310,16 @@ export default function ConfiguracoesPage() {
                 type="button"
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
                 onClick={() => setShowPasswords(!showPasswords)}
+                aria-pressed={showPasswords}
               >
-                {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showPasswords ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                 {showPasswords ? 'Ocultar senhas' : 'Mostrar senhas'}
               </button>
               <Button type="submit" disabled={changingPassword}>
                 {changingPassword ? (
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
-                  <Lock className="mr-1.5 h-4 w-4" />
+                  <Lock className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 )}
                 Alterar senha
               </Button>
@@ -324,38 +328,19 @@ export default function ConfiguracoesPage() {
         </CardContent>
       </Card>
 
-      {/* Organização */}
       <OrgNameCard />
-
-      {/* Chaves de API */}
       <div data-tour="configuracoes-chaves">
         <OrgSecretsCard />
       </div>
-
-      {/* Cotas de uso de IA e dados */}
       <OrgQuotaCard />
-
-      {/* Envio de follow-ups */}
       <div data-tour="configuracoes-envio">
         <OrgSendSettings />
       </div>
-
-      {/* Prazos de leads parados */}
       <OrgSlaSettings />
-
-      {/* Threshold de qualificação */}
       <OrgThresholdSettings />
-
-      {/* Integrações */}
       <OrgIntegrationsCard />
-
-      {/* Mensagens salvas por consultor */}
       <PlaybooksCard />
-
-      {/* Tutorial Interativo */}
       <TourCard />
-
-      {/* Monitoramento de Webhooks & Jobs */}
       <SystemMonitoringPanel />
     </div>
   );

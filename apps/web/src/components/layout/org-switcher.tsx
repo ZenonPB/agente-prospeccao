@@ -226,7 +226,3 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
     </>
   );
 }
-
-export function getActiveOrgId(): string | null {
-  return readStoredOrgId();
-}
