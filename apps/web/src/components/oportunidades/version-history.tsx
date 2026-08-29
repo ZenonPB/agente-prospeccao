@@ -1,21 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { History, User, RotateCcw } from 'lucide-react';
 import { useCadenceStepVersions } from '@/hooks/use-api';
 import type { FollowUpVersion } from '@/types';
-
-interface VersionHistoryDialogProps {
-  leadId: string;
-  step: string;
-  stepLabel: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onRestore?: (content: string, subject?: string) => void;
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -94,7 +84,14 @@ export function VersionHistoryDialog({
   open,
   onOpenChange,
   onRestore,
-}: VersionHistoryDialogProps) {
+}: {
+  leadId: string;
+  step: string;
+  stepLabel: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRestore?: (content: string, subject?: string) => void;
+}) {
   const { data, isLoading } = useCadenceStepVersions(open ? leadId : null, open ? step : null);
 
   const versions = data?.versions || [];
@@ -148,41 +145,5 @@ export function VersionHistoryDialog({
         </div>
       </DialogContent>
     </Dialog>
-  );
-}
-
-export function VersionHistoryButton({
-  leadId,
-  step,
-  stepLabel,
-  onRestore,
-}: {
-  leadId: string;
-  step: string;
-  stepLabel: string;
-  onRestore?: (content: string, subject?: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 gap-1 text-xs"
-        onClick={() => setOpen(true)}
-      >
-        <History className="h-3 w-3" />
-        Histórico
-      </Button>
-      <VersionHistoryDialog
-        leadId={leadId}
-        step={step}
-        stepLabel={stepLabel}
-        open={open}
-        onOpenChange={setOpen}
-        onRestore={onRestore}
-      />
-    </>
   );
 }
