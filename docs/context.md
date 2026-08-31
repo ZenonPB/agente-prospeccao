@@ -2123,3 +2123,47 @@ oportunidades/[id]) e revisar linguagem dos cards internos (playbooks, SLA, temp
 - Testes: `test_crm_parser.py` + `test_crm_batch_import.py` (fakes de DB/auth).
   Validado: pytest 455 ok, tsc/lint/build limpos.
 
+### Filtro de Coleta Places — Resultados irrelevantes corrigido ✅ (2026-08-31)
+
+Branch `feat/places-collection-filter`:
+
+**Causa raiz:** a `searchText` (Places API New) paginava até 6 páginas (120
+resultados) e, ao esgotar empresas relevantes, a API preenchia com matches
+cada vez mais frouxos — empresas de outras cidades e segmentos totalmente
+diferentes.
+
+**Correção (3 defesas em profundidade):**
+- **D — `locationRestriction.circle`** no payload do `searchText`: limita a
+  busca geograficamente ao raio da cidade alvo (25 km padrão). Ataca a causa
+  raiz — a API não devolve resultados fora do círculo. Geocoding via cache
+  embutido das cidades brasileiras mais comuns (45+) + Geocoding API
+  clássica (barata) como fallback.
+- **B — `includedType`** no payload: filtra por `primaryType` da Places API
+  (ex: `physiotherapist`, `restaurant`) mapeado do `Campaign.target_segment`.
+  Evita empresas que mencionam o termo em texto mas não pertencem ao segmento.
+- **A — Filtro pós-busca por cidade/UF** (defesa em profundidade):
+  `city_matches`/`state_matches` com comparação case/accents-insensitive.
+  Descarta silenciosamente resultados que passaram pelos filtros anteriores.
+- **C — `max_pages` reduzido de 6 para 3** (60 resultados/rodada): teto
+  realista para cidades médias; economiza cota da API.
+
+**Arquivos novos:**
+- `services/workers/src/services/geo_utils.py` — geocoding + cache + circle
+  + normalização de cidade/UF
+- `services/workers/src/services/segment_type_mapping.py` — mapa
+  segmento→Places type (health, food, commerce, services, etc.)
+- `tests/test_geo_utils.py` (12 testes)
+- `tests/test_segment_type_mapping.py` (8 testes)
+- `tests/test_places_service_filter.py` (9 testes)
+
+**Arquivos modificados:**
+- `services/workers/src/services/places_service.py` — novos params
+  `filter_city`, `filter_state`, `location_bias`, `included_type`;
+  `max_pages` 6→3; loop interno filtra por city/state
+- `services/api/src/pipeline_worker.py` — importa `build_location_circle` +
+  `map_segment_to_places_types`; monta filtros a partir de
+  `campaign.target_city/state/segment` e injeta no `search_places`
+
+**Validado:** 478 testes passam (9 novos, 0 regressões), compileall limpo,
+tsc --noEmit limpo, lint limpo (2 warnings pré-existentes).
+

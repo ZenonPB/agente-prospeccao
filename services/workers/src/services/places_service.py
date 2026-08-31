@@ -1,9 +1,10 @@
 import logging
 import httpx
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from config.settings import settings
 from services.domain_utils import is_social_domain, is_instagram_url
+from services.geo_utils import city_matches, state_matches
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,11 @@ class GooglePlacesService:
         exclude_place_ids: Optional[set] = None,
         db=None,
         organization_id: Optional[str] = None,
+        *,
+        filter_city: Optional[str] = None,
+        filter_state: Optional[str] = None,
+        location_bias: Optional[Dict[str, Any]] = None,
+        included_type: Optional[str] = None,
     ) -> List[Dict]:
         """
         Busca estabelecimentos na Places API (nova) usando texto livre.
@@ -132,6 +138,19 @@ class GooglePlacesService:
         que já possuem leads salvos, sem gastar páginas da API com
         resultados já conhecidos.
 
+        Filtros pós-busca (descartar silenciosamente — sem paginação extra
+        para compensar):
+        - `filter_city` / `filter_state`: comparados (case/accents-insensitive)
+          com o `city`/`state` parseado do `formattedAddress` do lead. Se o
+          resultado não tiver `formattedAddress` parseável, é descartado.
+        - `location_bias`: dict no formato do `locationRestriction.circle`
+          (center + radius). Injetado no payload — restringe a busca na API
+          ao invés de só filtrar depois (mais barato e semanticamente
+          correto).
+        - `included_type`: tipo da Places API (ex: "physiotherapist",
+          "restaurant") — injetado como `includedType` no payload para que
+          a API retorne apenas resultados da categoria correta.
+
         Cotas: com `db` + `organization_id`, verifica a cota
         diária de `GOOGLE_API_KEY` antes de cada página (fail-closed) e
         contabiliza uma chamada por página bem-sucedida.
@@ -142,6 +161,10 @@ class GooglePlacesService:
             exclude_place_ids: Conjunto de place_ids já coletados a ignorar.
             db: Sessão (opcional) para o medidor de cotas.
             organization_id: Org (opcional) dona da chamada.
+            filter_city: Cidade alvo (vinda de `Campaign.target_city`).
+            filter_state: UF alvo (vinda de `Campaign.target_state`).
+            location_bias: `locationRestriction.circle` para a API.
+            included_type: `includedType` para a API.
 
         Returns:
             Lista de dicionários no formato de lead prontos para persistência.
@@ -156,7 +179,18 @@ class GooglePlacesService:
         excluded = set(exclude_place_ids or ())
         page_token = None
         pages = 0
-        max_pages = 6  # teto para não estourar custo da API quando quase tudo já existe
+        # Reduzido de 6 → 3: a API degrada a relevância após ~2-3 páginas
+        # (preenche com matches fracos de outras regiões). 3 × 20 = 60 é
+        # mais que suficiente para campanhas em cidades pequenas/médias;
+        # para campanhas grandes, aumentar `max_results` no chamador.
+        max_pages = 3
+
+        location_filter_active = bool(filter_city or filter_state)
+        if location_filter_active:
+            logger.info(
+                "Filtro geográfico ativo: city=%r state=%r — resultados fora do alvo serão descartados.",
+                filter_city, filter_state,
+            )
 
         logger.info("Buscando na Places API: '%s'", query)
 
@@ -187,6 +221,12 @@ class GooglePlacesService:
                 }
                 if page_token:
                     payload["pageToken"] = page_token
+                # Filtros no payload da API (raio geográfico + categoria):
+                # atacam a causa raiz — a API não devolve lixo de fora.
+                if location_bias:
+                    payload["locationRestriction"] = location_bias
+                if included_type:
+                    payload["includedType"] = included_type
 
                 response = await client.post(PLACES_API_URL, headers=self.headers, json=payload)
                 response.raise_for_status()
@@ -210,11 +250,27 @@ class GooglePlacesService:
                     if place_id and place_id in excluded:
                         continue
                     lead = self._parse_lead(place)
-                    if lead:
-                        leads.append(lead)
-                        if lead.get("place_id_candidate"):
-                            excluded.add(lead["place_id_candidate"])
-                        logger.info("%s | site: %s | tel: %s", lead['name'], lead['website'] or 'N/A', lead['phone'] or 'N/A')
+                    if not lead:
+                        continue
+                    # Filtro pós-busca por cidade/UF (defesa em profundidade
+                    # caso a API ainda devolva algo fora do locationRestriction).
+                    if location_filter_active:
+                        if not city_matches(lead.get("city"), filter_city):
+                            logger.debug(
+                                "Descartado por cidade: '%s' (city=%r != %r)",
+                                lead.get("name"), lead.get("city"), filter_city,
+                            )
+                            continue
+                        if not state_matches(lead.get("state"), filter_state):
+                            logger.debug(
+                                "Descartado por UF: '%s' (state=%r != %r)",
+                                lead.get("name"), lead.get("state"), filter_state,
+                            )
+                            continue
+                    leads.append(lead)
+                    if lead.get("place_id_candidate"):
+                        excluded.add(lead["place_id_candidate"])
+                    logger.info("%s | site: %s | tel: %s", lead['name'], lead['website'] or 'N/A', lead['phone'] or 'N/A')
 
                 page_token = data.get("nextPageToken")
                 if not page_token:
