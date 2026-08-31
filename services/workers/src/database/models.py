@@ -508,6 +508,9 @@ class Lead(Base):
         # org + status (+ score) e org + status + data.
         Index("ix_leads_org_status_score", "organization_id", "status", "qualification_score"),
         Index("ix_leads_org_status_created", "organization_id", "status", "created_at"),
+        # FKs de alto tráfego: analytics filtra por campaign e por consultor.
+        Index("ix_leads_campaign_id", "campaign_id"),
+        Index("ix_leads_assigned_to_id", "assigned_to_id"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -637,6 +640,9 @@ class Enrichment(Base):
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (
+        Index("ix_messages_lead_id", "lead_id"),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
     channel = Column(Enum(MessageChannel, name='message_channel', create_type=True), nullable=False)
@@ -931,6 +937,9 @@ class WebhookLog(Base):
 
 class Conversion(Base):
     __tablename__ = "conversions"
+    __table_args__ = (
+        Index("ix_conversions_lead_id", "lead_id"),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
     converted_at = Column(DateTime(timezone=True), server_default=func.now())
