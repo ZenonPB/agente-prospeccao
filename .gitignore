@@ -56,3 +56,5 @@ graph.svg
 
 # Planilha de vendas Alphamec (dados reais de clientes — nunca versionar)
 docs/planilha_alphamec_atual.xlsx
+# Planilhas do CRM (dados reais de clientes)
+*.xlsx
