@@ -28,6 +28,8 @@ from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.cnae_discovery_service import CnaeDiscoveryService
 from services.pncp_service import PncpService, default_date_window, format_contract_note
+from services.geo_utils import build_location_circle
+from services.segment_type_mapping import map_segment_to_places_types
 from services.secret_service import SecretService
 from services.domain_utils import normalize_domain
 from services.company_person_service import CompanyPersonService
@@ -394,12 +396,41 @@ async def run_pipeline(
             yield {"type": "log", "message": f"Buscando '{query}'...", "timestamp": _ts()}
             places_created_ids: list[str] = []
 
+            # Filtros geográficos e de tipo para a Places API (defesas em
+            # profundidade contra resultados irrelevantes):
+            # - locationRestriction.circle: restringe a busca ao raio da cidade
+            #   (resolve a causa raiz — a API não devolve lixo de fora).
+            # - includedType: filtra por categoria primária (physiotherapist,
+            #   restaurant, etc.) — evita empresas que mencionam o termo em
+            #   texto mas não pertencem ao segmento.
+            # - filter_city/filter_state: pós-filtro case/accents-insensitive
+            #   (última defesa — se a API ainda devolver algo fora do raio).
+            target_city = campaign.target_city if campaign else None
+            target_state = campaign.target_state if campaign else None
+            target_segment = campaign.target_segment if campaign else None
+            location_bias = build_location_circle(
+                target_city, target_state,
+                api_key=goog_key,
+            )
+            included_type = map_segment_to_places_types(target_segment)
+
+            if location_bias:
+                logger.info("Location bias: city=%s, state=%s → circle at %s",
+                            target_city, target_state,
+                            location_bias["circle"]["center"])
+            if included_type:
+                logger.info("Included type: %s (segment=%s)", included_type, target_segment)
+
             results = await places_service.search_places(
                 query,
                 max_results=max_leads,
                 exclude_place_ids=existing_ids_set,
                 db=db,
                 organization_id=str(campaign.organization_id) if campaign else None,
+                filter_city=target_city,
+                filter_state=target_state,
+                location_bias=location_bias,
+                included_type=included_type,
             )
 
             batch_items = filter_new_batch_items(
