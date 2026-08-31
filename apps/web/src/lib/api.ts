@@ -2,6 +2,7 @@ import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
+import type { CrmItem, CrmImportResult } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -1013,3 +1014,30 @@ export const notificationsApi = {
       { method: "PATCH" },
     ),
 };
+
+// CRM Paste — lançamento rápido de leads por texto livre.
+export const crmApi = {
+  extract: (rawText: string) =>
+    request<{ items: CrmItem[] }>("/api/crm/extract", {
+      method: "POST",
+      body: JSON.stringify({ raw_text: rawText }),
+    }),
+
+  batchImport: (payload: {
+    items?: CrmItem[];
+    raw_text?: string;
+    consultant_user_id?: string;
+    campaign_id?: string;
+  }) =>
+    request<CrmImportResult>("/api/crm/batch-import", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  exportXlsx: (consultantUserId?: string) =>
+    request<Blob>("/api/crm/export-xlsx", {
+      responseType: "blob",
+      params: { consultant_user_id: consultantUserId },
+    }),
+};
+

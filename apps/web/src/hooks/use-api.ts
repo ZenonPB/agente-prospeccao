@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, type ScoringTemplateInput } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, type ScoringTemplateInput } from "@/lib/api";
 import type { SalesRole, OrgRole, OnboardingStatus } from "@/types";
 
 export type SegmentSuggestion = {
@@ -959,3 +959,24 @@ export function useMarkAllNotificationsRead() {
     },
   });
 }
+
+// CRM Paste — extração (preview) e importação em lote de leads por texto.
+export function useCrmExtract() {
+  return useMutation({
+    mutationFn: (rawText: string) => crmApi.extract(rawText),
+  });
+}
+
+export function useCrmBatchImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof crmApi.batchImport>[0]) =>
+      crmApi.batchImport(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["metrics"] });
+    },
+  });
+}
+
