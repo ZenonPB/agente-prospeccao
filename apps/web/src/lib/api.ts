@@ -1017,9 +1017,11 @@ export const notificationsApi = {
 
 // CRM — atualização da planilha a partir dos leads do consultor.
 export const crmApi = {
-  atualizarPlanilha: (file: File) => {
+  atualizarPlanilha: (file: File, abaName: string, criarAba: boolean) => {
     const form = new FormData();
     form.append("file", file);
+    form.append("aba_name", abaName);
+    form.append("criar_aba", criarAba ? "true" : "false");
     return request<Blob>("/api/crm/spreadsheet/atualizar", {
       method: "POST",
       body: form,

@@ -99,21 +99,47 @@ def _normalize(text: Any) -> str:
     return re.sub(r"\s+", "", str(text).lower())
 
 
+HEADER_COLUMNS = [
+    "LEAD", "Empresa", "Prospecção", "PITCH ENVIADO", "PITCH ",
+    "1º Follow-up", "2º Follow-up", "3º Follow-up", "RESPONDEU?",
+    "CARGO", "Observações lead", "Status", "DATA status", "ANOTAÇÕES",
+    "CONTRATO   FINAL", "DATA CONTATO PÓS- VENDA", "Follow-up",
+    "PÓS VENDA POR:", "Link ou Telefone ou\n e-mail do Lead",
+]
+
+
 def complementa_planilha(
     workbook_path: str,
     sheet_name: str,
     leads: List[Lead],
     contacts_by_lead: Dict[str, List[Contact]],
     followups_by_lead: Dict[str, Dict[FollowUpStep, datetime]],
+    *,
+    criar_aba_se_ausente: bool = False,
 ) -> Dict[str, int]:
     """Abre o xlsx, localiza a aba e anexa os leads na 1ª linha livre.
+
+    Se *criar_aba_se_ausente* for ``True`` e a aba não existir, cria-a com
+    o header padrão (copiando a primeira aba ou gerando do zero).
 
     Retorna {inseridos, duplicados} e salva o arquivo no mesmo caminho.
     """
     wb = load_workbook(workbook_path)
     if sheet_name not in wb.sheetnames:
-        raise ValueError(f"Aba '{sheet_name}' não encontrada na planilha")
-    ws = wb[sheet_name]
+        if criar_aba_se_ausente:
+            ws_novo = wb.create_sheet(title=sheet_name)
+            header_src = wb[wb.sheetnames[0]] if wb.sheetnames else None
+            for col_idx, header_text in enumerate(HEADER_COLUMNS, start=1):
+                if header_src:
+                    cell_src = header_src.cell(1, col_idx)
+                    ws_novo.cell(1, col_idx, cell_src.value)
+                else:
+                    ws_novo.cell(1, col_idx, header_text)
+            ws = ws_novo
+        else:
+            raise ValueError(f"Aba '{sheet_name}' não encontrada na planilha")
+    else:
+        ws = wb[sheet_name]
 
     # Duplicatas já presentes na aba (col LEAD + Empresa).
     existing = set()

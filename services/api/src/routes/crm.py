@@ -1,7 +1,7 @@
 """Rotas do CRM — preenchimento da planilha a partir dos leads do sistema.
 
 - POST /api/crm/spreadsheet/atualizar — recebe o arquivo .xlsx, lista os leads
-  do consultor autenticado, preenche a aba do consultor e devolve o arquivo
+  do consultor autenticado, preenche a aba selecionada e devolve o arquivo
   atualizado (StreamingResponse).
 """
 import io
@@ -9,7 +9,7 @@ import logging
 import os
 import tempfile
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from src.auth.dependencies import get_user_membership
@@ -30,18 +30,26 @@ def _resolve_aba_consultor(name: str) -> str:
 @router.post("/spreadsheet/atualizar")
 async def atualizar_planilha(
     file: UploadFile = File(...),
+    aba_name: str = Form(default=""),
+    criar_aba: bool = Form(default=False),
     member=Depends(get_user_membership),
     db=Depends(get_db),
 ):
-    """Lê o .xlsx enviado, preenche a aba do consultor com os leads atribuídos a ele
-    e devolve o arquivo atualizado."""
+    """Lê o .xlsx enviado, preenche a aba selecionada com os leads atribuídos
+    ao consultor e devolve o arquivo atualizado.
+
+    Campos:
+      - file: arquivo .xlsx
+      - aba_name: nome da aba (se vazio, usa o nome do usuário)
+      - criar_aba: se True, cria a aba quando não existir
+    """
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Envie um arquivo .xlsx")
 
     from src.db.models import Contact, FollowUp, Lead
 
     user = member.user
-    aba = _resolve_aba_consultor(getattr(user, "name", None) or "Zenon")
+    aba = aba_name.strip() if aba_name and aba_name.strip() else _resolve_aba_consultor(getattr(user, "name", None) or "Zenon")
 
     leads = (
         db.query(Lead)
@@ -66,6 +74,7 @@ async def atualizar_planilha(
         try:
             result = complementa_planilha(
                 tmp_path, aba, leads, contacts_by_lead, followups_by_lead,
+                criar_aba_se_ausente=criar_aba,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
