@@ -1015,29 +1015,15 @@ export const notificationsApi = {
     ),
 };
 
-// CRM Paste — lançamento rápido de leads por texto livre.
+// CRM — atualização da planilha a partir dos leads do consultor.
 export const crmApi = {
-  extract: (rawText: string) =>
-    request<{ items: CrmItem[] }>("/api/crm/extract", {
+  atualizarPlanilha: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Blob>("/api/crm/spreadsheet/atualizar", {
       method: "POST",
-      body: JSON.stringify({ raw_text: rawText }),
-    }),
-
-  batchImport: (payload: {
-    items?: CrmItem[];
-    raw_text?: string;
-    consultant_user_id?: string;
-    campaign_id?: string;
-  }) =>
-    request<CrmImportResult>("/api/crm/batch-import", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  exportXlsx: (consultantUserId?: string) =>
-    request<Blob>("/api/crm/export-xlsx", {
+      body: form,
       responseType: "blob",
-      params: { consultant_user_id: consultantUserId },
-    }),
+    });
+  },
 };
-

@@ -960,23 +960,9 @@ export function useMarkAllNotificationsRead() {
   });
 }
 
-// CRM Paste — extração (preview) e importação em lote de leads por texto.
-export function useCrmExtract() {
+// CRM — envia a planilha e recebe a versão atualizada com os leads do consultor.
+export function useAtualizarPlanilha() {
   return useMutation({
-    mutationFn: (rawText: string) => crmApi.extract(rawText),
+    mutationFn: (file: File) => crmApi.atualizarPlanilha(file),
   });
 }
-
-export function useCrmBatchImport() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: Parameters<typeof crmApi.batchImport>[0]) =>
-      crmApi.batchImport(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-      queryClient.invalidateQueries({ queryKey: ["metrics"] });
-    },
-  });
-}
-
