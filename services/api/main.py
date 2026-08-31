@@ -10,6 +10,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
@@ -197,11 +201,16 @@ async def lifespan(app: FastAPI):
             pass
 
 
+_is_prod = settings.ENVIRONMENT == "production"
+
 app = FastAPI(
     title="Prospect.ai API",
     description="Plataforma de inteligência comercial e prospecção B2B",
     version="0.1.0",
     lifespan=lifespan,
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
 
 app.state.limiter = limiter
@@ -215,13 +224,56 @@ if isinstance(_cors_raw, str):
     _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
 else:
     _cors_origins = [str(o).strip() for o in _cors_raw if str(o).strip()]
+
+if _is_prod:
+    _bad = [o for o in _cors_origins if "localhost" in o]
+    if _bad:
+        raise RuntimeError(
+            f"CORS_ORIGINS contém localhost em produção: {_bad}. "
+            "Defina o domínio real do frontend em CORS_ORIGINS."
+        )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Organization-Id"],
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Injeta headers de segurança em todas as respostas."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if _is_prod:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+if _is_prod:
+    from starlette.datastructures import URL
+
+    class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+        """Redirect HTTP → HTTPS em produção (necessário em plataformas gratuitas
+        que não fazem terminação TLS no proxy)."""
+
+        async def dispatch(self, request: Request, call_next):
+            if request.url.scheme == "http":
+                https_url = URL(
+                    request.url.replace(scheme="https"),
+                )
+                return RedirectResponse(url=str(https_url), status_code=301)
+            return await call_next(request)
+
+    app.add_middleware(HTTPSRedirectMiddleware)
 
 # Routers
 app.include_router(auth_router, prefix="/api")
@@ -244,7 +296,7 @@ app.include_router(tracking.router)
 
 @app.get("/")
 def root():
-    return {"message": "Prospect.ai API", "docs": "/docs"}
+    return {"message": "Prospect.ai API"}
 
 
 @app.get("/health")
@@ -262,4 +314,4 @@ def health():
         logger.exception("Healthcheck falhou ao pingar o banco")
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=503, content={"status": "error", "database": "unreachable"})
-    return {"status": "ok", "database": "ok", "environment": settings.ENVIRONMENT}
+    return {"status": "ok", "database": "ok"}
