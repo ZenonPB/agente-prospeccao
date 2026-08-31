@@ -216,6 +216,18 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """Garante que erros inesperados retornam JSON — sem isso, o FastAPI devolve
+    HTML 500 e o frontend mostra 'NetworkError' em vez de uma mensagem real."""
+    logger.error("Unhandled exception on %s: %s", request.url.path, exc, exc_info=True)
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Erro interno do servidor. Tente novamente."},
+    )
+
 # CORS — origins configuráveis via settings.CORS_ORIGINS (deploy: domínio do
 # frontend). Aceita lista (pydantic) ou CSV legado, para não quebrar deploys
 # antigos que definem a variável como string separada por vírgula.
@@ -258,22 +270,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-if _is_prod:
-    from starlette.datastructures import URL
-
-    class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
-        """Redirect HTTP → HTTPS em produção (necessário em plataformas gratuitas
-        que não fazem terminação TLS no proxy)."""
-
-        async def dispatch(self, request: Request, call_next):
-            if request.url.scheme == "http":
-                https_url = URL(
-                    request.url.replace(scheme="https"),
-                )
-                return RedirectResponse(url=str(https_url), status_code=301)
-            return await call_next(request)
-
-    app.add_middleware(HTTPSRedirectMiddleware)
+# NOTA: HTTPSRedirectMiddleware foi removido. Plataformas como Render/Railway
+# já terminam TLS no proxy de borda — o app recebe HTTP internamente. Um
+# redirect HTTP→HTTPS no app causa: (1) loop infinito (browser sempre recebe
+# HTTP do proxy e o app redireciona para HTTPS que o browser não alcança);
+# (2) quebra CORS — o redirect intercepta preflight OPTIONS antes do
+# CORSMiddleware, e o Fetch spec não segue redirects em preflights.
 
 # Routers
 app.include_router(auth_router, prefix="/api")

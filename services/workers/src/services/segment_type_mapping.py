@@ -21,12 +21,12 @@ _SEGMENT_TO_TYPES: List[tuple] = [
     # Saúde
     (["fisioterapia", "fisioterapeuta", "quiropraxia"], ["physiotherapist"]),
     (["dentista", "odontologia", "odontologico", "odontologica"], ["dentist"]),
-    (["psicolog", "psicanalis"], ["psychologist"]),
+    (["psicolog", "psicanalis"], ["doctor"]),
     (["veterinaria", "veterinario"], ["veterinary_care"]),
     (["pet shop", "petshop"], ["pet_store"]),
     (["farmacia", "drogaria"], ["pharmacy"]),
     (["hospital"], ["hospital"]),
-    (["clinica medica", "medico", "medica", "consultorio"], ["doctor", "health"]),
+    (["clinica medica", "medico", "medica", "consultorio"], ["doctor"]),
     (["academia", "musculacao", "crossfit", "pilates", "estudio de pilates"], ["gym", "fitness_center"]),
     (["estetica", "salao", "salao de beleza", "barbearia", "manicure"], ["beauty_salon", "hair_care"]),
     (["clinica"], ["doctor", "health"]),
@@ -59,7 +59,7 @@ _SEGMENT_TO_TYPES: List[tuple] = [
     (["imobiliaria", "imobiliária"], ["real_estate_agency"]),
 
     # Tecnologia
-    (["startup", "empresa de tecnologia", "empresa de ti", "consultoria de ti"], ["point_of_interest"]),
+    (["startup", "empresa de tecnologia", "empresa de ti", "consultoria de ti"], []),
 ]
 
 
@@ -103,6 +103,6 @@ def map_segment_to_places_types(segment: Optional[str]) -> Optional[str]:
     for keywords, types in _SEGMENT_TO_TYPES:
         for kw in keywords:
             if _matches_keyword(norm, _norm(kw)):
-                return types[0]
+                return types[0] if types else None
     logger.debug("Segmento '%s' sem mapeamento para Places types.", segment)
     return None

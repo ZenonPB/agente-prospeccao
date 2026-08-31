@@ -182,8 +182,8 @@ def test_search_places_envia_location_restriction_no_payload():
         )
 
     assert len(captured) == 1, f"Esperado 1 chamada, got {len(captured)} — helper deve usar next_page_token=None"
-    assert "locationRestriction" in captured[0]
-    assert captured[0]["locationRestriction"]["circle"]["center"]["latitude"] == -21.7943
+    assert "locationBias" in captured[0]
+    assert captured[0]["locationBias"]["circle"]["center"]["latitude"] == -21.7943
 
 
 def test_search_places_envia_included_type_quando_informado():
@@ -273,5 +273,5 @@ def test_search_places_combinado_filtra_e_para_3_paginas():
     # 3 de Araraquara + 0 fora (todos os "São José", "Lages", "Guaíba" descartados)
     assert {l["name"] for l in leads} == {"Clínica 1", "Clínica 3", "Clínica 5"}
     assert len(captured) == 3
-    assert all("locationRestriction" in p for p in captured)
+    assert all("locationBias" in p for p in captured)
     assert all(p.get("includedType") == "physiotherapist" for p in captured)
