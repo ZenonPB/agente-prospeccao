@@ -186,16 +186,14 @@ def _lead_summary(lead: Lead) -> dict:
     }
 
 
-def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
+def _lead_detail(lead: Lead, enrichment: Optional[Enrichment], include_raw: bool = False) -> dict:
     """Detalhe do lead com evidence/score_factors estruturados."""
     summary = _lead_summary(lead)
-    summary.update({
+    detail = {
         "notes": lead.notes,
         "next_action_at": lead.next_action_at.isoformat() if lead.next_action_at else None,
         "last_contacted_at": lead.last_contacted_at.isoformat() if lead.last_contacted_at else None,
         "address": lead.address,
-        "score_factors": lead.score_factors,
-        "evidence": lead.evidence,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
         "contacts": [
@@ -226,12 +224,17 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment]) -> dict:
             "seo_errors": enrichment.seo_errors,
             "load_time_ms": enrichment.load_time_ms,
             "security_issues": enrichment.security_issues,
-            "raw_technical_data": enrichment.raw_technical_data,
             "created_at": enrichment.created_at.isoformat() if enrichment.created_at else None,
             "updated_at": enrichment.updated_at.isoformat() if enrichment.updated_at else None,
         } if enrichment else None,
         "enrichment_freshness": freshness_snapshot(read_stamps(lead)),
-    })
+    }
+    if include_raw:
+        detail["score_factors"] = lead.score_factors
+        detail["evidence"] = lead.evidence
+        if enrichment:
+            detail["enrichment"]["raw_technical_data"] = enrichment.raw_technical_data
+    summary.update(detail)
     return summary
 
 
@@ -323,7 +326,11 @@ def list_leads(
     from sqlalchemy.orm import joinedload
     leads = (
         query.order_by(Lead.qualification_score.desc())
-        .options(joinedload(Lead.assigned_to))
+        .options(
+            joinedload(Lead.assigned_to),
+            joinedload(Lead.company),
+            joinedload(Lead.primary_person),
+        )
         .offset(offset).limit(limit).all()
     )
 
@@ -539,7 +546,7 @@ def update_lead(
 
     db.commit()
     db.refresh(lead)
-    return _lead_detail(lead, db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first())
+    return _lead_detail(lead, db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first(), include_raw=True)
 
 
 class AssignLeadRequest(BaseModel):
@@ -648,9 +655,20 @@ def get_lead_duplicates(
     target_contacts = (
         db.query(Contact).filter(Contact.lead_id == lead.id).all()
     )
+
+    # Batch prefetch de contatos (P0-1): evita N+1 queries no loop.
+    all_lead_ids = [c.id for c in candidates]
+    all_contacts = (
+        db.query(Contact).filter(Contact.lead_id.in_(all_lead_ids)).all()
+        if all_lead_ids else []
+    )
+    contacts_by_lead_id: dict = {}
+    for ct in all_contacts:
+        contacts_by_lead_id.setdefault(str(ct.lead_id), []).append(ct)
+
     others_payload = []
     for c in candidates:
-        contacts = db.query(Contact).filter(Contact.lead_id == c.id).all()
+        contacts = contacts_by_lead_id.get(str(c.id), [])
         others_payload.append({
             "id": c.id,
             "company_name": c.company_name,
@@ -678,6 +696,7 @@ def get_lead_duplicates(
 @router.get("/{lead_id}")
 def get_lead(
     lead_id: str,
+    include: Optional[str] = Query(None, description="Campos extras: raw_data"),
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
@@ -693,8 +712,9 @@ def get_lead(
         raise HTTPException(status_code=403, detail="Acesso negado a este lead")
 
     enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
+    include_raw = include and "raw_data" in include.split(",")
 
-    return _lead_detail(lead, enrichment)
+    return _lead_detail(lead, enrichment, include_raw=include_raw)
 
 
 @router.get("/{lead_id}/pitch")
@@ -1217,15 +1237,23 @@ def _build_lead_dict(lead: Lead, db: Session) -> dict:
     }
 
 
-def _follow_up_dict(fu: FollowUp, db: Session, lead: Optional[Lead] = None) -> dict:
+def _follow_up_dict(fu: FollowUp, db: Session, lead: Optional[Lead] = None,
+                     _tracking_cache: Optional[dict] = None,
+                     _recipients_cache: Optional[list] = None) -> dict:
     # Tracking 4.2: abertura/clique vêm do `Message` ligado pelo token.
     opened_at = clicked_at = None
     if fu.tracking_token:
-        msg = (
-            db.query(Message)
-            .filter(Message.tracking_token == fu.tracking_token)
-            .first()
-        )
+        msg = None
+        if _tracking_cache is not None and fu.tracking_token in _tracking_cache:
+            msg = _tracking_cache[fu.tracking_token]
+        else:
+            msg = (
+                db.query(Message)
+                .filter(Message.tracking_token == fu.tracking_token)
+                .first()
+            )
+            if _tracking_cache is not None:
+                _tracking_cache[fu.tracking_token] = msg
         if msg:
             opened_at = msg.opened_at
             clicked_at = msg.clicked_at
@@ -1234,10 +1262,11 @@ def _follow_up_dict(fu: FollowUp, db: Session, lead: Optional[Lead] = None) -> d
     if not recipient and lead and fu.status == FollowUpStatus.PENDING and fu.content:
         from src.services.cadence_service import _planned_recipient, _recipients_so_far
 
+        sent_to = _recipients_cache if _recipients_cache is not None else _recipients_so_far(db, str(lead.id))
         recipient = _planned_recipient(
             lead,
             step=fu.step,
-            sent_to=_recipients_so_far(db, str(lead.id)),
+            sent_to=sent_to,
         )
     return {
         "id": str(fu.id),
@@ -1281,13 +1310,33 @@ def get_lead_cadence(
         .order_by(FollowUp.scheduled_at.asc())
         .all()
     )
+    # Batch prefetch de tracking tokens (M-P1) e recipients (P1-1):
+    # evita N+1 queries no loop.
+    tracking_tokens = [fu.tracking_token for fu in fups if fu.tracking_token]
+    tracking_cache: dict = {}
+    if tracking_tokens:
+        messages = (
+            db.query(Message)
+            .filter(Message.tracking_token.in_(tracking_tokens))
+            .all()
+        )
+        tracking_cache = {m.tracking_token: m for m in messages}
+
+    # Pre-compute recipients_so_far para todos os follow_ups de uma vez.
+    from src.services.cadence_service import _recipients_so_far
+    recipients_cache = _recipients_so_far(db, str(lead.id)) if fups else []
+
     return {
         "lead_id": str(lead.id),
         "opt_out": bool(lead.opt_out),
         "organization_auto_send": bool(
             _org.auto_send_email if _org else False
         ),
-        "follow_ups": [_follow_up_dict(f, db, lead=lead) for f in fups],
+        "follow_ups": [
+            _follow_up_dict(f, db, lead=lead, _tracking_cache=tracking_cache,
+                           _recipients_cache=recipients_cache)
+            for f in fups
+        ],
     }
 
 
@@ -1523,12 +1572,16 @@ def get_cadence_step_versions(
         FollowUpVersion.follow_up_id == fu.id,
     ).order_by(FollowUpVersion.version_number.desc()).all()
 
+    # Batch prefetch de editores (P1-2): evita N+1 queries no loop.
+    editor_ids = {v.edited_by_id for v in versions if v.edited_by_id}
+    editors = {}
+    if editor_ids:
+        editor_rows = db.query(UserModel).filter(UserModel.id.in_(editor_ids)).all()
+        editors = {str(u.id): u.name for u in editor_rows}
+
     result = []
     for v in versions:
-        editor = None
-        if v.edited_by_id:
-            user = db.query(UserModel).filter(UserModel.id == v.edited_by_id).first()
-            editor = user.name if user else None
+        editor = editors.get(str(v.edited_by_id)) if v.edited_by_id else None
         result.append({
             "id": str(v.id),
             "version_number": v.version_number,

@@ -165,7 +165,7 @@ def send_step(
 
     from src.services.email_service import send_email
 
-    lead = db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
+    lead = follow_up.lead or db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
     # Envio automático (scheduler, sem user_id) exige e-mail verificado — um
     # e-mail heurístico (adivinhado) nunca vai sozinho.
     require_verified = user_id is None

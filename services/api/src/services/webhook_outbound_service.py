@@ -35,6 +35,19 @@ logger = logging.getLogger(__name__)
 RETRY_DELAYS = (0.5, 1.0, 2.0)
 TIMEOUT = 5.0
 
+_http_client: Optional["httpx.AsyncClient"] = None
+
+
+async def _get_http_client() -> "httpx.AsyncClient":
+    """Client singleton com connection pooling para reusar entre webhooks."""
+    global _http_client
+    if _http_client is None or _http_client.is_closed:
+        _http_client = httpx.AsyncClient(
+            timeout=TIMEOUT,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _http_client
+
 
 def build_webhook_payload(event: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Monta o body enviado ao consumidor (pura — testável sem rede)."""
@@ -65,12 +78,12 @@ async def _post_webhook(
     last_err = None
     last_status = None
     last_body = ""
+    client = await _get_http_client()
     for attempt, delay in enumerate((0.0,) + RETRY_DELAYS):
         if delay:
             await asyncio.sleep(delay)
         try:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                r = await client.post(url, content=body, headers=headers)
+            r = await client.post(url, content=body, headers=headers)
             last_status = r.status_code
             last_body = r.text[:500]
             if 200 <= r.status_code < 300:
