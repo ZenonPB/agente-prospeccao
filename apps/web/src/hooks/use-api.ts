@@ -963,6 +963,7 @@ export function useMarkAllNotificationsRead() {
 // CRM — envia a planilha e recebe a versão atualizada com os leads do consultor.
 export function useAtualizarPlanilha() {
   return useMutation({
-    mutationFn: (file: File) => crmApi.atualizarPlanilha(file),
+    mutationFn: ({ file, abaName, criarAba }: { file: File; abaName: string; criarAba: boolean }) =>
+      crmApi.atualizarPlanilha(file, abaName, criarAba),
   });
 }
