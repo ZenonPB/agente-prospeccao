@@ -222,13 +222,29 @@ class GooglePlacesService:
                 if page_token:
                     payload["pageToken"] = page_token
                 # Filtros no payload da API (raio geográfico + categoria):
-                # atacam a causa raiz — a API não devolve lixo de fora.
+                # locationBias (NÃO locationRestriction) — a Places API (New)
+                # aceita circle em locationBias para priorizar resultados
+                # próximos; locationRestriction só aceita rectangle.
                 if location_bias:
-                    payload["locationRestriction"] = location_bias
+                    payload["locationBias"] = location_bias
                 if included_type:
                     payload["includedType"] = included_type
 
                 response = await client.post(PLACES_API_URL, headers=self.headers, json=payload)
+                if response.status_code == 400 and included_type:
+                    logger.warning(
+                        "Places API 400 com includedType=%s — retry sem filtro. body: %s",
+                        included_type,
+                        response.text[:300],
+                    )
+                    payload.pop("includedType", None)
+                    response = await client.post(PLACES_API_URL, headers=self.headers, json=payload)
+                if response.status_code == 400:
+                    logger.error(
+                        "Places API 400 definitivo — payload: %s | body: %s",
+                        payload,
+                        response.text[:500],
+                    )
                 response.raise_for_status()
                 data = response.json()
 

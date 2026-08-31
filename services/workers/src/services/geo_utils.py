@@ -136,7 +136,7 @@ def build_location_circle(
     radius_m: int = 25_000,
     api_key: Optional[str] = None,
 ) -> Optional[dict]:
-    """Monta o `locationRestriction.circle` para o payload do `searchText`.
+    """Monta o `locationBias.circle` para o payload do `searchText`.
 
     Retorna None se a cidade não puder ser geocodificada (caller decide
     se segue sem filtro geográfico).
