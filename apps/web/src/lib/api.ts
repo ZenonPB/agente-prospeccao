@@ -2,6 +2,7 @@ import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
+import type { CrmItem, CrmImportResult } from "@/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 

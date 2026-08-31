@@ -2097,3 +2097,29 @@ oportunidades/[id]) e revisar linguagem dos cards internos (playbooks, SLA, temp
   `org-secrets-card.tsx`: "Pool global" ? "Chave compartilhada" (badge com �cone Share2),
   toast e AlertDialog ajustados ("chaves compartilhadas do sistema").
 - Validado: lint, tsc e build limpos (18 rotas).
+
+### CRM Paste — Lançamento rápido de leads ✅
+
+- **Objetivo:** consultor cola texto livre (LinkedIn/WhatsApp/anotações) e a IA
+  (Groq, `GROQ_MODEL_CLASSIFY` via `provider_client.groq_json_chat`) extrai os
+  leads no formato da planilha de CRM (aba por consultor), com preview
+  editável antes de inserir e dedupe por (pessoa + empresa) na organização.
+- **Backend:** `services/api/src/routes/crm.py` (`POST /api/crm/extract`,
+  `POST /api/crm/batch-import`, `GET /api/crm/export-xlsx`) +
+  `services/api/src/services/crm_service.py` (prompt de extração, dias úteis,
+  normalização, `insert_items` com commit por item). Sem tabela nova: usa
+  `Lead` (status CONTATADO/RESPONDIDO, notes, assigned_to) + `Contact`
+  primário (cargo) + `FollowUp` (pitch → OPENING SENT; FU1/2/3 →
+  FOLLOWUP_1/FOLLOWUP_2/CLOSING, pitch+4/+7/+10 dias úteis). Export xlsx via
+  `openpyxl` (nova dependência em `services/api/requirements.txt`) com as
+  colunas exatas da planilha, datas DD/MM/AAAA, aba com nome do consultor.
+- **Frontend:** `CrmPasteModal` (`components/campanhas/leads-paste-modal.tsx`)
+  com select de consultor (membros da org) e campanha opcional, textarea,
+  preview editável, toast e download do Excel; botão "Lançar Leads" no header
+  de `/campanhas`. `crmApi` + `useCrmExtract`/`useCrmBatchImport` (invalida
+  leads/campaigns/metrics).
+- **Fix de config:** `CORS_ORIGINS` na API agora aceita CSV ou lista (`.env`
+  local usa CSV e quebrava o parse pydantic em qualquer import de settings).
+- Testes: `test_crm_parser.py` + `test_crm_batch_import.py` (fakes de DB/auth).
+  Validado: pytest 455 ok, tsc/lint/build limpos.
+
