@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from src.db.dependencies import get_db
 from src.config.settings import settings
+from src.middleware.rate_limit import limiter
 from src.services.inbound_email_service import process_inbound_email
 from src.services.webhook_import_service import import_leads_from_webhook
 
@@ -71,6 +72,7 @@ def email_inbound(
 
 
 @router.post("/import")
+@limiter.limit("10/minute")
 def webhook_import_leads(
     request: Request,
     payload: WebhookImportPayload,

@@ -46,6 +46,14 @@ async def atualizar_planilha(
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Envie um arquivo .xlsx")
 
+    MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Arquivo excede 10 MB")
+    XLSX_MAGIC = b"PK\x03\x04"
+    if not content[:4] == XLSX_MAGIC:
+        raise HTTPException(status_code=400, detail="Arquivo não é um .xlsx válido")
+
     from src.db.models import Contact, FollowUp, Lead
 
     user = member.user
@@ -70,7 +78,7 @@ async def atualizar_planilha(
     fd, tmp_path = tempfile.mkstemp(suffix=suffix)
     try:
         with os.fdopen(fd, "wb") as f:
-            f.write(await file.read())
+            f.write(content)
         try:
             result = complementa_planilha(
                 tmp_path, aba, leads, contacts_by_lead, followups_by_lead,

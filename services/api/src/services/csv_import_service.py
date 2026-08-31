@@ -194,11 +194,12 @@ class CsvImportService:
                 "errors": [{"line": header_idx + 1, "reason": "Cabeçalho obrigatório não encontrado: informe ao menos uma coluna de 'Nome', 'Empresa' ou 'Razão Social'."}],
             }
 
-        # Busca websites, domínios e CNPJs existentes na organização para deduplicação rápida
-        existing_leads = db.query(Lead.website, Lead.normalized_domain, Lead.cnpj, Lead.place_id).filter(
-            Lead.organization_id == campaign.organization_id
+        # Busca colunas-chave existentes na organização para deduplicação (1 query).
+        existing_leads = db.query(
+            Lead.website, Lead.normalized_domain, Lead.cnpj, Lead.place_id,
+        ).filter(
+            Lead.organization_id == campaign.organization_id,
         ).all()
-
         existing_websites = {l.website.strip().lower() for l in existing_leads if l.website}
         existing_domains = {l.normalized_domain for l in existing_leads if l.normalized_domain}
         existing_cnpjs = {l.cnpj for l in existing_leads if l.cnpj}

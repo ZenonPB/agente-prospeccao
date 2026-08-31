@@ -234,8 +234,16 @@ def check_invite(
 
     existing = db.query(User).filter(User.email == invite.email).first()
     expired = invite.expires_at < datetime.now(timezone.utc)
+
+    email = invite.email
+    if "@" in email:
+        local, domain = email.split("@", 1)
+        redacted = local[0] + "***@" + domain if local else "***@" + domain
+    else:
+        redacted = "***"
+
     return {
-        "email": invite.email,
+        "email": redacted,
         "organization": {
             "id": str(invite.organization_id),
             "name": invite.organization.name if invite.organization else None,

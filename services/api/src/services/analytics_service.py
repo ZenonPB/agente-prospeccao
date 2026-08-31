@@ -15,7 +15,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from src.db.models import (
     Lead,
@@ -157,73 +157,125 @@ class AnalyticsService:
     # ---------------------------------------------------------------- overview
     def overview(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:
         base = self._leads(from_date, to_date)
-        total = base.count()
 
-        qualified = self._count_status(base, LeadStatus.QUALIFICADO)
-        contacted = self._count_status(base, LeadStatus.CONTATADO)
-        responded = self._count_status(base, LeadStatus.RESPONDIDO)
-        meetings = self._count_status(base, LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA)
-        proposals = self._count_status(base, LeadStatus.PROPOSTA_ENVIADA)
-
-        # Conversões (fechados) — via Conversion, filtrada pela org.
-        conv_q = (
-            self.db.query(Conversion)
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
+        status_counts = dict(
+            base.with_entities(Lead.status, func.count(Lead.id))
+            .group_by(Lead.status)
+            .all()
         )
-        converted = conv_q.count()
-        revenue = (
-            self.db.query(func.coalesce(func.sum(Conversion.contract_value), 0))
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
-            .scalar()
-        ) or 0
+        total = sum(status_counts.values())
+
+        qualified = status_counts.get(LeadStatus.QUALIFICADO, 0)
+        contacted = status_counts.get(LeadStatus.CONTATADO, 0)
+        responded = status_counts.get(LeadStatus.RESPONDIDO, 0)
+        meetings = status_counts.get(LeadStatus.REUNIAO_MARCADA, 0) + status_counts.get(LeadStatus.REUNIAO_FEITA, 0)
+        proposals = status_counts.get(LeadStatus.PROPOSTA_ENVIADA, 0)
 
         funnel = [
-            {"stage": "NOVO", "count": self._count_status(base, LeadStatus.NOVO)},
-            {"stage": "ANALISADO", "count": self._count_status(base, LeadStatus.ANALISADO)},
-            {"stage": "QUALIFICADO", "count": qualified},
-            {"stage": "DESQUALIFICADO", "count": self._count_status(base, LeadStatus.DESQUALIFICADO)},
-            {"stage": "CONTATADO", "count": contacted},
-            {"stage": "RESPONDIDO", "count": responded},
-            {"stage": "REUNIAO_MARCADA", "count": self._count_status(base, LeadStatus.REUNIAO_MARCADA)},
-            {"stage": "REUNIAO_FEITA", "count": self._count_status(base, LeadStatus.REUNIAO_FEITA)},
-            {"stage": "PROPOSTA_ENVIADA", "count": proposals},
-            {"stage": "PERDIDO", "count": self._count_status(base, LeadStatus.PERDIDO)},
+            {"stage": s.value, "count": status_counts.get(s, 0)}
+            for s in (
+                LeadStatus.NOVO, LeadStatus.ANALISADO, LeadStatus.QUALIFICADO,
+                LeadStatus.DESQUALIFICADO, LeadStatus.CONTATADO, LeadStatus.RESPONDIDO,
+                LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA,
+                LeadStatus.PROPOSTA_ENVIADA, LeadStatus.PERDIDO,
+            )
         ]
 
-        # Leads com conversão (fechados) na org — usado p/ cruzar taxa de acerto
-        # do score por faixa.
-        converted_sub = (
-            self.db.query(Lead.id)
-            .join(Conversion, Conversion.lead_id == Lead.id)
+        conv_agg = (
+            self.db.query(
+                func.count(Conversion.id),
+                func.coalesce(func.sum(Conversion.contract_value), 0),
+            )
+            .join(Lead, Conversion.lead_id == Lead.id)
             .filter(Lead.organization_id == self.org_id)
-            .subquery()
+            .one()
         )
+        converted = conv_agg[0]
+        revenue = conv_agg[1]
 
         score_bands = []
-        for lo, hi, label in SCORE_BANDS:
-            band_q = base.filter(
-                Lead.qualification_score >= lo,
-                Lead.qualification_score <= hi,
-            )
-            band_count = band_q.count()
-            band_converted = band_q.filter(
-                Lead.id.in_(self.db.query(converted_sub.c.id)),
-            ).count()
+        # Score bands via CASE WHEN em SQL (P1-7): 1 query em vez de 8.
+        band_query = base.with_entities(
+            func.sum(func.case(
+                (Lead.qualification_score.between(0, 39), 1), else_=0
+            )).label("b0"),
+            func.sum(func.case(
+                (Lead.qualification_score.between(40, 59), 1), else_=0
+            )).label("b1"),
+            func.sum(func.case(
+                (Lead.qualification_score.between(60, 79), 1), else_=0
+            )).label("b2"),
+            func.sum(func.case(
+                (Lead.qualification_score.between(80, 100), 1), else_=0
+            )).label("b3"),
+        ).one()
+        band_counts = [band_query.b0 or 0, band_query.b1 or 0, band_query.b2 or 0, band_query.b3 or 0]
+
+        # Convertidos por faixa: query separada (precisa JOIN com Conversion).
+        conv_sub = (
+            base.join(Conversion, Conversion.lead_id == Lead.id, isouter=True)
+            .with_entities(
+                func.sum(func.case(
+                    (Lead.qualification_score.between(0, 39) & Conversion.id.isnot(None), 1), else_=0
+                )).label("c0"),
+                func.sum(func.case(
+                    (Lead.qualification_score.between(40, 59) & Conversion.id.isnot(None), 1), else_=0
+                )).label("c1"),
+                func.sum(func.case(
+                    (Lead.qualification_score.between(60, 79) & Conversion.id.isnot(None), 1), else_=0
+                )).label("c2"),
+                func.sum(func.case(
+                    (Lead.qualification_score.between(80, 100) & Conversion.id.isnot(None), 1), else_=0
+                )).label("c3"),
+            ).one()
+        )
+        band_converted = [conv_sub.c0 or 0, conv_sub.c1 or 0, conv_sub.c2 or 0, conv_sub.c3 or 0]
+
+        for idx, (lo, hi, label) in enumerate(SCORE_BANDS):
+            bc = band_counts[idx]
+            bcv = band_converted[idx]
             score_bands.append({
                 "band": label,
-                "count": band_count,
-                "converted": band_converted,
-                "conversion_rate": round(
-                    (band_converted / band_count * 100), 1
-                ) if band_count else 0,
+                "count": bc,
+                "converted": bcv,
+                "conversion_rate": round((bcv / bc * 100), 1) if bc else 0,
             })
 
-        # Forecast resumo para o overview
-        open_leads = base.filter(Lead.status.in_(list(STAGE_WIN_RATES.keys()))).all()
-        pipeline_val = sum(float(l.value or 0) for l in open_leads)
-        forecast_val = sum(float(l.value or 0) * STAGE_WIN_RATES.get(l.status, 0.0) for l in open_leads)
+        open_statuses = list(STAGE_WIN_RATES.keys())
+        pipeline_val = (
+            base.filter(Lead.status.in_(open_statuses))
+            .with_entities(func.coalesce(func.sum(Lead.value), 0))
+            .scalar()
+        )
+        # Forecast ponderado: CASE WHEN por estágio em SQL.
+        forecast_cases = [
+            func.sum(
+                func.case(
+                    (Lead.status == status, Lead.value * weight),
+                    else_=0,
+                )
+            )
+            for status, weight in STAGE_WIN_RATES.items()
+        ]
+        forecast_val = (
+            base.filter(Lead.status.in_(open_statuses))
+            .with_entities(*forecast_cases)
+            .one()
+        )
+        forecast_val = sum(float(v or 0) for v in forecast_val)
+
+        negotiation_counts = dict(
+            base.with_entities(Lead.negotiation_stage, func.count(Lead.id))
+            .filter(Lead.negotiation_stage.isnot(None))
+            .group_by(Lead.negotiation_stage)
+            .all()
+        )
+        contract_counts = dict(
+            base.with_entities(Lead.contract_outcome, func.count(Lead.id))
+            .filter(Lead.contract_outcome.isnot(None))
+            .group_by(Lead.contract_outcome)
+            .all()
+        )
 
         return {
             "total_leads": total,
@@ -241,14 +293,12 @@ class AnalyticsService:
             "meeting_rate": round((meetings / qualified * 100), 1) if qualified else 0,
             "funnel": funnel,
             "leads_by_score_band": score_bands,
-            # Funil interno de negociação: estágio
-            # RD/ORÇAMENTO/RP e resultado de contrato APROVADO/REPROVADO/EM_ANÁLISE.
             "negotiation_distribution": [
-                {"stage": s.value, "count": base.filter(Lead.negotiation_stage == s).count()}
+                {"stage": s.value, "count": negotiation_counts.get(s, 0)}
                 for s in NegotiationStage
             ],
             "contracts_by_outcome": [
-                {"outcome": o.value, "count": base.filter(Lead.contract_outcome == o).count()}
+                {"outcome": o.value, "count": contract_counts.get(o, 0)}
                 for o in ContractOutcome
             ],
         }
@@ -373,15 +423,21 @@ class AnalyticsService:
             resp_q = resp_q.filter(Message.sent_at <= t)
         responded_leads = resp_q.scalar() or 0
 
-        # Estágio de negociação e resultado de contrato — sobre a carteira.
-        leads = self._leads(from_date, to_date, user_id=uid).all()
-        contract_outcomes = {o.value: 0 for o in ContractOutcome}
-        negotiation = {s.value: 0 for s in NegotiationStage}
-        for lead in leads:
-            if lead.contract_outcome:
-                contract_outcomes[lead.contract_outcome.value] += 1
-            if lead.negotiation_stage:
-                negotiation[lead.negotiation_stage.value] += 1
+        # Estágio de negociação e resultado de contrato — GROUP BY em vez de .all().
+        base_leads = self._leads(from_date, to_date, user_id=uid)
+        contract_counts = dict(
+            base_leads.filter(Lead.contract_outcome.isnot(None))
+            .with_entities(Lead.contract_outcome, func.count(Lead.id))
+            .group_by(Lead.contract_outcome)
+            .all()
+        )
+        negotiation = dict(
+            base_leads.filter(Lead.negotiation_stage.isnot(None))
+            .with_entities(Lead.negotiation_stage, func.count(Lead.id))
+            .group_by(Lead.negotiation_stage)
+            .all()
+        )
+        contract_outcomes = {o.value: contract_counts.get(o, 0) for o in ContractOutcome}
         contracts_total = sum(contract_outcomes.values())
         contracts_approved = contract_outcomes.get(ContractOutcome.APROVADO.value, 0)
 
@@ -718,14 +774,15 @@ class AnalyticsService:
         if sort_by == "converted":
             rows = (
                 base.join(Conversion, Conversion.lead_id == Lead.id)
+                .options(joinedload(Lead.assigned_to))
                 .order_by(Conversion.converted_at.desc())
                 .limit(limit)
                 .all()
             )
         elif sort_by == "created":
-            rows = base.order_by(Lead.created_at.desc()).limit(limit).all()
+            rows = base.options(joinedload(Lead.assigned_to)).order_by(Lead.created_at.desc()).limit(limit).all()
         else:  # score (default)
-            rows = base.order_by(Lead.qualification_score.desc()).limit(limit).all()
+            rows = base.options(joinedload(Lead.assigned_to)).order_by(Lead.qualification_score.desc()).limit(limit).all()
 
         # Conversões por lead (para marcar convertidos no ranking).
         lead_ids = [str(r.id) for r in rows]
@@ -822,47 +879,65 @@ class AnalyticsService:
     # ---------------------------------------------------------------- campaigns
     def campaigns(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> list:
         campaigns = self.db.query(Campaign).filter(Campaign.organization_id == self.org_id).all()
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+
+        # Agregação GROUP BY campaign_id para todos os KPIs de uma vez.
+        lead_base = self.db.query(Lead).filter(Lead.organization_id == self.org_id)
+        if f:
+            lead_base = lead_base.filter(Lead.created_at >= f)
+        if t:
+            lead_base = lead_base.filter(Lead.created_at <= t)
+
+        stats_rows = (
+            lead_base.with_entities(
+                Lead.campaign_id,
+                func.count(Lead.id),
+                func.sum(func.case((Lead.status == LeadStatus.QUALIFICADO, 1), else_=0)),
+                func.sum(func.case((Lead.status == LeadStatus.CONTATADO, 1), else_=0)),
+                func.sum(func.case((Lead.status.in_(
+                    (LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA)
+                ), 1), else_=0)),
+            )
+            .group_by(Lead.campaign_id)
+            .all()
+        )
+        stats_by_campaign = {str(row[0]): {
+            "total": row[1], "qualified": row[2] or 0,
+            "contacted": row[3] or 0, "meetings": row[4] or 0,
+        } for row in stats_rows}
+
+        # Conversões por campanha.
+        conv_rows = (
+            self.db.query(
+                Lead.campaign_id,
+                func.count(Conversion.id),
+                func.coalesce(func.sum(Conversion.contract_value), 0),
+            )
+            .join(Lead, Conversion.lead_id == Lead.id)
+            .filter(Lead.organization_id == self.org_id)
+            .group_by(Lead.campaign_id)
+            .all()
+        )
+        conv_by_campaign = {str(row[0]): {"converted": row[1], "revenue": row[2]}
+                            for row in conv_rows}
+
         result = []
         for campaign in campaigns:
-            base = self.db.query(Lead).filter(
-                Lead.organization_id == self.org_id,
-                Lead.campaign_id == campaign.id,
-            )
-            f = _parse_period(from_date)
-            t = _parse_period(to_date, end_of_day=True)
-            if f:
-                base = base.filter(Lead.created_at >= f)
-            if t:
-                base = base.filter(Lead.created_at <= t)
-
-            total = base.count()
-            qualified = self._count_status(base, LeadStatus.QUALIFICADO)
-            contacted = self._count_status(base, LeadStatus.CONTATADO)
-            meetings = self._count_status(base, LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA)
-
-            converted = (
-                self.db.query(func.count(Conversion.id))
-                .join(Lead, Conversion.lead_id == Lead.id)
-                .filter(Lead.organization_id == self.org_id, Lead.campaign_id == campaign.id)
-                .scalar()
-            ) or 0
-            revenue = (
-                self.db.query(func.coalesce(func.sum(Conversion.contract_value), 0))
-                .join(Lead, Conversion.lead_id == Lead.id)
-                .filter(Lead.organization_id == self.org_id, Lead.campaign_id == campaign.id)
-                .scalar()
-            ) or 0
-
+            cid = str(campaign.id)
+            s = stats_by_campaign.get(cid, {"total": 0, "qualified": 0, "contacted": 0, "meetings": 0})
+            c = conv_by_campaign.get(cid, {"converted": 0, "revenue": 0})
+            qualified = s["qualified"]
             result.append({
-                "id": str(campaign.id),
+                "id": cid,
                 "name": campaign.name,
-                "leads": total,
+                "leads": s["total"],
                 "qualified_leads": qualified,
-                "contacted_leads": contacted,
-                "meetings": meetings,
-                "converted_leads": converted,
-                "conversion_rate": round((converted / qualified * 100), 1) if qualified else 0,
-                "revenue": round(float(revenue), 2),
+                "contacted_leads": s["contacted"],
+                "meetings": s["meetings"],
+                "converted_leads": c["converted"],
+                "conversion_rate": round((c["converted"] / qualified * 100), 1) if qualified else 0,
+                "revenue": round(float(c["revenue"]), 2),
             })
         result.sort(key=lambda r: r["leads"], reverse=True)
         return result
@@ -980,17 +1055,14 @@ class AnalyticsService:
                 "weighted_value": round(val * weight, 2),
             })
 
-        lost_reasons = []
-        for r in LostReason:
-            count = base.filter(
-                Lead.status == LeadStatus.PERDIDO,
-                Lead.lost_reason == r,
-            ).count()
-            lost_reasons.append({"reason": r.value, "count": count})
-        no_reason = base.filter(
-            Lead.status == LeadStatus.PERDIDO,
-            Lead.lost_reason.is_(None),
-        ).count()
+        lost_counts = dict(
+            base.filter(Lead.status == LeadStatus.PERDIDO)
+            .with_entities(Lead.lost_reason, func.count(Lead.id))
+            .group_by(Lead.lost_reason)
+            .all()
+        )
+        lost_reasons = [{"reason": r.value, "count": lost_counts.get(r, 0)} for r in LostReason]
+        no_reason = lost_counts.get(None, 0)
         if no_reason:
             lost_reasons.append({"reason": "SEM_MOTIVO", "count": no_reason})
 

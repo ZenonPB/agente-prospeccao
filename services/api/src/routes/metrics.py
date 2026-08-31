@@ -15,25 +15,28 @@ def get_metrics(
     _org: Organization = Depends(get_user_organization),
 ):
     base = db.query(Lead).filter(Lead.organization_id == _org.id)
-    total_leads = base.count()
-    qualified = base.filter(Lead.status == LeadStatus.QUALIFICADO).count()
-    contacted = base.filter(Lead.status == LeadStatus.CONTATADO).count()
-    meetings = base.filter(Lead.status == LeadStatus.REUNIAO_MARCADA).count()
 
-    responded = base.filter(Lead.status == LeadStatus.RESPONDIDO).count()
+    status_counts = dict(
+        base.with_entities(Lead.status, func.count(Lead.id))
+        .group_by(Lead.status)
+        .all()
+    )
+    total_leads = sum(status_counts.values())
+    qualified = status_counts.get(LeadStatus.QUALIFICADO, 0)
+    contacted = status_counts.get(LeadStatus.CONTATADO, 0)
+    meetings = status_counts.get(LeadStatus.REUNIAO_MARCADA, 0)
+    responded = status_counts.get(LeadStatus.RESPONDIDO, 0)
     response_rate = (responded / contacted * 100) if contacted > 0 else 0
 
-    funnel = []
-    for status, label in [
+    _FUNNEL_MAP = [
         (LeadStatus.NOVO, "Novos"),
         (LeadStatus.ANALISADO, "Analisados"),
         (LeadStatus.QUALIFICADO, "Qualificados"),
         (LeadStatus.CONTATADO, "Contatados"),
         (LeadStatus.RESPONDIDO, "Responderam"),
         (LeadStatus.REUNIAO_MARCADA, "Reuniões"),
-    ]:
-        count = base.filter(Lead.status == status).count()
-        funnel.append({"stage": label, "count": count})
+    ]
+    funnel = [{"stage": label, "count": status_counts.get(s, 0)} for s, label in _FUNNEL_MAP]
 
     active_campaigns = db.query(Campaign).filter(
         Campaign.status == CampaignStatus.ACTIVE,

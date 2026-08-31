@@ -1,6 +1,7 @@
 """Rotas de autenticação: registro, login, recuperação de senha."""
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
@@ -18,6 +19,12 @@ from src.services.org_service import create_personal_organization
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Lockout simples em memória (adequado para deploy single-process em tier grátis).
+# Chave: email normalizado → (tentativas_falhas, timestamp_última_tentativa).
+_login_attempts: dict[str, tuple[int, float]] = {}
+_LOCKOUT_THRESHOLD = 5
+_LOCKOUT_SECONDS = 900  # 15 minutos
 
 
 class RegisterRequest(BaseModel):
@@ -102,12 +109,34 @@ def register(request: Request, body: RegisterRequest, db: Session = Depends(get_
 @limiter.limit("10/minute")
 def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     """Login com email e senha, retorna um token JWT."""
-    user = db.query(User).filter(User.email == body.email).first()
+    email_key = body.email.lower().strip()
+
+    # Account lockout: verifica se excedeu tentativas
+    if email_key in _login_attempts:
+        fails, last_ts = _login_attempts[email_key]
+        if fails >= _LOCKOUT_THRESHOLD:
+            elapsed = time.monotonic() - last_ts
+            if elapsed < _LOCKOUT_SECONDS:
+                remaining = int(_LOCKOUT_SECONDS - elapsed)
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Muitas tentativas. Tente novamente em {remaining // 60}min.",
+                )
+            _login_attempts.pop(email_key, None)
+
+    user = db.query(User).filter(User.email == email_key).first()
     if not user or not verify_password(body.password, user.password_hash):
+        # Registra tentativa falha
+        fails, _ = _login_attempts.get(email_key, (0, 0.0))
+        _login_attempts[email_key] = (fails + 1, time.monotonic())
+        logger.warning("Login falhou para %s (tentativa %d)", email_key, fails + 1)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha incorretos",
         )
+
+    # Login bem-sucedido: reseta contador
+    _login_attempts.pop(email_key, None)
 
     token = create_access_token({"sub": str(user.id), "email": user.email})
 
@@ -182,6 +211,8 @@ def change_password(
         )
 
     current_user.password_hash = hash_password(body.new_password)
+    current_user.reset_token = None
+    current_user.reset_token_expires = None
     db.commit()
     logger.info("Password changed for user %s", current_user.email)
     return {"message": "Senha alterada com sucesso."}

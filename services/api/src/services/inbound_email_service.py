@@ -99,7 +99,8 @@ def process_inbound_email(db: Session, from_email: str, subject: str, body: str)
             or_(
                 Lead.email == sender,
                 Contact.email == sender,
-            )
+            ),
+            Lead.organization_id.isnot(None),
         )
         .first()
     )

@@ -299,8 +299,10 @@ def get_campaign(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
-    lead_count = db.query(Lead).filter(Lead.campaign_id == campaign.id).count()
-    avg_score = db.query(func.avg(Lead.qualification_score)).filter(Lead.campaign_id == campaign.id).scalar() or 0
+    lead_count, avg_score = db.query(
+        func.count(Lead.id),
+        func.coalesce(func.avg(Lead.qualification_score), 0),
+    ).filter(Lead.campaign_id == campaign.id).one()
 
     return {
         "id": str(campaign.id),
@@ -613,7 +615,13 @@ def export_campaign_google_sheets(
     if not campaign:
         raise HTTPException(status_code=404, detail="Campanha não encontrada")
 
-    leads = db.query(Lead).filter(Lead.campaign_id == campaign.id).all()
+    from sqlalchemy.orm import joinedload
+    leads = (
+        db.query(Lead)
+        .filter(Lead.campaign_id == campaign.id)
+        .options(joinedload(Lead.contacts))
+        .all()
+    )
 
     import csv
     import io
