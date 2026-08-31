@@ -14,7 +14,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
 from src.middleware.rate_limit import limiter
-from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications
+from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm
 from src.routes.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
@@ -236,6 +236,8 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(playbooks.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+# CRM Paste — lançamento rápido de leads por texto livre + export xlsx.
+app.include_router(crm.router, prefix="/api")
 # Tracking público (sem auth — o cliente de e-mail acessa): `/t/{token}` e `/c/{token}`.
 app.include_router(tracking.router)
 

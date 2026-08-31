@@ -583,3 +583,25 @@ export interface LeadDuplicate {
   company_name?: string | null;
   matched_by: string[];
 }
+
+// CRM Paste — lançamento rápido de leads por texto livre.
+export interface CrmItem {
+  lead: string;
+  empresa: string;
+  prospeccao?: string | null;      // YYYY-MM-DD
+  pitch_enviado?: boolean;
+  pitch_data?: string | null;      // YYYY-MM-DD
+  follow_up_1?: string | null;
+  follow_up_2?: string | null;
+  follow_up_3?: string | null;
+  respondeu?: "SIM" | "NÃO" | null;
+  cargo?: string | null;
+  observacoes?: string | null;
+}
+
+export interface CrmImportResult {
+  inserted: number;
+  duplicates: number;
+  errors: string[];
+}
+

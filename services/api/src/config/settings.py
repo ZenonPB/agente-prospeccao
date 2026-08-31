@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Union
 
 load_dotenv()
 
@@ -47,8 +48,9 @@ class Settings(BaseSettings):
     # servidor); este é apenas o fallback de teto diário.
     DAILY_EMAIL_LIMIT: int = Field(40, description='Teto diário default de envios automáticos por org')
 
-    # Origins permitidas no CORS (vírgula-separado). Deploy: incluir o domínio do frontend.
-    CORS_ORIGINS: list[str] = [
+    # Origins permitidas no CORS. Aceita lista JSON/CSV (ex.: "a,b" no .env)
+    # — `main.py` normaliza string para lista. Deploy: incluir o domínio do frontend.
+    CORS_ORIGINS: Union[list[str], str] = [
         "http://localhost:3000",
         "http://localhost:3001",
         "https://prospect-api-h1i0.onrender.com"
