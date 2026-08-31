@@ -1013,3 +1013,16 @@ export const notificationsApi = {
       { method: "PATCH" },
     ),
 };
+
+// CRM — atualização da planilha a partir dos leads do consultor.
+export const crmApi = {
+  atualizarPlanilha: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<Blob>("/api/crm/spreadsheet/atualizar", {
+      method: "POST",
+      body: form,
+      responseType: "blob",
+    });
+  },
+};

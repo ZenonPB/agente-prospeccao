@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, type ScoringTemplateInput } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, type ScoringTemplateInput } from "@/lib/api";
 import type { SalesRole, OrgRole, OnboardingStatus } from "@/types";
 
 export type SegmentSuggestion = {
@@ -957,5 +957,12 @@ export function useMarkAllNotificationsRead() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
+  });
+}
+
+// CRM — envia a planilha e recebe a versão atualizada com os leads do consultor.
+export function useAtualizarPlanilha() {
+  return useMutation({
+    mutationFn: (file: File) => crmApi.atualizarPlanilha(file),
   });
 }

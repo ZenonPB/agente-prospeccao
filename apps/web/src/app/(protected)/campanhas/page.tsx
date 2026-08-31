@@ -1,4 +1,5 @@
 import { CampaignList } from '@/components/campanhas/campaign-list';
+import { CrmPlanilhaModal } from '@/components/campanhas/crm-planilha-modal';
 import { PageHeader } from '@/components/ui/page-header';
 
 export default function CampanhasPage() {
@@ -9,6 +10,7 @@ export default function CampanhasPage() {
           eyebrow="Operação"
           title="Campanhas"
           description="Crie buscas de prospecção e colete oportunidades automaticamente"
+          actions={<CrmPlanilhaModal />}
         />
       </div>
 
