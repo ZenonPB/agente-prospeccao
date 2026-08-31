@@ -30,14 +30,24 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """Cria um token de acesso JWT com o payload fornecido."""
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=settings.JWT_EXPIRES_HOURS))
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": expire,
+        "iss": "prospect-ai",
+        "aud": "prospect-ai-api",
+    })
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_access_token(token: str) -> Optional[dict]:
     """Decodifica um token JWT, retornando o payload ou None se inválido."""
     try:
-        return jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        return jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=[settings.JWT_ALGORITHM],
+            issuer="prospect-ai",
+            audience="prospect-ai-api",
+        )
     except jwt.ExpiredSignatureError:
         logger.info("Token expired")
         return None
