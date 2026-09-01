@@ -134,6 +134,46 @@ def create_score_feedback(
     )
 
 
+@router.get("/score-feedback-metrics")
+def score_feedback_metrics(
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+):
+    """Métrica de convergência IA × time (BI): desvio médio semanal.
+
+    |score IA − score consultor| por semana — quanto menor ao longo do tempo,
+    mais a IA aprendeu com as correções do time (docs/ai-feedback-loop.md).
+    """
+    feedbacks = db.query(ScoringFeedback).filter(
+        ScoringFeedback.organization_id == org.id,
+        ScoringFeedback.status != FeedbackStatus.DISMISSED,
+    ).order_by(ScoringFeedback.created_at).all()
+
+    weekly: dict = {}
+    for f in feedbacks:
+        if not f.created_at:
+            continue
+        key = f.created_at.strftime("%G-W%V")
+        agg = weekly.setdefault(key, {"sum": 0, "count": 0})
+        agg["sum"] += abs(f.original_score - f.suggested_score)
+        agg["count"] += 1
+    series = [
+        {
+            "week": k,
+            "avg_deviation": round(v["sum"] / v["count"], 1),
+            "feedbacks": v["count"],
+        }
+        for k, v in sorted(weekly.items())
+    ]
+    total = sum(s["feedbacks"] for s in series)
+    overall = (
+        round(sum(s["avg_deviation"] * s["feedbacks"] for s in series) / total, 1)
+        if total else None
+    )
+    return {"overall_avg": overall, "total_feedbacks": total, "weekly": series}
+
+
 class ScoreFeedbackItem(BaseModel):
     id: str
     lead_id: str

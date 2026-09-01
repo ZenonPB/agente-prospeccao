@@ -1,7 +1,7 @@
 # Feedback loop de scoring — "IA que aprende com o time"
 
 > Plano vivo da feature de feedback humano sobre o score da IA. Atualizar este
-> documento a cada fase concluída. Status geral: **Fase 1 concluída · Fase 2 a fazer**.
+> documento a cada fase concluída. Status geral: **Fases 1–3 concluídas**.
 
 ## Objetivo
 
@@ -66,25 +66,29 @@ fluxo de reanálise existente.
       topo do funil, não reclassifica pós-contato, direção MUITO_ALTO/BAIXO,
       rejeição de score igual.
 
-### Fase 2 — A IA aprender (a fazer)
+### Fase 2 — A IA aprender (concluída)
 
-- [ ] Tabela `TemplateLearning` (`template_id`, `organization_id`,
-      `instructions` JSONB, `updated_at`) + migration.
-- [ ] Compilação: N feedbacks pendentes de um template → LLM resume em regras →
-      `TemplateLearning` (endpoint manual "Sintetizar aprendizados" primeiro;
-      automático depois, se fizer sentido).
-- [ ] `build_prompt()` (scoring_service) aceita `learned_instructions` e injeta
-      o bloco de calibração.
-- [ ] `pipeline_worker` busca as regras da org ao montar o prompt de scoring.
-- [ ] Botão "Aplicar aprendizado e reavaliar" na campanha (reusa reanalyze).
-- [ ] Testes: compilação (mock LLM), injeção no prompt, cap/compaction.
+- [x] Tabela `TemplateLearning` (`template_id`, `organization_id`,
+      `instructions` JSONB, `updated_at`) + migration (`d8e9f0a1b2c3`, incl.
+      valor `COMPILED` na enum `feedback_status`).
+- [x] Compilação: N feedbacks pendentes de um template → LLM resume em regras →
+      `TemplateLearning` (`learning_compilation_service.py`; endpoint manual
+      `POST /api/campaigns/{id}/synthesize-learning`; automático depois, se
+      fizer sentido).
+- [x] `build_prompt()` (scoring_service) aceita `learned_instructions` e injeta
+      o bloco "Ajustes aprendidos com o time".
+- [x] `pipeline_worker` busca as regras da org ao montar o prompt de scoring.
+- [x] Botão "Aplicar e reavaliar" na campanha (reusa reanalyze).
+- [x] Testes: compilação (mock LLM), injeção no prompt, cap/compaction
+      (`tests/test_learning_compilation.py`, 8).
 
-### Fase 3 — Visibilidade (a fazer)
+### Fase 3 — Visibilidade (concluída)
 
-- [ ] Painel "Aprendizados da IA" (por campanha ou configurações): feedbacks
-      dados, regras ativas, descartar regra.
-- [ ] BI: desvio médio |score IA − score consultor| ao longo do tempo — mede a
-      convergência ("sistema vivo").
+- [x] Painel "Aprendizados da IA" na campanha (`learning-panel.tsx`): feedbacks
+      dados, regras ativas, descartar regra (`DELETE /api/campaigns/{id}/learning/{index}`).
+- [x] BI: desvio médio |score IA − score consultor| ao longo do tempo —
+      `GET /api/leads/score-feedback-metrics` (org) + variação por campanha no
+      painel; card "Convergência IA × Time" em Relatórios.
 
 ## Guardrails
 
@@ -99,5 +103,6 @@ fluxo de reanálise existente.
 ## Como acompanhar
 
 - Este documento: marcar itens ao concluir.
-- Código: branch `fix/kanban-criterios-ux` → PR para `main`.
-- Testes: `python -m pytest tests -q` (raiz) — arquivos `test_score_feedback*`.
+- Código: branch `feat/ia-aprende-feedback-loop` → PR para `main`.
+- Testes: `python -m pytest tests -q` (raiz) — arquivos `test_score_feedback*`,
+  `test_learning_compilation*`.
