@@ -51,7 +51,7 @@ export function OutreachMessagesModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px]">
+      <DialogContent className="w-[calc(100%-2rem)] min-w-0 sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Mensagem gerada para {lead.company_name}</DialogTitle>
         </DialogHeader>
@@ -66,15 +66,16 @@ export function OutreachMessagesModal({
           <>
             {messages.variants && messages.variants.length >= 2 && (
               <div className="mb-4 rounded-md border border-dashed border-primary/30 bg-primary/5 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
+                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0">
                     <p className="text-sm font-medium">Variantes A/B geradas</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="break-words text-xs text-muted-foreground">
                       Escolha uma variante para abrir/finalizar a cadência. A versão escolhida fica registrada
                       como variante e aparece nas métricas de resposta.
                     </p>
                   </div>
                   <Button
+                    className="h-11 sm:h-9"
                     size="sm"
                     variant="outline"
                     onClick={onRegenerateVariants}
@@ -90,14 +91,15 @@ export function OutreachMessagesModal({
                   {messages.variants.map((variant) => (
                     <div
                       key={variant.label}
-                      className="rounded-md border bg-background p-3 space-y-2"
+                      className="min-w-0 space-y-2 rounded-md border bg-background p-3"
                     >
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Variante {variant.label}
                       </p>
-                      <p className="text-xs font-medium">Assunto: {variant.subject}</p>
-                      <p className="text-xs text-muted-foreground line-clamp-3">{variant.rationale}</p>
+                      <p className="break-words text-xs font-medium">Assunto: {variant.subject}</p>
+                      <p className="break-words text-xs text-muted-foreground line-clamp-3">{variant.rationale}</p>
                       <Button
+                        className="h-11 sm:h-9"
                         size="sm"
                         variant="secondary"
                         disabled={isGenerating}
@@ -113,6 +115,7 @@ export function OutreachMessagesModal({
             {!messages.variants && (
               <div className="mb-4 flex justify-end">
                 <Button
+                  className="h-11 sm:h-9"
                   size="sm"
                   variant="outline"
                   onClick={onRegenerateVariants}
@@ -126,30 +129,31 @@ export function OutreachMessagesModal({
               </div>
             )}
             <Tabs defaultValue="email" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="email">E-mail</TabsTrigger>
-                <TabsTrigger value="followups">Follow-ups</TabsTrigger>
-                <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+              <TabsList className="grid h-11 w-full grid-cols-3 overflow-x-auto">
+                <TabsTrigger value="email" className="h-11">E-mail</TabsTrigger>
+                <TabsTrigger value="followups" className="h-11">Follow-ups</TabsTrigger>
+                <TabsTrigger value="whatsapp" className="h-11">WhatsApp</TabsTrigger>
               </TabsList>
               <TabsContent value="email" className="space-y-4 pt-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Assunto:</p>
-                  <div className="flex items-center space-x-2">
-                    <Input value={messages.subject} readOnly />
-                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(messages.subject, 'Assunto copiado!')}>
+                  <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                    <Input className="min-w-0" value={messages.subject} readOnly />
+                    <Button className="h-11 shrink-0 sm:h-9" variant="outline" size="sm" onClick={() => copyToClipboard(messages.subject, 'Assunto copiado!')}>
                       Copiar
                     </Button>
                   </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Corpo da mensagem:</p>
-                  <div className="flex items-center space-x-2">
-                    <Textarea value={messages.body_opening} readOnly rows={8} />
-                    <div className="flex flex-col gap-1">
-                      <Button variant="outline" size="sm" onClick={() => copyToClipboard(messages.body_opening, 'Corpo do e-mail copiado!')}>
+                  <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-start">
+                    <Textarea className="min-w-0 break-words" value={messages.body_opening} readOnly rows={8} />
+                    <div className="flex flex-col gap-1 sm:shrink-0">
+                      <Button className="h-11 sm:h-9" variant="outline" size="sm" onClick={() => copyToClipboard(messages.body_opening, 'Corpo do e-mail copiado!')}>
                         Copiar
                       </Button>
                       <Button
+                        className="h-11 sm:h-9"
                         variant="ghost"
                         size="sm"
                         onClick={() => onSaveToPlaybook(messages.subject, messages.body_opening)}
@@ -164,21 +168,21 @@ export function OutreachMessagesModal({
               <TabsContent value="followups" className="space-y-4 pt-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Follow-up 1 — Dia 3:</p>
-                  <Textarea value={messages.followup_1} readOnly rows={5} />
+                  <Textarea className="break-words" value={messages.followup_1} readOnly rows={5} />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Follow-up 2 — Dia 7:</p>
-                  <Textarea value={messages.followup_2} readOnly rows={5} />
+                  <Textarea className="break-words" value={messages.followup_2} readOnly rows={5} />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Encerramento — Dia 14:</p>
-                  <Textarea value={messages.closing} readOnly rows={3} />
+                  <Textarea className="break-words" value={messages.closing} readOnly rows={3} />
                 </div>
               </TabsContent>
               <TabsContent value="whatsapp" className="space-y-4 pt-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Mensagem para WhatsApp:</p>
-                  <Textarea value={messages.whatsapp_short} readOnly rows={6} />
+                  <Textarea className="break-words" value={messages.whatsapp_short} readOnly rows={6} />
                   <Badge className="mt-2">Versão curta para WhatsApp Business</Badge>
                 </div>
                 {whatsAppUrl ? (
@@ -204,8 +208,8 @@ export function OutreachMessagesModal({
             </Button>
           </div>
         )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button className="h-11" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
           <Button
             onClick={() =>
               copyToClipboard(
@@ -213,6 +217,7 @@ export function OutreachMessagesModal({
                 'E-mail completo copiado!'
               )
             }
+            className="h-11"
             disabled={!messages}
           >
             Copiar e-mail completo
@@ -235,7 +240,7 @@ function WhatsAppSendButton({
   const recordWhatsApp = useRecordWhatsAppClick();
   return (
     <Button
-      className="h-10 w-full gap-2 bg-emerald-600 font-medium text-white shadow-sm hover:bg-emerald-700"
+      className="h-11 w-full gap-2 bg-emerald-600 font-medium text-white shadow-sm hover:bg-emerald-700"
       disabled={recordWhatsApp.isPending}
       onClick={() => {
         recordWhatsApp.mutate(
