@@ -1026,6 +1026,7 @@ class FeedbackStatus(enum.Enum):
 
     PENDING = "PENDING"    # aguardando compilação em regras (Fase 2)
     APPLIED = "APPLIED"    # correção aplicada ao lead
+    COMPILED = "COMPILED"  # já consumido por uma compilação de regras
     DISMISSED = "DISMISSED"
 
 
@@ -1083,15 +1084,17 @@ class TemplateLearning(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=False)
     instructions = Column(JSONB, nullable=False, default=list)
-    compiled_from = Column(Integer,, default=0)
-    created_at = Column(DateTime(timezone=True),, server_default=func.now())
-    updated_at = Column(DateTime(timezone=True),, onupdate=func.now())
+    compiled_from = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     template = relationship("CampaignScoringTemplate")
     organization = relationship("Organization")
 
     def __repr__(self):
         return (f"<TemplateLearning(template={self.template_id}, rules={len(self.instructions or [])})>")
+
+
 class Job(Base):
     __tablename__ = "jobs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

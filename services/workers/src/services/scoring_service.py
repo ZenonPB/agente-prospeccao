@@ -346,6 +346,7 @@ def build_prompt(
     template: Optional[Dict[str, Any]],
     technical_facts: List[Dict[str, Any]],
     business_facts: List[Dict[str, Any]],
+    learned_instructions: Optional[List[str]] = None,
 ) -> str:
     """Monta o prompt do usuário final, contextualizado para a campanha.
 
@@ -356,6 +357,8 @@ def build_prompt(
                   Pode ser None — nesse caso pede-se à LLM que infera critérios.
         technical_facts: Facts técnicos determinísticos (lista de strings curtas).
         business_facts: Facts cadastrais (lista de strings curtas).
+        learned_instructions: Regras de calibração aprendidas com correções de
+                  score do time (TemplateLearning). Contexto, não comando.
     """
     lines: List[str] = []
 
@@ -378,6 +381,20 @@ def build_prompt(
             "a partir do serviço e segmento informados no contexto da campanha, e explique "
             "os critérios usados dentro de priority_reasoning.\n"
         )
+
+    if learned_instructions:
+        # Regras de calibração compiladas a partir de correções de score do
+        # time (TemplateLearning). Contexto de ponderação — não substituem
+        # as evidências nem a decisão da LLM.
+        lines.append("== AJUSTES APRENDIDOS COM O TIME ==")
+        lines.append(
+            "Regras derivadas de correções de score feitas por consultores "
+            "desta organização. Use-as para PONDERAR os sinais acima; a "
+            "decisão final continua exigindo evidência explícita:"
+        )
+        for rule in learned_instructions[:10]:
+            lines.append(f"  - {_cap(rule, 200)}")
+        lines.append("")
 
     lines.append("== EVIDÊNCIAS DISPONÍVEIS (facts) ==")
     lines.append("Estes são FATOS coletados passivamente — use-os como base para as evidências:")
@@ -767,6 +784,7 @@ class AIScoringService:
         company_size_info: Optional[str] = None,
         db=None,
         organization_id: Optional[str] = None,
+        learned_instructions: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Scoring contextual de um lead com site (web_presence).
 
@@ -808,6 +826,7 @@ class AIScoringService:
             template=template,
             technical_facts=technical_facts,
             business_facts=business_facts,
+            learned_instructions=learned_instructions,
         )
         return await self._call_groq(
             prompt, has_website=bool(website), db=db,
@@ -830,6 +849,7 @@ class AIScoringService:
         company_size_info: Optional[str] = None,
         db=None,
         organization_id: Optional[str] = None,
+        learned_instructions: Optional[List[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Scoring contextual de um lead sem análise técnica (business_opportunity).
 
@@ -854,6 +874,7 @@ class AIScoringService:
             template=template,
             technical_facts=[],
             business_facts=business_facts,
+            learned_instructions=learned_instructions,
         )
         # Guard determinístico de presença de site: sem site → remove
         # evidências que afirmem que o lead TEM site.
