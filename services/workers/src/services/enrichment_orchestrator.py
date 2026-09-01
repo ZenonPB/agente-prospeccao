@@ -13,7 +13,7 @@ Responsabilidades:
   nada de concatenar evidências em string.
 """
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -148,6 +148,7 @@ async def process_single_lead(
     campaign_target_segment: str = "",
     scoring_template: Optional[Dict[str, Any]] = None,
     allow_business_fallback: bool = False,
+    learned_instructions: Optional[List[str]] = None,
 ) -> Tuple[Optional[Enrichment], Optional[Dict[str, Any]]]:
     """Processa um lead — enriquecimento + scoring contextual explicável.
 
@@ -235,6 +236,7 @@ async def process_single_lead(
             company_size_info=company_size_info,
             db=db,
             organization_id=str(lead.organization_id) if lead.organization_id else None,
+            learned_instructions=learned_instructions,
         )
     else:
         # Perfil business_opportunity (ou template alinhou para skipar técnico).
@@ -264,6 +266,7 @@ async def process_single_lead(
             company_size_info=company_size_info,
             db=db,
             organization_id=str(lead.organization_id) if lead.organization_id else None,
+            learned_instructions=learned_instructions,
         )
 
     # Carimba quando cada fonte de análise foi atualizada (site/reviews).

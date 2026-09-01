@@ -28,6 +28,7 @@ from database.models import (
     LeadActivityAction,
     LeadStatus,
     ScoringFeedback,
+    TemplateLearning,
     FeedbackDirection,
     FeedbackStatus,
     CampaignStatus,

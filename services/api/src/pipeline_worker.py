@@ -582,6 +582,27 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
 
+        # Regras de calibração aprendidas com o time (docs/ai-feedback-loop.md):
+        # carregadas uma vez por job e injetadas no prompt de cada scoring.
+        learned_instructions: list = []
+        if campaign and campaign.scoring_template_id:
+            try:
+                from services.learning_compilation_service import get_learning_rules
+                learned_instructions = get_learning_rules(
+                    db, campaign.organization_id, campaign.scoring_template_id,
+                )
+                if learned_instructions:
+                    yield {
+                        "type": "log",
+                        "message": (
+                            f"Ajustes aprendidos com o time aplicados "
+                            f"({len(learned_instructions)} regras de calibração)."
+                        ),
+                        "timestamp": _ts(),
+                    }
+            except Exception as e:
+                logger.warning("Falha ao carregar aprendizados da org: %s", e)
+
         # Seleção dos leads a processar
         leads_query = db.query(Lead)
         if campaign:
@@ -683,6 +704,7 @@ async def run_pipeline(
                     campaign_target_segment=campaign.target_segment if campaign else "",
                     scoring_template=scoring_template,
                     allow_business_fallback=reanalyze_only,
+                    learned_instructions=learned_instructions,
                 )
 
                 if scoring_result is None:

@@ -1026,6 +1026,7 @@ class FeedbackStatus(enum.Enum):
 
     PENDING = "PENDING"    # aguardando compilação em regras (Fase 2)
     APPLIED = "APPLIED"    # correção aplicada ao lead
+    COMPILED = "COMPILED"  # já consumido por uma compilação de regras
     DISMISSED = "DISMISSED"
 
 
@@ -1067,6 +1068,32 @@ class ScoringFeedback(Base):
             f"<ScoringFeedback(lead='{self.lead_id}', "
             f"{self.original_score}→{self.suggested_score}, {self.status.value})>"
         )
+
+class TemplateLearning(Base):
+    # Regras de calibracao aprendidas com o time, por template + organizacao.
+    # A IA resume os feedbacks de score em regras objetivas (ex.: sites
+    # atualizados/bem apresentados pesam MENOS em campanhas de redesign).
+    # As regras sao injetadas no prompt de scoring como contexto de calibracao,
+    # sem nunca substituir a decisao da LLM nem editar templates globais.
+    # Org-scoped: aprendizado de uma org e privado e nao afeta o global.
+    __tablename__ = "template_learning"
+    __table_args__ = (
+        Index("ix_template_learning_org_template", "organization_id", "template_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=False)
+    instructions = Column(JSONB, nullable=False, default=list)
+    compiled_from = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    template = relationship("CampaignScoringTemplate")
+    organization = relationship("Organization")
+
+    def __repr__(self):
+        return (f"<TemplateLearning(template={self.template_id}, rules={len(self.instructions or [])})>")
+
 
 class Job(Base):
     __tablename__ = "jobs"

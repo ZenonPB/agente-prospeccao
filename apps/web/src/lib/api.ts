@@ -151,6 +151,9 @@ export const leadsApi = {
       body: JSON.stringify(body),
     }),
 
+  scoreFeedbackMetrics: () =>
+    request<ScoreFeedbackMetrics>("/api/leads/score-feedback-metrics"),
+
   assign: (id: string, assignedToId: string | null) =>
     request<{ id: string; company_name: string; assigned_to_id: string | null; assigned_at: string | null; assigned_to_name: string | null; previous_assignee_id: string | null }>(`/api/leads/${id}/assign`, {
       method: "PATCH",
@@ -427,6 +430,38 @@ export const campaignsApi = {
     request<Blob>(`/api/campaigns/${campaignId}/export/google-sheets`, {
       responseType: "blob",
     }),
+
+  // Loop de aprendizado da IA (docs/ai-feedback-loop.md)
+  getLearning: (campaignId: string) =>
+    request<CampaignLearning>(`/api/campaigns/${campaignId}/learning`),
+
+  synthesizeLearning: (campaignId: string) =>
+    request<{ compiled: number; rules: string[]; compacted: boolean }>(`/api/campaigns/${campaignId}/synthesize-learning`, {
+      method: "POST",
+    }),
+
+  discardLearningRule: (campaignId: string, ruleIndex: number) =>
+    request<{ rules: string[] }>(`/api/campaigns/${campaignId}/learning/${ruleIndex}`, {
+      method: "DELETE",
+    }),
+};
+
+// Loop de aprendizado da IA: regras de calibração + convergência IA × time.
+export type DeviationPoint = { week: string; avg_deviation: number; feedbacks: number };
+
+export type CampaignLearning = {
+  rules: string[];
+  compiled_from: number;
+  updated_at: string | null;
+  pending_feedbacks: number;
+  total_feedbacks: number;
+  deviation: { overall_avg: number | null; weekly: DeviationPoint[] };
+};
+
+export type ScoreFeedbackMetrics = {
+  overall_avg: number | null;
+  total_feedbacks: number;
+  weekly: DeviationPoint[];
 };
 
 export const metricsApi = {

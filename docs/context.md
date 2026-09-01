@@ -970,6 +970,31 @@ Branch `feat/universal-sector-scoring`:
 
 ### Próximo passo imediato
 
+> **Atualizado 2026-09-01 — Loop de aprendizado da IA completo (Fases 2–3):**
+>
+> - **Fase 2 — a IA aprende com as correções do time** (`docs/ai-feedback-loop.md`):
+>   - `learning_compilation_service.py` (workers): feedbacks de score
+>     (PENDING/APPLIED) por template×org → LLM (`GROQ_MODEL_CLASSIFY`) resume
+>     em 3–6 regras → upsert em `TemplateLearning.instructions` (JSONB), cap
+>     de 10 regras com compactação pela LLM; feedbacks consumidos viram
+>     `COMPILED`. Migration `d8e9f0a1b2c3` (+ valor `COMPILED` em
+>     `feedback_status`).
+>   - `build_prompt()` do scoring injeta o bloco "Ajustes aprendidos com o
+>     time" (`learned_instructions`) — contexto de ponderação, nunca comando;
+>     `process_single_lead` repassa; `pipeline_worker` carrega as regras da
+>     org uma vez por job.
+>   - API: `GET/DELETE /api/campaigns/{id}/learning[/{index}]` (painel +
+>     descartar regra) e `POST /api/campaigns/{id}/synthesize-learning`
+>     (síntese manual).
+> - **Fase 3 — visibilidade**: painel "Aprendizados da IA" na campanha
+>   (`learning-panel.tsx`, com "Sintetizar" e "Aplicar e reavaliar" — reusa
+>   reanalyze) e métrica de convergência |score IA − score consultor| semanal
+>   (`GET /api/leads/score-feedback-metrics`) com card "Convergência IA ×
+>   Time" em Relatórios (só aparece quando há feedbacks).
+> - **Testes**: `tests/test_learning_compilation.py` (8) — compilação com LLM
+>   mockada, injeção no prompt, cap/compactação/fallback. Suíte: 504 passed;
+>   web lint + tsc OK.
+
 > **Atualizado 2026-08-25 (2) — Auditoria dos scripts + README novo:**
 >
 > - **`scripts/` auditado e corrigido contra o sistema atual:**

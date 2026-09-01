@@ -5,6 +5,7 @@ import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { useOrgMembership } from '@/hooks/use-api';
+import { useScoreFeedbackMetrics } from '@/hooks/use-api';
 import { useAnalyticsOverview, useAnalyticsFunnel, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useAnalyticsForecast, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
 import { FunnelCard, RatesCard, ScoreBandsCard, NegotiationCard, ChartCardSkeleton, ChartCardError } from '@/components/relatorios/chart-cards';
@@ -14,6 +15,7 @@ import { ConsultantsCard, CampaignsCard, TopLeadsCard, ListCardSkeleton } from '
 import { GeoCard, GeoCardSkeleton } from '@/components/relatorios/brazil-state-map';
 import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline-card';
 import { ThresholdCard } from '@/components/relatorios/threshold-card';
+import { ConvergenceCard } from '@/components/relatorios/convergence-card';
 import { MessageVariantsCard } from '@/components/relatorios/message-variants-card';
 import { ReportControls, downloadBlob } from '@/components/relatorios/report-controls';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
@@ -35,6 +37,7 @@ export default function RelatoriosPage() {
   const campaignsQ = useAnalyticsCampaigns(period);
   const timelineQ = useAnalyticsTimeline(period);
   const forecastQ = useAnalyticsForecast(period);
+  const metricsQ = useScoreFeedbackMetrics();
   const exportPdf = useExportAnalyticsPdf();
 
   const anyLoading = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isLoading);
@@ -114,6 +117,11 @@ export default function RelatoriosPage() {
           {forecastQ.data && (
             <Reveal delay={70}>
               <ForecastCard forecast={forecastQ.data} />
+            </Reveal>
+          )}
+          {metricsQ.data && metricsQ.data.total_feedbacks > 0 && (
+            <Reveal delay={100}>
+              <ConvergenceCard metrics={metricsQ.data} />
             </Reveal>
           )}
           {funnelQ.data && (

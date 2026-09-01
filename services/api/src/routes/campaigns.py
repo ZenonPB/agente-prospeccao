@@ -478,6 +478,157 @@ async def reanalyze_campaign(
     return {"job_id": str(job.id), "status": "queued", "leads_to_reanalyze": lead_count}
 
 
+# ---- Loop de aprendizado da IA (docs/ai-feedback-loop.md) -------------------
+
+@router.get("/{campaign_id}/learning")
+def get_campaign_learning(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+):
+    """Painel 'Aprendizados da IA': regras ativas + métrica de convergência.
+
+    `deviation` é o desvio médio |score IA − score consultor| por semana —
+    quanto menor ao longo do tempo, mais a IA converge com o time.
+    """
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    learning = None
+    rules: list = []
+    compiled_from = 0
+    updated_at = None
+    if campaign.scoring_template_id:
+        from src.db.models import TemplateLearning
+        learning = db.query(TemplateLearning).filter(
+            TemplateLearning.organization_id == org.id,
+            TemplateLearning.template_id == campaign.scoring_template_id,
+        ).first()
+        if learning:
+            rules = list(learning.instructions or [])
+            compiled_from = learning.compiled_from or 0
+            updated_at = learning.updated_at.isoformat() if learning.updated_at else None
+
+    from src.db.models import ScoringFeedback, FeedbackStatus
+    feedbacks = db.query(ScoringFeedback).filter(
+        ScoringFeedback.campaign_id == campaign.id,
+        ScoringFeedback.status != FeedbackStatus.DISMISSED,
+    ).order_by(ScoringFeedback.created_at).all()
+
+    pending = sum(1 for f in feedbacks if f.status != FeedbackStatus.COMPILED)
+
+    # Desvio médio semanal (ISO week da data do feedback).
+    weekly: dict = {}
+    for f in feedbacks:
+        if not f.created_at:
+            continue
+        key = f.created_at.strftime("%G-W%V")
+        dev = abs(f.original_score - f.suggested_score)
+        agg = weekly.setdefault(key, {"sum": 0, "count": 0})
+        agg["sum"] += dev
+        agg["count"] += 1
+    deviation = [
+        {
+            "week": k,
+            "avg_deviation": round(v["sum"] / v["count"], 1),
+            "feedbacks": v["count"],
+        }
+        for k, v in sorted(weekly.items())
+    ]
+    overall = round(
+        sum(f["avg_deviation"] * f["feedbacks"] for f in deviation)
+        / max(1, sum(f["feedbacks"] for f in deviation)), 1,
+    ) if deviation else None
+
+    return {
+        "rules": rules,
+        "compiled_from": compiled_from,
+        "updated_at": updated_at,
+        "pending_feedbacks": pending,
+        "total_feedbacks": len(feedbacks),
+        "deviation": {
+            "overall_avg": overall,
+            "weekly": deviation,
+        },
+    }
+
+
+@router.post("/{campaign_id}/synthesize-learning")
+@limiter.limit("5/minute")
+async def synthesize_campaign_learning(
+    request: Request,
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+):
+    """Compila feedbacks de score pendentes em regras de calibração via LLM.
+
+    Manual primeiro (decisão docs/ai-feedback-loop.md): o gestor revisa os
+    feedbacks e dispara a síntese; as regras passam a valer nos próximos
+    scorings da campanha (template × organização).
+    """
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+    if not campaign.scoring_template_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Campanha ainda não tem template de critérios vinculado",
+        )
+
+    from services.learning_compilation_service import compile_learnings
+    result = await compile_learnings(
+        db, org.id, campaign.scoring_template_id,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhum feedback novo para compilar (ou falha na síntese — tente novamente)",
+        )
+    return result
+
+
+@router.delete("/{campaign_id}/learning/{rule_index}")
+def discard_campaign_learning_rule(
+    campaign_id: str,
+    rule_index: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+):
+    """Descarta uma regra de calibração (explicável e reversível)."""
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == org.id,
+    ).first()
+    if not campaign or not campaign.scoring_template_id:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
+    from src.db.models import TemplateLearning
+    learning = db.query(TemplateLearning).filter(
+        TemplateLearning.organization_id == org.id,
+        TemplateLearning.template_id == campaign.scoring_template_id,
+    ).first()
+    if not learning or not learning.instructions:
+        raise HTTPException(status_code=404, detail="Nenhum aprendizado registrado")
+    rules = list(learning.instructions)
+    if rule_index < 0 or rule_index >= len(rules):
+        raise HTTPException(status_code=404, detail="Regra não encontrada")
+    rules.pop(rule_index)
+    learning.instructions = rules
+    db.commit()
+    return {"rules": rules}
+
+
 # Limites de segurança do upload: 10 MB e 10.000 linhas.
 MAX_CSV_BYTES = 10 * 1024 * 1024
 MAX_CSV_ROWS = 10_000
