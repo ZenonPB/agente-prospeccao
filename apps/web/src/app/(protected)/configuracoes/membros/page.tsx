@@ -209,12 +209,13 @@ export default function MembrosPage() {
               <p className="text-xs text-muted-foreground">
                 {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
               </p>
-              <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <Button variant="outline" className="h-11" size="sm" onClick={() => refetch()}>
                 Tentar novamente
               </Button>
             </div>
           ) : (
-            <Table>
+            <div className="w-full min-w-0 overflow-x-auto">
+            <Table className="min-w-[760px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Pessoa</TableHead>
@@ -282,7 +283,7 @@ export default function MembrosPage() {
                           {/* Transfer Owner Option (OWNER only, target !== me) */}
                           {myRole === 'OWNER' && !isMe && (
                             <AlertDialog>
-                              <AlertDialogTrigger render={<Button variant="outline" size="sm" className="h-8 gap-1 text-xs" />}>
+                              <AlertDialogTrigger render={<Button variant="outline" size="sm" className="h-11 gap-1 text-xs" />}>
                                 <Crown className="h-3.5 w-3.5 text-amber-500" />
                                 Transferir Dono
                               </AlertDialogTrigger>
@@ -306,7 +307,7 @@ export default function MembrosPage() {
                           {/* Remove Member Option (canManage, target !== me, target !== OWNER) */}
                           {canManage && !isMe && member.role !== 'OWNER' && (
                             <AlertDialog>
-                              <AlertDialogTrigger render={<Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" />}>
+                              <AlertDialogTrigger render={<Button variant="ghost" size="sm" className="h-11 gap-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive" />}>
                                 <UserMinus className="h-3.5 w-3.5" />
                                 Remover
                               </AlertDialogTrigger>
@@ -333,7 +334,7 @@ export default function MembrosPage() {
                           {/* Leave Org Option (for me if not OWNER) */}
                           {isMe && member.role !== 'OWNER' && (
                             <AlertDialog>
-                              <AlertDialogTrigger render={<Button variant="outline" size="sm" className="h-8 gap-1 text-xs text-muted-foreground hover:text-destructive" />}>
+                              <AlertDialogTrigger render={<Button variant="outline" size="sm" className="h-11 gap-1 text-xs text-muted-foreground hover:text-destructive" />}>
                                 <LogOut className="h-3.5 w-3.5" />
                                 Sair da org
                               </AlertDialogTrigger>
@@ -363,6 +364,7 @@ export default function MembrosPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
