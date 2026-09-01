@@ -574,8 +574,7 @@ export function KanbanBoard() {
                                       Atribuir a mim
                                     </Button>
                                   )}
-                                  {canAssignOthers && (
-                                    <DropdownMenu>
+                                  <DropdownMenu>
                                       <DropdownMenuTrigger
                                         render={
                                           <Button
@@ -584,53 +583,64 @@ export function KanbanBoard() {
                                             size="icon"
                                             className="h-11 w-11 shrink-0 sm:h-6 sm:w-6"
                                             onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
-                                            aria-label="Atribuir lead"
+                                            aria-label="Mais opções"
                                           >
                                             <MoreHorizontal className="h-3.5 w-3.5" />
                                           </Button>
                                         }
                                       />
                                       <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                                        <DropdownMenuGroup>
-                                          <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
-                                          <DropdownMenuSeparator />
-                                          <DropdownMenuItem
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onAssignTo(lead.id, currentUserId as string, 'você');
-                                            }}
-                                            disabled={!currentUserId}
-                                          >
-                                            <User className="h-3.5 w-3.5" />
-                                            Você
-                                          </DropdownMenuItem>
-                                          {membersData?.members
-                                            .filter((m) => m.user_id !== currentUserId)
-                                            .map((m) => (
-                                              <DropdownMenuItem
-                                                key={m.user_id}
-                                                onClick={(e) => {
-                                                  e.stopPropagation();
-                                                  onAssignTo(lead.id, m.user_id, m.name);
-                                                }}
-                                              >
-                                                <User className="h-3.5 w-3.5" />
-                                                {m.name || m.email}
-                                              </DropdownMenuItem>
-                                            ))}
-                                          <DropdownMenuSeparator />
-                                          <DropdownMenuItem
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              onAssignTo(lead.id, null);
-                                            }}
-                                          >
-                                            Desatribuir
-                                          </DropdownMenuItem>
-                                        </DropdownMenuGroup>
+                                        {canAssignOthers && (
+                                          <DropdownMenuGroup>
+                                            <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAssignTo(lead.id, currentUserId as string, 'você');
+                                              }}
+                                              disabled={!currentUserId}
+                                            >
+                                              <User className="h-3.5 w-3.5" />
+                                              Você
+                                            </DropdownMenuItem>
+                                            {membersData?.members
+                                              .filter((m) => m.user_id !== currentUserId)
+                                              .map((m) => (
+                                                <DropdownMenuItem
+                                                  key={m.user_id}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onAssignTo(lead.id, m.user_id, m.name);
+                                                  }}
+                                                >
+                                                  <User className="h-3.5 w-3.5" />
+                                                  {m.name || m.email}
+                                                </DropdownMenuItem>
+                                              ))}
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onAssignTo(lead.id, null);
+                                              }}
+                                            >
+                                              Desatribuir
+                                            </DropdownMenuItem>
+                                          </DropdownMenuGroup>
+                                        )}
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setFeedbackLead(lead);
+                                            setFeedbackOpen(true);
+                                          }}
+                                        >
+                                          <BrainCircuit className="mr-2 h-3.5 w-3.5" />
+                                          Discordar do score
+                                        </DropdownMenuItem>
                                       </DropdownMenuContent>
                                     </DropdownMenu>
-                                  )}
                                   {/* Fallback acessível por toque: mover de etapa sem arrastar. */}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger
@@ -673,17 +683,6 @@ export function KanbanBoard() {
                                             {c.title}
                                           </DropdownMenuItem>
                                         ))}
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFeedbackLead(lead);
-                                            setFeedbackOpen(true);
-                                          }}
-                                        >
-                                          <BrainCircuit className="mr-2 h-3.5 w-3.5" />
-                                          Discordar do score
-                                        </DropdownMenuItem>
                                       </DropdownMenuGroup>
                                     </DropdownMenuContent>
                                   </DropdownMenu>

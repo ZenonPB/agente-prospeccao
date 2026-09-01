@@ -482,7 +482,19 @@ class ContactEnrichmentService:
             if not cnpj and not getattr(lead, "cnpj", None) and lead.company_name:
                 discovered = await self._discover_cnpj_from_search(client, lead)
                 if discovered:
-                    lead.cnpj = discovered
+                    duplicate = db.query(Lead).filter(
+                        Lead.organization_id == lead.organization_id,
+                        Lead.cnpj == discovered,
+                        Lead.id != lead.id,
+                    ).first()
+                    if duplicate:
+                        logger.info(
+                            "CNPJ %s já pertence a %s (%s) — ignorando atribuição em %s",
+                            discovered, duplicate.id, duplicate.company_name,
+                            lead.company_name,
+                        )
+                    else:
+                        lead.cnpj = discovered
                     if len(existing) == 1 and existing[0].source == "lead_name":
                         # Placeholder genérico sem CNPJ — re-cria com a Receita
                         # agora que temos CNPJ.
