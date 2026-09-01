@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useStartPipeline, useReanalyzeCampaign, usePipelineJobs, useInvalidateJobs } from '@/hooks/use-api';
 import { useReconnectableWs } from '@/hooks/use-reconnectable-ws';
-import { createPipelineWs } from '@/lib/api';
+import { createPipelineWsUrl, getPipelineAuthPayload } from '@/lib/api';
 import { toast } from 'sonner';
 
 // Mantém o DOM/renders finitos mesmo em rodadas longas (anti-congelamento).
@@ -64,7 +64,7 @@ export function CampaignPipeline({
   const jobsQuery = usePipelineJobs(campaignId, 5);
   const invalidateJobs = useInvalidateJobs();
 
-  const { isReconnecting, reconnectCount, connect, disconnect } = useReconnectableWs({
+  const { wsRef, isReconnecting, reconnectCount, connect, disconnect } = useReconnectableWs({
     maxRetries: 5,
     baseDelay: 1000,
     onMessage: (data) => {
@@ -111,6 +111,16 @@ export function CampaignPipeline({
     }
   }, [events]);
 
+  // Voltou à página com job em andamento: reconecta ao WS para retomar o
+  // feed em tempo real (o resumo final vem do evento 'done' ou do job COMPLETED).
+  const activeJobId = hasActiveJob && latestJob ? latestJob.id : null;
+  useEffect(() => {
+    if (activeJobId && !wsRef.current) {
+      setIsRunning(true);
+      connect(createPipelineWsUrl(activeJobId), getPipelineAuthPayload());
+    }
+  }, [activeJobId, connect, wsRef]);
+
   const handleStart = useCallback(async (startMode: 'collect' | 'reanalyze' | 'reanalyze-unscored' = 'collect') => {
     setHasStarted(true);
     setIsRunning(true);
@@ -134,9 +144,8 @@ export function CampaignPipeline({
             });
       invalidateJobs();
 
-      // Usar hook de reconexão automática
-      const wsUrl = createPipelineWs(result.job_id).url;
-      connect(wsUrl);
+      // Usar hook de reconexão automática (auth reenviada a cada reconexão)
+      connect(createPipelineWsUrl(result.job_id), getPipelineAuthPayload());
     } catch (e) {
       setIsRunning(false);
       const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';

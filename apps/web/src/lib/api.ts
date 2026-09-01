@@ -972,17 +972,20 @@ export const invitesApi = {
 };
 
 // Helper de conexão WebSocket — token JWT enviado na primeira mensagem,
-// nunca na URL (evita vazamento em logs de proxy/acesso).
-export function createPipelineWs(jobId: string): WebSocket {
-  const token = getCachedToken();
-  const baseUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;
-  const ws = new WebSocket(baseUrl);
-  ws.addEventListener("open", () => {
+// nunca na URL (evita vazamento em logs de proxy/acesso). O payload de auth
+// vai junto da URL para o caller passar ao hook de reconexão (que reenvia
+// auth a cada reconexão).
+export function createPipelineWsUrl(jobId: string): string {
+  return API_BASE_URL.replace(/^http/, "ws") + `/api/pipeline/ws/${jobId}`;
+}
+
+export function getPipelineAuthPayload(): Record<string, unknown> {
+  return {
+    type: "auth",
+    token: getCachedToken(),
     // Org ativa do switcher — validação de workspace no WS (multi-org).
-    const organization_id = getActiveOrganizationId();
-    ws.send(JSON.stringify({ type: "auth", token, organization_id: organization_id ?? undefined }));
-  });
-  return ws;
+    organization_id: getActiveOrganizationId() ?? undefined,
+  };
 }
 
 export interface NotificationItem {
