@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users, BrainCircuit } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
+import { ScoreFeedbackDialog } from '@/components/vendas/score-feedback-dialog';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,6 +119,9 @@ export function KanbanBoard() {
   const { data: membersData } = useOrgMembers(canAssignOthers ? orgId : undefined);
 
   const [myLeadsOnly, setMyLeadsOnly] = useState(false);
+  // Feedback de score: qual lead está sendo corrigido e se o diálogo está aberto.
+  const [feedbackLead, setFeedbackLead] = useState<LeadData | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useAllLeads({
     status: SALES_STATUSES,
@@ -668,6 +672,17 @@ export function KanbanBoard() {
                                             {c.title}
                                           </DropdownMenuItem>
                                         ))}
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setFeedbackLead(lead);
+                                            setFeedbackOpen(true);
+                                          }}
+                                        >
+                                          <BrainCircuit className="mr-2 h-3.5 w-3.5" />
+                                          Discordar do score
+                                        </DropdownMenuItem>
                                       </DropdownMenuGroup>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
@@ -700,6 +715,17 @@ export function KanbanBoard() {
           </div>
         </div>
       </DragDropContext>
+
+      {/* Feedback de score: remonta por lead para o formulário começar zerado. */}
+      <ScoreFeedbackDialog
+        key={feedbackLead?.id ?? 'none'}
+        lead={feedbackLead}
+        open={feedbackOpen}
+        onOpenChange={(open) => {
+          setFeedbackOpen(open);
+          if (!open) setFeedbackLead(null);
+        }}
+      />
     </div>
   );
 }
