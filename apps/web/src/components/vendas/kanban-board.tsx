@@ -333,7 +333,7 @@ export function KanbanBoard() {
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div
-          className={`max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto rounded-xl pb-4 ${activeDragFrom ? 'cursor-grabbing select-none' : 'snap-x snap-mandatory'}`}
+          className={`h-[min(60dvh,calc(100dvh-22rem))] max-h-[calc(100dvh-22rem)] min-h-[280px] overflow-x-auto overflow-y-auto rounded-xl pb-4 ${activeDragFrom ? 'cursor-grabbing select-none' : 'snap-x snap-mandatory'}`}
         >
           <div className="flex w-max gap-3 px-1 sm:gap-4">
             {COLUMNS.map((column) => (
@@ -525,7 +525,7 @@ export function KanbanBoard() {
                                      <Button
                                        variant="ghost"
                                        size="icon"
-                                       className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-6 sm:w-6"
+                                       className="h-11 w-11 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-6 sm:w-6"
                                        disabled={recordWhatsApp.isPending}
                                        onClick={(e) => {
                                          e.stopPropagation();
@@ -559,7 +559,7 @@ export function KanbanBoard() {
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="h-9 shrink-0 gap-1.5 px-3 text-xs sm:h-6 sm:gap-1 sm:px-2 sm:text-[11px]"
+                                      className="h-11 shrink-0 gap-1.5 px-3 text-xs sm:h-6 sm:gap-1 sm:px-2 sm:text-[11px]"
                                       disabled={assignLead.isPending && assignLead.variables?.id === lead.id}
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -582,7 +582,7 @@ export function KanbanBoard() {
                                             data-tour="vendas-card-menu"
                                             variant="ghost"
                                             size="icon"
-                                            className="h-9 w-9 shrink-0 sm:h-6 sm:w-6"
+                                            className="h-11 w-11 shrink-0 sm:h-6 sm:w-6"
                                             onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
                                             aria-label="Atribuir lead"
                                           >
@@ -638,7 +638,7 @@ export function KanbanBoard() {
                                         <Button
                                           variant="outline"
                                           size="icon"
-                                          className="h-9 w-9 shrink-0 sm:h-8 sm:w-8"
+                                          className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
                                           onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
                                           aria-label={`Mover ${lead.company_name} para outra etapa`}
                                         >
