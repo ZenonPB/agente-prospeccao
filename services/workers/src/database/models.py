@@ -982,6 +982,7 @@ class LeadActivityAction(enum.Enum):
     POST_SALE = "POST_SALE"
     WHATSAPP_SENT = "WHATSAPP_SENT"
     LINKEDIN_ASSOCIATED = "LINKEDIN_ASSOCIATED"
+    SCORE_FEEDBACK = "SCORE_FEEDBACK"
 
 
 class LeadActivity(Base):
@@ -1011,6 +1012,61 @@ class LeadActivity(Base):
 
     def __repr__(self):
         return f"<LeadActivity(lead='{self.lead_id}', action='{self.action.value}', at={self.created_at})>"
+
+
+class FeedbackDirection(enum.Enum):
+    """Direção do feedback de score do consultor."""
+
+    MUITO_ALTO = "MUITO_ALTO"    # IA pontuou demais
+    MUITO_BAIXO = "MUITO_BAIXO"  # IA pontuou de menos
+
+
+class FeedbackStatus(enum.Enum):
+    """Ciclo de vida do feedback de score."""
+
+    PENDING = "PENDING"    # aguardando compilação em regras (Fase 2)
+    APPLIED = "APPLIED"    # correção aplicada ao lead
+    DISMISSED = "DISMISSED"
+
+
+class ScoringFeedback(Base):
+    """Feedback humano sobre o score dado pela IA a um lead.
+
+    Insumo do loop de aprendizado: o consultor discorda do score (score
+    sugerido + motivo em texto livre), o feedback é auditável na trilha do
+    lead e, acumulado por template/organização, é compilado em regras de
+    calibração injetadas no prompt de scoring (ver TemplateLearning, Fase 2,
+    e docs/ai-feedback-loop.md).
+    """
+    __tablename__ = "scoring_feedbacks"
+    __table_args__ = (
+        Index("ix_scoring_feedbacks_org_status", "organization_id", "status"),
+        Index("ix_scoring_feedbacks_lead_id", "lead_id"),
+        Index("ix_scoring_feedbacks_template_id", "template_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=True)
+    original_score = Column(Integer, nullable=False)
+    suggested_score = Column(Integer, nullable=False)
+    direction = Column(Enum(FeedbackDirection, name='feedback_direction', create_type=True), nullable=False)
+    reason = Column(Text)
+    status = Column(Enum(FeedbackStatus, name='feedback_status', create_type=True), nullable=False, default=FeedbackStatus.PENDING)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+
+    lead = relationship("Lead")
+    user = relationship("User")
+    campaign = relationship("Campaign")
+
+    def __repr__(self):
+        return (
+            f"<ScoringFeedback(lead='{self.lead_id}', "
+            f"{self.original_score}→{self.suggested_score}, {self.status.value})>"
+        )
 
 class Job(Base):
     __tablename__ = "jobs"
