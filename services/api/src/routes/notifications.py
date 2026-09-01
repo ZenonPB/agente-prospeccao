@@ -12,7 +12,7 @@ from src.db.dependencies import get_db
 from src.db.models import Notification, Organization, User, OrganizationMember
 from src.auth.dependencies import get_current_user, get_user_organization
 
-router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 class NotificationResponse(BaseModel):

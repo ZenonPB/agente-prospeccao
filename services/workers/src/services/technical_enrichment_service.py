@@ -487,7 +487,11 @@ class TechnicalEnrichmentService:
 
             # Checagem de arquivos públicos de SEO (robots/sitemap):
             # sem varredura de caminhos sensíveis (.env, .git, admin/).
+            # Falha (ex.: 502) nesses arquivos NÃO invalida o site — a página
+            # principal já foi verificada acima; os flags ficam informativos.
             report["exposed_paths"] = await self._check_public_paths(website_url)
+            report["robots_available"] = "/robots.txt" in report["exposed_paths"]
+            report["sitemap_available"] = "/sitemap.xml" in report["exposed_paths"]
             if report["exposed_paths"]:
                 report["warnings"].append(f"Arquivos públicos presentes: {', '.join(report['exposed_paths'])}")
 
