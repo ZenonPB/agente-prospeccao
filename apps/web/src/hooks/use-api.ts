@@ -233,6 +233,20 @@ export function useUpdateLead() {
   });
 }
 
+// Feedback de score: o consultor discorda do score da IA; vira insumo de
+// calibração da IA (docs/ai-feedback-loop.md).
+export function useScoreFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; suggested_score: number; reason: string; apply_to_lead?: boolean }) =>
+      leadsApi.scoreFeedback(id, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+}
+
 export function useStartPipeline() {
   const queryClient = useQueryClient();
   return useMutation({

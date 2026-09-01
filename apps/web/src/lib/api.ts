@@ -145,6 +145,12 @@ export const leadsApi = {
       body: JSON.stringify({ status }),
     }),
 
+  scoreFeedback: (id: string, body: { suggested_score: number; reason: string; apply_to_lead?: boolean }) =>
+    request<{ id: string; lead_id: string; original_score: number; suggested_score: number; direction: string; status: string; applied_to_lead: boolean; lead_status?: string | null }>(`/api/leads/${id}/score-feedback`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   assign: (id: string, assignedToId: string | null) =>
     request<{ id: string; company_name: string; assigned_to_id: string | null; assigned_at: string | null; assigned_to_name: string | null; previous_assignee_id: string | null }>(`/api/leads/${id}/assign`, {
       method: "PATCH",
