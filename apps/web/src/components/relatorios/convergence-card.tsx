@@ -28,7 +28,7 @@ export function ConvergenceCard({ metrics }: { metrics: ScoreFeedbackMetrics }) 
       : null;
 
   return (
-    <Card>
+    <Card data-tour="relatorios-convergencia">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BrainCircuit className="h-4 w-4 text-violet-600" />

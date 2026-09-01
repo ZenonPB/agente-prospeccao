@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { driver, Driver } from 'driver.js';
 import { Loader2, Compass } from 'lucide-react';
-import { TOUR_STEPS } from '@/config/tour-steps';
+import { TOUR_STEPS, type TourStep } from '@/config/tour-steps';
 import { useOnboardingStore } from '@/stores/useOnboardingStore';
-import { useUserMe, useUpdateOnboardingStatus, useOrgMembership } from '@/hooks/use-api';
+import { useUserMe, useUpdateOnboardingStatus, useOrgMembership, useCampaigns } from '@/hooks/use-api';
 import { toast } from 'sonner';
 import './tour-styles.css';
 
@@ -73,9 +73,30 @@ export function GuidedTourManager() {
     membership?.membership?.role !== 'OWNER' &&
     membership?.membership?.role !== 'ADMIN';
 
+  // Rotas dinâmicas: o detalhe da primeira campanha (id real varia por org).
+  const { data: campaignsData, isLoading: campaignsLoading } = useCampaigns({ limit: 1 });
+  const firstCampaignId = campaignsData?.campaigns?.[0]?.id ?? null;
+  const campaignsSettled = !campaignsLoading;
+
+  const resolveRoute = useCallback(
+    (step: TourStep): string | null => {
+      if (step.routeResolver === 'first-campaign') {
+        return firstCampaignId ? `/campanhas/${firstCampaignId}` : null;
+      }
+      return step.targetRoute;
+    },
+    [firstCampaignId],
+  );
+
   const visibleSteps = useMemo(
-    () => TOUR_STEPS.filter((step) => !step.analystOnly || !isConsultantOnly),
-    [isConsultantOnly],
+    () =>
+      TOUR_STEPS.filter((step) => {
+        if (step.analystOnly && isConsultantOnly) return false;
+        // Sem campanha (consultado e vazio), o passo dinâmico é pulado.
+        if (step.routeResolver && campaignsSettled && resolveRoute(step) === null) return false;
+        return true;
+      }),
+    [isConsultantOnly, campaignsSettled, resolveRoute],
   );
 
   // Sincroniza status inicial vindo do backend se o local storage não tiver registrado
@@ -105,14 +126,20 @@ export function GuidedTourManager() {
 
     // Se estiver em outra rota, dispara a navegação antes de destacar. O
     // driver é destruído aqui para o overlay antigo não bloquear a nova página.
-    if (pathname !== currentStep.targetRoute && !isNavigatingRef.current) {
+    const targetRoute = resolveRoute(currentStep);
+    if (targetRoute === null) {
+      // Rota dinâmica ainda resolvendo (campanhas carregando): aguarda.
+      setIsWaitingForElement(true);
+      return;
+    }
+    if (pathname !== targetRoute && !isNavigatingRef.current) {
       isNavigatingRef.current = true;
       setIsWaitingForElement(true);
       if (driverRef.current) {
         driverRef.current.destroy();
         driverRef.current = null;
       }
-      router.push(currentStep.targetRoute);
+      router.push(targetRoute);
       return;
     }
 
@@ -217,6 +244,7 @@ export function GuidedTourManager() {
     pathname,
     router,
     visibleSteps,
+    resolveRoute,
     setIsWaitingForElement,
     nextStep,
     prevStep,

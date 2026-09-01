@@ -994,6 +994,12 @@ Branch `feat/universal-sector-scoring`:
 > - **Testes**: `tests/test_learning_compilation.py` (8) — compilação com LLM
 >   mockada, injeção no prompt, cap/compactação/fallback. Suíte: 504 passed;
 >   web lint + tsc OK.
+> - **Tour guiado ampliado** (`tour-steps.ts` + `guided-tour-manager.tsx`):
+>   passos novos para dentro da campanha (pipeline e "Aprendizados da IA",
+>   via `routeResolver: 'first-campaign'` — rota dinâmica do detalhe, pulada
+>   se a org não tem campanha), "Discordar do score" no kanban
+>   (`data-tour="vendas-card-menu"`) e card "Convergência IA × Time" nos
+>   relatórios.
 
 > **Atualizado 2026-08-25 (2) — Auditoria dos scripts + README novo:**
 >

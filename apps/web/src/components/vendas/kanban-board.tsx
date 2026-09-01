@@ -579,6 +579,7 @@ export function KanbanBoard() {
                                       <DropdownMenuTrigger
                                         render={
                                           <Button
+                                            data-tour="vendas-card-menu"
                                             variant="ghost"
                                             size="icon"
                                             className="h-9 w-9 shrink-0 sm:h-6 sm:w-6"

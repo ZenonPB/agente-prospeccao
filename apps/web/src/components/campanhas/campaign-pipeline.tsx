@@ -170,7 +170,7 @@ export function CampaignPipeline({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-tour="campanha-pipeline">
       {!hasStarted && !isRunning && (
         <Card>
           <CardContent className="pt-6">
