@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCampaign, useLeads } from '@/hooks/use-api';
 import { CampaignPipeline } from '@/components/campanhas/campaign-pipeline';
+import { LearningPanel } from '@/components/campanhas/learning-panel';
 import { CsvImportModal } from '@/components/campanhas/csv-import-modal';
 import { CnaeDiscoveryModal } from '@/components/campanhas/cnae-discovery-modal';
 import { PncpDiscoveryModal } from '@/components/campanhas/pncp-discovery-modal';
@@ -111,6 +112,8 @@ export default function CampaignDetailPage() {
         autoStart={autoStart}
         hasExistingLeads={leads.length > 0}
       />
+
+      <LearningPanel campaignId={campaign.id} />
 
       <Card>
         <CardHeader>

@@ -243,7 +243,47 @@ export function useScoreFeedback() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["learning"] });
+      queryClient.invalidateQueries({ queryKey: ["score-feedback-metrics"] });
     },
+  });
+}
+
+// Painel "Aprendizados da IA": regras de calibração ativas da campanha +
+// métrica de convergência IA × time.
+export function useCampaignLearning(campaignId: string) {
+  return useQuery({
+    queryKey: ["learning", campaignId],
+    queryFn: () => campaignsApi.getLearning(campaignId),
+  });
+}
+
+export function useSynthesizeLearning() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (campaignId: string) => campaignsApi.synthesizeLearning(campaignId),
+    onSuccess: (_data, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: ["learning", campaignId] });
+    },
+  });
+}
+
+export function useDiscardLearningRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { campaignId: string; ruleIndex: number }) =>
+      campaignsApi.discardLearningRule(args.campaignId, args.ruleIndex),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["learning", variables.campaignId] });
+    },
+  });
+}
+
+// Convergência IA × time no BI (desvio médio semanal, org inteira).
+export function useScoreFeedbackMetrics() {
+  return useQuery({
+    queryKey: ["score-feedback-metrics"],
+    queryFn: () => leadsApi.scoreFeedbackMetrics(),
   });
 }
 
