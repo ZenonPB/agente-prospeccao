@@ -117,10 +117,10 @@ export function ContactsTab({ lead, onAssociate }: ContactsTabProps) {
 
                 <div className="mt-3 space-y-2 text-sm">
                   {contact.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                      <a href={`mailto:${contact.email}`} className="text-primary hover:underline">{contact.email}</a>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.email || '', 'E-mail copiado.')} aria-label="Copiar e-mail">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Mail className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <a href={`mailto:${contact.email}`} className="min-w-0 break-all text-primary hover:underline">{contact.email}</a>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(contact.email || '', 'E-mail copiado.')} aria-label="Copiar e-mail">
                         <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                       </Button>
                       {contact.email_verified ? (
@@ -148,17 +148,17 @@ export function ContactsTab({ lead, onAssociate }: ContactsTabProps) {
                     </div>
                   )}
                   {contact.linkedin_url ? (
-                    <div className="flex items-center gap-2">
-                      <LinkedInIcon className="h-4 w-4 text-primary" />
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <LinkedInIcon className="h-4 w-4 shrink-0 text-primary" />
                       <a
                         href={contact.linkedin_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-primary hover:underline truncate max-w-[280px]"
+                        className="min-w-0 max-w-full break-all text-primary hover:underline"
                       >
                         {contact.linkedin_url}
                       </a>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyToClipboard(contact.linkedin_url || '', 'Link do LinkedIn copiado.')} aria-label="Copiar LinkedIn">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(contact.linkedin_url || '', 'Link do LinkedIn copiado.')} aria-label="Copiar LinkedIn">
                         <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                       </Button>
                       {contact.linkedin_match_status && contact.linkedin_match_status !== 'NOT_FOUND' ? (

@@ -5,6 +5,20 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant alpha (&:is(.alpha *));
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

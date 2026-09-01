@@ -65,6 +65,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   const [photoIndex, setPhotoIndex] = useState(0);
 
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = setInterval(() => {
       setPhotoIndex((i) => (i + 1) % teamPhotos.length);
     }, 4500);
@@ -294,7 +295,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
 
       {/* Formulário */}
       <div
-        className={`flex items-center justify-center p-4 sm:p-8 ${
+        className={`flex items-center justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] sm:p-8 ${
           isAlpha ? "bg-gradient-to-br from-white to-red-50/10" : ""
         }`}
       >
