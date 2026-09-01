@@ -28,7 +28,9 @@ _SEGMENT_TO_TYPES: List[tuple] = [
     (["hospital"], ["hospital"]),
     (["clinica medica", "medico", "medica", "consultorio"], ["doctor"]),
     (["academia", "musculacao", "crossfit", "pilates", "estudio de pilates"], ["gym", "fitness_center"]),
-    (["estetica", "salao", "salao de beleza", "barbearia", "manicure"], ["beauty_salon", "hair_care"]),
+    (["estetica", "salao", "salao de beleza", "barbearia", "manicure",
+      "cabeleireiro", "cabeleireiros", "cabelereiro", "cabelereiros"],
+     ["beauty_salon", "hair_care"]),
     (["clinica"], ["doctor", "health"]),
 
     # Alimentação
