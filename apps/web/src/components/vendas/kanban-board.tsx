@@ -329,7 +329,7 @@ export function KanbanBoard() {
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div
-          className={`max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto rounded-xl pb-4 snap-x snap-mandatory ${activeDragFrom ? 'cursor-grabbing select-none' : ''}`}
+          className={`max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto rounded-xl pb-4 ${activeDragFrom ? 'cursor-grabbing select-none' : 'snap-x snap-mandatory'}`}
         >
           <div className="flex w-max gap-3 px-1 sm:gap-4">
             {COLUMNS.map((column) => (
@@ -365,9 +365,9 @@ export function KanbanBoard() {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`min-h-[120px] space-y-2.5 rounded-lg border-2 border-dashed p-2 transition-all duration-200 ${
+                      className={`min-h-[120px] space-y-2.5 rounded-lg border-2 border-dashed p-2 transition-colors duration-200 ${
                         snapshot.isDraggingOver
-                          ? 'scale-[1.01] border-primary/60 bg-primary/5'
+                          ? 'border-primary/60 bg-primary/5'
                           : activeDragFrom
                             ? 'border-border/70 bg-muted/30'
                             : 'border-transparent bg-transparent'
@@ -394,12 +394,14 @@ export function KanbanBoard() {
                                   router.push(`/oportunidades/${lead.id}`);
                                 }
                               }}
-                              className={`group rounded-lg border bg-card p-3.5 shadow-sm transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                              className={`group rounded-lg border bg-card p-3.5 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
                                 snapshot.isDragging
                                   ? 'rotate-[1.5deg] scale-[1.03] shadow-xl ring-2 ring-primary/40'
-                                  : activeDragFrom
-                                    ? 'opacity-40 saturate-50'
-                                    : 'hover:border-primary/20 hover:shadow-md'
+                                  : `transition-[border-color,box-shadow] duration-150 ${
+                                      activeDragFrom
+                                        ? 'opacity-40 saturate-50'
+                                        : 'hover:border-primary/20 hover:shadow-md'
+                                    }`
                               }`}
                             >
                               {/* Cabeçalho do cartão = alça de arraste. Área generosa

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional
+import logging
 import os
 import sys
 from pydantic import BaseModel, Field
@@ -19,6 +20,8 @@ if _workers_path not in sys.path:
 from services.segment_suggestion_service import SegmentSuggestionService  # noqa: E402
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+
+logger = logging.getLogger(__name__)
 
 
 class CreateCampaignRequest(BaseModel):
@@ -265,6 +268,32 @@ async def create_campaign_from_brief(
         api_key=keys.get("GROQ_API_KEY"),
         organization_id=str(_org.id),
     )
+
+    # Vertical nova: gera os critérios JÁ no preview (não só no pipeline).
+    # Assim o review card mostra os critérios reais da oferta e a campanha
+    # já nasce vinculada — em vez de exibir "Genérico" e adiá-la ao job.
+    if template_info.get("route") == "GENERATE_NEW":
+        try:
+            from services.template_generation_service import TemplateGenerationService
+
+            generated = await TemplateGenerationService(api_key=keys.get("GROQ_API_KEY")).generate(
+                db,
+                target_service=suggestion.get("target_service") or "",
+                target_segment=suggestion.get("target_segment") or "",
+                organization_id=str(_org.id),
+            )
+            if generated and generated.get("service_label"):
+                template_info = {
+                    "template": generated,
+                    "route": "MATCHED",
+                    "matched_label": generated["service_label"],
+                }
+                db.commit()
+        except Exception as e:  # noqa: BLE001 — preview não pode quebrar; pipeline re-roteia depois
+            db.rollback()
+            logger.warning("Geração de template no preview falhou, seguindo com Genérico: %s", e)
+            template_info["route"] = "GENERATE_NEW"
+
     scoring_template_id = None
     scoring_template_label = None
     if template_info.get("template") and template_info.get("matched_label"):

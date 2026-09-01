@@ -115,6 +115,7 @@ _RISKY_CLAIMS = [
     (re.compile(r"lgpd|privacidade|cookies|cookie", re.IGNORECASE), ("lgpd", "privacidade", "cookies")),
     (re.compile(r"whatsapp", re.IGNORECASE), ("whatsapp",)),
     (re.compile(r"telefone|telefon", re.IGNORECASE), ("telefone",)),
+    (re.compile(r"blogspot|blogger|plataforma gratuita|hospedagem gratuita|sem dom[ií]nio", re.IGNORECASE), ("plataforma gratuita", "blogspot", "blogger", "domínio próprio")),
 ]
 
 _PERF_CLAIM = _RISKY_CLAIMS[4][0]
@@ -410,6 +411,14 @@ def build_prompt(
         lines.append("   próprio (sem website ou só com Instagram/WhatsApp/Canva) é PÚBLICO-ALVO.")
         lines.append("   Trate a ausência de site como oportunidade FORTE (aumente o score) e não")
         lines.append("   desqualifique por causa dela — use-a como dor no pitch/suggested_subject.")
+        lines.append("   TAMBÉM é público-alvo o lead com site próprio de BAIXA QUALIDADE:")
+        lines.append("   plataforma gratuita/amadora (Blogspot/Blogger, Wix grátis, Google Sites),")
+        lines.append("   sem domínio próprio, ou com vários problemas de UX/SEO (sem responsividade,")
+        lines.append("   sem formulário/CTA, SEO quebrado). Esse lead JÁ entende o valor de presença")
+        lines.append("   digital e precisa RENOVAR o site — trate como oportunidade FORTE e NUNCA")
+        lines.append("   desqualifique pela má qualidade do site; use-a como dor no pitch.")
+        lines.append("   Os facts 'Plataforma gratuita/amadora detectada' e 'Qualidade do site:'")
+        lines.append("   são as evidências determinísticas desses sinais.")
     else:
         lines.append("8. A ausência de site próprio é NEUTRA para o fit desta campanha (engenharia, projetos CAD, corte laser, MDF, troféus, ERP/sistemas ou consultoria):")
         lines.append("   avalie o fito principalmente pelas palavras-chave de atuação/produtos, CNAEs e porte cadastral.")
@@ -465,6 +474,18 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
     else:
         facts.append("Nenhum CMS/tecnologia identificado")
 
+    # Qualidade da plataforma: hospedagem gratuita/amadora e ausência de
+    # domínio próprio são sinais determinísticos de oportunidade de redesign
+    # (a LLM decide o peso; campanhas fora de presença digital ponderam baixo).
+    pq = report.get("platform_quality") or {}
+    if pq.get("is_free_platform"):
+        name = pq.get("platform") or "hospedagem gratuita"
+        dom = "" if pq.get("custom_domain", True) else ", sem domínio próprio"
+        facts.append(
+            f"Plataforma gratuita/amadora detectada: {name}{dom} "
+            "(indício de pouco investimento em presença digital)"
+        )
+
     perf = report.get("performance") or {}
     if perf.get("rating"):
         facts.append(f"Performance rating: {perf.get('rating')} ({lt}ms)" if lt is not None else f"Performance rating: {perf.get('rating')}")
@@ -517,6 +538,15 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
             facts.append("Menção a sistema/ERP/software na página (indício de automação)")
         else:
             facts.append("Nenhuma menção a sistema/ERP/software na página")
+
+    # Resumo consolidado de qualidade: quando o site acumula vários problemas
+    # de UX/SEO, isso é evidência concreta de necessidade de redesign (o eixo
+    # não é "tem site" vs "não tem", é "site bom" vs "site ruim").
+    total_issues = len((report.get("seo") or {}).get("issues") or []) + len(
+        (report.get("ux") or {}).get("issues") or []
+    )
+    if total_issues >= 3:
+        facts.append(f"Qualidade do site: {total_issues} problemas de UX/SEO detectados (candidato a redesign)")
 
     warnings = report.get("warnings") or []
     if warnings:

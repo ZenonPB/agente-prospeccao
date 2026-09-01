@@ -174,6 +174,15 @@ export default function NovaCampanhaPage() {
         target_state: briefDraft.target_state || undefined,
         places_query: briefDraft.places_query || undefined,
       });
+      // Vincula o template resolvido/gerado na sugestão (a menos que o
+      // usuário tenha escolhido outro manualmente no seletor).
+      const templateId = selectedTemplateId || briefDraft.scoring_template_id;
+      if (templateId) {
+        await updateCampaign.mutateAsync({
+          id: campaign.id,
+          data: { scoring_template_id: templateId },
+        });
+      }
       if (startCollection) {
         router.push(`/campanhas/${campaign.id}`);
       } else {
@@ -393,7 +402,12 @@ export default function NovaCampanhaPage() {
                   {briefDraft.scoring_template_label && (
                     <div className="flex items-center gap-2 rounded-lg border bg-muted p-3 text-sm">
                       <Badge variant="secondary">Critérios de avaliação</Badge>
-                      <span>{briefDraft.scoring_template_label}</span>
+                      <span>
+                        {briefDraft.scoring_template_label === 'Genérico' &&
+                        briefDraft.template_route === 'GENERATE_NEW'
+                          ? 'Os critérios serão gerados pela IA no início da coleta'
+                          : briefDraft.scoring_template_label}
+                      </span>
                     </div>
                   )}
 

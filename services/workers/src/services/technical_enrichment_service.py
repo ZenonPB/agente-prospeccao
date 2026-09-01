@@ -167,6 +167,10 @@ class TechnicalEnrichmentService:
         if re.search(r'sites\.google\.com', html_lower):
             return "Google Sites"
 
+        # Blogger/Blogspot
+        if re.search(r'blogger\.com|blogspot\.com|<meta name="generator" content="blogger', html_lower):
+            return "Blogger/Blogspot"
+
         # Via headers HTTP
         x_powered = headers.get("x-powered-by", "").lower()
         if "php" in x_powered:
@@ -190,6 +194,60 @@ class TechnicalEnrichmentService:
             return None  # Não é CMS, apenas infra — retorna None para não poluir
 
         return None
+
+    # Plataformas de hospedagem gratuita/amadora — subdomínios de serviço no
+    # lugar de domínio próprio indicam pouco (ou nenhum) investimento em
+    # presença digital. Sinal determinístico de oportunidade para campanhas
+    # que vendem presença digital.
+    _FREE_PLATFORM_URL_PATTERNS = [
+        (r'\.blogspot\.', "Blogger/Blogspot"),
+        (r'\.wordpress\.com', "WordPress.com (grátis)"),
+        (r'\.wixsite\.com', "Wix (grátis)"),
+        (r'\.weebly\.com', "Weebly (grátis)"),
+        (r'\.webnode\.', "Webnode (grátis)"),
+        (r'\.sites\.google\.com', "Google Sites"),
+        (r'\.github\.io', "GitHub Pages"),
+        (r'\.herokuapp\.com', "Heroku (free tier)"),
+        (r'\.vercel\.app', "Vercel (free tier)"),
+        (r'\.netlify\.app', "Netlify (free tier)"),
+    ]
+
+    _FREE_PLATFORM_HTML_PATTERNS = [
+        (r'blogger\.com|blogspot\.com|<meta name="generator" content="blogger', "Blogger/Blogspot"),
+        (r'<meta name="generator" content="wordpress\.com', "WordPress.com (grátis)"),
+    ]
+
+    def _detect_platform_quality(
+        self,
+        website_url: str,
+        html_content: Optional[str],
+        headers: Dict[str, str],
+    ) -> Dict[str, Any]:
+        """Classifica a plataforma do site quanto a hospedagem gratuita/amadora.
+
+        100% passivo (HTML/headers/URL já obtidos). `custom_domain=False`
+        quando o endereço é subdomínio de um serviço (ex.: `*.blogspot.com`)
+        — sinal de que a empresa não investiu sequer em domínio próprio.
+        """
+        url_lower = (website_url or "").lower()
+        html_lower = (html_content or "").lower()
+
+        platform = None
+        for pattern, name in self._FREE_PLATFORM_URL_PATTERNS:
+            if re.search(pattern, url_lower):
+                platform = name
+                break
+        if platform is None:
+            for pattern, name in self._FREE_PLATFORM_HTML_PATTERNS:
+                if re.search(pattern, html_lower):
+                    platform = name
+                    break
+
+        return {
+            "platform": platform,
+            "is_free_platform": platform is not None,
+            "custom_domain": platform is None,
+        }
 
     def _check_seo(self, html_content: Optional[str]) -> Dict[str, Any]:
         """Verifica SEO básico e menção a LGPD/privacidade a partir do HTML já baixado (sem nova requisição)."""
@@ -467,6 +525,11 @@ class TechnicalEnrichmentService:
 
             # Detecção de CMS/tecnologia (reusa HTML já baixado)
             report["cms_detection"] = self._detect_cms(html_content, resp_headers)
+            # Qualidade da plataforma (hospedagem gratuita/amadora, domínio
+            # próprio) — sinal determinístico de oportunidade de redesign.
+            report["platform_quality"] = self._detect_platform_quality(
+                website_url, html_content, resp_headers
+            )
             if report["cms_detection"] == "WordPress":
                 report["warnings"].append("CMS WordPress detectado (verificar versão e plugins)")
 
