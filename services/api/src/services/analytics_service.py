@@ -14,7 +14,7 @@ Fonte de dados:
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.db.models import (
@@ -196,16 +196,16 @@ class AnalyticsService:
         score_bands = []
         # Score bands via CASE WHEN em SQL (P1-7): 1 query em vez de 8.
         band_query = base.with_entities(
-            func.sum(func.case(
+            func.sum(case(
                 (Lead.qualification_score.between(0, 39), 1), else_=0
             )).label("b0"),
-            func.sum(func.case(
+            func.sum(case(
                 (Lead.qualification_score.between(40, 59), 1), else_=0
             )).label("b1"),
-            func.sum(func.case(
+            func.sum(case(
                 (Lead.qualification_score.between(60, 79), 1), else_=0
             )).label("b2"),
-            func.sum(func.case(
+            func.sum(case(
                 (Lead.qualification_score.between(80, 100), 1), else_=0
             )).label("b3"),
         ).one()
@@ -215,16 +215,16 @@ class AnalyticsService:
         conv_sub = (
             base.join(Conversion, Conversion.lead_id == Lead.id, isouter=True)
             .with_entities(
-                func.sum(func.case(
+                func.sum(case(
                     (Lead.qualification_score.between(0, 39) & Conversion.id.isnot(None), 1), else_=0
                 )).label("c0"),
-                func.sum(func.case(
+                func.sum(case(
                     (Lead.qualification_score.between(40, 59) & Conversion.id.isnot(None), 1), else_=0
                 )).label("c1"),
-                func.sum(func.case(
+                func.sum(case(
                     (Lead.qualification_score.between(60, 79) & Conversion.id.isnot(None), 1), else_=0
                 )).label("c2"),
-                func.sum(func.case(
+                func.sum(case(
                     (Lead.qualification_score.between(80, 100) & Conversion.id.isnot(None), 1), else_=0
                 )).label("c3"),
             ).one()
@@ -250,7 +250,7 @@ class AnalyticsService:
         # Forecast ponderado: CASE WHEN por estágio em SQL.
         forecast_cases = [
             func.sum(
-                func.case(
+                case(
                     (Lead.status == status, Lead.value * weight),
                     else_=0,
                 )
@@ -325,10 +325,9 @@ class AnalyticsService:
         def _event_lead_ids(model, *criteria):
             """lead_ids (distintos, org-scoped) que têm o evento dado."""
             return (
-                self.db.query(model.lead_id)
+                select(model.lead_id)
                 .join(Lead, Lead.id == model.lead_id)
-                .filter(Lead.organization_id == self.org_id, *criteria)
-                .subquery()
+                .where(Lead.organization_id == self.org_id, *criteria)
             )
 
         sent_followups = _event_lead_ids(FollowUp, FollowUp.sent_at.isnot(None))
@@ -893,9 +892,9 @@ class AnalyticsService:
             lead_base.with_entities(
                 Lead.campaign_id,
                 func.count(Lead.id),
-                func.sum(func.case((Lead.status == LeadStatus.QUALIFICADO, 1), else_=0)),
-                func.sum(func.case((Lead.status == LeadStatus.CONTATADO, 1), else_=0)),
-                func.sum(func.case((Lead.status.in_(
+                func.sum(case((Lead.status == LeadStatus.QUALIFICADO, 1), else_=0)),
+                func.sum(case((Lead.status == LeadStatus.CONTATADO, 1), else_=0)),
+                func.sum(case((Lead.status.in_(
                     (LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA)
                 ), 1), else_=0)),
             )
