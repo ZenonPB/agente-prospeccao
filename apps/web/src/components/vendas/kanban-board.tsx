@@ -329,7 +329,7 @@ export function KanbanBoard() {
 
       <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div
-          className={`max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto rounded-xl pb-4 snap-x snap-mandatory ${activeDragFrom ? 'cursor-grabbing select-none' : ''}`}
+          className={`max-h-[calc(100dvh-22rem)] min-h-[420px] overflow-x-auto overflow-y-auto rounded-xl pb-4 ${activeDragFrom ? 'cursor-grabbing select-none' : 'snap-x snap-mandatory'}`}
         >
           <div className="flex w-max gap-3 px-1 sm:gap-4">
             {COLUMNS.map((column) => (
