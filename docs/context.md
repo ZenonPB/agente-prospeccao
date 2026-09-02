@@ -1721,6 +1721,24 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 ### Sessão atual — scoring de ERP/webapps corrigido (2026-09-01)
 ### Sessão atual — kanban: arraste fluido, sem travadas (2026-09-01)
 
+### Sessão atual — kanban: confirmação otimista e encoding do toast (2026-09-01)
+
+Branch `fix/kanban-drag-perf`:
+
+- O `style` do `@hello-pangea/dnd` agora passa sem sobrescrita customizada;
+  removidos `willChange` e `transition: none` que podiam interferir na
+  animação de drop e deixar `position: fixed` preso até um reflow.
+- `touch-none` aplicado também ao elemento externo do card, evitando que o
+  scroll vertical do container roube o gesto durante o arraste.
+- O layout otimista não é mais limpo no `onSuccess` antes de a query confirmar
+  o novo status. `visibleColumns` mantém o card na coluna destino até a resposta
+  atualizada chegar; isso evita o congelamento após soltar.
+- Corrigido o texto mojibake `PrÃ³xima aÃ§Ã£o sugerida` e outros textos
+  acentuados do kanban para UTF-8 válido (`Próxima ação sugerida`).
+
+Validação: `npm run lint` e `npx tsc --noEmit` sem erros do kanban; o working
+tree foi conferido com `git diff --check`.
+
 Branch `fix/kanban-drag-perf` (a partir de `fix/scoring-erp-webapps`):
 
 **Sintoma:** ao segurar e arrastar um card no kanban, o card ficava travado e
