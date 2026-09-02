@@ -41,6 +41,7 @@ PGDATA="$PG_ROOT/pgdata"
 PG_LOG="$PG_ROOT/pg.log"
 API_LOG="$REPO_ROOT/services/api/uvicorn.log"
 WEB_LOG="$REPO_ROOT/apps/web/next-dev.log"
+WEB_PID_FILE="$REPO_ROOT/apps/web/.next-dev.pid"
 
 API_PORT="${API_PORT:-8000}"
 WEB_PORT="${WEB_PORT:-3001}"
@@ -59,6 +60,12 @@ port_pids() {
 
 web_is_up() {
   [ -n "$(port_pids "$WEB_PORT")" ]
+}
+
+web_pid() {
+  if [ -f "$WEB_PID_FILE" ]; then
+    cat "$WEB_PID_FILE"
+  fi
 }
 
 pg_start() {
@@ -117,7 +124,13 @@ web_start() {
   # Cache persistente do Turbopack já serviu chunks corrompidos (500
   # MODULE_NOT_FOUND em internals de next/*). Sempre subir com compilação limpa.
   rm -rf .next
-  setsid nohup npm run dev -- -p "$WEB_PORT" > "$WEB_LOG" 2>&1 < /dev/null &
+  # Executa o binário local diretamente. O script npm acrescenta o port
+  # definido no package.json e, ao ser combinado com outro `-p`, pode deixar
+  # o processo filho sujeito ao encerramento do shell pai em alguns ambientes.
+  # O PID persistido permite que stop encerre exatamente esta instância.
+  rm -f "$WEB_PID_FILE"
+  setsid nohup ./node_modules/.bin/next dev -p "$WEB_PORT" > "$WEB_LOG" 2>&1 < /dev/null &
+  echo $! > "$WEB_PID_FILE"
   disown 2>/dev/null || true
   echo "Web iniciando em http://localhost:$WEB_PORT (log: $WEB_LOG)"
 }
@@ -136,12 +149,23 @@ api_stop() {
 }
 
 web_stop() {
-  local pids
+  local pids pid
+  pid="$(web_pid)"
+  if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    # setsid criou um grupo próprio; encerra o grupo para não deixar o
+    # processo Node órfão após matar apenas o launcher.
+    kill -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
+    rm -f "$WEB_PID_FILE"
+    echo "Web parada."
+    return
+  fi
   pids="$(port_pids "$WEB_PORT")"
   if [ -n "$pids" ]; then
     kill $pids 2>/dev/null || true
+    rm -f "$WEB_PID_FILE"
     echo "Web parada."
   else
+    rm -f "$WEB_PID_FILE"
     echo "Web não está rodando."
   fi
 }

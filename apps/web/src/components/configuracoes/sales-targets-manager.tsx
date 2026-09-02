@@ -83,8 +83,8 @@ export function SalesTargetsManager({ orgId, members }: { orgId: string; members
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between">
-        <div>
+      <CardHeader className="flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <CardTitle className="flex items-center gap-2">
             <Target className="h-4 w-4 text-amber-500" />
             Metas de vendas ({month})
@@ -94,7 +94,7 @@ export function SalesTargetsManager({ orgId, members }: { orgId: string; members
           </CardDescription>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button size="sm" className="gap-1"><Plus className="h-4 w-4" /> Nova meta</Button>} />
+          <DialogTrigger render={<Button size="sm" className="h-11 w-full gap-1 sm:h-9 sm:w-auto"><Plus className="h-4 w-4" /> Nova meta</Button>} />
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Definir meta de vendas</DialogTitle>
@@ -125,7 +125,7 @@ export function SalesTargetsManager({ orgId, members }: { orgId: string; members
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="target-meetings">Meta de reuniões</Label>
                   <Input
@@ -150,8 +150,8 @@ export function SalesTargetsManager({ orgId, members }: { orgId: string; members
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button onClick={handleSave} disabled={pending}>
+              <Button variant="outline" className="h-11" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button className="h-11" onClick={handleSave} disabled={pending}>
                 {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Salvar meta
               </Button>
@@ -172,7 +172,7 @@ export function SalesTargetsManager({ orgId, members }: { orgId: string; members
           </p>
         ) : (
           targets.map((t) => (
-            <div key={t.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <div key={t.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{t.name || t.email || t.user_id}</p>
                 <p className="text-xs text-muted-foreground">
@@ -180,7 +180,7 @@ export function SalesTargetsManager({ orgId, members }: { orgId: string; members
                 </p>
               </div>
               <AlertDialog>
-                <AlertDialogTrigger render={<Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" />}>
+                <AlertDialogTrigger render={<Button variant="ghost" size="icon" className="h-11 w-11 shrink-0 text-destructive hover:bg-destructive/10" />}>
                   <Trash2 className="h-4 w-4" />
                 </AlertDialogTrigger>
                 <AlertDialogContent>

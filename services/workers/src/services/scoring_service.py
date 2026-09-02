@@ -78,6 +78,45 @@ def _campaign_sells_web_presence(template: Optional[Dict[str, Any]], target_serv
     return bool(_SELLS_WEB_PRESENCE.search(target_service or ""))
 
 
+# Labels de template cuja venda é sistema web completo / ERP — para essas
+# campanhas, o fito vem principalmente do cadastro (porte, idade, CNAE) e do
+# segmento, NÃO da qualidade do site. Adicionar novos labels aqui expande a
+# aplicação da instrução 8c para outros templates de venda de sistemas sob
+# medida sem tocar no build_prompt.
+_ERP_WEBAPP_LABELS = frozenset({
+    "aplicações web / erp",
+    "sistemas web / erp",
+    "aplicações web completas",
+    "erp personalizado",
+    "sistema web sob medida",
+})
+
+
+def _campaign_sells_erp_webapps(template: Optional[Dict[str, Any]], target_service: str) -> bool:
+    """True se a campanha vende SISTEMA WEB COMPLETO / ERP sob medida.
+
+    Determina se a instrução 8c (foco em porte/CNAE/idade/segmento) deve
+    aparecer no prompt. Critério principal: template com label de ERP/webapp
+    sob medida. Fallback por regex no target_service cobre campanhas com
+    template "Genérico" ou ainda sem template específico (rota GENERATE_NEW).
+    """
+    if template:
+        label = (template.get("service_label") or "").strip().lower()
+        if label in _ERP_WEBAPP_LABELS:
+            return True
+        if label and label != "genérico":
+            # Template específico de outra categoria — não é ERP.
+            return False
+    if not target_service:
+        return False
+    svc = target_service.lower()
+    return bool(re.search(
+        r"erp|sistema(s)?\s+web|aplica[çc][ãa]o\s+web|gest[ãa]o\s+integrada|"
+        r"plataforma\s+(web|sob\s+medida)|software\s+sob\s+medida",
+        svc,
+    ))
+
+
 def _contradicts_site_state(evidence: Dict[str, Any], has_website: bool) -> bool:
     """True se a evidência contradiz o fato cadastral de presença de site."""
     text = " ".join(str(evidence.get(k) or "") for k in ("title", "description"))
@@ -436,10 +475,63 @@ def build_prompt(
         lines.append("   desqualifique pela má qualidade do site; use-a como dor no pitch.")
         lines.append("   Os facts 'Plataforma gratuita/amadora detectada' e 'Qualidade do site:'")
         lines.append("   são as evidências determinísticas desses sinais.")
+        # 8b — SaaS de terceiros: SEMPRE presente, mesmo em campanhas de
+        # presença digital (um lead com site só de anota.ai não precisa de
+        # "site institucional", mas talvez precise de presença digital completa).
+        lines.append(
+            "8b. Se o fact 'Lead usa plataforma SaaS de terceiros' estiver presente, o "
+            "site do lead NÃO é domínio próprio — é uma vitrine/loja de plataforma "
+            "(anota.ai, iFood, Rappi, Aimpire, Pedidosky etc.) para pedidos/delivery/"
+            "cardápio. NÃO trate esses sinais como 'área logada/portal do lead'. "
+            "Pode ser gancho para venda de presença digital completa."
+        )
     else:
         lines.append("8. A ausência de site próprio é NEUTRA para o fit desta campanha (engenharia, projetos CAD, corte laser, MDF, troféus, ERP/sistemas ou consultoria):")
         lines.append("   avalie o fito principalmente pelas palavras-chave de atuação/produtos, CNAEs e porte cadastral.")
         lines.append("   NÃO desqualifique nem reduza o score por questões de SEO/SSL/performance do site — elas são irrelevantes.")
+        # 8b — SaaS de terceiros: presente em campanhas não-web-presence.
+        # Particularmente importante para o template "Aplicações Web / ERP":
+        # corrige o falso-positivo histórico em que leads hospedados em
+        # plataformas de pedidos eram pontuados como se o "login/sistema" do
+        # SaaS fosse automação própria do lead.
+        lines.append(
+            "8b. Se o fact 'Lead usa plataforma SaaS de terceiros' estiver presente, o "
+            "site do lead NÃO é domínio próprio — é uma vitrine/loja de plataforma "
+            "(anota.ai, iFood, Rappi, Aimpire, Pedidosky etc.) para pedidos/delivery/"
+            "cardápio. Esses SaaS SUBSTITUEM apenas o canal de pedidos online, NÃO "
+            "substituem ERP/sistema de gestão. O lead provavelmente AINDA tem processo "
+            "manual interno (planilha/WhatsApp/papel) para estoque, financeiro, agenda, "
+            "CRM. NUNCA afirme 'o lead já tem sistema próprio' baseado em SaaS de "
+            "delivery, e NUNCA afirme 'processo manual' só porque o site é só vitrine."
+        )
+    # 8c: foco em porte/CNAE/idade/segmento quando ERP. Complementa 8b para a
+    # venda B2B de sistemas web completos / ERP — só ativo nesse template.
+    if _campaign_sells_erp_webapps(template, target_service):
+        lines.append(
+            "8c. Venda de SISTEMA WEB COMPLETO / ERP: o fito vem principalmente do "
+            "PORTE cadastral, IDADE, CNAE e SEGMENTO do lead, não da qualidade do site:"
+        )
+        lines.append(
+            "    - Microempresa/MEI raramente justifica ERP sob medida — pondere baixo."
+        )
+        lines.append(
+            "    - Lead com CNAE de software/TI/desenvolvimento/SaaS é POTENCIAL "
+            "CONCORRENTE ou já é digital demais — pondere baixo."
+        )
+        lines.append(
+            "    - Lead com CNAE de serviço/operação com processos replicáveis "
+            "(saúde/educação/serviços especializados/logística/varejo) tem alta chance "
+            "de se beneficiar — pondere como público-alvo."
+        )
+        lines.append(
+            "    - Empresa jovem (< 2 anos) ainda estruturando processos: público-alvo "
+            "forte (sistema entra junto com a operação). Empresa com > 10 anos e porte "
+            "médio/grande provavelmente já tem sistema legado: fito baixo para troca."
+        )
+        lines.append(
+            "    - Empresa com boa reputação Google + poucas avaliações (<=30) = "
+            "operação pequena, processo provavelmente manual: pondere como público-alvo."
+        )
     lines.append("9. Os sinais do template (CRITÉRIOS) NÃO são fatos do lead: nunca inclua em evidence[],")
     lines.append("   pitch_angle ou suggested_subject um sintoma (ex.: 'sem responsividade', 'sem formulário/CTA',")
     lines.append("   'site desatualizado') que não tenha fact correspondente nas EVIDÊNCIAS acima.")
@@ -543,18 +635,31 @@ def extract_technical_facts(report: Dict[str, Any]) -> List[str]:
         else:
             facts.append("Nenhum canal de contato clicável (telefone/WhatsApp/e-mail) na home")
 
-        # Área logada/portal e menção a sistema — evidência determinística
-        # usada pelo template "Aplicações Web / ERP": empresa com área logada
-        # ou que cita sistema próprio provavelmente JÁ tem automação (reduz o
-        # fit); site só institucional sem portal sugere processo manual.
-        if ux.get("login_portal_found"):
-            facts.append("Área logada/portal/painel presente na página (indício de sistema próprio)")
+        # Plataforma SaaS de terceiros detectada — anota.ai, iFood, Rappi etc.
+        # Importante para todos os templates, mas principalmente para "Aplicações
+        # Web / ERP": o "login/portal/sistema" que aparece nessas plataformas
+        # é do SaaS, não do lead. Tratar isso como evidência de "lead já tem
+        # sistema" é o erro clássico do scoring (false positive).
+        if ux.get("is_third_party_saas"):
+            platform = ux.get("third_party_platform") or "plataforma SaaS"
+            facts.append(
+                f"Lead usa plataforma SaaS de terceiros ({platform}): o site não é "
+                "domínio próprio — é vitrine/loja do SaaS (delivery/pedidos/cardápio). "
+                "Sinais de 'login/sistema' detectados pertencem ao SaaS, não ao lead."
+            )
         else:
-            facts.append("Nenhuma área logada/portal/painel encontrada na página")
-        if ux.get("system_mention_found"):
-            facts.append("Menção a sistema/ERP/software na página (indício de automação)")
-        else:
-            facts.append("Nenhuma menção a sistema/ERP/software na página")
+            # Área logada/portal e menção a sistema — evidência determinística
+            # usada pelo template "Aplicações Web / ERP": empresa com área logada
+            # ou que cita sistema próprio provavelmente JÁ tem automação (reduz o
+            # fit); site só institucional sem portal sugere processo manual.
+            if ux.get("login_portal_found"):
+                facts.append("Área logada/portal/painel presente na página (indício de sistema próprio)")
+            else:
+                facts.append("Nenhuma área logada/portal/painel encontrada na página")
+            if ux.get("system_mention_found"):
+                facts.append("Menção a sistema/ERP/software na página (indício de automação)")
+            else:
+                facts.append("Nenhuma menção a sistema/ERP/software na página")
 
     # Resumo consolidado de qualidade: quando o site acumula vários problemas
     # de UX/SEO, isso é evidência concreta de necessidade de redesign (o eixo

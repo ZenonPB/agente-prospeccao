@@ -38,7 +38,7 @@ export function FunnelCard({ overview }: { overview: AnalyticsOverview }) {
           const color = STAGE_COLORS[stage.stage] || '#64748b';
           return (
             <div key={stage.stage} className="flex items-center gap-3">
-              <span className="w-36 shrink-0 truncate text-sm text-muted-foreground">
+              <span className="w-20 shrink-0 truncate text-xs text-muted-foreground sm:w-36 sm:text-sm">
                 {STAGE_LABELS[stage.stage] || stage.stage}
               </span>
               <div className="relative h-7 flex-1 overflow-hidden rounded-md bg-muted/50">
@@ -181,7 +181,7 @@ export function NegotiationCard({ overview }: { overview: AnalyticsOverview }) {
             const pct = (s.count / stageMax) * 100;
             return (
               <div key={s.stage} className="flex items-center gap-3">
-                <span className="w-32 shrink-0 truncate text-sm text-muted-foreground">
+                <span className="w-20 shrink-0 truncate text-xs text-muted-foreground sm:w-32 sm:text-sm">
                   {NEG_STAGE_LABELS_CARD[s.stage] || s.stage}
                 </span>
                 <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-muted/50">
@@ -202,7 +202,7 @@ export function NegotiationCard({ overview }: { overview: AnalyticsOverview }) {
             const pct = (o.count / outcomeMax) * 100;
             return (
               <div key={o.outcome} className="flex items-center gap-3">
-                <span className="w-32 shrink-0 truncate text-sm text-muted-foreground">{meta.label}</span>
+                <span className="w-20 shrink-0 truncate text-xs text-muted-foreground sm:w-32 sm:text-sm">{meta.label}</span>
                 <div className="relative h-5 flex-1 overflow-hidden rounded-md bg-muted/50">
                   <div
                     className="absolute inset-y-0 left-0 rounded-md"

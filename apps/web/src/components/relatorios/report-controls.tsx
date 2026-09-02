@@ -48,7 +48,7 @@ export function ReportControls({
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
           <CalendarRange className="h-4 w-4" />
           Período:
@@ -64,7 +64,7 @@ export function ReportControls({
             {p.label}
           </Button>
         ))}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-col items-stretch gap-1.5 sm:flex-row sm:items-center">
           <Input
             type="date"
             value={period.from || ''}
@@ -72,7 +72,7 @@ export function ReportControls({
             className="h-8 w-36"
             aria-label="Data inicial"
           />
-          <span className="text-muted-foreground">até</span>
+          <span className="text-muted-foreground sm:inline">até</span>
           <Input
             type="date"
             value={period.to || ''}
@@ -84,7 +84,7 @@ export function ReportControls({
         <span className="text-xs text-muted-foreground">{rangeLabel}</span>
       </div>
 
-      <Button onClick={onExport} disabled={exporting}>
+      <Button onClick={onExport} disabled={exporting} className="min-h-11 sm:min-h-9">
         {exporting ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         ) : (

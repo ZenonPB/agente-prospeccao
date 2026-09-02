@@ -139,15 +139,15 @@ export function InvitesManager() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <CardTitle>Convites Pendentes</CardTitle>
             <CardDescription>
               Convide membros para sua organização por e-mail
             </CardDescription>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger render={<Button />}>
+            <DialogTrigger render={<Button className="h-11 w-full sm:w-auto" />}>
               <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
               Convidar Membro
             </DialogTrigger>
@@ -205,10 +205,11 @@ export function InvitesManager() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
+                <Button variant="outline" className="h-11" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
                 <Button
+                  className="h-11"
                   onClick={handleCreateInvite}
                   disabled={createInvite.isPending || !isValidEmail}
                 >
@@ -231,12 +232,12 @@ export function InvitesManager() {
             {invites.map((invite) => (
               <div
                 key={invite.id}
-                className="flex items-center justify-between rounded-lg border p-4"
+                className="flex min-w-0 items-center justify-between gap-3 rounded-lg border p-4"
               >
-                <div className="flex items-start gap-3">
+                <div className="flex min-w-0 items-start gap-3">
                   <Mail className="mt-1 h-5 w-5 text-muted-foreground" aria-hidden="true" />
-                  <div className="space-y-1">
-                    <p className="font-medium">{invite.email}</p>
+                  <div className="min-w-0 space-y-1">
+                    <p className="truncate font-medium">{invite.email}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>
                         {invite.role === "OWNER" ? "Proprietário" : invite.role === "ADMIN" ? "Administrador" : "Membro"}
@@ -280,6 +281,7 @@ export function InvitesManager() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-11 w-11 shrink-0"
                           disabled={revokeInvite.isPending}
                           aria-label={`Revogar convite de ${invite.email}`}
                         />

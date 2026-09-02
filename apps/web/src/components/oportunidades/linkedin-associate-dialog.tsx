@@ -56,9 +56,9 @@ export function LinkedInAssociateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex min-w-0 items-start gap-2 break-words">
             <LinkedInIcon className="h-5 w-5 text-primary" />
             Vincular Perfil do LinkedIn ao Contato
           </DialogTitle>
@@ -73,7 +73,7 @@ export function LinkedInAssociateDialog({
           </div>
 
           <div>
-            <div className="mb-2 flex items-center justify-between">
+            <div className="mb-2 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
               <Label htmlFor="linkedin-query" className="text-xs font-medium text-muted-foreground">
                 Consultas sugeridas
               </Label>
@@ -81,7 +81,7 @@ export function LinkedInAssociateDialog({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7 gap-1 text-[11px]"
+                  className="h-11 gap-1 text-[11px] sm:h-9"
                   onClick={() => window.open(searchUrl, '_blank', 'noopener,noreferrer')}
                 >
                   <Search className="h-3 w-3" aria-hidden="true" />
@@ -103,16 +103,16 @@ export function LinkedInAssociateDialog({
                 {queries.map((q) => (
                   <div
                     key={q.label}
-                    className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"
+                    className="flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"
                   >
                     <div className="min-w-0">
                       <p className="text-xs font-medium">{q.label}</p>
-                      <p className="truncate font-mono text-[11px] text-muted-foreground">{q.query}</p>
+                      <p className="break-words font-mono text-[11px] text-muted-foreground">{q.query}</p>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 shrink-0"
+                      className="h-11 w-11 shrink-0"
                       onClick={() => copyToClipboard(q.query, 'Consulta copiada.')}
                       aria-label={`Copiar consulta ${q.label}`}
                     >
@@ -130,6 +130,8 @@ export function LinkedInAssociateDialog({
             </Label>
             <Input
               id="linkedin-url"
+              type="url"
+              inputMode="url"
               placeholder="https://www.linkedin.com/in/nome-do-perfil"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -137,18 +139,18 @@ export function LinkedInAssociateDialog({
                 if (e.key === 'Enter') onSave();
               }}
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="break-words text-[11px] text-muted-foreground">
               O perfil é validado de forma passiva (sem acessar o LinkedIn). Se confirmado, marca como
               &quot;validado&quot;; senão fica como candidato para revisão.
             </p>
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button className="h-11" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={onSave} disabled={associate.isPending}>
+          <Button className="h-11" onClick={onSave} disabled={associate.isPending}>
             {associate.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (

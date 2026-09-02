@@ -78,3 +78,64 @@ def test_template_erp_processo_manual_baixo_peso():
         s for s in tmpl["positive_signals"] if s["label"] == "Processo manual / planilha"
     ]
     assert manual and manual[0]["weight_hint"] == "low"
+
+
+def test_template_erp_negativo_setor_software():
+    # Lead do setor de software/TI é potencial concorrente ou já é digital
+    # demais — deve pesar como negativo no scoring de ERP.
+    tmpl = _erp_template()
+    labels = {s["label"] for s in tmpl["negative_signals"]}
+    assert any("software" in lbl.lower() or "ti" in lbl.lower() or "saas" in lbl.lower()
+               for lbl in labels)
+
+
+def test_template_erp_positivo_lead_jovem_estruturando():
+    # Empresa < 2 anos está estruturando processos — público-alvo de ERP.
+    tmpl = _erp_template()
+    labels = {s["label"] for s in tmpl["positive_signals"]}
+    assert any("jovem" in lbl.lower() or "estrutur" in lbl.lower() for lbl in labels)
+
+
+def test_template_erp_positivo_operacao_pequena_bem_avaliada():
+    # Boa nota Google + poucas avaliações = operação pequena sem gestão.
+    tmpl = _erp_template()
+    labels = {s["label"] for s in tmpl["positive_signals"]}
+    assert any("pequena" in lbl.lower() or "operação pequena" in lbl.lower()
+               or "bem avaliada" in lbl.lower() for lbl in labels)
+
+
+def test_template_erp_positivo_cnae_sistema_replicavel():
+    # Setor de serviço/operação com processos replicáveis = público-alvo.
+    tmpl = _erp_template()
+    labels = {s["label"] for s in tmpl["positive_signals"]}
+    assert any("cnae" in lbl.lower() or "replic" in lbl.lower() for lbl in labels)
+
+
+def test_template_erp_extra_instrucoes_diferenciam_saas_de_sistema():
+    # A instrução extra deve diferenciar SaaS de pedidos (anota.ai/iFood) de
+    # sistema de gestão próprio. Sem isso, o LLM trata SaaS de delivery
+    # como "já tem sistema" e derruba o score errado.
+    tmpl = _erp_template()
+    instr = tmpl.get("extra_instructions", "").lower()
+    assert "saas" in instr
+    assert "delivery" in instr or "pedidos" in instr
+    assert "erp" in instr or "gestão" in instr
+    # CN concorrente.
+    assert "concorrent" in instr or "ti" in instr or "software" in instr
+
+
+def test_template_erp_extra_instrucoes_consideram_porte_idade():
+    # O foco do scoring ERP é porte/idade/CNAE, não qualidade do site.
+    tmpl = _erp_template()
+    instr = tmpl.get("extra_instructions", "").lower()
+    assert "porte" in instr
+    assert "idade" in instr
+    assert "cnae" in instr
+
+
+def test_template_erp_playbook_hook_saas_delivery():
+    # O playbook traz gancho específico para lead que já usa SaaS de delivery.
+    tmpl = _erp_template()
+    hooks = tmpl.get("playbook", {}).get("hooks", [])
+    assert any("anota.ai" in h.lower() or "ifood" in h.lower() or "saas" in h.lower()
+               or "delivery" in h.lower() for h in hooks)

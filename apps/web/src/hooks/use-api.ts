@@ -103,7 +103,7 @@ export function useSlaAlerts(limit?: number) {
   });
 }
 
-export function useCampaigns(params?: { status?: string }) {
+export function useCampaigns(params?: { status?: string; limit?: number }) {
   return useQuery({
     queryKey: ["campaigns", params],
     queryFn: () => campaignsApi.list(params),

@@ -68,7 +68,7 @@ export function LearningPanel({ campaignId }: { campaignId: string }) {
   };
 
   return (
-    <Card>
+    <Card data-tour="campanha-aprendizados">
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
         <div className="space-y-1">
           <CardTitle className="flex items-center gap-2">

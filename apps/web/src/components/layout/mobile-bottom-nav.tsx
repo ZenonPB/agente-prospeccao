@@ -29,7 +29,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Navegação principal mobile"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       <ul className="flex items-stretch justify-around">
         {items.map((item) => {
@@ -40,7 +40,7 @@ export function MobileBottomNav() {
               <Link
                 href={item.href}
                 className={cn(
-                  'flex min-h-[64px] flex-col items-center justify-center gap-1 px-1 py-2 text-xs font-medium transition-colors',
+                  'flex min-h-[64px] min-w-[44px] flex-col items-center justify-center gap-1 px-1 py-2 text-xs font-medium transition-colors',
                   isActive
                     ? 'text-primary'
                     : 'text-muted-foreground hover:text-foreground',

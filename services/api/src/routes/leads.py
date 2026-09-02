@@ -852,7 +852,15 @@ async def enrich_lead_contacts(
     from services.contact_enrichment_service import ContactEnrichmentService  # noqa: E402
 
     service = ContactEnrichmentService()
-    contacts = await service.enrich_contacts(lead, db, cnpj=body.cnpj or None)
+    try:
+        contacts = await service.enrich_contacts(lead, db, cnpj=body.cnpj or None)
+    except Exception as e:
+        logger.warning("Falha ao enriquecer contatos do lead %s: %s", lead.company_name, e)
+        db.rollback()
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao enriquecer contatos: {type(e).__name__}",
+        )
     db.commit()
 
     log_activity(

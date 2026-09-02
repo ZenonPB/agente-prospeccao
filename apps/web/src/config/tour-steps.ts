@@ -1,6 +1,12 @@
 export interface TourStep {
   id: string;
   targetRoute: string;
+  /**
+   * Resolve a rota em tempo real: 'first-campaign' aponta para o detalhe da
+   * primeira campanha da org (a rota real depende do id). Sem campanha, o
+   * passo é pulado.
+   */
+  routeResolver?: 'first-campaign';
   /** Seletor do elemento a destacar. Omita (ou use null) para um popover centralizado. */
   elementSelector?: string | null;
   title: string;
@@ -95,8 +101,30 @@ export const TOUR_STEPS: TourStep[] = [
     elementSelector: '[data-tour="campanhas-cards"]',
     title: 'Acompanhar cada busca',
     description:
-      'Cada card mostra quantos leads a busca trouxe e a nota média deles. "Iniciar Coleta" roda uma rodada agora; no menu ⋯ você pausa, duplica ou arquiva.',
+      'Cada card mostra quantos leads a busca trouxe e a nota média deles. "Iniciar Coleta" roda uma rodada agora; no menu ⋯ você pausa, duplica ou arquiva. Abra um card para ver a busca por dentro.',
     popoverSide: 'bottom',
+    popoverAlign: 'center',
+  },
+  {
+    id: 'campaign-pipeline',
+    targetRoute: '/campanhas',
+    routeResolver: 'first-campaign',
+    elementSelector: '[data-tour="campanha-pipeline"]',
+    title: 'Dentro de uma busca',
+    description:
+      'Aqui a IA trabalha: coleta empresas, analisa sites e dados cadastrais e dá uma nota de 0 a 100 com justificativa. "Iniciar Coleta" traz novos leads; "Reanalisar" refaz a avaliação com os critérios atuais.',
+    popoverSide: 'bottom',
+    popoverAlign: 'center',
+  },
+  {
+    id: 'campaign-learning',
+    targetRoute: '/campanhas',
+    routeResolver: 'first-campaign',
+    elementSelector: '[data-tour="campanha-aprendizados"]',
+    title: 'A IA aprende com o seu time 🧠',
+    description:
+      'A nota é um ponto de partida — quem conhece o cliente é você. No kanban, "Discordar do score" registra a nota certa e o motivo; aqui, "Sintetizar aprendizados" transforma as correções em regras que a IA usa nas próximas análises. Com o tempo, ela erra cada vez menos.',
+    popoverSide: 'top',
     popoverAlign: 'center',
   },
   {
@@ -160,6 +188,16 @@ export const TOUR_STEPS: TourStep[] = [
     popoverAlign: 'center',
   },
   {
+    id: 'ai-score-feedback',
+    targetRoute: '/vendas',
+    elementSelector: '[data-tour="vendas-card-menu"]',
+    title: 'Discorde de uma nota errada',
+    description:
+      'A IA errou a avaliação de um lead? No menu ⋯ do cartão, use "Discordar do score": informe a nota que você daria e o motivo. Sua correção vira aprendizado — vale no próximo ciclo de análises.',
+    popoverSide: 'bottom',
+    popoverAlign: 'end',
+  },
+  {
     id: 'analytics',
     targetRoute: '/relatorios',
     elementSelector: '[data-tour="relatorios-header"]',
@@ -188,6 +226,17 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Mapa, faixas de nota e rankings',
     description:
       'Oportunidades por região, conversão por faixa de nota (qual perfil fecha mais) e ranking dos consultores — o raio-x do negócio.',
+    popoverSide: 'bottom',
+    popoverAlign: 'center',
+    analystOnly: true,
+  },
+  {
+    id: 'analytics-convergence',
+    targetRoute: '/relatorios',
+    elementSelector: '[data-tour="relatorios-convergencia"]',
+    title: 'A IA está aprendendo?',
+    description:
+      'Este card mostra o desvio médio entre a nota da IA e a do consultor. Barras encolhendo = a IA convergindo com o time. Se aparecer aqui, é porque o time já está ensinando pela correção de scores.',
     popoverSide: 'bottom',
     popoverAlign: 'center',
     analystOnly: true,

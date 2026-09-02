@@ -7,12 +7,12 @@ import type { ScoreFeedbackMetrics } from '@/lib/api';
 function DeviationSparkline({ weekly }: { weekly: ScoreFeedbackMetrics['weekly'] }) {
   const max = Math.max(1, ...weekly.map((w) => w.avg_deviation));
   return (
-    <div className="flex h-16 items-end gap-1.5" aria-hidden="true">
+    <div className="flex h-16 min-w-0 items-end gap-1" aria-hidden="true">
       {weekly.slice(-16).map((w) => (
         <div
           key={w.week}
           title={`${w.week}: desvio médio ${w.avg_deviation} pts (${w.feedbacks} correções)`}
-          className="w-4 rounded-sm bg-violet-300 transition-all"
+          className="min-w-0 flex-1 rounded-sm bg-violet-300 transition-all"
           style={{ height: `${Math.max(6, (w.avg_deviation / max) * 64)}px` }}
         />
       ))}
@@ -28,7 +28,7 @@ export function ConvergenceCard({ metrics }: { metrics: ScoreFeedbackMetrics }) 
       : null;
 
   return (
-    <Card>
+    <Card data-tour="relatorios-convergencia">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BrainCircuit className="h-4 w-4 text-violet-600" />

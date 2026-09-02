@@ -300,13 +300,28 @@ class TechnicalEnrichmentService:
 
         return result
 
-    def _check_ux(self, html_content: Optional[str]) -> Dict[str, Any]:
+    def _check_ux(
+        self,
+        html_content: Optional[str],
+        website_url: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Verifica sinais de conversão/mobile a partir do HTML já baixado (passivo).
 
         Dá evidência DETERMINÍSTICA para alegações que a LLM costuma inventar
         (responsividade, formulário de contato, canais clicáveis). Sem isto, o
         gancho de abordagem alega "site não responsivo" sem ter medido nada.
+
+        Args:
+            html_content: HTML já baixado (passivo) da home do lead.
+            website_url: URL original do site (opcional). Quando fornecida e o
+                host pertence a uma plataforma SaaS de terceiros (anota.ai,
+                iFood, Rappi, etc.), os sinais `login_portal_found` e
+                `system_mention_found` ficam FORÇADAMENTE `False` — eles
+                pertencem ao SaaS, não ao lead, e induziriam o scoring a
+                concluir o oposto da realidade.
         """
+        from services.domain_utils import _clean_domain, _is_non_own_website_domain
+
         result = {
             "viewport_ok": False,
             "contact_form_found": False,
@@ -315,6 +330,8 @@ class TechnicalEnrichmentService:
             "mailto_link_found": False,
             "login_portal_found": False,
             "system_mention_found": False,
+            "is_third_party_saas": False,
+            "third_party_platform": None,
             "issues": [],
         }
         if not html_content:
@@ -322,6 +339,15 @@ class TechnicalEnrichmentService:
             return result
 
         html_lower = html_content.lower()
+
+        # Detecção de plataforma SaaS de terceiros (anota.ai, iFood, Rappi etc.).
+        # Se o site do lead está hospedado em uma dessas plataformas, os sinais
+        # `login_portal_found` / `system_mention_found` NUNCA podem virar
+        # "evidência de que o lead já tem sistema" — eles pertencem ao SaaS.
+        host = _clean_domain(website_url) if website_url else None
+        if host and _is_non_own_website_domain(host):
+            result["is_third_party_saas"] = True
+            result["third_party_platform"] = host
 
         result["viewport_ok"] = bool(re.search(r'<meta\s+name=["\']viewport["\']', html_lower))
         if not result["viewport_ok"]:
@@ -342,23 +368,39 @@ class TechnicalEnrichmentService:
         # Área logada / portal / painel — evidência determinística de que a
         # empresa JÁ tem sistema próprio (template "Aplicações Web / ERP").
         # Sem isto, a LLM alegaria "tem portal/painel" ou "não tem" sem medir.
-        result["login_portal_found"] = bool(
-            re.search(
-                r'login|área\s+do\s+cliente|área\s+do\s+aluno|'
-                r'portal\s+do\s+(cliente|aluno)|meu\s+painel|'
-                r'[\'"](?:/)?(?:login|painel|area-do-cliente|portal)[/\'"]',
-                html_lower,
+        #
+        # Suprimido quando o site é de uma plataforma SaaS de terceiros
+        # (anota.ai / iFood / Rappi etc.) — o "login" detectado pertence ao
+        # SaaS, não ao lead.
+        if not result["is_third_party_saas"]:
+            result["login_portal_found"] = bool(
+                re.search(
+                    r'login|área\s+do\s+cliente|área\s+do\s+aluno|'
+                    r'portal\s+do\s+(cliente|aluno)|meu\s+painel|'
+                    r'[\'"](?:/)?(?:login|painel|area-do-cliente|portal)[/\'"]',
+                    html_lower,
+                )
             )
-        )
-        if result["login_portal_found"]:
-            result["issues"].append("Área logada/portal/painel detectado na página")
+            if result["login_portal_found"]:
+                result["issues"].append("Área logada/portal/painel detectado na página")
 
-        # Menção a sistema/ERP/software — indício de automação de processos.
-        result["system_mention_found"] = bool(
-            re.search(r'\bsistema\b|\berp\b|\bsoftware\b', html_lower)
-        )
-        if result["system_mention_found"]:
-            result["issues"].append("Menção a sistema/ERP/software detectada na página")
+            # Menção a sistema/ERP/software — indício de automação de processos.
+            # Regex mais específico do que o original: exige contexto de GESTÃO
+            # (não confundir "sistema de pedidos/delivery" com ERP próprio):
+            # "ERP", "CRM", "sistema de gestão", "software de gestão",
+            # "plataforma integrada", "API pública/web" etc.
+            result["system_mention_found"] = bool(
+                re.search(
+                    r'\berp\b|\bcrm\b|'
+                    r'sistema\s+de\s+gest[ãa]o|sistema\s+integrado|'
+                    r'software\s+(de|para)\s+gest[ãa]o|gest[ãa]o\s+integrada|'
+                    r'plataforma\s+integrada|'
+                    r'api\s+(p[úu]blica|rest|web)|integra[çc][ãa]o\s+de\s+sistemas',
+                    html_lower,
+                )
+            )
+            if result["system_mention_found"]:
+                result["issues"].append("Menção a sistema/ERP/software detectada na página")
 
         return result
 
@@ -541,7 +583,7 @@ class TechnicalEnrichmentService:
             # UX/conversão (reusa HTML já baixado) — evidência determinística
             # para responsividade/formulário/canais clicáveis. A LLM só pode
             # alegar esses pontos se houver fact (grounding do pitch).
-            report["ux"] = self._check_ux(html_content)
+            report["ux"] = self._check_ux(html_content, website_url=website_url)
             for issue in report["ux"].get("issues", []):
                 report["warnings"].append(f"UX/Conversão: {issue}")
 

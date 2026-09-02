@@ -50,7 +50,7 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Registrar conversão</DialogTitle>
         </DialogHeader>
@@ -64,6 +64,7 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
               value={service}
               onChange={(e) => setService(e.target.value)}
               placeholder="Ex.: Landing page, site institucional..."
+              className="min-w-0"
             />
           </div>
           <div className="space-y-2">
@@ -73,6 +74,7 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
             <Input
               id="convValue"
               type="number"
+              inputMode="decimal"
               min="0"
               step="0.01"
               value={value}
@@ -93,11 +95,11 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+          <Button className="h-11" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleRegister} disabled={registerConversion.isPending}>
+          <Button className="h-11" onClick={handleRegister} disabled={registerConversion.isPending}>
             {registerConversion.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (

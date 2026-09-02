@@ -74,8 +74,8 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div>
+      <CardHeader className="flex-col items-stretch gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <CardTitle className="flex items-center gap-2">
             <ScrollText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             Registro de Atividades da Equipe
@@ -84,9 +84,9 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
             Histórico de ações da equipe: convites criados, mudanças de função, alterações em chaves de busca ou metas.
           </CardDescription>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center gap-2 sm:w-auto">
           <Select value={event} onValueChange={(value) => setEvent(value ?? "")}>
-            <SelectTrigger size="sm" className="w-52">
+            <SelectTrigger size="sm" className="h-11 min-w-0 flex-1 sm:h-9 sm:w-52 sm:flex-none">
               <SelectValue>
                 {(value) =>
                   value ? (EVENT_META[value as OrgAuditEvent]?.label ?? value) : "Todos os eventos"
@@ -102,7 +102,7 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => refetch()} aria-label="Recarregar auditoria">
+          <Button variant="outline" size="icon" className="h-11 w-11 shrink-0" onClick={() => refetch()} aria-label="Recarregar auditoria">
             <RefreshCw className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
@@ -121,7 +121,7 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
             <p className="text-xs text-muted-foreground">
               {error instanceof Error ? error.message : "Tente novamente mais tarde"}
             </p>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <Button variant="outline" className="h-11" size="sm" onClick={() => refetch()}>
               Tentar novamente
             </Button>
           </div>
@@ -130,7 +130,8 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
             Nenhum evento registrado{event ? " para este filtro" : " ainda"}.
           </p>
         ) : (
-          <Table>
+          <div className="w-full min-w-0 overflow-x-auto">
+          <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Quando</TableHead>
@@ -171,6 +172,7 @@ export function OrgAuditLog({ orgId }: { orgId: string }) {
               })}
             </TableBody>
           </Table>
+          </div>
         )}
       </CardContent>
     </Card>

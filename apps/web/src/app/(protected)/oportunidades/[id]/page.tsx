@@ -179,7 +179,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       {duplicatesQ.data && duplicatesQ.data.count > 0 && (
         <div className="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-900/20">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <p className="font-medium text-amber-800 dark:text-amber-300">
               Possível duplicata ({duplicatesQ.data.count} lead{duplicatesQ.data.count === 1 ? '' : 's'} na mesma organização)
             </p>
@@ -204,13 +204,13 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Link href="/oportunidades">
-          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" aria-label="Voltar para oportunidades">
+          <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" aria-label="Voltar para oportunidades">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight">{lead.company_name}</h2>
+            <h2 className="break-words text-2xl font-bold tracking-tight">{lead.company_name}</h2>
             <Badge className="bg-emerald-100 text-emerald-700 text-lg">{lead.qualification_score}</Badge>
             {lead.priority && priorityBadgeConfig[lead.priority] && (
               <Badge className={priorityBadgeConfig[lead.priority].color}>
@@ -219,13 +219,13 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
+          <p className="break-words text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {whatsAppLink(lead.whatsapp || lead.phone) && (
             <Button
               variant="outline"
-              className="h-10 gap-2 border-input bg-background font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
+              className="h-11 gap-2 border-input bg-background font-medium shadow-sm hover:bg-accent hover:text-accent-foreground"
               disabled={recordWhatsApp.isPending}
               onClick={() => {
                 recordWhatsApp.mutate(
@@ -253,7 +253,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               WhatsApp
             </Button>
           )}
-          <Button className="h-10" onClick={handleOpenMessagesModal} disabled={generateMessagesMutation.isPending}>
+          <Button className="h-11" onClick={handleOpenMessagesModal} disabled={generateMessagesMutation.isPending}>
             {generateMessagesMutation.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -276,7 +276,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   Gancho de Abordagem Sugerido
                 </span>
               </div>
-              <p className="text-sm font-medium leading-relaxed text-sidebar-foreground">
+              <p className="break-words text-sm font-medium leading-relaxed text-sidebar-foreground">
                 &ldquo;{lead.pitch_angle}&rdquo;
               </p>
               {lead.suggested_subject && (
@@ -288,7 +288,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
             <Button
               variant="outline"
               size="sm"
-              className="shrink-0 border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+              className="h-11 shrink-0 border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
               onClick={() => copyToClipboard(lead.pitch_angle || '', 'Gancho copiado!')}
             >
               <Copy className="mr-1.5 h-3.5 w-3.5" />
@@ -300,15 +300,15 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       )}
 
       <Tabs defaultValue="overview" className="space-y-4 animate-fade-up stagger-2">
-        <TabsList className="h-10">
-          <TabsTrigger value="overview" className="h-9">Visão Geral</TabsTrigger>
-          <TabsTrigger value="pitch" className="h-9">Resumo para o Vendedor</TabsTrigger>
-          <TabsTrigger value="evidence" className="h-9">Por que a IA recomendou</TabsTrigger>
-          <TabsTrigger value="technical" className="h-9">Análise da Página</TabsTrigger>
-          <TabsTrigger value="contacts" className="h-9">Decisores e Contatos</TabsTrigger>
-          <TabsTrigger value="cadence" className="h-9">Passos de Envio</TabsTrigger>
-          <TabsTrigger value="activities" className="h-9">Histórico do Cliente</TabsTrigger>
-          <TabsTrigger value="actions" className="h-9">Próximas Tarefas</TabsTrigger>
+        <TabsList className="h-11 w-full max-w-full justify-start gap-1 overflow-x-auto">
+          <TabsTrigger value="overview" className="h-11 shrink-0">Visão Geral</TabsTrigger>
+          <TabsTrigger value="pitch" className="h-11 shrink-0">Resumo para o Vendedor</TabsTrigger>
+          <TabsTrigger value="evidence" className="h-11 shrink-0">Por que a IA recomendou</TabsTrigger>
+          <TabsTrigger value="technical" className="h-11 shrink-0">Análise da Página</TabsTrigger>
+          <TabsTrigger value="contacts" className="h-11 shrink-0">Decisores e Contatos</TabsTrigger>
+          <TabsTrigger value="cadence" className="h-11 shrink-0">Passos de Envio</TabsTrigger>
+          <TabsTrigger value="activities" className="h-11 shrink-0">Histórico do Cliente</TabsTrigger>
+          <TabsTrigger value="actions" className="h-11 shrink-0">Próximas Tarefas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">

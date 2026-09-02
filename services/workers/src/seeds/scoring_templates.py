@@ -124,14 +124,17 @@ DEFAULT_TEMPLATES = [
                 "Empresa ainda opera com planilha/processo manual que um sistema resolveria",
                 "Site é só institucional/landing sem área logada — o negócio continua no papel",
                 "Crescimento recente e sem sistema: pedidos, agenda e estoque espalhados",
+                "Já usa plataforma SaaS (anota.ai, iFood) só para pedidos — e o resto da operação?",
             ],
             "subject_ideas": [
                 "Como está o processo de {processo_concreto} hoje na {empresa}?",
                 "{empresa} ainda usa planilha para {problema_concreto}?",
                 "Sistema para o crescimento da {empresa}",
+                "Vocês usam {plataforma_saas} para pedidos — e para estoque/financeiro?",
             ],
             "objections": [
                 {"objection": "Já temos um sistema", "approach": "Perguntar o que ele não cobre hoje (relatório, integração, mobilidade) e propor reunião de diagnóstico"},
+                {"objection": "Já usamos anota.ai/iFood", "approach": "Reforçar que SaaS de delivery cobre apenas pedidos; perguntar sobre estoque/financeiro/agenda/CRM"},
                 {"objection": "É muito caro", "approach": "Mostrar o custo do processo manual (erro humano, tempo, retrabalho) frente a um portal sob medida"},
                 {"objection": "Não dá tempo de implantar", "approach": "Propor implantação por fases: módulo crítico primeiro, resto depois"},
             ],
@@ -139,32 +142,52 @@ DEFAULT_TEMPLATES = [
         "positive_signals": [
             {"label": "Sem área logada / portal do cliente", "description": "Nenhuma área logada/portal/painel de cliente no site (medido no HTML)", "weight_hint": "high"},
             {"label": "Site institucional / landing sem função", "description": "Site apenas institucional ou landing page, sem funcionalidade (medido no HTML)", "weight_hint": "high"},
-            {"label": "Sem menção a sistema/ERP", "description": "Site não menciona sistema/ERP/software próprio (medido no HTML)", "weight_hint": "medium"},
+            {"label": "Sem menção a sistema/ERP", "description": "Site não menciona sistema/ERP/software de gestão próprio (medido no HTML)", "weight_hint": "medium"},
             {"label": "Processo manual / planilha", "description": "Indícios de operação por planilha, papel ou WhatsApp no segmento (inferência de segmento, não medido no site)", "weight_hint": "low"},
             {"label": "Crescimento sem sistema", "description": "Sinais de expansão (filial, novos serviços) sem indícios de automação (inferência de segmento)", "weight_hint": "low"},
+            {"label": "Lead jovem em estruturação", "description": "Idade cadastral < 2 anos: empresa ainda montando processos, sistema entra junto com a operação", "weight_hint": "medium"},
+            {"label": "Operação pequena bem avaliada", "description": "Boa reputação Google (>=4.0) com poucas avaliações (<=30) — operação enxuta, processo provavelmente manual", "weight_hint": "medium"},
+            {"label": "CNAE compatível com sistema replicável", "description": "Setor de serviço/operação com processos replicáveis (saúde, educação, serviços especializados, logística, varejo) — público-alvo de ERP", "weight_hint": "medium"},
         ],
         "negative_signals": [
             {"label": "Painel / área do cliente presente", "description": "Área logada, painel ou portal ativo no site (já tem sistema — medido no HTML)", "weight_hint": "high"},
             {"label": "Menção a integrações/API", "description": "Site/empresa cita integrações, API ou sistemas próprios (medido no HTML)", "weight_hint": "high"},
             {"label": "Portal do aluno/cliente ativo", "description": "Portal de cliente/aluno ativo e funcional (medido no HTML)", "weight_hint": "medium"},
             {"label": "Microempresa / MEI", "description": "Porte cadastral indica microempresa/MEI sem operação que justifique sistema", "weight_hint": "high"},
+            {"label": "Lead do setor de software / TI / SaaS", "description": "CNAE indica desenvolvimento de software, TI, SaaS, programação — concorrente ou já digital demais", "weight_hint": "high"},
+            {"label": "Empresa antiga e estruturada", "description": "Idade cadastral > 10 anos com porte médio/grande — provavelmente já tem sistema legado; fito baixo para troca", "weight_hint": "medium"},
         ],
         "context_signals": [
             {"label": "Segmento", "description": "Educação, saúde, serviços, comércio — setores com processos operacionais que viram sistema"},
             {"label": "Região", "description": "Presença regional indica potencial de atendimento presencial"},
             {"label": "Porte", "description": "Porte cadastral (dados cadastrais) indica capacidade de compra de sistema"},
+            {"label": "Idade da empresa", "description": "Idade cadastral: < 2 anos = estruturando (público-alvo); > 10 anos = provavelmente tem sistema"},
+            {"label": "Capital social", "description": "Capital social baixo = pouco investimento em TI = boa probabilidade de venda"},
+            {"label": "Reputação Google vs porte", "description": "Boa nota com poucas avaliações = operação pequena sem gestão estruturada"},
         ],
         "extra_instructions": (
-            "Venda de aplicações web completas ou sistemas ERP. Use os dados técnicos "
-            "do site como evidência primária da maturidade digital: a presença de "
-            "área logada/painel/portal no HTML indica que a empresa JÁ tem sistema "
-            "(reduz o score); site só institucional sem função nem menção a sistema "
-            "indica processo manual (aumenta o score). Sinais de 'crescimento sem "
-            "sistema' e 'processo manual' são inferência de segmento — não podem "
-            "ser usados como evidência técnica (pondere baixo). NUNCA desqualifique "
-            "por 'site desatualizado' — para quem vende sistema, processo "
-            "manual/planilha é o público-alvo. Porte cadastral importa: microempresa/"
-            "MEI tem pouco fito para ERP — não supervalorize o score só pelo site."
+            "Venda de aplicações web completas ou sistemas ERP. O fito vem PRINCIPALMENTE "
+            "do cadastro (porte, idade, CNAE) e do SEGMENTO, NÃO da qualidade técnica "
+            "do site. Para quem vende sistema, processo manual/planilha é o público-alvo. "
+            "Diferencie claramente:\n"
+            "- SaaS de delivery/pedidos (anota.ai, iFood, Rappi, Aimpire, Pedidosky): NÃO "
+            "substituem ERP. O lead provavelmente AINDA tem processo manual interno. "
+            "Use como gancho: 'vocês já usam X para pedidos — e para o resto?'.\n"
+            "- Sistema de gestão PRÓPRIO (área logada + API no domínio próprio do lead): "
+            "isso sim indica que o lead já tem automação — reduza o score.\n"
+            "- Microempresa/MEI raramente justifica ERP sob medida: pondere baixo.\n"
+            "- Lead do setor de software/TI/SaaS é POTENCIAL CONCORRENTE ou já é digital "
+            "demais: pondere baixo.\n"
+            "- Empresa com < 2 anos está estruturando processos: público-alvo FORTE.\n"
+            "- Empresa com > 10 anos e porte médio/grande provavelmente já tem sistema "
+            "legado: fito baixo para troca, pondere baixo.\n"
+            "NUNCA desqualifique por 'site desatualizado' — para quem vende sistema, "
+            "processo manual/planilha é o público-alvo. A presença de área logada/painel/"
+            "portal no HTML indica que a empresa JÁ tem sistema (reduz o score); site só "
+            "institucional sem função nem menção a sistema indica processo manual (aumenta "
+            "o score). Sinais de 'crescimento sem sistema' e 'processo manual' são "
+            "inferência de segmento — não podem ser usados como evidência técnica "
+            "(pondere baixo)."
         ),
     },
     # ----- Industrial / Engenharia / Fabricação -----
