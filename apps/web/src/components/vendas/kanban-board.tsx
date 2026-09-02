@@ -28,21 +28,21 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'QUALIFICADO', title: 'Aptos para Contato', color: 'bg-emerald-500', status: ['QUALIFICADO'] },
   { id: 'CONTATADO', title: 'Mensagem Enviada', color: 'bg-blue-500', status: ['CONTATADO'] },
   { id: 'RESPONDIDO', title: 'Cliente Respondeu', color: 'bg-purple-500', status: ['RESPONDIDO'] },
-  { id: 'REUNIAO_MARCADA', title: 'ReuniÃ£o Agendada', color: 'bg-amber-500', status: ['REUNIAO_MARCADA'] },
-  { id: 'REUNIAO_FEITA', title: 'ReuniÃ£o Realizada', color: 'bg-teal-500', status: ['REUNIAO_FEITA'] },
+  { id: 'REUNIAO_MARCADA', title: 'Reunião Agendada', color: 'bg-amber-500', status: ['REUNIAO_MARCADA'] },
+  { id: 'REUNIAO_FEITA', title: 'Reunião Realizada', color: 'bg-teal-500', status: ['REUNIAO_FEITA'] },
   { id: 'PROPOSTA_ENVIADA', title: 'Proposta Enviada', color: 'bg-pink-500', status: ['PROPOSTA_ENVIADA'] },
 ];
 
 const NEG_STAGE_LABELS: Record<string, string> = {
-  RD: 'DemonstraÃ§Ã£o',
-  ORCAMENTO: 'OrÃ§amento',
+  RD: 'Demonstração',
+  ORCAMENTO: 'Orçamento',
   RP: 'Proposta',
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeadData = Record<string, any>;
 
-// Subconjunto do LeadData usado pelo card memoizado. MantÃ©m a tipagem
+// Subconjunto do LeadData usado pelo card memoizado. Mantém a tipagem
 // permissiva (Record<string, any>) alinhada com o resto do arquivo.
 type LeadbanCard = LeadData;
 
@@ -71,10 +71,10 @@ interface KanbanCardProps {
   onOpenLead: (leadId: string) => void;
 }
 
-// Subcomponente memoizado: cada card sÃ³ re-renderiza quando suas props
+// Subcomponente memoizado: cada card só re-renderiza quando suas props
 // mudam de fato. Sem memo, o re-render do pai (causado por onDragStart/
 // onDragEnd/optimistic update) re-renderizava TODOS os 30+ cards a cada
-// drag, mesmo os que nÃ£o estavam sendo arrastados.
+// drag, mesmo os que não estavam sendo arrastados.
 const KanbanCard = memo(function KanbanCard({
   lead,
   index,
@@ -97,7 +97,7 @@ const KanbanCard = memo(function KanbanCard({
     if (!Number.isFinite(created)) return 0;
     return Math.floor((now - created) / (1000 * 60 * 60 * 24));
   }, [lead.created_at, now]);
-  // `now` vem de ref, Ã© estÃ¡vel â€” sÃ³ recalcula se o `created_at` mudar.
+  // `now` vem de ref, é estável â€” só recalcula se o `created_at` mudar.
 
   return (
     // O endpoint garante `lead.id`; usamos fallback '' em vez de `!` para
@@ -105,29 +105,19 @@ const KanbanCard = memo(function KanbanCard({
     // do pai já filtra cards sem id).
     <Draggable draggableId={lead.id ?? ''} index={index}>
       {(provided, snapshot) => {
-        // Combina o `style` que o @hello-pangea/dnd injeta com
-        // `transform: translate3d(...)` (move o card durante o drag) com
-        // estilos nossos. SEM isto, o card ficava parado mesmo com o
-        // mouse arrastando â€” a "travada" e o "card nÃ£o segue o mouse"
-        // vinham daqui.
+        // Aplica o `style` da biblioteca sem alterá-lo: ele controla a posição.
+        // O `style` carrega `position: fixed; top; left; transform: translate(X, Y)`
+        // durante o drag e `{ transform, transition: 'none' }` para os cards que
+        // se rearranjam (SECONDARY). Mexer nele (forçar `transition: 'none'` ou
+        // `willChange: 'transform'`) pode bagunçar a animação de drop e travar
+        // o card em uma posição obsoleta até o próximo reflow.
         const draggableStyle: React.CSSProperties = provided.draggableProps.style ?? {};
-        const compositeStyle: React.CSSProperties = {
-          ...draggableStyle,
-          // will-change durante o arraste ativa a composiÃ§Ã£o em GPU e
-          // evita o jank causado por repaints da main thread.
-          willChange: snapshot.isDragging ? 'transform' : undefined,
-          // Nenhuma transition no estado "dragging": a lib atualiza o
-          // `transform` em cada pointermove; qualquer transition cria
-          // lag entre o cursor e o card.
-          transition: snapshot.isDragging ? 'none' : undefined,
-        };
-
         return (
           <div
             ref={provided.innerRef}
             {...provided.draggableProps}
-            style={compositeStyle}
-            className={`group rounded-lg border bg-card p-3.5 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+            style={draggableStyle}
+            className={`group touch-none rounded-lg border bg-card p-3.5 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
               snapshot.isDragging
                 ? 'rotate-[1.5deg] scale-[1.03] shadow-xl ring-2 ring-primary/40'
                 : `transition-[border-color,box-shadow] duration-100 ${
@@ -137,7 +127,7 @@ const KanbanCard = memo(function KanbanCard({
                   }`
             }`}
           >
-            {/* CabeÃ§alho do cartÃ£o = alÃ§a de arraste. */}
+            {/* Cabeçalho do cartão = alça de arraste. */}
             <div
               {...provided.dragHandleProps}
               className="-mx-1 mb-2 flex cursor-grab touch-none select-none items-start justify-between gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60 active:cursor-grabbing"
@@ -199,7 +189,7 @@ const KanbanCard = memo(function KanbanCard({
                 </div>
               </div>
             </div>
-            {/* BotÃµes de aÃ§Ã£o rÃ¡pida. Stop propagation para nÃ£o abrir o lead. */}
+            {/* Botões de ação rápida. Stop propagation para não abrir o lead. */}
             <div className="flex flex-wrap items-center justify-end gap-1.5">
               {lead.contact_phone && (
                 <Button
@@ -240,7 +230,7 @@ const KanbanCard = memo(function KanbanCard({
                   title={lead.assigned_to_name || lead.assigned_to}
                 >
                   <User className="h-3 w-3" />
-                  {lead.assigned_to_name || 'AtribuÃ­do'}
+                  {lead.assigned_to_name || 'Atribuído'}
                 </Badge>
               )}
               <DropdownMenu>
@@ -251,7 +241,7 @@ const KanbanCard = memo(function KanbanCard({
                       size="icon"
                       className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
                       onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
-                      aria-label={`Mais aÃ§Ãµes para ${lead.company_name}`}
+                      aria-label={`Mais ações para ${lead.company_name}`}
                     >
                       <MoreHorizontal className="h-3.5 w-3.5" />
                     </Button>
@@ -270,7 +260,7 @@ const KanbanCard = memo(function KanbanCard({
                           }}
                         >
                           <UserPlus className="mr-2 h-3.5 w-3.5" />
-                          VocÃª
+                          Você
                         </DropdownMenuItem>
                         {members?.filter((m) => m.user_id !== currentUserId).map((m) => (
                           <DropdownMenuItem
@@ -307,7 +297,7 @@ const KanbanCard = memo(function KanbanCard({
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
-              {/* Fallback acessÃ­vel por toque: mover de etapa sem arrastar. */}
+              {/* Fallback acessível por toque: mover de etapa sem arrastar. */}
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -347,8 +337,8 @@ const KanbanCard = memo(function KanbanCard({
     </Draggable>
   );
 }, (prev, next) => {
-  // ComparaÃ§Ã£o custom para memo: evita re-render quando o objeto `lead`
-  // mudou de referÃªncia (ex.: novo fetch) mas o conteÃºdo Ã© o mesmo.
+  // Comparação custom para memo: evita re-render quando o objeto `lead`
+  // mudou de referência (ex.: novo fetch) mas o conteúdo é o mesmo.
   if (prev.lead !== next.lead) return false;
   if (prev.index !== next.index) return false;
   if (prev.column.id !== next.column.id) return false;
@@ -358,8 +348,8 @@ const KanbanCard = memo(function KanbanCard({
   if (prev.currentUserId !== next.currentUserId) return false;
   if (prev.members !== next.members) return false;
   if (prev.canAssignOthers !== next.canAssignOthers) return false;
-  // Callbacks vÃªm do useCallback no pai â€” se as refs forem estÃ¡veis,
-  // nunca mudam. Se mudar, re-renderiza (seguranÃ§a).
+  // Callbacks vêm do useCallback no pai â€” se as refs forem estáveis,
+  // nunca mudam. Se mudar, re-renderiza (segurança).
   if (prev.recordWhatsApp !== next.recordWhatsApp) return false;
   if (prev.onAssignToMe !== next.onAssignToMe) return false;
   if (prev.onAssignTo !== next.onAssignTo) return false;
@@ -446,7 +436,7 @@ export function KanbanBoard() {
   const { data: membersData } = useOrgMembers(canAssignOthers ? orgId : undefined);
 
   const [myLeadsOnly, setMyLeadsOnly] = useState(false);
-  // Feedback de score: qual lead estÃ¡ sendo corrigido e se o diÃ¡logo estÃ¡ aberto.
+  // Feedback de score: qual lead está sendo corrigido e se o diálogo está aberto.
   const [feedbackLead, setFeedbackLead] = useState<LeadData | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -462,14 +452,23 @@ export function KanbanBoard() {
   );
 
   // Estado local espelhado das colunas durante o drag: sem optimistic update,
-  // o card "volta" para a posiÃ§Ã£o antiga ao soltar (e sÃ³ reposiciona quando o
-  // refetch termina) â€” parece que o drag nÃ£o funciona. Aqui movemos o card
+  // o card "volta" para a posição antiga ao soltar (e só reposiciona quando o
+  // refetch termina) â€” parece que o drag não funciona. Aqui movemos o card
   // imediatamente e desfazemos em caso de erro.
   const [draftColumns, setDraftColumns] = useState<Record<string, LeadData[]> | null>(null);
-  const visibleColumns = draftColumns ?? columns;
+  const [pendingMove, setPendingMove] = useState<{ leadId: string; status: string } | null>(null);
+  const moveConfirmed = Boolean(
+    pendingMove && data?.leads?.some(
+      (lead) => lead.id === pendingMove.leadId && lead.status === pendingMove.status,
+    ),
+  );
+  // Enquanto a query ainda mostra o status antigo, usa o layout otimista.
+  // Assim o card não volta nem fica preso em `position: fixed`. Quando a
+  // resposta confirmar o status, a fonte oficial assume automaticamente.
+  const visibleColumns = pendingMove && !moveConfirmed ? draftColumns ?? columns : columns;
 
-  // Coluna de origem do arraste em curso: usada para realÃ§ar os alvos de
-  // drop e esmaecer os cartÃµes que nÃ£o estÃ£o sendo arrastados.
+  // Coluna de origem do arraste em curso: usada para realçar os alvos de
+  // drop e esmaecer os cartões que não estão sendo arrastados.
   const [activeDragFrom, setActiveDragFrom] = useState<string | null>(null);
 
   const onDragStart = useCallback((start: DragStart) => {
@@ -500,9 +499,9 @@ export function KanbanBoard() {
 
   const slaAlertsCount = Object.values(slaByLead).length;
 
-  // Congela `Date.now()` em uma ref para o cÃ¡lculo de "dias desde criaÃ§Ã£o".
+  // Congela `Date.now()` em uma ref para o cálculo de "dias desde criação".
   // Sem isso, cada re-render do kanban (incluindo os disparados pelo drag)
-  // recalculava `Date.now()` no JSX, gerando novas referÃªncias e quebrando
+  // recalculava `Date.now()` no JSX, gerando novas referências e quebrando
   // qualquer `React.memo` aplicado ao card.
   const [now] = useState(() => Date.now());
 
@@ -513,6 +512,7 @@ export function KanbanBoard() {
     if (destination.droppableId === source.droppableId) return;
 
     const newStatus = destination.droppableId;
+    setPendingMove({ leadId: draggableId, status: newStatus });
     setDraftColumns((current) => {
       const base = current ?? columns;
       const lead = (base[source.droppableId] || []).find((l) => l.id === draggableId);
@@ -527,16 +527,16 @@ export function KanbanBoard() {
       { id: draggableId, status: newStatus },
       {
         onSuccess: (res) => {
-          setDraftColumns(null);
           const colTitle = COLUMNS.find((c) => c.id === newStatus)?.title || newStatus;
           toast.success(`Lead movido para ${colTitle}`, {
             description: res.suggested_next_action_at
-              ? `PrÃ³xima aÃ§Ã£o sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
+              ? `Próxima ação sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
               : undefined,
           });
         },
         onError: () => {
           setDraftColumns(null);
+          setPendingMove(null);
           toast.error('Erro ao mover lead');
         },
       }
@@ -549,10 +549,10 @@ export function KanbanBoard() {
       { id: leadId, assignedToId: currentUserId },
       {
         onSuccess: () => {
-          toast.success('Lead atribuÃ­do a vocÃª.');
+          toast.success('Lead atribuído a você.');
         },
         onError: () => {
-          toast.error('NÃ£o foi possÃ­vel atribuir o lead.');
+          toast.error('Não foi possível atribuir o lead.');
         },
       }
     );
@@ -563,18 +563,18 @@ export function KanbanBoard() {
       { id: leadId, assignedToId: userId },
       {
         onSuccess: () => {
-          toast.success(userId ? `Lead atribuÃ­do a ${name || 'consultor'}.` : 'Lead desatribuÃ­do.');
+          toast.success(userId ? `Lead atribuído a ${name || 'consultor'}.` : 'Lead desatribuído.');
         },
         onError: () => {
-          toast.error('NÃ£o foi possÃ­vel atribuir o lead.');
+          toast.error('Não foi possível atribuir o lead.');
         },
       }
     );
   }, [assignLead]);
 
-  // Mover de etapa pelo dropdown (fallback acessÃ­vel por toque).
+  // Mover de etapa pelo dropdown (fallback acessível por toque).
   // Centralizado aqui para que o KanbanCard memoizado receba um callback
-  // estÃ¡vel (useCallback) em vez de um inline criado a cada render.
+  // estável (useCallback) em vez de um inline criado a cada render.
   const onMoveTo = useCallback((leadId: string, status: string) => {
     updateStatus.mutate(
       { id: leadId, status },
@@ -583,7 +583,7 @@ export function KanbanBoard() {
           const colTitle = COLUMNS.find((c) => c.id === status)?.title || status;
           toast.success(`Lead movido para ${colTitle}`, {
             description: res.suggested_next_action_at
-              ? `PrÃ³xima aÃ§Ã£o sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
+              ? `Próxima ação sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
               : undefined,
           });
         },
@@ -592,12 +592,12 @@ export function KanbanBoard() {
     );
   }, [updateStatus]);
 
-  // Abrir lead (navega para a pÃ¡gina de detalhes). EstÃ¡vel para o memo.
+  // Abrir lead (navega para a página de detalhes). Estável para o memo.
   const onOpenLead = useCallback((leadId: string) => {
     router.push(`/oportunidades/${leadId}`);
   }, [router]);
 
-  // Abrir diÃ¡logo de feedback de score. EstÃ¡vel para o memo.
+  // Abrir diálogo de feedback de score. Estável para o memo.
   const onOpenFeedback = useCallback((lead: LeadData) => {
     setFeedbackLead(lead);
     setFeedbackOpen(true);
@@ -637,7 +637,7 @@ export function KanbanBoard() {
 
   return (
     <div className="space-y-4">
-      {/* Resumo do Funil de NegociaÃ§Ã£o */}
+      {/* Resumo do Funil de Negociação */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border bg-card p-3 shadow-sm">
           <p className="text-xs font-medium text-muted-foreground">Total no Pipeline</p>
@@ -654,7 +654,7 @@ export function KanbanBoard() {
           </p>
         </div>
         <div className="rounded-lg border bg-card p-3 shadow-sm">
-          <p className="text-xs font-medium text-muted-foreground">ReuniÃµes / Propostas</p>
+          <p className="text-xs font-medium text-muted-foreground">Reuniões / Propostas</p>
           <p className="font-heading text-xl font-bold tracking-tight text-amber-600">
             {(visibleColumns['REUNIAO_MARCADA']?.length || 0) + (visibleColumns['REUNIAO_FEITA']?.length || 0) + (visibleColumns['PROPOSTA_ENVIADA']?.length || 0)}
           </p>
@@ -664,10 +664,10 @@ export function KanbanBoard() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <p className="hidden text-sm font-medium text-muted-foreground sm:block">
-            Segure o topo de um cartÃ£o e arraste entre as colunas para atualizar a etapa
+            Segure o topo de um cartão e arraste entre as colunas para atualizar a etapa
           </p>
           <p className="text-sm font-medium text-muted-foreground sm:hidden">
-            Toque no cartÃ£o para abrir o lead Â· segure o topo para arrastar de etapa
+            Toque no cartão para abrir o lead · segure o topo para arrastar de etapa
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -771,7 +771,7 @@ export function KanbanBoard() {
                             {myLeadsOnly ? 'Nenhum lead seu nesta etapa' : 'Nenhum lead nesta etapa'}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground/70">
-                            {myLeadsOnly ? 'Desative o filtro ou atribua leads a vocÃª' : 'Arraste leads de outras colunas'}
+                            {myLeadsOnly ? 'Desative o filtro ou atribua leads a você' : 'Arraste leads de outras colunas'}
                           </p>
                         </div>
                       )}
@@ -785,7 +785,7 @@ export function KanbanBoard() {
         </div>
       </DragDropContext>
 
-      {/* Feedback de score: remonta por lead para o formulÃ¡rio comeÃ§ar zerado. */}
+      {/* Feedback de score: remonta por lead para o formulário começar zerado. */}
       <ScoreFeedbackDialog
         key={feedbackLead?.id ?? 'none'}
         lead={feedbackLead}
