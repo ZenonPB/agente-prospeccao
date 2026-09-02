@@ -1718,6 +1718,80 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 - **`scripts/dev.sh`**: `start|stop|status` para Postgres + API + Web.
 - Usuário inicial criado: `admin@agente-prospeccao.com` (trocar a senha).
 
+### Sessão atual — scoring de ERP/webapps corrigido (2026-09-01)
+
+Branch `fix/scoring-erp-webapps` (a partir de `docs-fix-saas`):
+
+**Problema:** o scoring de leads para venda de sistemas web completos / ERP não
+refletia a qualidade real do lead. Em particular, leads hospedados em
+plataformas SaaS de terceiros (anota.ai, iFood, Rappi, Aimpire, Pedidosky)
+eram pontuados como oportunidade alta porque o `_check_ux` detectava
+"área logada/portal" e "menção a sistema" no HTML do SaaS — e o LLM tratava
+isso como "lead já tem sistema", invertendo o sinal. Faltavam também sinais
+cadastrais (porte, idade, CNAE) que são decisivos na venda B2B de ERP.
+
+**Correção (6 arquivos):**
+- `services/workers/src/services/domain_utils.py` — adicionadas anota.ai,
+  ifood.com, rappi(.com.br), aimpire.com, pedidosky.com.br em
+  `_MARKETPLACE_DOMAINS` e `_SUBDOMAIN_SOCIAL_ROOTS`. Subdomínios como
+  `pedido.anota.ai` agora viram `None` no `normalize_domain` (sem dedupe).
+- `services/workers/src/services/technical_enrichment_service.py` —
+  `_check_ux(html, website_url=None)`: novo flag `is_third_party_saas` +
+  `third_party_platform` (host completo). Quando `True`, `login_portal_found`
+  e `system_mention_found` ficam **forçadamente `False`** (pertencem ao SaaS,
+  não ao lead). Regex de "sistema/ERP/software" refinada para exigir
+  contexto de GESTÃO (ERP, CRM, sistema integrado, software/plataforma de
+  gestão, API) — não confundir "sistema de pedidos" com ERP próprio.
+  Chamada em `enrich_website()` passa `website_url`.
+- `services/workers/src/services/scoring_service.py`:
+  - `extract_technical_facts`: quando `is_third_party_saas`, injeta fact
+    "Lead usa plataforma SaaS de terceiros (X)" e SUPRIME os facts antigos
+    "área logada/portal" e "menção a sistema" que induziam o LLM ao erro.
+  - `build_prompt`: nova instrução **8b** (global) sobre SaaS de terceiros +
+    nova instrução **8c** (só para campanhas ERP/webapps) sobre fito vir de
+    porte/idade/CNAE/segmento, não da qualidade do site.
+  - Novo helper `_campaign_sells_erp_webapps()` decide se 8c entra no prompt
+    (template com label em `_ERP_WEBAPP_LABELS` ou regex no `target_service`
+    para campanhas com template "Genérico"/None).
+- `services/workers/src/seeds/scoring_templates.py` — template
+  "Aplicações Web / ERP" ampliado:
+  - **Positivos**: lead jovem (< 2 anos) em estruturação (medium); operação
+    pequena bem avaliada (medium); CNAE compatível com sistema replicável
+    (medium).
+  - **Negativos**: lead do setor de software/TI/SaaS — concorrente (high);
+    empresa antiga (> 10 anos) e estruturada — provavelmente tem legado
+    (medium).
+  - **Contexto**: idade, capital social, reputação Google vs porte.
+  - **Hooks/subject_ideas/objections** do playbook: gancho específico para
+    "já usa anota.ai/iFood — e para o resto da operação?".
+  - **`extra_instructions` reescrito**: explicita a separação SaaS de
+    delivery (anota.ai/iFood/Rappi ≠ ERP) de sistema de gestão próprio
+    (área logada + API no domínio próprio do lead).
+- Testes:
+  - `tests/test_ux_portal_detection.py` — 3 testes novos
+    (SaaS suprime login/sistema; SaaS mantém sinais básicos de UX; domínio
+    próprio mantém login/sistema) + refinamento do regex de "sistema de
+    gestão" para o comportamento novo.
+  - `tests/test_saas_platforms_scoring.py` (novo) — 12 testes:
+    normalização de domínio para SaaS de delivery (parametrizado, 9 URLs),
+    extração de fact "Lead usa SaaS de terceiros", e 4 testes de `build_prompt`
+    (8b sempre presente, 8c só em ERP/webapps).
+  - `tests/test_erp_template_seed.py` — 7 testes novos (sinais de CNAE de
+    TI, lead jovem, operação pequena, CNAE replicável, instruções
+    diferenciando SaaS de sistema, instruções com porte/idade, playbook com
+    hook de SaaS de delivery).
+
+**Validação:** `python -m pytest tests -q` → **534 passed** (504 + 30 novos).
+`compileall services/api services/workers` OK. `npm run lint` limpo
+(erros `tsc --noEmit` pré-existentes em `crm-planilha-modal.tsx` são de
+outra branch, sem relação com estas mudanças).
+
+**Próximo passo imediato:** rodar `python -m src.seeds.scoring_templates`
+para materializar o template "Aplicações Web / ERP" ampliado no banco (idempotente),
+e usar "Reanalisar não pontuados" em campanhas já existentes para os leads
+reavaliarem com os critérios novos. Monitorar nas próximas campanhas se o
+falso-positivo do Terraço (e similares) deixa de ocorrer e se o score de
+leads SaaS de delivery se mantém próximo do neutro/positivo (não mais alto).
 ### Sessão atual — grafo + limpeza de docs (2026-08-04)
 
 - **Grafo atualizado**: `graphify extract . --code-only && graphify cluster-only .`

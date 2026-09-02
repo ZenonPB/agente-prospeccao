@@ -40,28 +40,51 @@ _TOOL_DOMAINS = {
     "linkbio.co",
 }
 
-# Marketplaces / storefronts de terceiros (e-commerce de entrega, cardápio ou
-# vitrine) que NÃO representam um site próprio — o negócio depende da
-# plataforma de outrem, sendo portanto público-alvo de um site próprio.
+# Marketplaces / storefronts / plataformas SaaS de terceiros (e-commerce de
+# entrega, cardápio, vitrine ou plataformas de pedidos) que NÃO representam um
+# site próprio. O negócio usa a plataforma de outrem como canal de venda —
+# para prospecção de site próprio/sistema completo, isso é ausência de site
+# próprio (e o domínio não deve ser chave de dedupe). Plataformas conhecidas:
+# instadelivery, iFood (raiz e subdomínios de pedidos), pedidosja, cardapioja,
+# deliveryextra, menuqr, foodzap, anota.ai (pedidos), Rappi, Aimpire,
+# Pedidosky. Outros SaaS de delivery/cardápio podem ser cobertos pelas
+# raízes em `_SUBDOMAIN_SOCIAL_ROOTS`.
 _MARKETPLACE_DOMAINS = {
     "instadelivery.com.br",
     "ifood.com.br",
+    "ifood.com",
     "pedidosja.com.br",
     "cardapioja.com",
     "deliveryextra.com",
     "menuqr.com.br",
     "foodzap.com.br",
+    # Plataformas SaaS de pedidos/delivery/cardápio que hospedam a "vitrine"
+    # do restaurante em subdomínio do próprio SaaS (ex.: pedido.anota.ai).
+    "anota.ai",
+    "rappi.com",
+    "rappi.com.br",
+    "aimpire.com",
+    "pedidosky.com.br",
 }
 
-# Raízes cujos SUBDOMÍNIOS também contam como rede social/ferramenta (ex.:
-# "api.whatsapp.com" é WhatsApp, não site). Qualquer host que termine com uma
-# destas raízes é tratado como "sem site próprio".
+# Raízes cujos SUBDOMÍNIOS também contam como rede social/ferramenta/SaaS
+# de terceiros (ex.: "api.whatsapp.com" é WhatsApp, "pedido.anota.ai" é
+# Anota AI, "pedidos.ifood.com.br" é iFood). Qualquer host que termine com
+# uma destas raízes é tratado como "sem site próprio".
 _SUBDOMAIN_SOCIAL_ROOTS = (
     "whatsapp.com",
     "wa.me",
     "canva.com",
     "canva.link",
     "instagram.com",
+    # Plataformas SaaS de delivery/pedidos — subdomínios pertencem ao SaaS.
+    "anota.ai",
+    "ifood.com",
+    "ifood.com.br",
+    "rappi.com",
+    "rappi.com.br",
+    "aimpire.com",
+    "pedidosky.com.br",
 )
 
 

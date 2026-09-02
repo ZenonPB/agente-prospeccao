@@ -1,10 +1,21 @@
 # Fix: Detecção de plataformas SaaS de terceiros no scoring
 
+> **Status: ✅ Entregue (2026-09-01, branch `fix/scoring-erp-webapps`).**
+> Todas as mudanças listadas abaixo foram implementadas — ver também a sessão
+> correspondente em `docs/context.md` ("scoring de ERP/webapps corrigido").
+> A entrega cobriu as 5 mudanças previstas **e ampliou** o template
+> "Aplicações Web / ERP" com sinais cadastrais (porte, idade, CNAE, capital
+> social) que estavam faltando para a venda B2B de sistemas web completos.
+
 ## Problema
 
-A IA de scoring não reconhece que leads já usam plataformas de pedidos (anota.ai, iFood, etc.). Trata `pedido.anota.ai` como "site próprio do lead" e gera facts falsos ("área logada detectada", "menção a sistema"), fazendo o LLM concluir que o lead tem "processos manuais que podem ser automatizados" — quando na verdade ele JÁ tem solução digital.
+A IA de scoring não reconhecia que leads já usam plataformas de pedidos (anota.ai, iFood, etc.). Tratava `pedido.anota.ai` como "site próprio do lead" e gerava facts falsos ("área logada detectada", "menção a sistema"), fazendo o LLM concluir que o lead tem "processos manuais que podem ser automatizados" — quando na verdade ele JÁ tem solução digital.
 
-**Exemplo concreto:** Restaurante Terraço com `https://pedido.anota.ai/loja/restaurante-novo-terrao` recebe score 85 com reasoning: "O site institucional não apresenta portal ou área logada, e não menciona nenhum sistema ou ERP, indicando processos manuais que podem ser automatizados." — completamente errado, pois o lead já usa anota.ai para pedidos.
+**Exemplo concreto:** Restaurante Terraço com `https://pedido.anota.ai/loja/restaurante-novo-terrao` recebia score 85 com reasoning: "O site institucional não apresenta portal ou área logada, e não menciona nenhum sistema ou ERP, indicando processos manuais que podem ser automatizados." — completamente errado, pois o lead já usa anota.ai para pedidos.
+
+## Plataformas reconhecidas
+
+anota.ai, iFood (com e sem subdomínio de pedidos), Rappi, Aimpire, Pedidos Já, Pedidosky.
 
 ## Plataformas a reconhecer
 
