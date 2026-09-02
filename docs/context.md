@@ -1725,6 +1725,20 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 
 ### Sessão atual — kanban: restauração do cartão rico (2026-09-01)
 
+### Sessão atual — navegação: item Configurações ativo indevidamente (2026-09-01)
+
+Correção visual na sidebar (`apps/web/src/components/layout/sidebar.tsx`):
+
+- A regra anterior marcava itens por prefixo (`pathname.startsWith(href + '/')`).
+  Como `Configurações` usa `/configuracoes`, ela também ficava ativa em
+  `/configuracoes/vertentes` e `/configuracoes/membros`, deixando dois botões
+  destacados simultaneamente.
+- `NavItem` agora aceita `exact?: boolean`; o item `Configurações` usa
+  `exact: true`, enquanto Vertentes, Equipe e os demais itens preservam o
+  comportamento de subrotas.
+
+Validação: `npm run lint`, `npx tsc --noEmit` e `git diff --check` passaram.
+
 Branch `fix/kanban-drag-perf`:
 
 - O refactor de performance havia reduzido o cartão a título, prioridade,

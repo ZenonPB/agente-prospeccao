@@ -27,6 +27,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   analystOnly?: boolean;
+  exact?: boolean;
 }
 
 interface NavGroup {
@@ -56,7 +57,10 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Vertentes', href: '/configuracoes/vertentes', icon: Layers },
       { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
-      { name: 'Configurações', href: '/configuracoes', icon: Settings },
+      // Configurações é uma página própria, não o pai visual das telas de
+      // Vertentes/Equipe. O matching exato evita dois itens ativos ao mesmo
+      // tempo em `/configuracoes/vertentes` ou `/configuracoes/membros`.
+      { name: 'Configurações', href: '/configuracoes', icon: Settings, exact: true },
     ],
   },
   {
@@ -142,8 +146,9 @@ export function Sidebar() {
                 </p>
               )}
               {group.items.map((item) => {
-                const isActive =
-                  pathname === item.href || pathname.startsWith(item.href + '/');
+                const isActive = item.exact
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(item.href + '/');
                 return (
                   <Link
                     key={item.name}
