@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users, BrainCircuit } from 'lucide-react';
+import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users, BrainCircuit } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import { ScoreFeedbackDialog } from '@/components/vendas/score-feedback-dialog';
@@ -61,6 +61,7 @@ interface KanbanCardProps {
   // `assigned_to` como string; mantemos o union.
   members: { user_id: string; name?: string; email?: string }[] | undefined;
   canAssignOthers: boolean;
+  isAssigning: boolean;
   // Recebemos só o `mutate` do useMutation para manter a superfície
   // pequena — `KanbanCard` não usa isPending, etc.
   recordWhatsApp: { mutate: (vars: { leadId: string }) => void };
@@ -85,6 +86,7 @@ const KanbanCard = memo(function KanbanCard({
   currentUserId,
   members,
   canAssignOthers,
+  isAssigning,
   recordWhatsApp,
   onAssignToMe,
   onAssignTo,
@@ -167,9 +169,13 @@ const KanbanCard = memo(function KanbanCard({
                       {lead.priority === 'HOT' ? 'Quente' : lead.priority === 'WARM' ? 'Morno' : 'Frio'}
                     </Badge>
                   )}
-                  {typeof lead.qualification_score === 'number' && (
+                  {typeof lead.qualification_score === 'number' ? (
                     <span className="font-medium text-foreground/80">
                       {lead.qualification_score.toFixed(0)} pts
+                    </span>
+                  ) : (
+                    <span className="rounded border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      Sem score
                     </span>
                   )}
                   {lead.negotiation_stage && (
@@ -189,49 +195,110 @@ const KanbanCard = memo(function KanbanCard({
                 </div>
               </div>
             </div>
-            {/* Botões de ação rápida. Stop propagation para não abrir o lead. */}
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              {lead.contact_phone && (
-                <Button
+            {(lead.contract_outcome || lead.negotiation_stage) && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {lead.negotiation_stage && (
+                  <Badge variant="outline" className="bg-violet-50 text-xs text-violet-700">
+                    {NEG_STAGE_LABELS[lead.negotiation_stage] || lead.negotiation_stage}
+                  </Badge>
+                )}
+                {lead.contract_outcome && (
+                  <Badge
+                    variant="outline"
+                    className={lead.contract_outcome === 'APROVADO'
+                      ? 'bg-emerald-50 text-xs text-emerald-700'
+                      : lead.contract_outcome === 'REPROVADO'
+                        ? 'bg-red-50 text-xs text-red-700'
+                        : 'bg-amber-50 text-xs text-amber-700'}
+                  >
+                    {lead.contract_outcome === 'EM_ANALISE' ? 'Em análise' : lead.contract_outcome}
+                  </Badge>
+                )}
+              </div>
+            )}
+            {slaAlert && (
+              <div className="mb-2">
+                <Badge
                   variant="outline"
-                  size="icon"
-                  className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const url = whatsAppLink(lead.contact_phone);
-                    if (url) window.open(url, '_blank', 'noopener');
-                    recordWhatsApp.mutate({ leadId: lead.id ?? '' });
-                  }}
-                  aria-label={`Enviar WhatsApp para ${lead.company_name}`}
-                  title="Abrir WhatsApp"
+                  className="gap-1 border-red-200 bg-red-50 text-xs text-red-700"
+                  title={slaAlert.alert_label}
                 >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                </Button>
+                  <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                  Parado há {slaAlert.days_since}d
+                </Badge>
+              </div>
+            )}
+            <p className="mb-3 truncate text-sm text-muted-foreground">
+              {lead.category || 'Sem categoria'} · {lead.city || 'Não informado'}
+              {lead.state ? `, ${lead.state}` : ''}
+            </p>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              {lead.value != null && Number(lead.value) > 0 && (
+                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+                  R$ {Number(lead.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
               )}
-              {!lead.assigned_to && currentUserId && (
+              {lead.assigned_to_id ? (
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                  lead.assigned_to_id === currentUserId ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {lead.assigned_to_id === currentUserId ? <Check className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                  {lead.assigned_to_id === currentUserId ? 'Seu lead' : (lead.assigned_to_name || 'Atribuído')}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                  <User className="h-3 w-3" /> Não atribuído
+                </span>
+              )}
+            </div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {daysSinceCreated} dias
+              </span>
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                {column.id === 'QUALIFICADO' && (
+                  <span className="flex items-center gap-1 text-emerald-600"><AlertCircle className="h-3 w-3" />Aguardando 1º contato</span>
+                )}
+                {column.id === 'CONTATADO' && (
+                  <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" />Aguardando resposta</span>
+                )}
+                {whatsAppLink(lead.whatsapp || lead.phone || lead.contact_phone) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-7 sm:w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const url = whatsAppLink(lead.whatsapp || lead.phone || lead.contact_phone);
+                      if (url) window.open(url, '_blank', 'noopener');
+                      recordWhatsApp.mutate({ leadId: lead.id ?? '' });
+                    }}
+                    title="Abrir WhatsApp e registrar na trilha"
+                    aria-label={`Abrir WhatsApp de ${lead.company_name}`}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {/* Ações adicionais do card. */}
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {!lead.assigned_to_id && currentUserId && (
                 <Button
                   variant="outline"
-                  size="icon"
-                  className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
+                  size="sm"
+                  className="h-11 shrink-0 gap-1.5 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]"
+                  disabled={isAssigning}
                   onClick={(e) => {
                     e.stopPropagation();
                     onAssignToMe(lead.id);
                   }}
                   aria-label={`Atribuir ${lead.company_name} a mim`}
-                  title="Atribuir a mim"
                 >
-                  <UserPlus className="h-3.5 w-3.5" />
+                  {isAssigning ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                  Atribuir a mim
                 </Button>
-              )}
-              {lead.assigned_to && (
-                <Badge
-                  variant="outline"
-                  className="h-6 gap-1 border-blue-200 bg-blue-50 px-2 text-[10px] font-medium text-blue-700"
-                  title={lead.assigned_to_name || lead.assigned_to}
-                >
-                  <User className="h-3 w-3" />
-                  {lead.assigned_to_name || 'Atribuído'}
-                </Badge>
               )}
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -348,6 +415,7 @@ const KanbanCard = memo(function KanbanCard({
   if (prev.currentUserId !== next.currentUserId) return false;
   if (prev.members !== next.members) return false;
   if (prev.canAssignOthers !== next.canAssignOthers) return false;
+  if (prev.isAssigning !== next.isAssigning) return false;
   // Callbacks vêm do useCallback no pai â€” se as refs forem estáveis,
   // nunca mudam. Se mudar, re-renderiza (segurança).
   if (prev.recordWhatsApp !== next.recordWhatsApp) return false;
@@ -753,6 +821,7 @@ export function KanbanBoard() {
                           currentUserId={currentUserId ?? null}
                           members={membersData?.members}
                           canAssignOthers={canAssignOthers}
+                          isAssigning={assignLead.isPending && assignLead.variables?.id === lead.id}
                           recordWhatsApp={recordWhatsApp}
                           onAssignToMe={onAssignToMe}
                           onAssignTo={onAssignTo}

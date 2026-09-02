@@ -1723,6 +1723,26 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 
 ### Sessão atual — kanban: confirmação otimista e encoding do toast (2026-09-01)
 
+### Sessão atual — kanban: restauração do cartão rico (2026-09-01)
+
+Branch `fix/kanban-drag-perf`:
+
+- O refactor de performance havia reduzido o cartão a título, prioridade,
+  score, estágio e ações, removendo informações comerciais importantes que
+  existiam antes: categoria/cidade/UF, valor estimado, resultado do contrato,
+  SLA detalhado, atribuição, idade do lead e indicação da próxima ação.
+- O `KanbanCard` memoizado foi enriquecido novamente sem devolver o JSX gigante
+  ao componente pai: contrato/negociação, badge de SLA com tooltip, localização,
+  valor em BRL, estado de atribuição, idade do lead, indicador por etapa e ação
+  de WhatsApp voltaram ao cartão.
+- Mantidos `React.memo`, callbacks estáveis, `style` nativo do DnD e targets de
+  toque de 44px. O resultado é visualmente mais completo, com separadores,
+  hierarquia de metadados e densidade adequada para uso comercial.
+- Corrigido também o encoding do arquivo: textos acentuados do cartão agora
+  estão em UTF-8 válido, sem `Ã`/`Â`.
+
+Validação: `npm run lint`, `npx tsc --noEmit` e `git diff --check` passaram.
+
 Branch `fix/kanban-drag-perf`:
 
 - O `style` do `@hello-pangea/dnd` agora passa sem sobrescrita customizada;
