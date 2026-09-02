@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, memo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +41,391 @@ const NEG_STAGE_LABELS: Record<string, string> = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeadData = Record<string, any>;
+
+// Subconjunto do LeadData usado pelo card memoizado. Mantém a tipagem
+// permissiva (Record<string, any>) alinhada com o resto do arquivo.
+type LeadbanCard = LeadData;
+
+interface KanbanCardProps {
+  // O `lead` vem de `useAllLeads`; tem `id` garantido pelo endpoint
+  // (lead.id é NOT NULL no schema). Tipamos como `LeadData` com id
+  // opcional para alinhar com o resto do arquivo sem acoplamento.
+  lead: LeadbanCard;
+  index: number;
+  column: KanbanColumn;
+  slaAlert: SlaAlertItem | undefined;
+  activeDragFrom: string | null;
+  now: number;
+  currentUserId: string | null;
+  // Membros da org para o menu "Atribuir a". O endpoint devolve
+  // `assigned_to` como string; mantemos o union.
+  members: { user_id: string; name?: string; email?: string }[] | undefined;
+  canAssignOthers: boolean;
+  isAssigning: boolean;
+  // Recebemos só o `mutate` do useMutation para manter a superfície
+  // pequena — `KanbanCard` não usa isPending, etc.
+  recordWhatsApp: { mutate: (vars: { leadId: string }) => void };
+  onAssignToMe: (leadId: string) => void;
+  onAssignTo: (leadId: string, userId: string | null, name?: string) => void;
+  onMoveTo: (leadId: string, status: string) => void;
+  onOpenFeedback: (lead: LeadbanCard) => void;
+  onOpenLead: (leadId: string) => void;
+}
+
+// Subcomponente memoizado: cada card só re-renderiza quando suas props
+// mudam de fato. Sem memo, o re-render do pai (causado por onDragStart/
+// onDragEnd/optimistic update) re-renderizava TODOS os 30+ cards a cada
+// drag, mesmo os que não estavam sendo arrastados.
+const KanbanCard = memo(function KanbanCard({
+  lead,
+  index,
+  column,
+  slaAlert,
+  activeDragFrom,
+  now,
+  currentUserId,
+  members,
+  canAssignOthers,
+  isAssigning,
+  recordWhatsApp,
+  onAssignToMe,
+  onAssignTo,
+  onMoveTo,
+  onOpenFeedback,
+  onOpenLead,
+}: KanbanCardProps) {
+  const daysSinceCreated = useMemo(() => {
+    const created = new Date(lead.created_at).getTime();
+    if (!Number.isFinite(created)) return 0;
+    return Math.floor((now - created) / (1000 * 60 * 60 * 24));
+  }, [lead.created_at, now]);
+  // `now` vem de ref, é estável â€” só recalcula se o `created_at` mudar.
+
+  return (
+    // O endpoint garante `lead.id`; usamos fallback '' em vez de `!` para
+    // satisfazer o strict do TS sem perder a checagem de runtime (a key
+    // do pai já filtra cards sem id).
+    <Draggable draggableId={lead.id ?? ''} index={index}>
+      {(provided, snapshot) => {
+        // Aplica o `style` da biblioteca sem alterá-lo: ele controla a posição.
+        // O `style` carrega `position: fixed; top; left; transform: translate(X, Y)`
+        // durante o drag e `{ transform, transition: 'none' }` para os cards que
+        // se rearranjam (SECONDARY). Mexer nele (forçar `transition: 'none'` ou
+        // `willChange: 'transform'`) pode bagunçar a animação de drop e travar
+        // o card em uma posição obsoleta até o próximo reflow.
+        const draggableStyle: React.CSSProperties = provided.draggableProps.style ?? {};
+        return (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            style={draggableStyle}
+            className={`group touch-none rounded-lg border bg-card p-3.5 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+              snapshot.isDragging
+                ? 'rotate-[1.5deg] scale-[1.03] shadow-xl ring-2 ring-primary/40'
+                : `transition-[border-color,box-shadow] duration-100 ${
+                    activeDragFrom
+                      ? 'opacity-40 saturate-50'
+                      : 'hover:border-primary/20 hover:shadow-md'
+                  }`
+            }`}
+          >
+            {/* Cabeçalho do cartão = alça de arraste. */}
+            <div
+              {...provided.dragHandleProps}
+              className="-mx-1 mb-2 flex cursor-grab touch-none select-none items-start justify-between gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60 active:cursor-grabbing"
+              title="Segure e arraste para mudar de etapa"
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenLead(lead.id);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onOpenLead(lead.id);
+                }
+              }}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center gap-1.5">
+                  <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+                  <h3 className="truncate text-sm font-semibold text-foreground">
+                    {lead.company_name}
+                  </h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                  {lead.priority && (
+                    <Badge
+                      variant={
+                        lead.priority === 'HOT'
+                          ? 'destructive'
+                          : lead.priority === 'WARM'
+                            ? 'default'
+                            : 'secondary'
+                      }
+                      className="h-4 px-1.5 py-0 text-[10px] font-medium"
+                    >
+                      {lead.priority === 'HOT' ? 'Quente' : lead.priority === 'WARM' ? 'Morno' : 'Frio'}
+                    </Badge>
+                  )}
+                  {typeof lead.qualification_score === 'number' ? (
+                    <span className="font-medium text-foreground/80">
+                      {lead.qualification_score.toFixed(0)} pts
+                    </span>
+                  ) : (
+                    <span className="rounded border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      Sem score
+                    </span>
+                  )}
+                  {lead.negotiation_stage && (
+                    <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                      {NEG_STAGE_LABELS[lead.negotiation_stage] || lead.negotiation_stage}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-0.5">
+                    <Clock className="h-3 w-3" aria-hidden="true" />
+                    {daysSinceCreated}d
+                  </span>
+                  {slaAlert && (
+                    <span className="rounded border border-red-300 bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                      SLA
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            {(lead.contract_outcome || lead.negotiation_stage) && (
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {lead.negotiation_stage && (
+                  <Badge variant="outline" className="bg-violet-50 text-xs text-violet-700">
+                    {NEG_STAGE_LABELS[lead.negotiation_stage] || lead.negotiation_stage}
+                  </Badge>
+                )}
+                {lead.contract_outcome && (
+                  <Badge
+                    variant="outline"
+                    className={lead.contract_outcome === 'APROVADO'
+                      ? 'bg-emerald-50 text-xs text-emerald-700'
+                      : lead.contract_outcome === 'REPROVADO'
+                        ? 'bg-red-50 text-xs text-red-700'
+                        : 'bg-amber-50 text-xs text-amber-700'}
+                  >
+                    {lead.contract_outcome === 'EM_ANALISE' ? 'Em análise' : lead.contract_outcome}
+                  </Badge>
+                )}
+              </div>
+            )}
+            {slaAlert && (
+              <div className="mb-2">
+                <Badge
+                  variant="outline"
+                  className="gap-1 border-red-200 bg-red-50 text-xs text-red-700"
+                  title={slaAlert.alert_label}
+                >
+                  <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                  Parado há {slaAlert.days_since}d
+                </Badge>
+              </div>
+            )}
+            <p className="mb-3 truncate text-sm text-muted-foreground">
+              {lead.category || 'Sem categoria'} · {lead.city || 'Não informado'}
+              {lead.state ? `, ${lead.state}` : ''}
+            </p>
+            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+              {lead.value != null && Number(lead.value) > 0 && (
+                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+                  R$ {Number(lead.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              )}
+              {lead.assigned_to_id ? (
+                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                  lead.assigned_to_id === currentUserId ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                }`}>
+                  {lead.assigned_to_id === currentUserId ? <Check className="h-3 w-3" /> : <User className="h-3 w-3" />}
+                  {lead.assigned_to_id === currentUserId ? 'Seu lead' : (lead.assigned_to_name || 'Atribuído')}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                  <User className="h-3 w-3" /> Não atribuído
+                </span>
+              )}
+            </div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1">
+                <Clock className="h-3 w-3" aria-hidden="true" />
+                {daysSinceCreated} dias
+              </span>
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+                {column.id === 'QUALIFICADO' && (
+                  <span className="flex items-center gap-1 text-emerald-600"><AlertCircle className="h-3 w-3" />Aguardando 1º contato</span>
+                )}
+                {column.id === 'CONTATADO' && (
+                  <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3 w-3" />Aguardando resposta</span>
+                )}
+                {whatsAppLink(lead.whatsapp || lead.phone || lead.contact_phone) && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-7 sm:w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const url = whatsAppLink(lead.whatsapp || lead.phone || lead.contact_phone);
+                      if (url) window.open(url, '_blank', 'noopener');
+                      recordWhatsApp.mutate({ leadId: lead.id ?? '' });
+                    }}
+                    title="Abrir WhatsApp e registrar na trilha"
+                    aria-label={`Abrir WhatsApp de ${lead.company_name}`}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            {/* Ações adicionais do card. */}
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {!lead.assigned_to_id && currentUserId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-11 shrink-0 gap-1.5 px-3 text-xs sm:h-7 sm:px-2 sm:text-[11px]"
+                  disabled={isAssigning}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAssignToMe(lead.id);
+                  }}
+                  aria-label={`Atribuir ${lead.company_name} a mim`}
+                >
+                  {isAssigning ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                  Atribuir a mim
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
+                      onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+                      aria-label={`Mais ações para ${lead.company_name}`}
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                  <DropdownMenuGroup>
+                    {canAssignOthers && currentUserId && (
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Atribuir a</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAssignToMe(lead.id);
+                          }}
+                        >
+                          <UserPlus className="mr-2 h-3.5 w-3.5" />
+                          Você
+                        </DropdownMenuItem>
+                        {members?.filter((m) => m.user_id !== currentUserId).map((m) => (
+                          <DropdownMenuItem
+                            key={m.user_id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAssignTo(lead.id, m.user_id, m.name);
+                            }}
+                          >
+                            <User className="h-3.5 w-3.5" />
+                            {m.name || m.email}
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAssignTo(lead.id, null);
+                          }}
+                        >
+                          Desatribuir
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                    )}
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenFeedback(lead);
+                      }}
+                    >
+                      <BrainCircuit className="mr-2 h-3.5 w-3.5" />
+                      Discordar do score
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {/* Fallback acessível por toque: mover de etapa sem arrastar. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
+                      onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
+                      aria-label={`Mover ${lead.company_name} para outra etapa`}
+                    >
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  }
+                />
+                <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Mover para</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {COLUMNS.filter((c) => c.id !== column.id).map((c) => (
+                      <DropdownMenuItem
+                        key={c.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMoveTo(lead.id, c.id);
+                        }}
+                      >
+                        {c.title}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        );
+      }}
+    </Draggable>
+  );
+}, (prev, next) => {
+  // Comparação custom para memo: evita re-render quando o objeto `lead`
+  // mudou de referência (ex.: novo fetch) mas o conteúdo é o mesmo.
+  if (prev.lead !== next.lead) return false;
+  if (prev.index !== next.index) return false;
+  if (prev.column.id !== next.column.id) return false;
+  if (prev.slaAlert !== next.slaAlert) return false;
+  if (prev.activeDragFrom !== next.activeDragFrom) return false;
+  if (prev.now !== next.now) return false;
+  if (prev.currentUserId !== next.currentUserId) return false;
+  if (prev.members !== next.members) return false;
+  if (prev.canAssignOthers !== next.canAssignOthers) return false;
+  if (prev.isAssigning !== next.isAssigning) return false;
+  // Callbacks vêm do useCallback no pai â€” se as refs forem estáveis,
+  // nunca mudam. Se mudar, re-renderiza (segurança).
+  if (prev.recordWhatsApp !== next.recordWhatsApp) return false;
+  if (prev.onAssignToMe !== next.onAssignToMe) return false;
+  if (prev.onAssignTo !== next.onAssignTo) return false;
+  if (prev.onMoveTo !== next.onMoveTo) return false;
+  if (prev.onOpenFeedback !== next.onOpenFeedback) return false;
+  if (prev.onOpenLead !== next.onOpenLead) return false;
+  return true;
+});
 
 function groupLeadsByColumn(leads: LeadData[]): Record<string, LeadData[]> {
   const grouped: Record<string, LeadData[]> = {};
@@ -136,10 +521,19 @@ export function KanbanBoard() {
 
   // Estado local espelhado das colunas durante o drag: sem optimistic update,
   // o card "volta" para a posição antiga ao soltar (e só reposiciona quando o
-  // refetch termina) — parece que o drag não funciona. Aqui movemos o card
+  // refetch termina) â€” parece que o drag não funciona. Aqui movemos o card
   // imediatamente e desfazemos em caso de erro.
   const [draftColumns, setDraftColumns] = useState<Record<string, LeadData[]> | null>(null);
-  const visibleColumns = draftColumns ?? columns;
+  const [pendingMove, setPendingMove] = useState<{ leadId: string; status: string } | null>(null);
+  const moveConfirmed = Boolean(
+    pendingMove && data?.leads?.some(
+      (lead) => lead.id === pendingMove.leadId && lead.status === pendingMove.status,
+    ),
+  );
+  // Enquanto a query ainda mostra o status antigo, usa o layout otimista.
+  // Assim o card não volta nem fica preso em `position: fixed`. Quando a
+  // resposta confirmar o status, a fonte oficial assume automaticamente.
+  const visibleColumns = pendingMove && !moveConfirmed ? draftColumns ?? columns : columns;
 
   // Coluna de origem do arraste em curso: usada para realçar os alvos de
   // drop e esmaecer os cartões que não estão sendo arrastados.
@@ -173,6 +567,12 @@ export function KanbanBoard() {
 
   const slaAlertsCount = Object.values(slaByLead).length;
 
+  // Congela `Date.now()` em uma ref para o cálculo de "dias desde criação".
+  // Sem isso, cada re-render do kanban (incluindo os disparados pelo drag)
+  // recalculava `Date.now()` no JSX, gerando novas referências e quebrando
+  // qualquer `React.memo` aplicado ao card.
+  const [now] = useState(() => Date.now());
+
   const onDragEnd = useCallback((result: DropResult) => {
     const { draggableId, destination, source } = result;
     setActiveDragFrom(null);
@@ -180,6 +580,7 @@ export function KanbanBoard() {
     if (destination.droppableId === source.droppableId) return;
 
     const newStatus = destination.droppableId;
+    setPendingMove({ leadId: draggableId, status: newStatus });
     setDraftColumns((current) => {
       const base = current ?? columns;
       const lead = (base[source.droppableId] || []).find((l) => l.id === draggableId);
@@ -194,7 +595,6 @@ export function KanbanBoard() {
       { id: draggableId, status: newStatus },
       {
         onSuccess: (res) => {
-          setDraftColumns(null);
           const colTitle = COLUMNS.find((c) => c.id === newStatus)?.title || newStatus;
           toast.success(`Lead movido para ${colTitle}`, {
             description: res.suggested_next_action_at
@@ -204,6 +604,7 @@ export function KanbanBoard() {
         },
         onError: () => {
           setDraftColumns(null);
+          setPendingMove(null);
           toast.error('Erro ao mover lead');
         },
       }
@@ -238,6 +639,37 @@ export function KanbanBoard() {
       }
     );
   }, [assignLead]);
+
+  // Mover de etapa pelo dropdown (fallback acessível por toque).
+  // Centralizado aqui para que o KanbanCard memoizado receba um callback
+  // estável (useCallback) em vez de um inline criado a cada render.
+  const onMoveTo = useCallback((leadId: string, status: string) => {
+    updateStatus.mutate(
+      { id: leadId, status },
+      {
+        onSuccess: (res) => {
+          const colTitle = COLUMNS.find((c) => c.id === status)?.title || status;
+          toast.success(`Lead movido para ${colTitle}`, {
+            description: res.suggested_next_action_at
+              ? `Próxima ação sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
+              : undefined,
+          });
+        },
+        onError: () => toast.error('Erro ao mover lead'),
+      }
+    );
+  }, [updateStatus]);
+
+  // Abrir lead (navega para a página de detalhes). Estável para o memo.
+  const onOpenLead = useCallback((leadId: string) => {
+    router.push(`/oportunidades/${leadId}`);
+  }, [router]);
+
+  // Abrir diálogo de feedback de score. Estável para o memo.
+  const onOpenFeedback = useCallback((lead: LeadData) => {
+    setFeedbackLead(lead);
+    setFeedbackOpen(true);
+  }, []);
 
   const totalLeads = Object.values(visibleColumns).reduce((acc, col) => acc + col.length, 0);
 
@@ -369,7 +801,7 @@ export function KanbanBoard() {
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`min-h-[120px] space-y-2.5 rounded-lg border-2 border-dashed p-2 transition-colors duration-200 ${
+                      className={`min-h-[120px] space-y-2.5 rounded-lg border-2 border-dashed p-2 transition-colors duration-100 ${
                         snapshot.isDraggingOver
                           ? 'border-primary/60 bg-primary/5'
                           : activeDragFrom
@@ -378,319 +810,25 @@ export function KanbanBoard() {
                       }`}
                     >
                       {(visibleColumns[column.id] || []).map((lead, index) => (
-                        <Draggable key={lead.id} draggableId={lead.id} index={index}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              role="link"
-                              tabIndex={0}
-                              aria-label={`Abrir lead ${lead.company_name}`}
-                              onClick={(e) => {
-                                if (snapshot.isDragging) return;
-                                e.stopPropagation();
-                                router.push(`/oportunidades/${lead.id}`);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  router.push(`/oportunidades/${lead.id}`);
-                                }
-                              }}
-                              className={`group rounded-lg border bg-card p-3.5 shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                                snapshot.isDragging
-                                  ? 'rotate-[1.5deg] scale-[1.03] shadow-xl ring-2 ring-primary/40'
-                                  : `transition-[border-color,box-shadow] duration-150 ${
-                                      activeDragFrom
-                                        ? 'opacity-40 saturate-50'
-                                        : 'hover:border-primary/20 hover:shadow-md'
-                                    }`
-                              }`}
-                            >
-                              {/* Cabeçalho do cartão = alça de arraste. Área generosa
-                                  (puxador + nome + nota): segurar aqui arrasta; tocar
-                                  abre o lead. O corpo fica livre para os botões. */}
-                              <div
-                                {...provided.dragHandleProps}
-                                className="-mx-1 mb-2 flex cursor-grab touch-none select-none items-start justify-between gap-2 rounded-lg px-1 py-1 transition-colors hover:bg-muted/60 active:cursor-grabbing"
-                                title="Segure e arraste para mudar de etapa"
-                              >
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <span
-                                    className="shrink-0 rounded p-0.5 text-muted-foreground/50 transition-colors group-hover:text-muted-foreground"
-                                    aria-hidden="true"
-                                  >
-                                    <GripVertical className="h-5 w-5" />
-                                  </span>
-                                  <h4 className="truncate font-medium">{lead.company_name}</h4>
-                                </div>
-                                {lead.qualification_score != null ? (
-                                  <Badge className="shrink-0 bg-emerald-100 text-emerald-700">
-                                    {lead.qualification_score}
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="outline" className="shrink-0 text-xs text-muted-foreground">
-                                    Sem score
-                                  </Badge>
-                                )}
-                              </div>
-                              {(lead.negotiation_stage || lead.contract_outcome) && (
-                                <div className="mb-2 flex flex-wrap gap-1.5">
-                                  {lead.negotiation_stage && (
-                                    <Badge variant="outline" className="bg-violet-50 text-violet-700 text-xs">
-                                      {NEG_STAGE_LABELS[lead.negotiation_stage] ?? lead.negotiation_stage}
-                                    </Badge>
-                                  )}
-                                  {lead.contract_outcome && (
-                                    <Badge
-                                      variant="outline"
-                                      className={
-                                        lead.contract_outcome === 'APROVADO'
-                                          ? 'bg-emerald-50 text-emerald-700 text-xs'
-                                          : lead.contract_outcome === 'REPROVADO'
-                                            ? 'bg-red-50 text-red-700 text-xs'
-                                            : 'bg-amber-50 text-amber-700 text-xs'
-                                      }
-                                    >
-                                      {lead.contract_outcome === 'EM_ANALISE' ? 'Em análise' : lead.contract_outcome}
-                                    </Badge>
-                                  )}
-                                </div>
-                              )}
-                              {slaByLead[lead.id] && (
-                                <div className="mb-2 flex flex-wrap gap-1.5">
-                                  <Badge
-                                    variant="outline"
-                                    className="gap-1 border-red-200 bg-red-50 text-red-700 text-xs"
-                                    title={slaByLead[lead.id].alert_label}
-                                  >
-                                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                                    Parado há {slaByLead[lead.id].days_since}d
-                                  </Badge>
-                                </div>
-                              )}
-                              <p className="mb-3 text-sm text-muted-foreground">
-                                {lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}
-                              </p>
-                              <div className="mb-2 flex items-center gap-2 text-xs">
-                                 {lead.value ? (
-                                   <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-400">
-                                     R$ {lead.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                   </span>
-                                 ) : null}
-                                 {lead.assigned_to_id ? (
-                                  <span
-                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${
-                                      lead.assigned_to_id === currentUserId
-                                        ? 'bg-primary/10 text-primary'
-                                        : 'bg-muted text-muted-foreground'
-                                    }`}
-                                  >
-                                    {lead.assigned_to_id === currentUserId ? (
-                                      <Check className="h-3 w-3" />
-                                    ) : (
-                                      <User className="h-3 w-3" />
-                                    )}
-                                    {lead.assigned_to_id === currentUserId
-                                      ? 'Seu lead'
-                                      : (lead.assigned_to_name || 'Atribuído')}
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
-                                    <User className="h-3 w-3" />
-                                    Não atribuído
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs text-muted-foreground">
-                                <div className="flex shrink-0 items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span>{Math.floor((Date.now() - new Date(lead.created_at).getTime()) / (1000 * 60 * 60 * 24))} dias</span>
-                                </div>
-                                <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
-                                  {column.id === 'QUALIFICADO' && (
-                                    <div className="flex items-center gap-1 text-emerald-600">
-                                      <AlertCircle className="h-3 w-3" />
-                                      <span>Aguardando 1º contato</span>
-                                    </div>
-                                  )}
-                                  {column.id === 'CONTATADO' && (
-                                    <div className="flex items-center gap-1 text-amber-600">
-                                      <AlertTriangle className="h-3 w-3" />
-                                      <span>Aguardando resposta</span>
-                                    </div>
-                                  )}
-                                   {whatsAppLink(lead.whatsapp || lead.phone) && (
-                                     <Button
-                                       variant="ghost"
-                                       size="icon"
-                                       className="h-11 w-11 shrink-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground sm:h-6 sm:w-6"
-                                       disabled={recordWhatsApp.isPending}
-                                       onClick={(e) => {
-                                         e.stopPropagation();
-                                         recordWhatsApp.mutate(
-                                           { leadId: lead.id },
-                                           {
-                                             onSuccess: (res) => {
-                                               if (res.whatsapp_url) {
-                                                 window.open(res.whatsapp_url, '_blank');
-                                                 toast.success('WhatsApp acionado e registrado');
-                                               }
-                                             },
-                                             onError: () => {
-                                               const fallback = whatsAppLink(lead.whatsapp || lead.phone);
-                                               if (fallback) window.open(fallback, '_blank');
-                                             },
-                                           }
-                                         );
-                                       }}
-                                       title="Abrir WhatsApp e registrar na trilha"
-                                       aria-label={`Abrir WhatsApp de ${lead.company_name}`}
-                                     >
-                                       {recordWhatsApp.isPending && recordWhatsApp.variables?.leadId === lead.id ? (
-                                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                       ) : (
-                                         <MessageCircle className="h-3.5 w-3.5" />
-                                       )}
-                                     </Button>
-                                   )}
-                                  {!lead.assigned_to_id && (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-11 shrink-0 gap-1.5 px-3 text-xs sm:h-6 sm:gap-1 sm:px-2 sm:text-[11px]"
-                                      disabled={assignLead.isPending && assignLead.variables?.id === lead.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onAssignToMe(lead.id);
-                                      }}
-                                    >
-                                      {assignLead.isPending && assignLead.variables?.id === lead.id ? (
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                      ) : (
-                                        <UserPlus className="h-3 w-3" />
-                                      )}
-                                      Atribuir a mim
-                                    </Button>
-                                  )}
-                                  <DropdownMenu>
-                                      <DropdownMenuTrigger
-                                        render={
-                                          <Button
-                                            data-tour="vendas-card-menu"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-11 w-11 shrink-0 sm:h-6 sm:w-6"
-                                            onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
-                                            aria-label="Mais opções"
-                                          >
-                                            <MoreHorizontal className="h-3.5 w-3.5" />
-                                          </Button>
-                                        }
-                                      />
-                                      <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                                        {canAssignOthers && (
-                                          <DropdownMenuGroup>
-                                            <DropdownMenuLabel>Atribuir para</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                onAssignTo(lead.id, currentUserId as string, 'você');
-                                              }}
-                                              disabled={!currentUserId}
-                                            >
-                                              <User className="h-3.5 w-3.5" />
-                                              Você
-                                            </DropdownMenuItem>
-                                            {membersData?.members
-                                              .filter((m) => m.user_id !== currentUserId)
-                                              .map((m) => (
-                                                <DropdownMenuItem
-                                                  key={m.user_id}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onAssignTo(lead.id, m.user_id, m.name);
-                                                  }}
-                                                >
-                                                  <User className="h-3.5 w-3.5" />
-                                                  {m.name || m.email}
-                                                </DropdownMenuItem>
-                                              ))}
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                onAssignTo(lead.id, null);
-                                              }}
-                                            >
-                                              Desatribuir
-                                            </DropdownMenuItem>
-                                          </DropdownMenuGroup>
-                                        )}
-                                        <DropdownMenuItem
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setFeedbackLead(lead);
-                                            setFeedbackOpen(true);
-                                          }}
-                                        >
-                                          <BrainCircuit className="mr-2 h-3.5 w-3.5" />
-                                          Discordar do score
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  {/* Fallback acessível por toque: mover de etapa sem arrastar. */}
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger
-                                      render={
-                                        <Button
-                                          variant="outline"
-                                          size="icon"
-                                          className="h-11 w-11 shrink-0 sm:h-8 sm:w-8"
-                                          onClick={(e: { stopPropagation: () => void }) => e.stopPropagation()}
-                                          aria-label={`Mover ${lead.company_name} para outra etapa`}
-                                        >
-                                          <ArrowRight className="h-3.5 w-3.5" />
-                                        </Button>
-                                      }
-                                    />
-                                    <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
-                                      <DropdownMenuGroup>
-                                        <DropdownMenuLabel>Mover para</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        {COLUMNS.filter((c) => c.id !== column.id).map((c) => (
-                                          <DropdownMenuItem
-                                            key={c.id}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              updateStatus.mutate(
-                                                { id: lead.id, status: c.id },
-                                                {
-                                                  onSuccess: (res) => {
-                                                    toast.success(`Lead movido para ${c.title}`, {
-                                                      description: res.suggested_next_action_at
-                                                        ? `Próxima ação sugerida: ${new Date(res.suggested_next_action_at).toLocaleDateString('pt-BR')}`
-                                                        : undefined,
-                                                    });
-                                                  },
-                                                  onError: () => toast.error('Erro ao mover lead'),
-                                                }
-                                              );
-                                            }}
-                                          >
-                                            {c.title}
-                                          </DropdownMenuItem>
-                                        ))}
-                                      </DropdownMenuGroup>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </Draggable>
+                        <KanbanCard
+                          key={lead.id}
+                          lead={lead}
+                          index={index}
+                          column={column}
+                          slaAlert={slaByLead[lead.id]}
+                          activeDragFrom={activeDragFrom}
+                          now={now}
+                          currentUserId={currentUserId ?? null}
+                          members={membersData?.members}
+                          canAssignOthers={canAssignOthers}
+                          isAssigning={assignLead.isPending && assignLead.variables?.id === lead.id}
+                          recordWhatsApp={recordWhatsApp}
+                          onAssignToMe={onAssignToMe}
+                          onAssignTo={onAssignTo}
+                          onMoveTo={onMoveTo}
+                          onOpenFeedback={onOpenFeedback}
+                          onOpenLead={onOpenLead}
+                        />
                       ))}
                       {provided.placeholder}
                       {(visibleColumns[column.id] || []).length === 0 && !snapshot.isDraggingOver && (

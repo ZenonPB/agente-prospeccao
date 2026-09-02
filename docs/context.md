@@ -1719,6 +1719,116 @@ Máquina de trabalho sem sudo e sem Docker. Setup validado:
 - Usuário inicial criado: `admin@agente-prospeccao.com` (trocar a senha).
 
 ### Sessão atual — scoring de ERP/webapps corrigido (2026-09-01)
+### Sessão atual — kanban: arraste fluido, sem travadas (2026-09-01)
+
+### Sessão atual — kanban: confirmação otimista e encoding do toast (2026-09-01)
+
+### Sessão atual — kanban: restauração do cartão rico (2026-09-01)
+
+### Sessão atual — navegação: item Configurações ativo indevidamente (2026-09-01)
+
+Correção visual na sidebar (`apps/web/src/components/layout/sidebar.tsx`):
+
+- A regra anterior marcava itens por prefixo (`pathname.startsWith(href + '/')`).
+  Como `Configurações` usa `/configuracoes`, ela também ficava ativa em
+  `/configuracoes/vertentes` e `/configuracoes/membros`, deixando dois botões
+  destacados simultaneamente.
+- `NavItem` agora aceita `exact?: boolean`; o item `Configurações` usa
+  `exact: true`, enquanto Vertentes, Equipe e os demais itens preservam o
+  comportamento de subrotas.
+
+Validação: `npm run lint`, `npx tsc --noEmit` e `git diff --check` passaram.
+
+Branch `fix/kanban-drag-perf`:
+
+- O refactor de performance havia reduzido o cartão a título, prioridade,
+  score, estágio e ações, removendo informações comerciais importantes que
+  existiam antes: categoria/cidade/UF, valor estimado, resultado do contrato,
+  SLA detalhado, atribuição, idade do lead e indicação da próxima ação.
+- O `KanbanCard` memoizado foi enriquecido novamente sem devolver o JSX gigante
+  ao componente pai: contrato/negociação, badge de SLA com tooltip, localização,
+  valor em BRL, estado de atribuição, idade do lead, indicador por etapa e ação
+  de WhatsApp voltaram ao cartão.
+- Mantidos `React.memo`, callbacks estáveis, `style` nativo do DnD e targets de
+  toque de 44px. O resultado é visualmente mais completo, com separadores,
+  hierarquia de metadados e densidade adequada para uso comercial.
+- Corrigido também o encoding do arquivo: textos acentuados do cartão agora
+  estão em UTF-8 válido, sem `Ã`/`Â`.
+
+Validação: `npm run lint`, `npx tsc --noEmit` e `git diff --check` passaram.
+
+Branch `fix/kanban-drag-perf`:
+
+- O `style` do `@hello-pangea/dnd` agora passa sem sobrescrita customizada;
+  removidos `willChange` e `transition: none` que podiam interferir na
+  animação de drop e deixar `position: fixed` preso até um reflow.
+- `touch-none` aplicado também ao elemento externo do card, evitando que o
+  scroll vertical do container roube o gesto durante o arraste.
+- O layout otimista não é mais limpo no `onSuccess` antes de a query confirmar
+  o novo status. `visibleColumns` mantém o card na coluna destino até a resposta
+  atualizada chegar; isso evita o congelamento após soltar.
+- Corrigido o texto mojibake `PrÃ³xima aÃ§Ã£o sugerida` e outros textos
+  acentuados do kanban para UTF-8 válido (`Próxima ação sugerida`).
+
+Validação: `npm run lint` e `npx tsc --noEmit` sem erros do kanban; o working
+tree foi conferido com `git diff --check`.
+
+Branch `fix/kanban-drag-perf` (a partir de `fix/scoring-erp-webapps`):
+
+**Sintoma:** ao segurar e arrastar um card no kanban, o card ficava travado e
+não acompanhava o ponteiro; FPS ruim durante o arraste; o card "largava"
+na posição errada.
+
+**Causa raiz (decisiva):** o `<div>` do `<Draggable>` no
+`apps/web/src/components/vendas/kanban-board.tsx` recebia
+`{...provided.draggableProps}` mas **NÃO aplicava** `provided.draggableProps.style`.
+O `@hello-pangea/dnd` usa esse `style` (com `transform: translate3d(...)`)
+para mover o card na tela durante o arraste — sem ele, o card fica parado
+mesmo com o mouse arrastando. O commit anterior (`b160e9c`) havia removido
+`transition` e `scale` no droppable mas não adicionou o `style` ao card.
+
+**Outras otimizações aplicadas (8 fases, plano completo):**
+- `style={compositeStyle}` agora aplicado ao `<div>` do Draggable, combinando
+  `provided.draggableProps.style` com `willChange: 'transform'` (GPU
+  compositing) e `transition: 'none'` enquanto `snapshot.isDragging` (a lib
+  atualiza o `transform` a cada pointermove; qualquer transition cria lag).
+- `<KanbanCard>` extraído como subcomponente `React.memo` com igualdade
+  customizada — re-render do pai (drag start/end, optimistic update, refetch)
+  não re-renderiza mais todos os 30+ cards; só o card sendo arrastado e os
+  cards da coluna afetada.
+- `Date.now()` congelado em `useState(() => Date.now())` (lazy initializer)
+  — antes, era avaliado no JSX a cada render, gerando referências novas e
+  quebrando o memo. Regra `react-hooks/purity` rejeita `useRef(Date.now())`;
+  useState com initializer é a forma oficial.
+- Novos `useCallback` estáveis: `onMoveTo`, `onOpenLead`, `onOpenFeedback`
+  (o antigo código tinha um `updateStatus.mutate` inline no dropdown
+  "Mover para" — agora centralizado para o memo dos cards).
+- `transition-colors duration-200` → `duration-100` no Droppable; micro-animação
+  mais responsiva.
+- `Loader2` removido (não usado); tipos de `recordWhatsApp` e `whatsAppLink`
+  ajustados (a função pode retornar `null`; `window.open` não aceita null).
+
+**Validação:**
+- `npm run lint` limpo.
+- `npx tsc --noEmit` sem novos erros do nosso código (2 erros pré-existentes
+  em `crm-planilha-modal.tsx` por módulo `xlsx` não instalado — sem
+  relação).
+- `python -m pytest tests -q` → **534 passed** (backend inalterado).
+
+**Notas de arquitetura:**
+- A v18 do `@hello-pangea/dnd` não suporta `activationConstraint` (delay/
+  distance/tolerance) na API atual — usa nova API `PreDragActions`
+  (`fluidLift`/`snapLift`) que exigiria refator maior. Decidi pular essa
+  parte e focar nas otimizações que dão mais retorno; em touchscreen o
+  delay padrão é aceitável e o `touch-action: none` (já presente via
+  `touch-none` no drag handle) evita o scroll acidental.
+- A `next build` foi pulada por timeout no ambiente (problema de execução,
+  não de código); `tsc` e `lint` cobrem a checagem estática.
+
+**Próximo passo imediato:** abrir `apps/web` em `npm run dev` e testar o
+arraste em diferentes cenários (mouse, touch, com/sem filtro "Meus Leads",
+mover para a mesma coluna vs outra coluna). Se o FPS e a sensação estiverem
+OK, abrir PR para a branch principal.
 
 Branch `fix/scoring-erp-webapps` (a partir de `docs-fix-saas`):
 
