@@ -842,6 +842,30 @@ class AIScoringService:
             })
         parsed["score_factors"] = clean_factors
 
+        # Vetor multidimensional (docs/melhorias/02): aceito quando a LLM
+        # devolve dimensões; clamp 0-100 e `overall` derivado da média quando
+        # ausente. Sem dimensões devolvidas, fica ausente (compatibilidade).
+        raw_vector = parsed.get("score_vector")
+        if isinstance(raw_vector, dict):
+            clean_vector = {
+                k: max(0, min(100, int(v)))
+                for k, v in raw_vector.items()
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
+            }
+            if clean_vector:
+                if "overall" not in clean_vector:
+                    clean_vector["overall"] = round(
+                        sum(v for k, v in clean_vector.items() if k != "formula_version")
+                        / len(clean_vector)
+                    )
+                clean_vector.setdefault("formula_version", "generic-v1")
+                raw_version = raw_vector.get("formula_version")
+                if isinstance(raw_version, str) and raw_version.strip():
+                    clean_vector["formula_version"] = raw_version.strip()[:60]
+                parsed["score_vector"] = clean_vector
+            else:
+                parsed.pop("score_vector", None)
+
         return parsed
 
     # ---------- chamada ao modelo ----------
