@@ -1,6 +1,6 @@
 # Decision Maker Strategy por vertical
 
-> **Status: 🟡 Proposto**  
+> **✅ FEITO — `DecisionMakerStrategy.resolve_contact_strategy(profile_key)` com mapa profile→ordered providers + channel priority .)***  
 > **Prioridade: P0**  
 > **Domínio: Vertical Intelligence / Contacts**
 

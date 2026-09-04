@@ -1,6 +1,6 @@
 # Separar ICP Fit de Intent
 
-> **Status: 🟡 Proposto**  
+> **✅ FEITO — `buying_trigger_service.icp_vs_intent()` distingue ICP (fixo) de Intent (evento) (#19).**  
 > **Prioridade: P0**  
 > **Domínio: Scoring / Intent**
 
