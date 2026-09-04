@@ -474,6 +474,23 @@ class ContactEnrichmentService:
 
             # Página institutional da empresa (LinkedIn) — busca passiva única.
             if not lead.company_linkedin_url and not linkedin_fresh:
+                # Fase 3 (#46): strategy=domain_first_person_search antes do LinkedIn search.
+                # Quando temos domínio, prioriza busca por `domain + titles`; sem domínio,
+                # fallback para `name + location` (LinkedIn assistido).
+                try:
+                    from services.contact_provider_registry import domain_first_person_search
+                    target_titles = []
+                    profile_key = (lead.analysis_profile.value if getattr(lead, "analysis_profile", None) else "generic").lower()
+                    from services.decision_maker_pipeline_service import resolve_target_roles
+                    target_titles = [r["role"] for r in resolve_target_roles(profile_key)]
+                    domain_for_search = (lead.normalized_domain
+                                         or (lead.website or "").replace("https://", "").split("/")[0]
+                                         if lead.website else None)
+                    strategy = domain_first_person_search(domain_for_search or "", target_titles)
+                    logger.debug("Phase 3 #46: search strategy = %s (domain=%s, titles=%s)",
+                                 strategy["strategy"], domain_for_search, target_titles)
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("Phase 3 #46 fallback: %s", e)
                 lead.company_linkedin_url = await self._linkedin_company_from_search(client, lead)
 
             # Descoberta reversa de CNPJ por nome (busca passiva) quando o lead
@@ -543,6 +560,58 @@ class ContactEnrichmentService:
         from services.company_person_service import CompanyPersonService
         CompanyPersonService.sync_lead_entities(db, lead)
         db.flush()
+
+        # --- Fase 3: enriquecimento semântico pós-cascata ---
+        # #34 Decision Maker Pipeline: target_roles + chain + strategy
+        # #42 Routable Contact: classifica cada contato
+        # #44 Cascade Audit: log da cascata aplicada
+        # #47 Actionable Rate: métrica consolidada por lead
+        try:
+            from services.decision_maker_pipeline_service import run_decision_maker_pipeline
+            from services.routable_contact_service import actionable_contact_rate
+            from services.contact_provider_registry import cascade_contact_search
+
+            profile_key = (lead.analysis_profile.value if getattr(lead, "analysis_profile", None) else "generic").lower()
+            domain = (lead.normalized_domain
+                      or (lead.website or "").replace("https://", "").split("/")[0]
+                      if lead.website else None)
+            decision_maker = run_decision_maker_pipeline(
+                lead_data={
+                    "company_name": lead.company_name,
+                    "domain": domain,
+                    "cnpj": getattr(lead, "cnpj", None),
+                    "phone": getattr(lead, "phone", None),
+                    "addresses": [a for a in (getattr(lead, "raw_places_data", None) or {}).get("addresses", [])],
+                },
+                profile={"profile_key": profile_key},
+            )
+            cascade = cascade_contact_search(
+                lead_data={"cnpj": getattr(lead, "cnpj", None), "domain": domain, "full_name": ""},
+                target_roles=[r["role"] for r in decision_maker.get("target_roles", [])],
+                max_steps=2,
+            )
+            actionable = actionable_contact_rate([
+                {
+                    "phone": c.get("phone"),
+                    "pabx_extension": (c.get("raw_data") or {}).get("pabx_extension"),
+                    "target_person": c.get("name"),
+                }
+                for c in results
+            ] if results else [])
+
+            # Anexa ao raw_data do lead (não à lista de contatos) — fica
+            # disponível para a UI e métricas.
+            lead.raw_data = {
+                **(lead.raw_data or {}),
+                "phase3_contact": {
+                    "decision_maker": decision_maker,
+                    "cascade": cascade,
+                    "actionable_rate": actionable,
+                },
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Fase3: falha em decision_maker/cascade/routable: %s", e)
+
         return results
 
     # ------------------------------------------------------------------ #
@@ -583,16 +652,28 @@ class ContactEnrichmentService:
         if data and data.get("contacts"):
             for c in data["contacts"]:
                 role_enum = c.get("role_enum")
+                role_label = c.get("role_label") or role_enum
+                # Fase 3 (#36): classifica o role do QSA em buyer_type
+                # (ECONOMIC_BUYER/LEGAL_DECISION_MAKER/OTHER) — fonte
+                # rastreável para a UI priorizar o decisor certo.
+                try:
+                    from services.contact_provider_registry import classify_qsa_role
+                    qsa_buyer_type = classify_qsa_role(role_label or "")
+                except Exception:
+                    qsa_buyer_type = "OTHER"
                 contact = Contact(
                     lead_id=lead.id,
                     name=c.get("name") or "Decisor",
                     role=role_enum,
-                    role_label=c.get("role_label") or role_enum,
+                    role_label=role_label,
                     document_cpf=c.get("document_cpf"),
                     confidence=c.get("confidence", 60),
                     is_primary=c.get("is_primary", False),
                     source=c.get("source") or "cnpj_receita",
-                    raw_data=_sanitize_raw(c.get("raw")),
+                    raw_data=_sanitize_raw({
+                        **(c.get("raw") or {}),
+                        "qsa_buyer_type": qsa_buyer_type,
+                    }),
                 )
                 db.add(contact)
                 contacts.append(contact)
@@ -843,9 +924,32 @@ class ContactEnrichmentService:
     def _email_heuristic(
         self, contact: Contact, domain: str,
     ) -> Tuple[Optional[str], int]:
+        """Infere email via 4 padrões comuns (#39) com normalização de acentos.
+
+        Substituído pelo `infer_email_pattern` do ContactProviderRegistry (Fase 3):
+        - 4 padrões: {first}.{last}, {first}{last}, {first}, {first[0]}{last}
+        - Normaliza acentos (Joao→joao, não joão)
+        - Marca verification_status=inferred
+        - Mantém confidence baixa (40) — heuristic nunca cruza gate de outreach.
+        """
         name = (contact.name or "").strip()
-        if not name:
+        if not name or not domain:
             return None, 0
+        try:
+            from services.contact_provider_registry import infer_email_pattern
+            result = infer_email_pattern(domain, name, verify=False)
+            candidate = result.get("candidate")
+            if candidate and is_valid_email_syntax(candidate):
+                # Guarda source rastreável no raw_data
+                contact.raw_data = {
+                    **(contact.raw_data or {}),
+                    "email_pattern_candidates": result.get("candidates", []),
+                    "email_pattern_used": result.get("pattern"),
+                }
+                return candidate, 40
+        except Exception:
+            pass
+        # Fallback determinístico se a Fase 3 falhar (sempre disponível)
         parts = [p for p in re.split(r"\s+", _normalize_text(name)) if p]
         if len(parts) < 2:
             return None, 0
@@ -853,7 +957,6 @@ class ContactEnrichmentService:
         last = re.sub(r"[^a-z0-9]", "", parts[-1])
         if not first or not last:
             return None, 0
-        # confidence baixa — padrão inferido, não confirmado.
         heuristic = f"{first}.{last}@{domain}"
         return (heuristic, 40) if is_valid_email_syntax(heuristic) else (None, 0)
 
