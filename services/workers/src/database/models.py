@@ -487,6 +487,12 @@ class CampaignScoringTemplate(Base):
     # ficam hardcoded no engine; template sem config mantém comportamento
     # atual (nenhum candidato é descartado na coleta).
     prescoring_config = Column(JSONB)
+    # Estratégia de execução do enriquecimento declarada pela oferta
+    # (docs/melhorias/08): {"skip": ["technical_site"],
+    #  "stop_after": "cnpj_receita"} — skip remove capabilities da ordem
+    # declarada; stop_after corta a execução após o step indicado. NULL ->
+    # executa tudo que está ativo em `enrichment_steps`.
+    enrichment_strategy = Column(JSONB)
     # Playbook de outreach por vertical: hooks de abordagem,
     # ideias de assunto e objeções do decisor — injetados no OutreachService
     # para mensagens variarem por serviço/segmento.

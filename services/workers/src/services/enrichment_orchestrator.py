@@ -27,47 +27,15 @@ from database.models import (
 )
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
+from services.enrichment_capability_registry import (
+    DEFAULT_ENRICHMENT_STEPS,
+    ENRICHMENT_STEP_KEYS,
+    resolve_enrichment_steps,
+    plan_enrichment_run,
+)
 from services import enrichment_ts
 
 logger = logging.getLogger(__name__)
-
-# Fontes de informação de uma empresa que um serviço pode usar para avaliar
-# um lead. Declaradas no template (`enrichment_steps`) — o orquestrador roda
-# apenas as fontes selecionadas, sem scraping desnecessário.
-ENRICHMENT_STEP_KEYS = frozenset({
-    "technical_site",   # auditoria do site (CMS, SSL, performance)
-    "cnpj_receita",     # dados cadastrais via Receita Federal (porte/CNAE/idade)
-    "business_social",  # reputação Google (rating/avaliações) — já coletada no Places
-})
-
-DEFAULT_ENRICHMENT_STEPS = ["technical_site", "cnpj_receita", "business_social"]
-
-
-def resolve_enrichment_steps(
-    scoring_template: Optional[Dict[str, Any]],
-) -> list:
-    """Resolve as fontes de informação que o pipeline deve ativar.
-
-    Template novo (com `enrichment_steps` preenchido) usa a lista declarada.
-    Template antigo (só flags binários) faz fallback por compatibilidade:
-    `requires_technical_report` → technical_site; `requires_business_data` →
-    cnpj_receita. `business_social` é sempre incluída (a reputação Google já
-    chega da coleta).
-    """
-    if scoring_template is None:
-        return list(DEFAULT_ENRICHMENT_STEPS)
-
-    declared = scoring_template.get("enrichment_steps")
-    if declared:
-        return list(dict.fromkeys(s for s in declared if s in ENRICHMENT_STEP_KEYS))
-
-    steps: list = []
-    if scoring_template.get("requires_technical_report", True):
-        steps.append("technical_site")
-    if scoring_template.get("requires_business_data", True):
-        steps.append("cnpj_receita")
-    steps.append("business_social")
-    return list(dict.fromkeys(steps))
 
 
 async def _enrich_cnpj_facts(
@@ -173,20 +141,32 @@ async def process_single_lead(
         if org and org.qualification_threshold is not None:
             qualification_threshold = org.qualification_threshold
 
-    # Decisão: fontes de informação declaradas no template. O template pode
-    # dizer 'não quero auditoria de site' mesmo que a campanha esteja marcada
-    # como WEB_PRESENCE originalmente (ex.: Engenharia Mecânica).
-    steps = resolve_enrichment_steps(scoring_template)
-    use_technical_report = "technical_site" in steps
+    # Decisão: plano do capability registry (docs/melhorias/21 e 08) — a ordem
+    # é a declarada pela oferta no template; capabilities irrelevantes são
+    # puladas com motivo (pré-condição ou skip declarado) e a execução fica
+    # auditável no log. O template pode dizer 'não quero auditoria de site'
+    # mesmo que a campanha esteja marcada como WEB_PRESENCE (ex.: Engenharia).
+    plan = plan_enrichment_run(
+        scoring_template,
+        {"has_website": bool(lead.website), "has_cnpj": bool(lead.cnpj)},
+    )
+    runnable = plan["runnable"]
+    if plan["skipped"]:
+        logger.info(
+            "Enrichment plan '%s': pulados %s",
+            lead.company_name,
+            ", ".join(f"{s['step']} ({s['reason']})" for s in plan["skipped"]),
+        )
+    use_technical_report = "technical_site" in runnable
 
     # Lead sem site não pode fazer análise técnica — força path business.
     if not lead.website:
         use_technical_report = False
 
-    # Dados cadastrais (Receita via CNPJ) quando o template pede — falha do
+    # Dados cadastrais (Receita via CNPJ) quando o plano pede — falha do
     # provedor só avisa e segue (nunca derruba o batch).
     cnae_info, company_size_info = await _enrich_cnpj_facts(
-        db, lead, want_cnpj="cnpj_receita" in steps,
+        db, lead, want_cnpj="cnpj_receita" in runnable,
     )
 
     if use_technical_report:
