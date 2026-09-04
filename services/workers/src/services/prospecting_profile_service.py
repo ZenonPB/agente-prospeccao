@@ -19,13 +19,16 @@ Adicionar uma vertical nova = inserir template com config; engine não muda.
 import logging
 from typing import Any, Dict, Optional
 
+from services.enrichment_capability_registry import (
+    STEP_BUSINESS_SOCIAL,
+    STEP_CNPJ_RECEITA,
+    STEP_TECHNICAL_SITE,
+)
+
 logger = logging.getLogger(__name__)
 
-# Fonte única dos nomes de enrichment steps usados na derivação do perfil —
-# nunca comparar string literal solta; renomear um step só muda aqui.
-STEP_TECHNICAL_SITE = "technical_site"
-STEP_CNPJ_RECEITA = "cnpj_receita"
-STEP_BUSINESS_SOCIAL = "business_social"
+# Fonte única dos nomes de enrichment steps (vive em capability_registry):
+# renomear um step só muda lá.
 
 PROFILE_WEB_PRESENCE = "web_presence"
 PROFILE_BUSINESS = "business_opportunity"
@@ -62,7 +65,7 @@ _VALID_PROFILES = (PROFILE_WEB_PRESENCE, PROFILE_BUSINESS, PROFILE_INDUSTRIAL)
 
 
 def derive_profile_key(scoring_template: Optional[Dict[str, Any]]) -> str:
-    """Deriva a chave do perfil a partir dos enrichment steps do template.
+    """Deriva a chave do perfil a partir do template.
 
     Args:
         scoring_template: dict serializado do `CampaignScoringTemplate`
@@ -71,9 +74,25 @@ def derive_profile_key(scoring_template: Optional[Dict[str, Any]]) -> str:
     Returns:
         Uma das constantes PROFILE_* (default `web_presence` quando não há
         template, preservando o comportamento histórico de campanhas web).
+
+    A ordem de precedência é: `prescoring_config.profile` explícito
+    (fonte da verdade — a vertical declara quem é) → derivação por steps
+    → default web_presence. Isso garante que o gate (`resolve_prospecting_profile`)
+    e o score vetorial (`derive_profile_key`) usem o MESMO perfil.
     """
     if not scoring_template:
         return PROFILE_WEB_PRESENCE
+
+    config: Dict[str, Any] = {}
+    raw = scoring_template.get("prescoring_config")
+    if isinstance(raw, dict):
+        config = raw
+    profile = config.get("profile")
+    if profile in _VALID_PROFILES:
+        return profile
+    if profile:
+        logger.warning(
+            "prescoring_config.profile inválido (%s) — derivando dos steps", profile)
 
     steps = scoring_template.get("enrichment_steps") or []
     if STEP_TECHNICAL_SITE in steps:

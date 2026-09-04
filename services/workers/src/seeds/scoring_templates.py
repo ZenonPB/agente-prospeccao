@@ -52,10 +52,20 @@ DEFAULT_TEMPLATES = [
         # Pré-scoring de discovery (docs/melhorias/01): ausência de site é
         # público-alvo, mas SÓ pontua com alguma presença ativa — sem site E
         # sem nenhuma presença digital não é bom lead de landing page.
+        # Empresa COM site também é alvo (site desatualizado = ICP clássico):
+        # HAS_OWN_WEBSITE pontua menos que a ausência com tração, mas passa.
         "prescoring_config": {
             "profile": "web_presence",
             "enabled": True,
             "threshold": 45,
+            "weights": {
+                "HAS_OWN_WEBSITE": 20,
+                "NO_OWN_WEBSITE": 25,
+                "HAS_INSTAGRAM": 12,
+                "HAS_PHONE": 8,
+                "GOOGLE_RATING": 15,
+                "GOOGLE_RATING_COUNT": 15,
+            },
         },
         "playbook": {
             "hooks": [
@@ -203,7 +213,10 @@ DEFAULT_TEMPLATES = [
         "prescoring_config": {
             "profile": "business_opportunity",
             "enabled": True,
-            "threshold": 40,
+            # O fit de ERP vem do cadastro (CNAE/porte/idade), pós-gate. O
+            # pré-score só corta ausência total de presença — site
+            # institucional sem sistema é o público-alvo e precisa passar.
+            "threshold": 15,
         },
         "playbook": {
             "hooks": [
@@ -283,10 +296,13 @@ DEFAULT_TEMPLATES = [
         "requires_business_data": True,
         # Site/SEO praticamente irrelevantes para indústria — reputação leve;
         # atividade/porte (CNPJ) é que qualifica, e isso só chega depois.
+        # O pré-score NÃO tem dados para descartar aqui: o sinal decisivo da
+        # vertical (CNAE/atividade industrial) é pós-gate, então o threshold
+        # baixo só corta ausência total de presença verificável.
         "prescoring_config": {
             "profile": "industrial",
             "enabled": True,
-            "threshold": 25,
+            "threshold": 20,
         },
         # Fontes de informação: Receita Federal (porte/CNAE/idade) + reputação
         # Google. Auditoria de site não faz sentido para indústria — muitos
@@ -453,14 +469,23 @@ def upsert_template(db, tmpl: dict) -> CampaignScoringTemplate:
             setattr(existing, k, v)
         db.flush()
         logger.info("Atualizado template: %s", existing.service_label)
+        cfg = tmpl.get("prescoring_config") or {}
+        if isinstance(cfg, dict) and cfg.get("enabled"):
+            logger.info("Gate de pré-scoring ATIVADO para template %s (perfil=%s, "
+                        "threshold=%s, weights=%s)", existing.service_label,
+                        cfg.get("profile"), cfg.get("threshold"), cfg.get("weights"))
         return existing
 
     obj = CampaignScoringTemplate(**fields)
     db.add(obj)
     db.flush()
     logger.info("Criado template: %s", obj.service_label)
+    cfg = tmpl.get("prescoring_config") or {}
+    if isinstance(cfg, dict) and cfg.get("enabled"):
+        logger.info("Gate de pré-scoring ATIVADO para template %s (perfil=%s, "
+                    "threshold=%s, weights=%s)", obj.service_label,
+                    cfg.get("profile"), cfg.get("threshold"), cfg.get("weights"))
     return obj
-
 
 def run_seed():
     db = SessionLocal()

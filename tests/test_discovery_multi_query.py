@@ -77,6 +77,28 @@ class TestAggregateMultiQueryResults:
         assert len(merged) == 1
         assert merged[0]["place_id"] == "ChIJ1"
 
+    def test_mesmo_place_id_candidate_em_duas_queries_produz_um_candidato(self):
+        # `places_service` emite `place_id_candidate` — o dedup do multi-query
+        # precisa fundir por ele (e por `place_id` como fallback de outros
+        # suppliers) para `source_queries` não se perder no caso mais comum.
+
+        q = {"place_id_candidate": "ChIJ9", "name": "Clínica Bem Estar"}
+        merged = aggregate_multi_query_results([
+            ("clínica de psicologia", [dict(q)]),
+            ("psicólogo infantil", [dict(q, name="Clínica Bem Estar (outro nome)")]),
+        ])
+        assert len(merged) == 1
+        assert merged[0]["place_id_candidate"] == "ChIJ9"
+        assert merged[0]["source_queries"] == ["clínica de psicologia", "psicólogo infantil"]
+
+    def test_dedup_ignora_acentos_no_fallback_por_nome(self):
+        merged = aggregate_multi_query_results([
+            ("qa", [{"name": "Clínica Bem Estar", "category": "health"}]),
+            ("qb", [{"name": "clinica bem estar", "category": "health"}]),
+        ])
+        assert len(merged) == 1
+        assert merged[0]["source_queries"] == ["qa", "qb"]
+
     def test_queries_de_subnicho_ficam_associadas_ao_candidato(self):
         q = self._query()
         merged = aggregate_multi_query_results([

@@ -43,8 +43,10 @@ CAPABILITIES: Dict[str, Dict[str, Any]] = {
         "cost": "high",
         "requires": ["has_website"],
         "produces": [
+            # Sinais técnicos reais (CMS/SSL/performance) ainda não mapeados
+            # no SignalRegistry — só o website em si é confirmado aqui.
+            # HAS_INSTAGRAM pertence ao discovery/social, NÃO ao técnico.
             SignalKey.HAS_OWN_WEBSITE,
-            SignalKey.HAS_INSTAGRAM,
         ],
         "description": "auditoria passiva do site (CMS, SSL, performance)",
     },
@@ -85,7 +87,15 @@ def resolve_enrichment_steps(scoring_template: Optional[Dict[str, Any]]) -> list
 
     declared = scoring_template.get("enrichment_steps")
     if declared:
-        return list(dict.fromkeys(s for s in declared if s in ENRICHMENT_STEP_KEYS))
+        known = []
+        for s in declared:
+            if s in ENRICHMENT_STEP_KEYS:
+                known.append(s)
+            else:
+                logger.warning(
+                    "enrichment_steps %r não é capability registrada — ignorada; "
+                    "registre em enrichment_capability_registry.CAPABILITIES", s)
+        return list(dict.fromkeys(known))
 
     steps: list = []
     if scoring_template.get("requires_technical_report", True):
@@ -113,12 +123,15 @@ def plan_enrichment_run(
     """
     ctx = lead_context or {}
     declared = resolve_enrichment_steps(scoring_template)
-
     strategy = (scoring_template or {}).get("enrichment_strategy") or {}
     if not isinstance(strategy, dict):
         strategy = {}
     declared_skips = set(strategy.get("skip") or [])
     stop_after = strategy.get("stop_after")
+
+    if stop_after and stop_after not in declared:
+        logger.warning("stop_after='%s' não está em enrichment_steps declarados — "
+                       "ninguém é cortado; remova ou declare o step.", stop_after)
 
     runnable: List[str] = []
     skipped: List[Dict[str, str]] = []

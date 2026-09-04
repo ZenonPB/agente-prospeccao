@@ -14,16 +14,30 @@ from services.template_router import _serialize  # noqa: E402
 
 
 class TestCapabilityRegistry:
-    def test_toda_capability_declara_sinais_que_produz(self):
+    def test_produces_e_cost_description_presentes(self):
         for step, cap in CAPABILITIES.items():
             assert cap["produces"], f"{step} sem signals declarados"
             assert cap["cost"] in ("low", "medium", "high")
             assert isinstance(cap["description"], str)
 
+    def test_produces_keys_sao_signal_keys_validos(self):
+        import services.signal_registry as sr
+        valid = {
+            getattr(sr.SignalKey, n) for n in dir(sr.SignalKey)
+            if n.isupper() and not n.startswith("_")
+        }
+        for step, cap in CAPABILITIES.items():
+            for k in cap["produces"]:
+                assert k in valid, f"{step} product {k!r} não registrado em SignalKey"
+
+    def test_technical_site_nao_produce_hasp_instagram(self):
+        """Instagram vem do discovery/social, NÃO da auditoria técnica"""
+        from services.signal_registry import SignalKey
+        assert SignalKey.HAS_INSTAGRAM not in CAPABILITIES["technical_site"]["produces"]
+
     def test_ordem_da_oferta_e_respeitada(self):
         tmpl = {"enrichment_steps": ["cnpj_receita", "technical_site", "business_social"]}
-        plan = plan_enrichment_run(
-            tmpl, {"has_website": True, "has_cnpj": True})
+        plan = plan_enrichment_run(tmpl, {"has_website": True, "has_cnpj": True})
         assert plan["runnable"] == ["cnpj_receita", "technical_site", "business_social"]
 
     def test_engenharia_sem_site_nao_audita_seo_por_padrao(self):
@@ -52,6 +66,15 @@ class TestCapabilityRegistry:
         reasons = " ".join(s["reason"] for s in plan["skipped"])
         assert "stop_after" in reasons
 
+    def test_stop_after_inexistente_alerta(self, caplog):
+        """stop_after num step que nem a oferta declara não corta nada e não
+                pode passar despercebido (intenção ambígua)"""
+        _ = plan_enrichment_run(
+            {"enrichment_strategy": {"stop_after": "newsletter_signup"}},
+            {"has_website": True, "has_cnpj": True},
+        )
+        assert any("newsletter_signup" in r.getMessage() for r in caplog.records)
+
     def test_plano_sem_template_usa_defaults(self):
         plan = plan_enrichment_run(None, {"has_website": True, "has_cnpj": True})
         assert plan["runnable"] == DEFAULT_ENRICHMENT_STEPS
@@ -63,9 +86,18 @@ class TestCapabilityRegistry:
         assert plan["runnable"] == DEFAULT_ENRICHMENT_STEPS
 
     def test_resolve_enrichment_steps_compat_flags(self):
-        # API antiga preservada (re-export com mesmo comportamento).
         assert resolve_enrichment_steps(None) == DEFAULT_ENRICHMENT_STEPS
         assert resolve_enrichment_steps({}) == DEFAULT_ENRICHMENT_STEPS
+
+    def test_resolve_enrichment_steps_alerta_key_desconhecida(self, caplog):
+        """Capability declarada mas ainda não registrada NÃO pode sumir em silêncio"""
+        resolve_enrichment_steps({
+            "enrichment_steps": ["technical_site", "news", "procurement"],
+        })
+        assert any(
+            "news" in r.getMessage() and "registrada" in r.getMessage()
+            for r in caplog.records
+        )
 
 
 class TestTemplateSerialization:
@@ -75,8 +107,7 @@ class TestTemplateSerialization:
         return CampaignScoringTemplate(service_label="T", created_at=datetime.now(), **kw)
 
     def test_serialize_passa_prescoring_config_e_strategy(self):
-        """Bug da fase 1: prescoring_config era perdido na serialização — o
-        gate nunca leria a config declarada em templates reais."""
+        """Bug da fase 1: prescoring_config era perdido na serialização."""
         tmpl = self._tmpl(
             prescoring_config={"enabled": True, "profile": "web_presence",
                                "threshold": 45},
@@ -90,3 +121,15 @@ class TestTemplateSerialization:
         data = _serialize(self._tmpl())
         assert data["prescoring_config"] is None
         assert data["enrichment_strategy"] is None
+
+
+def test_modulo_reexporta_step_constants():
+    """#6: STEP_* tem fonte única (capability registry)."""
+    from services.prospecting_profile_service import (
+        STEP_BUSINESS_SOCIAL, STEP_CNPJ_RECEITA, STEP_TECHNICAL_SITE)
+    from services.enrichment_capability_registry import (
+        STEP_BUSINESS_SOCIAL as R_BUS, STEP_CNPJ_RECEITA as R_CNPJ,
+        STEP_TECHNICAL_SITE as R_SITE)
+    assert STEP_TECHNICAL_SITE is R_SITE
+    assert STEP_CNPJ_RECEITA is R_CNPJ
+    assert STEP_BUSINESS_SOCIAL is R_BUS

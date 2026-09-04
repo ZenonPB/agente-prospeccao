@@ -11,6 +11,7 @@ campanha e agrega resultados deduplicados com `source_queries` auditáveis.
 """
 import logging
 import re
+import unicodedata
 from typing import Any, Dict, Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,13 @@ MAX_SEARCH_QUERIES = 10
 
 
 def _norm(text: Any) -> str:
-    return " ".join(str(text or "").lower().split())
+    """Normaliza texto para comparação de identidade: minúsculas, sem
+    espaços duplos e sem acentos (o Places alterna `Clínica`/`Clinica`)."""
+    s = " ".join(str(text or "").lower().split())
+    return "".join(
+        c for c in unicodedata.normalize("NFD", s)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 def expand_search_queries(
@@ -90,9 +97,12 @@ def aggregate_multi_query_results(
         for item in results or []:
             if not isinstance(item, dict):
                 continue
-            place_id = item.get("place_id")
+            # O Places emite `place_id_candidate`; outros suppliers podem usar
+            # `place_id`. Dedup por qualquer um — e, sem id, por nome+categoria
+            # normalizados (sem acentos) como último recurso.
+            place_id = item.get("place_id_candidate") or item.get("place_id")
             identity = f"pid:{place_id}" if place_id else \
-                f"n:{_norm(item.get('name'))}|{item.get('category') or ''}"
+                f"n:{_norm(item.get('name'))}|{_norm(item.get('category'))}"
             if identity in index:
                 candidate = merged[index[identity]]
                 if query not in candidate["source_queries"]:

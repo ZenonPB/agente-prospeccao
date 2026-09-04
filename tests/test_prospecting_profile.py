@@ -37,6 +37,20 @@ def test_config_do_template_sobrescreve_derivacao():
     assert profile["profile_source"] == "template_config"
 
 
+def test_derive_profile_key_tambem_respeita_config_do_template():
+    """O score vetorial usa `derive_profile_key`; ele precisa coincidir com o
+    gate (que usa `resolve_prospecting_profile`) — senão a mesma campanha
+    pontua com pesos diferentes no pré-scoring e no vetor."""
+    assert derive_profile_key({
+        "enrichment_steps": ["technical_site"],
+        "prescoring_config": {"profile": PROFILE_BUSINESS},
+    }) == PROFILE_BUSINESS
+    assert derive_profile_key({
+        "enrichment_steps": ["cnpj_receita", "business_social"],
+        "prescoring_config": {"profile": PROFILE_INDUSTRIAL},
+    }) == PROFILE_INDUSTRIAL
+
+
 def test_gate_desligado_por_padrao():
     """Sem prescoring_config, nenhum candidato é descartado (comportamento atual)."""
     profile = resolve_prospecting_profile({"enrichment_steps": ["technical_site"]})
