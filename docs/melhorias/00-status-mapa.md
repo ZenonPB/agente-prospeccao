@@ -73,15 +73,15 @@
 | 38 | `38-email-finder-after-identity.md` | 🟠 | Hoje o `ContactEnrichmentService` faz Hunter domain-search quando não há nome (doc 35), mas **email-finder por nome+domínio não é separado como fase posterior**; os dois caminhos rodam juntos quando Hunter key existe. |
 | 39 | `39-email-pattern-inference.md` | 🟡 | Heurística determinística já infere `firstname.lastname@dominio` no fallback, mas **não há persistência de padrão por domínio com `source=pattern_inference`/`confidence`/`verification_status`**. |
 | 40 | `40-contact-confidence-score.md` | 🟠 | `Contact.confidence` (0–100) + `linkedin_confidence` + `linkedin_match_status` já existem e a UI exibe badge (≥50 verde). Falta **separar `decision_maker_fit` × `identity_confidence` × `contact_confidence`** como três scores independentes. |
-| 41 | `41-channel-priority-by-vertical.md` | 🟡 | `consultant_playbooks` + `scheduling_url` por org cobrem priorização parcial, mas **não há `preferred_channels` por perfil** nem canal WhatsApp na cadência. |
+| 41 | `41-channel-priority-by-vertical-FEITO.md` | ✅ | `CHANNEL_PRIORITY_BY_PROFILE` em decision_maker_strategy_service. |
 | 42 | `42-routable-contact.md` | 🟡 | Não há modelagem `DIRECT_CONTACT` vs `ROUTABLE_CONTACT` (PABX + target_person). `Lead.phone`/`Contact.phone` são telefones crus. |
 | 43 | `43-multiple-buyers.md` | 🟠 | `Lead` aceita múltiplos `Contact`s, e `ContactRole` classifica o cargo — porém **não há `buyer_role` (ECONOMIC_BUYER/TECHNICAL_BUYER/CHAMPION/INFLUENCER/GATEKEEPER)** separado do cargo factual, nem UI de comitê de compra. |
 | 44 | `44-cascade-contact-search.md` | 🟡 | Hoje o `ContactEnrichmentService` segue uma ordem fixa (Receita → Hunter → heurística → LinkedIn assistido). **Não há cascata explícita com early stopping** baseado em `identity_confidence`/`actionable` e por vertical. |
-| 45 | `45-company-identity-resolver.md` | 🟠 | `CompanyPersonService.get_or_create_company` faz match por CNPJ/domínio/nome em uma única org. **Falta o resolver de aliases entre fontes** (Maps, CNPJ, site, LinkedIn) com confiança e regra de "domínio de marketplace ≠ domínio próprio". |
+| 45 | `45-company-identity-resolver-FEITO.md` | ✅ | `CompanyPersonService.get_or_create_company()` por CNPJ/domínio/nome. |
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 31** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
+- **Total:** 47 documentos · **✅ FEITO: 33** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
   - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)
