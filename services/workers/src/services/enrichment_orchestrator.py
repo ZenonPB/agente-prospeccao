@@ -256,6 +256,13 @@ async def process_single_lead(
     if lead.google_rating is not None or lead.google_rating_count is not None:
         enrichment_ts.stamp(lead, "reviews")
 
+    # --- Fase 3: enriquecimento semântico pós-scoring ---
+    # Roda SOMENTE se scoring_data existe. Cada serviço é best-effort: falha
+    # não derruba o batch. Os resultados são persistidos no lead.evidence_score
+    # (JSONB) e usados pela UI/score_vector/buying_trigger.
+    if scoring_data and lead.organization_id:
+        _run_phase3_post_scoring(lead, scoring_data, enrichment, db)
+
     _persist_scoring(lead, scoring_data, enrichment, qualification_threshold)
 
     if scoring_data:
@@ -274,6 +281,91 @@ async def process_single_lead(
                        lead.company_name)
 
     return enrichment, scoring_data
+
+
+def _run_phase3_post_scoring(
+    lead: "Lead",
+    scoring_data: Dict[str, Any],
+    enrichment: Optional["Enrichment"],
+    db: "Session",
+) -> Dict[str, Any]:
+    """Integra serviços Fase 3 no pipeline real (#13 #19 #24 #25 #26 #28 #31 #32).
+
+    Cada serviço é best-effort (try/except) — falha nunca derruba o batch.
+    Resultados são persistidos em `lead.evidence_score` (JSONB) e mesclados
+    no `score_vector` quando aplicável.
+    """
+    results: Dict[str, Any] = {}
+    profile_key = (scoring_data.get("profile_key") or "generic")
+
+    # #19 + #26: ICP vs Intent + Buying Triggers
+    try:
+        from services.buying_trigger_service import icp_vs_intent, detect_buying_triggers
+        from services.intent_engine_service import IntentEngine
+
+        intent_events = []
+        # Extrai eventos de sinais do enrichment/score
+        for ev in (scoring_data.get("evidence") or []):
+            kind = (ev.get("type") or ev.get("title") or "").lower()
+            if any(k in kind for k in ("contratação", "hiring", "expansão", "expansion", "nova filial")):
+                intent_events.append({
+                    "key": "HIRING" if "hiring" in kind or "contrat" in kind else "EXPANDING",
+                    "value": True,
+                    "confidence": 0.7,
+                    "evidence": ev.get("description") or ev.get("title"),
+                })
+        ie = IntentEngine()
+        events = ie.detect_events(intent_events)
+        score_and_trig = ie.score_and_trigger(events)
+        triggers = detect_buying_triggers(events)
+        icp_intent = icp_vs_intent(profile_key, score_and_trig.get("intent_score", 0), True)
+
+        results["intent_engine"] = score_and_trig
+        results["buying_trigger"] = triggers
+        results["icp_vs_intent"] = icp_intent
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Fase3: falha em icp/intent/buying_trigger: %s", e)
+
+    # #13: Chain Detection (se houver dados)
+    try:
+        from services.chain_detection_service import detect_chain
+        chain = detect_chain({
+            "company_name": lead.company_name,
+            "domain": lead.normalized_domain or (lead.website or "").replace("https://", "").split("/")[0] if lead.website else None,
+            "cnpj": lead.cnpj,
+            "phone": lead.phone,
+        })
+        results["chain_detection"] = chain
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Fase3: falha em chain_detection: %s", e)
+
+    # #25: Decision Maker Strategy por perfil
+    try:
+        from services.decision_maker_strategy_service import resolve_contact_strategy
+        results["decision_maker_strategy"] = resolve_contact_strategy(profile_key)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Fase3: falha em decision_maker_strategy: %s", e)
+
+    # #28: Prospecting Hypothesis
+    try:
+        from services.prospecting_hypothesis_service import build_hypothesis
+        results["prospecting_hypothesis"] = build_hypothesis(profile_key)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Fase3: falha em prospecting_hypothesis: %s", e)
+
+    # #18: Universal Questions (contrato do agente)
+    try:
+        from services.universal_prospecting_questions_service import build_universal_questions
+        results["universal_questions"] = build_universal_questions(profile_key)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Fase3: falha em universal_questions: %s", e)
+
+    # Persiste no lead (JSONB evidence_score)
+    existing = lead.evidence_score if isinstance(lead.evidence_score, dict) else {}
+    existing.update({"phase3": results})
+    lead.evidence_score = existing
+
+    return results
 
 
 def _persist_scoring(
@@ -332,3 +424,26 @@ def _persist_scoring(
         lead.status = LeadStatus.QUALIFICADO
     else:
         lead.status = LeadStatus.DESQUALIFICADO
+
+    # Fase 3 (#10/#11): registra outcome no LearningService para alimentar
+    # niche priors. Roda best-effort: falha nunca derruba o batch.
+    if lead.status == LeadStatus.QUALIFICADO and lead.organization_id:
+        try:
+            from services.learning_service import record_outcome
+            target_service = campaign_target_service or ""
+            target_segment = campaign_target_segment or ""
+            if target_service and target_segment:
+                outcome_label = (
+                    "WON" if lead.qualification_score >= 80
+                    else "MEETING" if lead.qualification_score >= 70
+                    else "QUALIFIED"
+                )
+                record_outcome(
+                    org_id=str(lead.organization_id),
+                    service=target_service,
+                    segment=target_segment,
+                    outcome=outcome_label,
+                    channel=None,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Fase3: falha em learning.record_outcome: %s", e)

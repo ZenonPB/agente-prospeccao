@@ -1,6 +1,6 @@
 # Opportunity Score como vetor universal
 
-> **Status: 🟡 Proposto**  
+> **✅ FEITO — VECTOR_WEIGHTS expandido com dimensões universais (icp_fit/intent/buying_power/reachability/timing) peso 0 (backward compat) + formula_version v2 (#27).**  
 > **Prioridade: P0**  
 > **Domínio: Scoring Architecture**
 

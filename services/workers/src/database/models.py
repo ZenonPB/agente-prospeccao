@@ -598,6 +598,9 @@ class Lead(Base):
     # qualification_score durante a migração. {"need": .., "icp_fit": ..,
     # "overall": .., "formula_version": "..."}
     score_vector = Column(JSONB)
+    # Fase 3: outputs estruturados dos serviços semânticos (#13/#19/#24/#25/#26/#28).
+    # Não substitui o `score_vector` — apenas guarda inferências derivadas.
+    evidence_score = Column(JSONB, nullable=True)
     priority = Column(Enum(LeadPriority, name='lead_priority', create_type=True), nullable=True)
     priority_reasoning = Column(Text)
     executive_summary = Column(Text)

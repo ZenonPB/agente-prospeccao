@@ -489,6 +489,24 @@ async def reanalyze_campaign(
 
 # ---- Loop de aprendizado da IA (docs/ai-feedback-loop.md) -------------------
 
+
+@router.get("/{campaign_id}/prescoring-discards")
+async def get_prescoring_discards(campaign_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """Audit: descartes do gate de pre-scoring por campanha (Fase 2 pendência #2)."""
+    from src.db.models import PrescoringDiscard
+    from sqlalchemy import desc
+    discards = db.query(PrescoringDiscard).filter(
+        PrescoringDiscard.campaign_id == int(campaign_id)
+    ).order_by(desc(PrescoringDiscard.created_at)).limit(200).all()
+    return [{"company_name": d.candidate_data.get("name") if d.candidate_data else None,
+             "discovery_score": d.discovery_score,
+             "threshold": d.threshold,
+             "reason": d.reason,
+             "profile_key": d.profile_key,
+             "created_at": d.created_at.isoformat() if d.created_at else None}
+            for d in discards]
+
+
 @router.get("/{campaign_id}/learning")
 def get_campaign_learning(
     campaign_id: str,

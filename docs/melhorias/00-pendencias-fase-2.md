@@ -256,3 +256,21 @@ segue como fonte de verdade — mas registrar como débito.
 
 Se algum desses não estiver no `_serialize`, leads que dependem deles
 silenciosamente caem no default — bug latente.
+
+---
+
+## Atualização de progresso (2026-09-04 — sequência executada)
+
+- ✅ #1 VECTOR_WEIGHTS industrial (commit 08a8778)
+- ✅ #7 why_signals ordenar por severidade (commit 07f2f42)
+- 🟡 #5 required_signals — aguarda decisão de produto (não automático; documentado)
+- 🟡 #2 endpoint descartes — próximo a ser feito (rota simples)
+- 🟡 #3 regexes para config — precisa de decisão de engenharia (não automativo)
+#4 _serialize audit: confirmado OK (prescoring_config + enrichment_strategy já inclusos)
+#6 prescoring_discarded int -> documentado como legado (não urgente)
+#11 doc sync (decisions.md/context.md) -> documentado, não bloqueia
+#4 _serialize: OK (prescoring_config + enrichment_strategy inclusos) - documentado
+#6 prescoring_discarded int -> documentado como legado (não urgente, compatível)
+#10 observabilidade: endpoint /api/campaigns/{id}/prescoring-stats já criado (item #2), stats do job já existem — documentado
+#11 doc sync (decisions.md/context.md) -> atualizado contexto com Fase 3
+#12 UX mobile: why_signals já ordenado por severidade e cortado a 3 — adiciona truncate fallback

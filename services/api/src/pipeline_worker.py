@@ -27,6 +27,8 @@ from services.enrichment_orchestrator import process_single_lead, resolve_enrich
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.prospecting_profile_service import resolve_prospecting_profile
+from services.discovery_planner_service import DiscoveryPlanner, cnae_discovery_plan
+from services.prospecting_hypothesis_service import vertical_pack_for
 from services.candidate_pre_scoring_service import CandidatePreScoringService
 from services.discovery_multi_query import (
     aggregate_multi_query_results,
@@ -240,6 +242,31 @@ async def run_pipeline(
         # da vertical para o gate de promoção Candidate → Lead).
         # Router inteligente: exact → fuzzy → LLM → geração sob demanda → Genérico (itens 1.2/1.3).
         scoring_template = None
+
+        # Fase 3 (#32 Archetypes): se o template_router não encontrar um
+        # template específico, ainda assim detectamos o archetype pelo
+        # `target_service`/`target_segment` (landing_pages / industrial_erp /
+        # b2b_software) e anotamos o profile_key no job log. Não substitui o
+        # template — apenas enriquece o que o template_gen produzir depois.
+        if campaign:
+            try:
+                from services.archetype_service import match_archetype
+                arch = match_archetype(
+                    target_service=campaign.target_service or "",
+                    target_segment=campaign.target_segment or "",
+                )
+                if arch.get("archetype_id"):
+                    yield {
+                        "type": "log",
+                        "message": (
+                            f"Archetype detectado: {arch['archetype_id']} "
+                            f"(profile={arch['profile_key']}, conf={arch['confidence']:.2f})"
+                        ),
+                        "timestamp": _ts(),
+                    }
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Fase3 archetype: %s", e)
+
         if campaign:
             route_result = await route_scoring_template(
                 db,
@@ -299,6 +326,21 @@ async def run_pipeline(
         # vez por job a partir do template — gate de pre-scoring desligado por
         # padrão (templates sem `prescoring_config` mantêm o fluxo atual).
         prospecting_profile = resolve_prospecting_profile(scoring_template)
+        # --- Fase 3: DiscoveryPlanner decide fontes/budget/orçamento pela oferta ---
+        # Plano auditável que descreve QUAIS providers rodar e com qual budget.
+        # Não toma ações: o pipeline continua chamando providers; o plano apenas
+        # declara o que deve ser tentado (docs/melhorias/22 e 23).
+        discovery_plan = DiscoveryPlanner().plan(prospecting_profile)
+        vertical_pack = vertical_pack_for(prospecting_profile.get("profile_key", "generic"))
+        yield {
+            "type": "log",
+            "message": (
+                f"DiscoveryPlanner ({prospecting_profile.get('profile_key','generic')}): "
+                f"{len(discovery_plan.get('providers',[]))} providers, "
+                f"target_candidates={discovery_plan.get('target_candidates',0)}"
+            ),
+            "timestamp": _ts(),
+        }
         prescoring_discarded = 0
         prescoring_breakdown: Dict[str, int] = {}
 

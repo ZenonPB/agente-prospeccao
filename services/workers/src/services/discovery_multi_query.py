@@ -65,6 +65,55 @@ def expand_search_queries(
     if not queries and fallback_query and fallback_query.strip():
         queries.append(fallback_query.strip())
 
+    # Fase 3 (#05): quando ainda só há 1 query (places_query ou fallback),
+    # gera queries adicionais via SearchQueryGenerationService — templates
+    # determinísticos por perfil + LLM opcional. Só roda se o profile_key
+    # estiver disponível (vem do template) e houver segment+city suficientes.
+    if len(queries) < 3 and campaign_like is not None:
+        try:
+            from services.search_query_generation_service import generate_queries
+            target_service = (
+                campaign_like.get("target_service")
+                if isinstance(campaign_like, dict)
+                else getattr(campaign_like, "target_service", None)
+            ) or ""
+            target_segment = (
+                campaign_like.get("target_segment")
+                if isinstance(campaign_like, dict)
+                else getattr(campaign_like, "target_segment", None)
+            ) or ""
+            target_city = (
+                campaign_like.get("target_city")
+                if isinstance(campaign_like, dict)
+                else getattr(campaign_like, "target_city", None)
+            ) or ""
+            target_state = (
+                campaign_like.get("target_state")
+                if isinstance(campaign_like, dict)
+                else getattr(campaign_like, "target_state", None)
+            ) or ""
+            profile_key = (
+                campaign_like.get("profile_key")
+                if isinstance(campaign_like, dict)
+                else getattr(campaign_like, "profile_key", None)
+            ) or "generic"
+            if target_service and target_segment and target_city:
+                gen = generate_queries(
+                    service=target_service,
+                    segment=target_segment,
+                    city=target_city,
+                    state=target_state,
+                    profile_key=profile_key,
+                    max_queries=5,
+                )
+                for q in gen["queries"]:
+                    if q.strip() and q not in queries:
+                        queries.append(q)
+        except Exception:
+            # Se a Fase 3 falhar, mantém só as queries declaradas — não derruba
+            # o pipeline (best-effort, como todo o resto da Fase 3).
+            pass
+
     # Dedup preservando ordem (case-insensitive) e cap conservador.
     seen: set = set()
     out: List[str] = []
