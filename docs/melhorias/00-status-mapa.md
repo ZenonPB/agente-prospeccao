@@ -59,7 +59,7 @@
 | 30 | `30-discovery-questions-FEITO.md` | ✅ | `discovery_questions_for(profile_key)`: perguntas de qualificação por vertical. |
 | 31 | `31-vertical-pack-FEITO.md` | ✅ | `vertical_pack_for(profile_key)`: enrichment_pack declarativo por perfil. |
 | 32 | `32-archetypes-as-fallback.md` | 🟡 | `TemplateGenerationService` + `template_router` cobrem o fallback LLM/exact/fuzzy → Genérico, mas não há **archetype** explícito como bootstrap de um pack novo. |
-| 33 | `33-three-level-learning.md` | 🟡 | `learning_compilation_service` produz regras por **template × org**; **não há** camadas `GLOBAL`/`VERTICAL`/`ORGANIZATION` com precedência explícita. |
+| 33 | `33-three-level-learning-FEITO.md` | ✅ | `ThreeLevelLearning.resolve(key, vertical, org)`: precedência GLOBAL→VERTICAL→ORGANIZATION. |
 
 
 ## Capítulo 3 — Decisores e contatos
@@ -81,7 +81,7 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 30** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
+- **Total:** 47 documentos · **✅ FEITO: 31** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
   - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)

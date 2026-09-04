@@ -139,3 +139,41 @@ def match_golden_patterns(profile_key: str, signals: Dict[str, Any]) -> List[Dic
                 "source": "learning_service.match_golden_patterns",
             })
     return matches
+
+
+# --- #33 Three-Level Learning ---
+class ThreeLevelLearning:
+    """Aprendizado em 3 níveis com precedência explícita: GLOBAL → VERTICAL → ORGANIZATION.
+
+    Versão inicial sem ML — contadores por nível + resolução de conflito.
+    Por organização, mantém consistência da regra de aprendizado.
+    """
+
+    def __init__(self):
+        self._global: Dict[str, Any] = {}
+        self._vertical: Dict[str, Dict[str, Any]] = {}
+        self._org: Dict[str, Dict[str, Any]] = {}
+
+    def set_global(self, key: str, value: Any) -> None:
+        self._global[key] = value
+
+    def set_vertical(self, vertical: str, key: str, value: Any) -> None:
+        self._vertical.setdefault(vertical, {})[key] = value
+
+    def set_org(self, org_id: str, key: str, value: Any) -> None:
+        self._org.setdefault(org_id, {})[key] = value
+
+    def resolve(self, key: str, vertical: Optional[str] = None, org_id: Optional[str] = None) -> Dict[str, Any]:
+        """Resolve precedência: org > vertical > global."""
+        value = None
+        source = "default"
+        if org_id and org_id in self._org and key in self._org[org_id]:
+            value, source = self._org[org_id][key], "ORGANIZATION"
+        elif vertical and vertical in self._vertical and key in self._vertical[vertical]:
+            value, source = self._vertical[vertical][key], "VERTICAL"
+        elif key in self._global:
+            value, source = self._global[key], "GLOBAL"
+        return {"key": key, "value": value, "source": source, "key_as_str": str(key)}
+
+
+three_level_learning = ThreeLevelLearning()
