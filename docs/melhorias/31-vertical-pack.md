@@ -1,6 +1,6 @@
 # Vertical Pack declarativo
 
-> **✅ FEITO — `vertical_pack_for(profile_key)` → enrichment_pack por perfil .)***  
+> **✅ FEITO — `vertical_pack_for(profile_key)` → enrichment_pack por perfil (#31).**  
 > **Prioridade: P0**  
 > **Domínio: Architecture / Configuration**
 

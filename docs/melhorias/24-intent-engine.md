@@ -1,6 +1,6 @@
 # Intent Engine para sinais de compra
 
-> **Status: 🟠 PARCIAL → FEITO (fundação + score/trigger/why_now) — IntentEngine v2 funcionando com score vetorial, buying_trigger e why_now. Próximo: scanner de eventos reais.**  
+> **✅ FEITO — IntentEngine v2: seam SignalRegistry→Intent + score_and_trigger (intent_score/buying_trigger/why_now). Próximo: scanner de eventos reais.**  
 > **Prioridade: P0**  
 > **Domínio: Intent / Differentiation**
 

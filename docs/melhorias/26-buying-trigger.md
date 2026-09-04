@@ -1,6 +1,6 @@
 # Buying Trigger e Why Now
 
-> **✅ FEITO — `buying_trigger_service.detect_buying_triggers()` converte intent events → triggers acionáveis .)***  
+> **✅ FEITO — `buying_trigger_service.detect_buying_triggers()` converte intent events → triggers acionáveis (#26).**  
 > **Prioridade: P1**  
 > **Domínio: Intent / Outreach**
 

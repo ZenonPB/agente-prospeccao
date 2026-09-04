@@ -1,6 +1,6 @@
 # Prospecting Hypothesis por lead
 
-> **✅ FEITO — `prospecting_hypothesis_service.build_hypothesis(profile_key)` .)***  
+> **✅ FEITO — `prospecting_hypothesis_service.build_hypothesis(profile_key)` (#28).**  
 > **Prioridade: P1**  
 > **Domínio: AI Reasoning / Sales Enablement**
 
