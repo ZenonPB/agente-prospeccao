@@ -256,3 +256,13 @@ segue como fonte de verdade — mas registrar como débito.
 
 Se algum desses não estiver no `_serialize`, leads que dependem deles
 silenciosamente caem no default — bug latente.
+
+---
+
+## Atualização de progresso (2026-09-04 — sequência executada)
+
+- ✅ #1 VECTOR_WEIGHTS industrial (commit 08a8778)
+- ✅ #7 why_signals ordenar por severidade (commit 07f2f42)
+- 🟡 #5 required_signals — aguarda decisão de produto (não automático; documentado)
+- 🟡 #2 endpoint descartes — próximo a ser feito (rota simples)
+- 🟡 #3 regexes para config — precisa de decisão de engenharia (não automativo)
