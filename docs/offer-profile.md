@@ -277,3 +277,47 @@ Validado por tests:
 
 ### Tests: 21 (19 unit + 2 integration cenários AlphaMec). Suite total: 199.
 
+
+---
+
+## Fase G — Decision Maker Resolution Real
+
+> **Status:** ✅ COMPLETE (consolidação §Fase G).
+
+**Critério satisfeito:** "Pipeline retorna pessoa(s) reais ou um estado
+explícito de falha, não apenas roles desejados."
+
+### Componentes
+
+| Componente | Função |
+|---|---|
+| `PersonContact` | Pessoa real (não role) com source_merged |
+| `ResolutionResult` | Status: resolved / partial / not_found |
+| `DecisionMakerResolver` | Converte fontes em pessoas (nunca inventa) |
+| `IdentityResolver` | Dedup por CPF → email+nome |
+| `ContactConfidence` | Agrega confidence de múltiplas fontes (max + boost) |
+| `ContactVerification` | Verifica email MX + identidade; heurística nunca verificada |
+
+### Status possíveis
+
+| Status | Significado |
+|---|---|
+| `resolved` | Tem pessoa + pelo menos 1 com CPF |
+| `partial` | Tem pessoas mas sem CPF (heurística) |
+| `not_found` | **Falha explícita** — fonte vazia ou sem retorno |
+| `failed` | Erro irrecuperável |
+
+### Regra de ouro: NÃO INVENTA PESSOAS
+
+Se `sources` é vazio ou todas retornam listas vazias, `ResolutionResult`
+retorna `not_found` com `people=[]` e `audit.reason` explicativo.
+
+### Verification
+
+- `email_verified`: True só se MX válido + fonte != heuristic
+- `identity_verified`: True se tem CPF
+- Heurística de email (sem CPF): **nunca verificada** (gate de outreach)
+- Status final: `fully_verified` / `identity_verified_no_email` / `email_verified_no_identity` / `partial` / `no_email`
+
+### Tests: 15 (13 unit + 2 integration cenários end-to-end). Suite total: 214.
+
