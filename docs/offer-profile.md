@@ -148,3 +148,46 @@ class LeadOpportunity:
 
 - **PR 4** — DiscoveryProvider contract (Fase D) — executor real
 - **PR 5** — IntentProvider contract (Fase E) — collector real
+
+---
+
+## Fase D — Discovery Provider Executável
+
+> **Status:** ✅ COMPLETE (consolidação §Fase D).
+
+Critério satisfeito: "Alterar `OfferProfile.discovery` muda a estratégia
+de descoberta **sem editar `pipeline_worker`**".
+
+### Contrato `DiscoveryProvider`
+
+```python
+@runtime_checkable
+class DiscoveryProvider(Protocol):
+    name: str
+    budget_total: int
+    async def run(query, lead_context=None) -> List[Dict]: ...
+```
+
+### Adapters reais
+
+- `GooglePlacesAdapter` (envolve `GooglePlacesService`)
+- `CnaeDiscoveryAdapter` (envolve `CnaeDiscoveryService`)
+- `_StubProvider` (para tests)
+
+### Como adicionar novo provider
+
+1. Criar classe que implementa `DiscoveryProvider` (name + budget_total + run)
+2. `registry.register(provider)`
+3. Adicionar ao `OfferProfile.discovery.providers`
+4. **Pipeline não muda** — `pipeline_worker` passa o plano para o executor
+
+### `DiscoveryExecutor`
+
+- Lê `plan.providers[]` em ordem
+- Chama cada provider (registrado ou pula se ausente)
+- Respeita `budget`/`max_results`
+- Dedup por identidade (`name`, `place_id`, `cnpj`)
+- Retorna `results_by_provider + execution_order + skipped + unique_candidates`
+
+### Tests: 13 (9 unit + 4 integration). Total suite: 157.
+
