@@ -281,27 +281,29 @@ GROQ_MODEL = settings.GROQ_MODEL_CLASSIFY
 # produza e a UI as exiba). Para ativar, elevar peso acima de 0 via config.
 VECTOR_V2_DIMS = ("icp_fit", "intent", "buying_power", "reachability", "timing")
 _V2_ZERO = {d: 0.0 for d in VECTOR_V2_DIMS}
+# #14 Decision Maker Accessibility — dimensão explícita (peso 0 até ativação)
+_V2_DMA_ZERO = {"decision_maker_accessibility": 0.0}
 
 VECTOR_WEIGHTS = {
     "web_presence": {
         "need": 0.25, "commercial_fit": 0.2,
         "digital_maturity": 0.4, "contactability": 0.15,
-        **_V2_ZERO,
+        **_V2_ZERO, **_V2_DMA_ZERO,
     },
     "business_opportunity": {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
-        **_V2_ZERO,
+        **_V2_ZERO, **_V2_DMA_ZERO,
     },
     "industrial": {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
-        **_V2_ZERO,
+        **_V2_ZERO, **_V2_DMA_ZERO,
     },
     "generic": {
         "need": 0.25, "commercial_fit": 0.25,
         "digital_maturity": 0.25, "contactability": 0.25,
-        **_V2_ZERO,
+        **_V2_ZERO, **_V2_DMA_ZERO,
     },
 }
 

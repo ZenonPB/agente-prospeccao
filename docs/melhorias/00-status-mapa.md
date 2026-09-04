@@ -34,7 +34,7 @@
 | 11 | `11-learning-from-sales-outcomes-FEITO.md` | ✅ | `record_outcome()` + `summarize_learning()`: agregação por sinal/faixa/canal. |
 | 12 | `12-precision-at-k-FEITO.md` | ✅ | `precision_at_k(ranked_leads, k)`: fração top-K que convertiram. |
 | 13 | `13-chain-detection-FEITO.md` | ✅ | `detect_chain(lead_data)`: classificação INDEPENDENT/SMALL_CHAIN/FRANCHISE/ENTERPRISE/UNKNOWN com evidência + confiança. |
-| 14 | `14-decision-maker-accessibility.md` | 🟠 | Sinais individuais existem (`DECISION_MAKER_FOUND`, `Contact.confidence`, `linkedin_match_status`, `ContactRole`) — porém não há uma **dimensão explícita** `decision_maker_accessibility`/`contactability` no `score_vector` (apenas a dimensão `contactability` agregada). |
+| 14 | `14-decision-maker-accessibility-FEITO.md` | ✅ | Dimensão `decision_maker_accessibility` adicionada ao VECTOR_WEIGHTS (peso 0, ativável). |
 | 15 | `15-golden-lead-patterns-FEITO.md` | 🟡 | Não há matcher de padrões compostos (ex.: `landing_local_golden_v1`) — o seed Landing Pages aproxima por pesos, mas sem padrão explícito com explicação por evidência. |
 | 16 | `16-why-prospect-card-FEITO.md` | ✅ | Card do lead expõe `why_signals` (top 3 títulos de evidence). |
 
@@ -81,7 +81,7 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 29** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
+- **Total:** 47 documentos · **✅ FEITO: 30** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
   - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)
