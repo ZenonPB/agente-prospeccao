@@ -158,6 +158,24 @@ def resolve_prospecting_profile(
     else:
         top_k = None
 
+    # Gate v2 (Fase 2.x): fronteira semântica
+    #   - `required_signals`: chaves de SignalKey que precisam ter sido
+    #     observadas; ausentes → INSUFFICIENT_DATA (não temos base para
+    #     decidir QUALIFY/DISQUALIFY só com discovery).
+    #   - `on_insufficient_data`: "discard" (default — seguro) ou "promote"
+    #     (opt-in: deixa o enriquecimento posterior decidir).
+    raw_required = config.get("required_signals") or []
+    if not isinstance(raw_required, (list, tuple)):
+        raw_required = []
+    required_signals = [str(k) for k in raw_required]
+
+    on_insufficient = config.get("on_insufficient_data", "discard")
+    if on_insufficient not in ("discard", "promote"):
+        logger.warning(
+            "prescoring_config.on_insufficient_data inválido (%r) — usando 'discard'",
+            on_insufficient)
+        on_insufficient = "discard"
+
     return {
         "profile_key": profile_key,
         "profile_source": profile_source,
@@ -166,5 +184,7 @@ def resolve_prospecting_profile(
             "threshold": threshold,
             "top_k": top_k,
             "weights": weights,
+            "required_signals": required_signals,
+            "on_insufficient_data": on_insufficient,
         },
     }

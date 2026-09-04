@@ -110,8 +110,9 @@ class CandidatePreScoringService:
             [{signal, impact, evidence}], `signals` (registry v0),
             `eligible_for_enrichment` (score >= threshold) e `summary`.
         """
-        weights: Dict[str, Any] = profile.get("prescoring", {}).get("weights", {})
+                weights: Dict[str, Any] = profile.get("prescoring", {}).get("weights", {})
         threshold = profile.get("prescoring", {}).get("threshold", 0)
+        prescoring = profile.get("prescoring", {})
 
         signals = self.collect_signals(item)
         by_key = {s["key"]: s for s in signals}
@@ -149,12 +150,41 @@ class CandidatePreScoringService:
         factors.sort(key=lambda f: -f["impact"])
 
         top = ", ".join(f["signal"] for f in factors[:3]) if factors else "sem sinais"
+
+        # Fronteira semântica do gate (Fase 2.x):
+        #   1) se faltam sinais decisivos (required_signals não observados),
+        #      status = INSUFFICIENT_DATA — não temos base para descartar.
+        #   2) caso contrário, o velho score>=threshold:
+        #      QUALIFIES se passa, DISQUALIFIES se não.
+        required = [str(k) for k in (prescoring.get("required_signals") or [])]
+        on_insufficient = prescoring.get("on_insufficient_data", "discard")
+        observed_keys = {s["key"] for s in signals}
+        missing_required = [k for k in required if k not in observed_keys]
+
+        if missing_required:
+            status = "INSUFFICIENT_DATA"
+            eligible = (on_insufficient == "promote")
+            promote_flag = eligible
+        else:
+            promote_flag = False
+            if score >= threshold:
+                status = "QUALIFIES"
+                eligible = True
+            else:
+                status = "DISQUALIFIES"
+                eligible = False
+
         return {
             "discovery_score": score,
             "score_factors": factors,
             "signals": signals,
-            "eligible_for_enrichment": score >= threshold,
-            "summary": f"{profile.get('profile_key', '')} score={score} ({top})",
+            "eligible_for_enrichment": eligible,
+            "discovery_status": status,
+            "missing_required_signals": missing_required,
+            "eligible_for_promotion_on_insufficient": promote_flag,
+            "summary": f"{profile.get('profile_key', '')} score={score} ({top})"
+                       + (f" [insufficient: {missing_required}]"
+                          if missing_required else ""),
         }
 
     def select_candidates(self, items, profile, persist_fn=None, context=None):
