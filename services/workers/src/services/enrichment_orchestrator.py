@@ -424,3 +424,26 @@ def _persist_scoring(
         lead.status = LeadStatus.QUALIFICADO
     else:
         lead.status = LeadStatus.DESQUALIFICADO
+
+    # Fase 3 (#10/#11): registra outcome no LearningService para alimentar
+    # niche priors. Roda best-effort: falha nunca derruba o batch.
+    if lead.status == LeadStatus.QUALIFICADO and lead.organization_id:
+        try:
+            from services.learning_service import record_outcome
+            target_service = campaign_target_service or ""
+            target_segment = campaign_target_segment or ""
+            if target_service and target_segment:
+                outcome_label = (
+                    "WON" if lead.qualification_score >= 80
+                    else "MEETING" if lead.qualification_score >= 70
+                    else "QUALIFIED"
+                )
+                record_outcome(
+                    org_id=str(lead.organization_id),
+                    service=target_service,
+                    segment=target_segment,
+                    outcome=outcome_label,
+                    channel=None,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.debug("Fase3: falha em learning.record_outcome: %s", e)

@@ -242,6 +242,31 @@ async def run_pipeline(
         # da vertical para o gate de promoção Candidate → Lead).
         # Router inteligente: exact → fuzzy → LLM → geração sob demanda → Genérico (itens 1.2/1.3).
         scoring_template = None
+
+        # Fase 3 (#32 Archetypes): se o template_router não encontrar um
+        # template específico, ainda assim detectamos o archetype pelo
+        # `target_service`/`target_segment` (landing_pages / industrial_erp /
+        # b2b_software) e anotamos o profile_key no job log. Não substitui o
+        # template — apenas enriquece o que o template_gen produzir depois.
+        if campaign:
+            try:
+                from services.archetype_service import match_archetype
+                arch = match_archetype(
+                    target_service=campaign.target_service or "",
+                    target_segment=campaign.target_segment or "",
+                )
+                if arch.get("archetype_id"):
+                    yield {
+                        "type": "log",
+                        "message": (
+                            f"Archetype detectado: {arch['archetype_id']} "
+                            f"(profile={arch['profile_key']}, conf={arch['confidence']:.2f})"
+                        ),
+                        "timestamp": _ts(),
+                    }
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Fase3 archetype: %s", e)
+
         if campaign:
             route_result = await route_scoring_template(
                 db,
