@@ -332,3 +332,45 @@ Bugs reais achados na revisão:
 3. **IdentityResolver não normalizava acentos** — Conceição ≠ Conceicao.
    → Validado: CPF já normaliza, email+nome é case-insensitive.
 4. **`_status` não tinha `pending_real_check`** — adiciona distinção clara.
+
+---
+
+## Fase H — Learning & Metrics
+
+> **Status:** ✅ COMPLETE (consolidação §Fase H).
+
+**Critério satisfeito:** "É possível provar se uma alteração AUMENTOU
+ou REDUZIU a qualidade comercial."
+
+### Componentes
+
+| Componente | Função |
+|---|---|
+| `OutcomesRegistry` | Persiste outcomes comerciais (WON/LOST/...) com org_id/offer_key/version |
+| `CommercialMetrics` | Conversion rate, ticket médio, métricas por provider, time-to-conversion |
+| `VersionComparator` | A/B testing: v1 vs v2 com threshold de regressão (-5pp default) |
+
+### `VersionComparator` — A/B testing
+
+```python
+result = comparator.compare("trophies", "1.0", "2.0")
+# {
+#   "v1_conversion": 16.7, "v2_conversion": 40.0,
+#   "delta": 23.3, "is_regression": False, "is_improvement": True
+# }
+```
+
+- `min_samples=10` (default) — sem samples suficientes: `is_conclusive=False`
+- `regression_threshold=-5.0` (default) — queda de 5pp = regressão
+- Comparação por offer_key + offer_version
+
+### Cenário AlphaMec (validado por test)
+
+1. 30 leads v1.0 → 5 WON (16.7%) — prompt original
+2. 30 leads v2.0 → 12 WON (40%) — prompt melhorado
+3. `VersionComparator` detecta `is_improvement=True`, delta=+23.3pp
+4. Métricas por provider: `google_places` 17/60 WON (28.3%)
+5. Ticket médio: R$ 1900 (mistura v1 R$1500 + v2 R$2000)
+
+### Tests: 15 (14 unit + 1 integration AlphaMec). Suite total: 234.
+
