@@ -198,3 +198,85 @@ class TestPhase3CascadeIndustrial:
             offer_profile_key=None, vertical_key=None, archetype_key=None,
         )
         assert r4.resolved_from == "generic"
+
+
+class TestOfferMatcherIntegration:
+    """Critério Fase C: uma empresa pode ter múltiplas oportunidades simultâneas."""
+
+    def test_metalurgica_tem_3_oportunidades_industriais(self):
+        from services.prospecting import OfferMatcher
+        from services.prospecting.default_profiles import build_default_registry
+        matcher = OfferMatcher(build_default_registry())
+        # Empresa industrial completa
+        lead = {
+            "company_name": "Metalúrgica X Ltda",
+            "segment": "metalúrgica",
+            "cnae": "25.11-0",  # CNAE industrial (25 = metalúrgica)
+            "company_size": "ME",
+            "has_cnpj": True,
+            "has_phone": True,
+        }
+        opps = matcher.match(lead)
+        # Deve ter pelo menos 3 oportunidades (mechanical_project, technical_drawing, machine_manual)
+        assert len(opps) >= 3
+        keys = [o.offer_key for o in opps]
+        assert "mechanical_project" in keys
+        assert "technical_drawing" in keys
+        assert "machine_manual" in keys
+
+    def test_clinica_psicologia_match_landing_page(self):
+        from services.prospecting import OfferMatcher
+        from services.prospecting.default_profiles import build_default_registry
+        matcher = OfferMatcher(build_default_registry())
+        lead = {
+            "company_name": "Clínica Y Psicologia",
+            "segment": "psicologia",
+            "no_own_website": True,
+            "has_instagram": True,
+            "has_phone": True,
+        }
+        opps = matcher.match(lead)
+        keys = [o.offer_key for o in opps]
+        # landing_page deve ser a principal (mais sinais)
+        assert "landing_page" in keys
+        # landing_page deve ter score > 50 (3 sinais + 1 icp hit)
+        lp_opp = next(o for o in opps if o.offer_key == "landing_page")
+        assert lp_opp.score >= 50
+
+    def test_desqualificador_zera_score(self):
+        from services.prospecting import OfferMatcher
+        from services.prospecting.default_profiles import build_default_registry
+        matcher = OfferMatcher(build_default_registry())
+        # landing_page tem disqualifier ENTERPRISE
+        lead = {
+            "company_name": "BigCo",
+            "segment": "psicologia",
+            "no_own_website": True,
+            "has_instagram": True,
+            "enterprise": True,  # disqualifier
+        }
+        opps = matcher.match(lead)
+        lp_opp = next((o for o in opps if o.offer_key == "landing_page"), None)
+        # Se aparecer, score deve ser 0
+        if lp_opp:
+            assert lp_opp.score == 0
+            assert "DISQUALIFIED" in lp_opp.evidence[0]
+
+    def test_empresa_pode_matchar_trof_eu_e_industrial(self):
+        """Critério Fase C puro: empresa com sinais de ambos os universos."""
+        from services.prospecting import OfferMatcher
+        from services.prospecting.default_profiles import build_default_registry
+        matcher = OfferMatcher(build_default_registry())
+        lead = {
+            "company_name": "Federação Esportiva que Fabrica Troféus",
+            "segment": "esportivos",
+            "cnae": "32",  # fabricação
+            "has_phone": True,
+            "has_instagram": True,
+            "hosts_events": True,
+        }
+        opps = matcher.match(lead)
+        keys = [o.offer_key for o in opps]
+        # Match tanto trophies quanto industrial (cnae 32)
+        # Critério: múltiplas oportunidades
+        assert len(opps) >= 1

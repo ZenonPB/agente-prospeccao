@@ -11,3 +11,9 @@ from services.prospecting.offer_profile import (
 )
 
 __all__ = ["OfferProfile", "OfferProfileRegistry", "OfferProfileResolver"]
+from services.prospecting.offer_matcher import LeadOpportunity, OfferMatcher
+
+__all__ = [
+    "OfferProfile", "OfferProfileRegistry", "OfferProfileResolver",
+    "LeadOpportunity", "OfferMatcher",
+]

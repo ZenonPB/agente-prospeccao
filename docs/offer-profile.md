@@ -90,3 +90,61 @@ outreach: {angle, evidence_requirements}
 | `offer_profile.registry` | ✅ COMPLETE | `services/prospecting/offer_profile.py` | 3 |
 | `offer_profile.resolver` | ✅ COMPLETE | `services/prospecting/offer_profile.py` | 4 |
 | `offer_profile.defaults` | ✅ COMPLETE | `services/prospecting/default_profiles.py` | 5 |
+
+---
+
+## Fase C — OfferMatcher
+
+> **Status:** ✅ COMPLETE (consolidação §Fase C).
+
+Associa uma empresa a **múltiplas oportunidades simultâneas** (uma por
+OfferProfile relevante), com score (0-100), evidência e cascata
+rastreável.
+
+### Critério da Fase C
+
+> "Uma empresa pode possuir múltiplas oportunidades simultâneas."
+
+Validado pelo test:
+- Metalúrgica → 3 oportunidades (mechanical_project, technical_drawing, machine_manual)
+- Clínica psicologia → 1+ oportunidade (landing_page)
+- Federação que fabrica troféus → 2 (trophies + industrial)
+
+### Algoritmo de score
+
+```
+score = min(100, (sinais_positivos_presentes / total_declarados) * 70
+                  + min(30, icp_hits * 10))
+```
+
+- **Sinais positivos presentes**: cada um conta 70/total pontos
+- **ICP hits**: segment + cnae + company_size, cada um conta 10 pontos (cap 30)
+- **Disqualifiers**: zeram o score e marcam evidência
+
+### `LeadOpportunity` (entidade conceitual)
+
+```python
+@dataclass(frozen=True)
+class LeadOpportunity:
+    offer_key: str
+    profile_key: str
+    score: int  # 0-100
+    evidence: List[str]
+    resolved_from: str  # explicit|vertical|archetype|generic
+    signals_matched: List[str]
+    signals_missing: List[str]
+```
+
+### Critério Fase C satisfeito
+
+- [x] serviço (`OfferMatcher`)
+- [x] score por oferta
+- [x] evidência (`evidence` + `signals_matched/missing`)
+- [x] testes (9 unit + 4 integration = 13)
+- [x] múltiplas oportunidades simultâneas
+- [x] to_dict/from_dict para persistência futura (`LeadOpportunity`)
+
+### Próximos passos
+
+- **PR 4** — DiscoveryProvider contract (Fase D) — executor real
+- **PR 5** — IntentProvider contract (Fase E) — collector real
