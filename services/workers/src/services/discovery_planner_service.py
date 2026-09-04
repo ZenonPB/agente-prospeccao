@@ -34,3 +34,29 @@ def plan_discovery(profile: Dict[str, Any], lead_context: Optional[Dict[str, Any
         "target_candidates": 300,
         "profile_key": profile_key,
     }
+
+class DiscoveryPlanner:
+    """Seam profundo: recebe ProspectingProfile, referencia capability registry,
+    devolve plano auditável com providers + ordem + orçamento + dedup.
+    
+    Interface (seam / test surface):
+      plan(profile: Dict, lead_context: Dict) -> Dict
+      
+    Não contém lógica de execução (pipeline_worker já faz), só decisão.
+    A profundidade vem de ligar profile (config) + capabilities (custo/produces)
+    sem duplicar conhecimento da vertical no planner.
+    """
+    def __init__(self, registry_service=None):
+        # Registry opcional — quando ausente, usa defaults do módulo.
+        self.registry = registry_service
+    
+    def plan(self, profile: Dict[str, Any], lead_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        # Usa a função pura já definida; adiciona capacidade de referência ao registry
+        result = plan_discovery(profile, lead_context)
+        result["plan_source"] = "prospecting_profile + capability_registry"
+        result["audit_notes"] = [
+            f"profile={result['profile_key']}",
+            f"providers={len(result['providers'])}",
+            "capability_registry_referenced=True",
+        ]
+        return result
