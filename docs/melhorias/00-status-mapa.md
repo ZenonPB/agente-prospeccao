@@ -33,7 +33,7 @@
 | 10 | `10-niche-prior-learning.md` | 🟡 | Nada implementado. Aprender prior por org × service × segment exige outcomes consolidados (ver 11/12). |
 | 11 | `11-learning-from-sales-outcomes.md` | 🟡 | Hoje há `score_feedback` (humano) + `learning_compilation_service` (regras por template × org) + `Conversion` + funil ponta-a-ponta em `/analytics/funnel`, mas **agregação por sinal/faixa/nicho/canal** que produza priors versionados ainda não existe. |
 | 12 | `12-precision-at-k.md` | 🟡 | Métrica Precision@K não implementada. Base de `prescoring_discards` está pronta para auditoria/recall, mas a janela temporal de outcome (reply/positive/meeting/won) por ranking ainda não é calculada. |
-| 13 | `13-chain-detection.md` | 🟡 | Não há detector de rede/franquia/enterprise. O `places_service` filtra por cidade/UF e o `candidate_pre_scoring` rebaixa fora do círculo, mas não classifica o TIPO de negócio. |
+| 13 | `13-chain-detection-FEITO.md` | ✅ | `detect_chain(lead_data)`: classificação INDEPENDENT/SMALL_CHAIN/FRANCHISE/ENTERPRISE/UNKNOWN com evidência + confiança. |
 | 14 | `14-decision-maker-accessibility.md` | 🟠 | Sinais individuais existem (`DECISION_MAKER_FOUND`, `Contact.confidence`, `linkedin_match_status`, `ContactRole`) — porém não há uma **dimensão explícita** `decision_maker_accessibility`/`contactability` no `score_vector` (apenas a dimensão `contactability` agregada). |
 | 15 | `15-golden-lead-patterns.md` | 🟡 | Não há matcher de padrões compostos (ex.: `landing_local_golden_v1`) — o seed Landing Pages aproxima por pesos, mas sem padrão explícito com explicação por evidência. |
 | 16 | `16-why-prospect-card-FEITO.md` | ✅ | Card do lead expõe `why_signals` (top 3 títulos de evidence). |
@@ -44,7 +44,7 @@
 | # | Doc | Status | Resumo do estado |
 |---|---|---|---|
 | 17 | `17-prospecting-profile-FEITO.md` | ✅ | `resolve_prospecting_profile` centralizado (deriva de `enrichment_steps` + override em `prescoring_config.profile`). Entidade **versionável** com discovery/decision-maker/outreach strategy segue nos docs 22/25. |
-| 18 | `18-universal-prospecting-questions.md` | 🟡 | As 6 perguntas (quem precisa, sinais de necessidade, capacidade de compra, evento, decisor, abordagem) **não estão formalizadas** num contrato único do agente — `ProspectingProfile` atual só cobre perfil + prescoring; as outras camadas continuam dispersas. |
+| 18 | `18-universal-prospecting-questions-FEITO.md` | ✅ | `build_universal_questions(profile_key)`: 6 perguntas formais (icp/need/buying_power/timing/decision_maker/outreach) + validação de cobertura. |
 | 19 | `19-icp-vs-intent-FEITO.md` | ✅ | `icp_vs_intent()` (BuyingTrigger service) distingue ICP fixo de intent temporal com classificação TIMELY/PROFILED/COLD. |
 | 20 | `20-signal-registry-FEITO.md` | ✅ | Registry universal com chaves canônicas, metadados, `make_signal` com regras epistêmicas e `merge_signals` com dedup semântico. |
 | 21 | `21-enrichment-capability-registry-FEITO.md` | ✅ | Capabilities com custo/requires/produces + planner `plan_enrichment_run` (skip/stop_after auditáveis). |
@@ -56,7 +56,7 @@
 | 27 | `27-opportunity-vector-v2-FEITO.md` | ✅ | VECTOR_WEIGHTS expandido (`icp_fit/intent/buying_power/reachability/timing` peso 0, compatível) + formula_version v2. |
 | 28 | `28-prospecting-hypothesis-FEITO.md` | ✅ | `build_hypothesis(profile_key)`: problem/hypothesis/expected_lift + key_signals. |
 | 29 | `29-epistemic-status-FEITO.md` | ✅ | `EpistemicStatus` aplicado na fábrica de sinais (FACT sem fonte rebaixado a INFERENCE; UNKNOWN sem valor; HYPOTHESIS com `evidence_refs`); prompt de scoring distingue fato/inferência/hipótese. |
-| 30 | `30-discovery-questions.md` | 🟡 | Templates seed têm `playbook`/ganchos, mas **não há `discovery_questions` por perfil/buyer_role** consumidas nas mensagens ou no roteiro de ligação. |
+| 30 | `30-discovery-questions-FEITO.md` | ✅ | `discovery_questions_for(profile_key)`: perguntas de qualificação por vertical. |
 | 31 | `31-vertical-pack-FEITO.md` | ✅ | `vertical_pack_for(profile_key)`: enrichment_pack declarativo por perfil. |
 | 32 | `32-archetypes-as-fallback.md` | 🟡 | `TemplateGenerationService` + `template_router` cobrem o fallback LLM/exact/fuzzy → Genérico, mas não há **archetype** explícito como bootstrap de um pack novo. |
 | 33 | `33-three-level-learning.md` | 🟡 | `learning_compilation_service` produz regras por **template × org**; **não há** camadas `GLOBAL`/`VERTICAL`/`ORGANIZATION` com precedência explícita. |
@@ -81,10 +81,10 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 20** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 18**
+- **Total:** 47 documentos · **✅ FEITO: 23** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 15**
 - **Cobertura por capítulo:**
-  - Descoberta/qualidade: 11 ✅, 2 🟠, 4 🟡 (de 17)
-  - Arquitetura universal: 8 ✅, 1 🟠, 8 🟡 (de 17)
+  - Descoberta/qualidade: 14 ✅, 2 🟠, 1 🟡 (de 17)
+  - Arquitetura universal: 9 ✅, 1 🟠, 7 🟡 (de 17)
   - Decisores/contatos: 1 🟠, 12 🟡 (de 13)
 
 ## Como ler este pacote na prática
