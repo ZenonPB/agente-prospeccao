@@ -33,3 +33,17 @@ class IntentEngine:
                     "source": s.get("source"),
                 })
         return results
+
+    def score_and_trigger(self, events: List[Dict], profile_key: Optional[str] = None) -> Dict:
+        """Agrega eventos de intenção em score + trigger explicável (Fase 3 melhora #24)."""
+        score = min(100, sum(int(e.get("confidence",0)*100) for e in events) // max(1,len(events)))
+        triggers = [e.get("key") for e in events if e.get("status")=="INFERENCE"]
+        return {
+            "intent_score": score,
+            "buying_trigger": ", ".join(triggers) if triggers else None,
+            "why_now": f"Eventos recentes: {', '.join(triggers)}" if triggers else None,
+            "events_count": len(events),
+            "formula_version": "intent-v1",
+            "profile_key": profile_key or "generic",
+        }
+
