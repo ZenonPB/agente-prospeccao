@@ -58,6 +58,56 @@ DEFAULT_PRESCORING_WEIGHTS: Dict[str, Dict[str, int]] = {
     },
 }
 
+# Buckets de rating_count por vertical (#09) — interpretação contextual.
+# Faixas configuráveis: mesmo contagem pode ser 'bom' num segmento e 'fraco' em outro.
+# raw rating_count é preservado; o pre-score usa a interpretação configurada.
+RATING_COUNT_BUCKETS: Dict[str, Dict[str, tuple]] = {
+    # segmento: (fraco_min, fraco_max, médio_min, médio_max, bom_min, bom_max, ótimo_min, ótimo_max)
+    "psychology":    {"fraco": (0, 4),   "médio": (5, 19),  "bom": (20, 49),  "muito_bom": (50, 149), "ótimo": (150, 400)},
+    "restaurant":   {"fraco": (0, 9),   "médio": (10, 49), "bom": (50, 149), "muito_bom": (150, 499), "ótimo": (500, 2000)},
+    "default":      {"fraco": (0, 4),   "médio": (5, 19),  "bom": (20, 49),  "muito_bom": (50, 149),  "ótimo": (150, 400)},
+}
+
+
+def interpret_rating_count(profile_key: str, raw_count: Optional[int], segment: Optional[str] = None) -> Dict[str, Any]:
+    """Interpreta rating_count como sinal contextual por vertical (#09).
+
+    Args:
+        profile_key: chave do perfil de prospecção.
+        raw_count: valor bruto do rating_count (preservado, nunca descartado).
+        segment: subnicho/segmento para buckets mais granulares (ex.: 'psychology', 'restaurant').
+
+    Returns:
+        dict com `raw`, `bucket`, `signal_score` (0-100) e `interpretation`.
+    """
+    raw = raw_count or 0
+    if not segment:
+        # Inferir segmento a partir do profile
+        segment = "default"
+    buckets = RATING_COUNT_BUCKETS.get(segment, RATING_COUNT_BUCKETS.get("default"))
+
+    bucket = "fraco"
+    for level, (lo, hi) in buckets.items():
+        if lo <= raw <= hi:
+            bucket = level
+            break
+    else:
+        # Acima do ótimo máximo
+        bucket = "ótimo" if raw > 0 else "fraco"
+
+    # Converter bucket para score normalizado 0-100
+    level_scores = {"fraco": 15, "médio": 40, "bom": 65, "muito_bom": 85, "ótimo": 100}
+    score = level_scores.get(bucket, 15)
+
+    return {
+        "raw": raw,
+        "bucket": bucket,
+        "signal_score": score,
+        "interpretation": f"rating_count={raw} classificado como '{bucket}' para segmento '{segment}'",
+        "source": "rating_count_buckets",
+    }
+
+
 # Threshold default conservador: descarta só o claramente sem presença.
 DEFAULT_PRESCORING_THRESHOLD = 40
 

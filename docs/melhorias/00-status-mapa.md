@@ -29,7 +29,7 @@
 | 06 | `06-candidate-vs-lead-FEITO.md` | ✅ | Candidate como estado lógico no pipeline; descarte persistido em `prescoring_discards` (idempotente). Tabela física fica para quando métricas de retrieval exigirem. |
 | 07 | `07-budgeted-enrichment-FEITO.md` | ✅ | Candidatos abaixo do threshold não viram Lead nem consomem CNPJ/site/LLM/contato. |
 | 08 | `08-enrichment-order-by-service-FEITO.md` | ✅ | Ordem + skip + stop_after declarados em `enrichment_strategy`; planner `plan_enrichment_run` auditável. |
-| 09 | `09-rating-count-by-vertical.md` | 🟡 | `GOOGLE_RATING`/`GOOGLE_RATING_COUNT` são sinais canônicos e o pre-score já usa `GOOGLE_RATING_COUNT` por perfil, mas **buckets nomeados por vertical** (fraco/médio/bom/ótimo) não existem — ainda é peso linear. |
+| 09 | `09-rating-count-by-vertical-FEITO.md` | ✅ | `interpret_rating_count(profile_key, raw_count, segment)`: buckets por vertical (fraco/médio/bom/muito_bom/ótimo) com score 0-100. |
 | 10 | `10-niche-prior-learning.md` | 🟡 | Nada implementado. Aprender prior por org × service × segment exige outcomes consolidados (ver 11/12). |
 | 11 | `11-learning-from-sales-outcomes.md` | 🟡 | Hoje há `score_feedback` (humano) + `learning_compilation_service` (regras por template × org) + `Conversion` + funil ponta-a-ponta em `/analytics/funnel`, mas **agregação por sinal/faixa/nicho/canal** que produza priors versionados ainda não existe. |
 | 12 | `12-precision-at-k.md` | 🟡 | Métrica Precision@K não implementada. Base de `prescoring_discards` está pronta para auditoria/recall, mas a janela temporal de outcome (reply/positive/meeting/won) por ranking ainda não é calculada. |
@@ -81,9 +81,9 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 23** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 15**
+- **Total:** 47 documentos · **✅ FEITO: 24** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 14**
 - **Cobertura por capítulo:**
-  - Descoberta/qualidade: 14 ✅, 2 🟠, 1 🟡 (de 17)
+  - Descoberta/qualidade: 15 ✅, 2 🟠, 0 🟡 (de 17)
   - Arquitetura universal: 9 ✅, 1 🟠, 7 🟡 (de 17)
   - Decisores/contatos: 1 🟠, 12 🟡 (de 13)
 
