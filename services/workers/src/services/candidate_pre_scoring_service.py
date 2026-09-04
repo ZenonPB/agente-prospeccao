@@ -110,7 +110,7 @@ class CandidatePreScoringService:
             [{signal, impact, evidence}], `signals` (registry v0),
             `eligible_for_enrichment` (score >= threshold) e `summary`.
         """
-                weights: Dict[str, Any] = profile.get("prescoring", {}).get("weights", {})
+        weights: Dict[str, Any] = profile.get("prescoring", {}).get("weights", {})
         threshold = profile.get("prescoring", {}).get("threshold", 0)
         prescoring = profile.get("prescoring", {})
 
