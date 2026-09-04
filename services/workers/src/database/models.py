@@ -969,6 +969,39 @@ class Conversion(Base):
         return f"<Conversion(id='{self.id}', lead_id='{self.lead_id}', service='{self.service_sold}')>"
 
 
+class PrescoringDiscard(Base):
+    """Candidato de discovery descartado pelo gate de pré-scoring.
+
+    Auditoria dos falsos-negativos em potencial (docs/melhorias/01/06):
+    permite revisão humana dos descartes e recalibração do threshold sem
+    perder candidatos. Upsert idempotente por (campaign_id, place_id) —
+    re-coleta atualiza o registro em vez de duplicar.
+    """
+
+    __tablename__ = "prescoring_discards"
+    __table_args__ = (
+        UniqueConstraint("campaign_id", "place_id", name="uq_prescoring_discards_campaign_place"),
+        Index("ix_prescoring_discards_org_created", "organization_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    job_id = Column(UUID(as_uuid=True), nullable=True)
+    place_id = Column(String(255), nullable=True)
+    company_name = Column(String(255))
+    # Item bruto de coleta + sinais FACT usados no score — reprocesse sem
+    # tocar a API do Places.
+    candidate_data = Column(JSONB)
+    signals = Column(JSONB)
+    discovery_score = Column(Integer)
+    threshold = Column(Integer)
+    profile_key = Column(String(50))
+    # "below_threshold" (score insuficiente) ou "top_k_cut" (elegível, mas
+    # fora do teto por lote).
+    reason = Column(String(30), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class LeadActivityAction(enum.Enum):
     """Ações registradas na trilha do lead.
 

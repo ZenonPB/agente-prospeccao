@@ -57,3 +57,13 @@ def test_normalize_response_preserva_formula_version():
         "score_vector": {"need": 80, "formula_version": "erp-v2"},
     })
     assert out["score_vector"]["formula_version"] == "erp-v2"
+
+
+def test_overall_nao_conta_formula_version_na_media():
+    """Bug corrigido: com o código antigo, 80+60 dividia por 3 (contava
+    formula_version como dimensão) → 47; correto é média das dimensões = 70."""
+    svc = AIScoringService()
+    out = svc._normalize_response({
+        "score_vector": {"need": 80, "icp_fit": 60, "formula_version": "erp-v2"},
+    })
+    assert out["score_vector"]["overall"] == 70

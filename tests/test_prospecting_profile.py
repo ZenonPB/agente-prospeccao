@@ -4,6 +4,9 @@ from services.prospecting_profile_service import (
     PROFILE_BUSINESS,
     PROFILE_INDUSTRIAL,
     PROFILE_WEB_PRESENCE,
+    STEP_BUSINESS_SOCIAL,
+    STEP_CNPJ_RECEITA,
+    STEP_TECHNICAL_SITE,
     derive_profile_key,
     resolve_prospecting_profile,
 )
@@ -59,3 +62,26 @@ def test_config_invalida_cai_no_default():
     })
     assert profile["profile_key"] == PROFILE_BUSINESS
     assert profile["prescoring"]["threshold"] > 0
+
+
+def test_top_k_booleano_e_ignorado():
+    profile = resolve_prospecting_profile({
+        "enrichment_steps": ["technical_site"],
+        "prescoring_config": {"profile": "web_presence", "top_k": True},
+    })
+    assert profile["prescoring"]["top_k"] is None
+
+
+def test_top_k_valido_e_preservado():
+    profile = resolve_prospecting_profile({
+        "enrichment_steps": ["technical_site"],
+        "prescoring_config": {"profile": "web_presence", "top_k": 7},
+    })
+    assert profile["prescoring"]["top_k"] == 7
+
+
+def test_step_constants_sao_a_fonte_da_derivacao():
+    """Renomear um step aqui quebra a derivação — teste guarda-chuva."""
+    assert STEP_TECHNICAL_SITE == "technical_site"
+    assert STEP_CNPJ_RECEITA == "cnpj_receita"
+    assert STEP_BUSINESS_SOCIAL == "business_social"

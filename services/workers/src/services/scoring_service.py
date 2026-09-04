@@ -853,11 +853,14 @@ class AIScoringService:
                 if isinstance(v, (int, float)) and not isinstance(v, bool)
             }
             if clean_vector:
+                # Dimensões = chaves numéricas, excluindo metadados; `overall`
+                # é média SÓ das dimensões (formula_version não é dimensão).
+                dims = [
+                    v for k, v in clean_vector.items()
+                    if k not in ("formula_version", "overall")
+                ]
                 if "overall" not in clean_vector:
-                    clean_vector["overall"] = round(
-                        sum(v for k, v in clean_vector.items() if k != "formula_version")
-                        / len(clean_vector)
-                    )
+                    clean_vector["overall"] = round(sum(dims) / len(dims))
                 clean_vector.setdefault("formula_version", "generic-v1")
                 raw_version = raw_vector.get("formula_version")
                 if isinstance(raw_version, str) and raw_version.strip():

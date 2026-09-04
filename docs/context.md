@@ -970,6 +970,25 @@ Branch `feat/universal-sector-scoring`:
 
 ### Próximo passo imediato
 
+> **Atualizado 2026-09-04 — Correções da revisão crítica da Fase 1 (branch `fix/prescoring-revisao-fase1`):**
+>
+> - `prescoring_discards` (migration `f1a2b3c4d5e6`): descartados do gate
+>     agora são auditados com `reason` (`below_threshold` × `top_k_cut`),
+>     item bruto + sinais FACT para reprocessamento; upsert idempotente por
+>     (campaign_id, place_id). Persistência via callback `persist_fn` —
+>     serviço continua sem DB e falha de auditoria não bloqueia o pipeline.
+> - Stats do job separam `below_threshold` de `top_k_cut`
+>     (`prescoring_breakdown`); `prescoring_discarded` segue int (compat).
+> - `enrichment_steps` deriva de constantes compartilhadas
+>     (`STEP_TECHNICAL_SITE` etc. em `prospecting_profile_service`) — sem
+>     string literal solta; warning quando gate ligado sem `profile`.
+> - Peso órfão no `weights` (typo de config) agora loga warning por lote;
+>     `top_k` booleano é ignorado.
+> - Bug corrigido: `overall` do `score_vector` dividia por
+>     `formula_version` quando a LLM a enviava sem `overall`.
+> - **Validado:** 569 testes (10 novos), compileall, migration em Postgres
+>     real + smoke de idempotência do upsert.
+
 > **Atualizado 2026-09-04 — Fundação de pre-scoring por perfil de prospecção (Fase 1 do plano de melhorias):**
 >
 > - `resolve_prospecting_profile` (`prospecting_profile_service.py`): perfil da

@@ -21,6 +21,12 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# Fonte única dos nomes de enrichment steps usados na derivação do perfil —
+# nunca comparar string literal solta; renomear um step só muda aqui.
+STEP_TECHNICAL_SITE = "technical_site"
+STEP_CNPJ_RECEITA = "cnpj_receita"
+STEP_BUSINESS_SOCIAL = "business_social"
+
 PROFILE_WEB_PRESENCE = "web_presence"
 PROFILE_BUSINESS = "business_opportunity"
 PROFILE_INDUSTRIAL = "industrial"
@@ -70,9 +76,9 @@ def derive_profile_key(scoring_template: Optional[Dict[str, Any]]) -> str:
         return PROFILE_WEB_PRESENCE
 
     steps = scoring_template.get("enrichment_steps") or []
-    if "technical_site" in steps:
+    if STEP_TECHNICAL_SITE in steps:
         return PROFILE_WEB_PRESENCE
-    if "cnpj_receita" in steps or "business_social" in steps:
+    if STEP_CNPJ_RECEITA in steps or STEP_BUSINESS_SOCIAL in steps:
         return PROFILE_BUSINESS
     return PROFILE_WEB_PRESENCE
 
@@ -107,6 +113,13 @@ def resolve_prospecting_profile(
                 "prescoring_config.profile inválido (%s) — derivando dos steps",
                 profile_key,
             )
+        elif config.get("enabled"):
+            # Gate ligado sem perfil explícito: funciona (deriva), mas é
+            # frágil — a derivação depende dos steps do template.
+            logger.warning(
+                "prescoring_config.enabled=true sem `profile` — perfil "
+                "derivado de enrichment_steps; declare `profile` explicitamente"
+            )
         profile_key = derive_profile_key(scoring_template)
         profile_source = "derived"
 
@@ -121,7 +134,7 @@ def resolve_prospecting_profile(
     threshold = max(0, min(100, threshold))
 
     top_k = config.get("top_k")
-    if isinstance(top_k, int) and top_k > 0:
+    if isinstance(top_k, int) and not isinstance(top_k, bool) and top_k > 0:
         top_k = top_k
     else:
         top_k = None
