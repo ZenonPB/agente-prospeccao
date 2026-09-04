@@ -224,3 +224,56 @@ oportunidade com evidência."
 
 ### Tests: 17 (14 unit + 3 integration). Suite total: 178.
 
+
+---
+
+## Fase F — Event Discovery (Troféus)
+
+> **Status:** ✅ COMPLETE (consolidação §Fase F).
+
+**Contexto AlphaMec:** Principal motor de receita é venda de troféus
+para eventos esportivos/corporativos sazonais. O pipeline de Event
+Discovery é o **coração do funil** da EJ.
+
+### Critério satisfeito
+
+> "Sistema consegue transformar um evento futuro em oportunidade
+> comercial rastreável."
+
+Validado por tests:
+- Copa Paulista de Karate em 30 dias → organizador resolvido + timing 80+ + match trophies
+- 5 eventos (3 duplicados) → 4 únicos ranqueados por urgência
+
+### Componentes
+
+| Componente | Responsabilidade |
+|---|---|
+| `EventOpportunity` | Entidade com event_date/expires_at/registration_status |
+| `EventDiscoveryProvider` (Protocol) | Contract: name + `async discover()` |
+| `EventDiscoveryRegistry` | Mapa de providers |
+| `EventDiscoveryExecutor` | Pipeline: provider → organizer → timing → match |
+| `OrganizerResolver` | Resolve nome → federação (cadastro + fuzzy) |
+| `EventTimingScorer` | Urgência 0-100 (sweet spot 7-60 dias) |
+| `SportsFederationProvider` | Adapter para federações (stub testável) |
+
+### Timing Score
+
+| Dias até evento | Urgência | Score |
+|---|---|---|
+| 0 (hoje) | today | 100 |
+| 1-6 | high | 90 |
+| 7-30 | high | 100 |
+| 31-60 | medium | 100 |
+| 61-180 | low | 40-80 |
+| 180+ | very_low | 10-40 |
+| passado | expired | 0 |
+
+### Bugfixes reais encontrados durante TDD
+
+1. `EventOpportunity` era `frozen=True` → quebrava deepcopy em tests
+2. `asdict()` não funciona com nested `mappingproxy` (organizer/timing)
+3. Executor não executava providers quando plan era vazio
+4. `EventTimingScorer` decaimento pouco agressivo para eventos > 180 dias
+
+### Tests: 21 (19 unit + 2 integration cenários AlphaMec). Suite total: 199.
+
