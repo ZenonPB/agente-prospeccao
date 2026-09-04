@@ -98,6 +98,11 @@ A partir de 2026-07-09, todo o código usa:
 | Score não muda automaticamente com Instagram ativo | Item 4.26 — manter `qualification_score` determinístico; o sinal entra como `evidence` no prompt e o consultor vê o link no pitch. |
 | 4.27 pragmático — `GET /api/leads/{id}/duplicates` (visibilidade) sem mutação | Item 4.27 — reaproveitamento real entre leads exige modelo Company/Person/Employment (refactor > 1 semana, alto risco para uma branch). Por enquanto, exibimos matches prováveis (CNPJ/domínio/e-mail/LinkedIn de contato) na UI do lead e registramos a decisão de adiar. |
 | ADR para registrar adios (4.20 Drive, 4.27 modelo 3 entidades) | Sem o registro, o item some do roadmap. Decisão escrita no `decisions.md` mantém rastreio. |
+| Candidate como estado no pipeline, não tabela (fase 1 do plano de melhorias) | Doc 06 sugere começar lógico; gate de promoção com descarte dá o ganho de custo imediato sem migration de entidade nova. Tabela `Candidate` só quando houver métrica de retrieval/auditoria de descartes que a exija. |
+| Perfil da vertical derivado de `enrichment_steps` + `prescoring_config` no template (não de regex no core) | Engine genérico: adicionar vertical = inserir config; `resolve_prospecting_profile` é o único ponto de interpretação da vertical. Regexes do `scoring_service` ficam como fallback legado até revalidação dos fixes de falso-positivo ERP. |
+| Pre-scoring desligado por padrão em código; ativado por `prescoring_config.enabled` no template | Compatibilidade: campanhas/templates existentes mantêm o fluxo atual até o seed aplicar config; comportamento novo é explícito e auditável (log + `prescoring_discarded`). |
+| `leads.score_vector` JSONB ao lado de `qualification_score` (sem substituir) | Doc 02 exige migração gradual; score legado é a fonte de verdade do funil (UI/BI/endpoints). Dimensões são opcionais — contrato pronto, geração vem depois. |
+| Pre-scoring 100% determinístico (sem LLM), pesos no template | Custo: roda sobre sinais já coletados; doc 01 proíbe LLM no pre-score. Pesos por vertical permitem "sem site + Instagram" pontuar alto em Landing e quase nada em Engenharia. |
 
 ## Issues Conhecidas (resolvidas)
 Todas as 11 issues da revisão de segurança foram corrigidas (2026-07-09). A lista completa com status está no histórico do `docs/context.md`.
