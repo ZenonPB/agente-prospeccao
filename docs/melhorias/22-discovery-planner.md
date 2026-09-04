@@ -1,6 +1,6 @@
 # Discovery Planner orientado pela oferta
 
-> **Status: 🟡 Proposto 2192 🟠 PARCIAL (fundação pronta)**  
+> **Status: ✅ FEITO (fundação completa) — DiscoveryPlanner serviço criado (seam profundo), testado, com interface plan(). Próximo: integrar ao pipeline_worker.**
 > **Prioridade: P0**  
 > **Domínio: Architecture / Discovery**
 
