@@ -188,3 +188,13 @@ def resolve_prospecting_profile(
             "on_insufficient_data": on_insufficient,
         },
     }
+
+# Constantes de vertical extraídas do scoring_service (item 3 da Fase 2)
+_WEB_PRESENCE_LABELS_CONFIG = frozenset({
+    "desenvolvimento de sites", "seo / marketing digital",
+})
+_ERP_WEBAPP_LABELS_CONFIG = frozenset({
+    "aplicações web / erp", "sistemas web / erp",
+    "aplicações web completas", "erp personalizado",
+    "sistema web sob medida",
+})
