@@ -164,6 +164,13 @@ def _lead_summary(lead: Lead) -> dict:
         "priority_reasoning": lead.priority_reasoning,
         "executive_summary": lead.executive_summary,
         "pitch_angle": lead.pitch_angle,
+        # Vetor multidimensional (docs/melhorias/02) + sinais explicativos do
+        # card (doc 16): só titles de evidence — nada inventado fora deles.
+        "score_vector": lead.score_vector,
+        "why_signals": [
+            str(e.get("title")) for e in (lead.evidence or [])[:3]
+            if isinstance(e, dict) and e.get("title")
+        ],
         "suggested_subject": lead.suggested_subject,
         "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,

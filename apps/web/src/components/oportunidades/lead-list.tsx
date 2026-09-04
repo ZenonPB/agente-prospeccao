@@ -15,6 +15,7 @@ import {
 } from '@/hooks/use-api';
 import type { Lead } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WhyProspectSignals } from '@/components/oportunidades/why-prospect-signals';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
@@ -522,6 +523,7 @@ export function LeadList() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 text-sm">
+                        <WhyProspectSignals signals={lead.why_signals} />
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Necessidade:</span>
                           <Badge variant="outline" className="text-xs">

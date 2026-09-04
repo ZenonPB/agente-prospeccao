@@ -273,6 +273,24 @@ def _ground_pitch_fields(
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_MODEL = settings.GROQ_MODEL_CLASSIFY
 
+# Pesos de agregação do score vetorial POR PERFIL (docs/melhorias/02):
+# web_presence valoriza maturidade digital; business_opportunity valoriza
+# necessidade + fit comercial. Chaves fora do perfil caem no `generic`.
+VECTOR_WEIGHTS = {
+    "web_presence": {
+        "need": 0.25, "commercial_fit": 0.2,
+        "digital_maturity": 0.4, "contactability": 0.15,
+    },
+    "business_opportunity": {
+        "need": 0.35, "commercial_fit": 0.35,
+        "digital_maturity": 0.15, "contactability": 0.15,
+    },
+    "generic": {
+        "need": 0.25, "commercial_fit": 0.25,
+        "digital_maturity": 0.25, "contactability": 0.25,
+    },
+}
+
 SYSTEM_PROMPT = (
     "Você é um consultor comercial B2B especializado em prospecção qualificada. "
     "Avalia empresas com base no CONTEXTO da campanha (serviço que se quer vender + "
@@ -330,6 +348,13 @@ Retorne um JSON com EXATAMENTE esta estrutura:
       "evidence_ref": "<reference pelo title em evidence[]>"
     }
   ],
+  "score_vector": {
+    "need": <0-100: intensidade da necessidade pela nossa oferta>,
+    "commercial_fit": <0-100: capacidade/propensão de compra>,
+    "digital_maturity": <0-100: maturidade digital atual>,
+    "contactability": <0-100: facilidade de contato (canais, decisor)>,
+    "rationale": "<1 frase: evidência principal por dimensão>"
+  },
   "evidence": [
     {
       "type": "<'technical' | 'business' | 'context'>",
@@ -757,6 +782,7 @@ class AIScoringService:
         parsed: Dict[str, Any],
         has_website: Optional[bool] = None,
         target_service: str = "",
+        profile_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Normaliza e valida o JSON devolvido pela LLM.
 
@@ -848,9 +874,12 @@ class AIScoringService:
             })
         parsed["score_factors"] = clean_factors
 
-        # Vetor multidimensional (docs/melhorias/02): aceito quando a LLM
-        # devolve dimensões; clamp 0-100 e `overall` derivado da média quando
-        # ausente. Sem dimensões devolvidas, fica ausente (compatibilidade).
+        # Vetor multidimensional (docs/melhorias/02): a LLM devolve dimensões
+        # independentes (need/commercial_fit/digital_maturity/contactability);
+        # clamp 0-100 e `overall` agregado com pesos POR PERFIL (nunca média
+        # opaca) — formula_version registra o perfil usado para auditoria.
+        # Sem dimensões devolvidas, fica ausente (compatibilidade: score
+        # legado segue fonte de verdade do funil).
         raw_vector = parsed.get("score_vector")
         if isinstance(raw_vector, dict):
             clean_vector = {
@@ -859,18 +888,23 @@ class AIScoringService:
                 if isinstance(v, (int, float)) and not isinstance(v, bool)
             }
             if clean_vector:
-                # Dimensões = chaves numéricas, excluindo metadados; `overall`
-                # é média SÓ das dimensões (formula_version não é dimensão).
-                dims = [
-                    v for k, v in clean_vector.items()
-                    if k not in ("formula_version", "overall")
-                ]
-                if "overall" not in clean_vector:
-                    clean_vector["overall"] = round(sum(dims) / len(dims))
-                clean_vector.setdefault("formula_version", "generic-v1")
-                raw_version = raw_vector.get("formula_version")
-                if isinstance(raw_version, str) and raw_version.strip():
-                    clean_vector["formula_version"] = raw_version.strip()[:60]
+                profile = profile_key or "generic"
+                weights = VECTOR_WEIGHTS.get(profile, VECTOR_WEIGHTS["generic"])
+                present = {k: v for k, v in clean_vector.items() if k in weights}
+                if present:
+                    wsum = sum(weights[k] for k in present)
+                    clean_vector["overall"] = round(
+                        sum(present[k] * weights[k] for k in present) / wsum
+                    )
+                elif "overall" in clean_vector:
+                    clean_vector["overall"] = max(0, min(100, int(clean_vector["overall"])))
+                else:
+                    clean_vector["overall"] = round(
+                        sum(clean_vector.values()) / len(clean_vector))
+                clean_vector["formula_version"] = f"vector-v1-{profile}"[:60]
+                rationale = str(raw_vector.get("rationale") or "").strip()
+                if rationale:
+                    clean_vector["rationale"] = rationale[:300]
                 parsed["score_vector"] = clean_vector
             else:
                 parsed.pop("score_vector", None)
@@ -886,6 +920,7 @@ class AIScoringService:
         db=None,
         organization_id: Optional[str] = None,
         target_service: str = "",
+        profile_key: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         from services.provider_client import groq_json_chat
 
@@ -901,7 +936,10 @@ class AIScoringService:
         )
         if parsed is None:
             return None
-        return self._normalize_response(parsed, has_website=has_website, target_service=target_service)
+        return self._normalize_response(
+            parsed, has_website=has_website, target_service=target_service,
+            profile_key=profile_key,
+        )
 
     # ---------- API pública ----------
 
@@ -966,9 +1004,13 @@ class AIScoringService:
             business_facts=business_facts,
             learned_instructions=learned_instructions,
         )
+        # Perfil do template decide os pesos do score vetorial (doc 02).
+        from services.prospecting_profile_service import derive_profile_key
+        profile_key = derive_profile_key(template)
         return await self._call_groq(
             prompt, has_website=bool(website), db=db,
             organization_id=organization_id, target_service=target_service,
+            profile_key=profile_key,
         )
 
     async def score_business_lead(
@@ -1016,9 +1058,12 @@ class AIScoringService:
         )
         # Guard determinístico de presença de site: sem site → remove
         # evidências que afirmem que o lead TEM site.
+        from services.prospecting_profile_service import derive_profile_key
+        profile_key = derive_profile_key(template)
         return await self._call_groq(
             prompt, has_website=bool(website), db=db,
             organization_id=organization_id, target_service=target_service,
+            profile_key=profile_key,
         )
 
 
