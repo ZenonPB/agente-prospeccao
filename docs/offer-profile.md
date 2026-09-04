@@ -191,3 +191,36 @@ class DiscoveryProvider(Protocol):
 
 ### Tests: 13 (9 unit + 4 integration). Total suite: 157.
 
+
+---
+
+## Fase E — Intent Provider Real
+
+> **Status:** ✅ COMPLETE (consolidação §Fase E).
+
+Critério satisfeito: "Um evento real coletado altera timing/intent da
+oportunidade com evidência."
+
+### Producers (substituem o "fabricador de eventos" do IntentEngine)
+
+| Provider | Fonte | Padrões |
+|---|---|---|
+| `WebsiteIntentProvider` | HTML do site | carreira, job, produto, expansão |
+| `JobPostingIntentProvider` | Job boards | vagas com `posted_at` |
+
+### `IntentScorer` (decay temporal)
+
+- Decay linear: `score = confidence * max(0, 1 - days_since / decay_days)`
+- Sem `observed_at` → não aplica decay (consolidação §27: não esconder UNKNOWN)
+- `trigger_threshold` por oferta (via `OfferProfile.intent`)
+- Retorna `triggered: bool` (≥ threshold)
+
+### Como adicionar novo producer
+
+1. Criar classe que implementa `IntentProvider` (name + `async collect`)
+2. `IntentProviderRegistry.register(provider)`
+3. Adicionar ao `build_default_intent_registry()` se for padrão
+4. **Pipeline não muda** — registry é consultado pelo orchestrator
+
+### Tests: 17 (14 unit + 3 integration). Suite total: 178.
+
