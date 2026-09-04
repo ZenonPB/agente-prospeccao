@@ -269,3 +269,8 @@ silenciosamente caem no default — bug latente.
 #4 _serialize audit: confirmado OK (prescoring_config + enrichment_strategy já inclusos)
 #6 prescoring_discarded int -> documentado como legado (não urgente)
 #11 doc sync (decisions.md/context.md) -> documentado, não bloqueia
+#4 _serialize: OK (prescoring_config + enrichment_strategy inclusos) - documentado
+#6 prescoring_discarded int -> documentado como legado (não urgente, compatível)
+#10 observabilidade: endpoint /api/campaigns/{id}/prescoring-stats já criado (item #2), stats do job já existem — documentado
+#11 doc sync (decisions.md/context.md) -> atualizado contexto com Fase 3
+#12 UX mobile: why_signals já ordenado por severidade e cortado a 3 — adiciona truncate fallback
