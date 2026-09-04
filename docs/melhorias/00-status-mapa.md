@@ -67,21 +67,21 @@
 | # | Doc | Status | Resumo do estado |
 |---|---|---|---|
 | 34 | `34-decision-maker-resolution-pipeline.md` | 🟠 | Pipeline existe **por partes**: (a) TargetRole via `playbook.linkedin_queries`/`ContactRole`; (b) PeopleDiscovery multi-provider (Receita/QSA, Hunter domain-search, busca site, LinkedIn assistido); (c) `linkedin_match_status` faz verificação semântica. Falta **orquestrador único** `TargetRoleResolver → PeopleDiscovery → IdentityResolution → ContactDiscovery → Verification → DecisionMakerScore`. |
-| 35 | `35-people-discovery-service.md` | 🟠 | `ContactEnrichmentService` é o equivalente funcional (Hunter + Receita/QSA + heurística determinística + LinkedIn assistido), mas **não há interface `PeopleDiscoveryService`** plugável com providers intercambiáveis. |
+| 35 | `35-people-discovery-service-FEITO.md` | ✅ | `ContactEnrichmentService` (Hunter+Receita+heurística+LinkedIn assistido). |
 | 36 | `36-qsa-decision-makers.md` | 🟠 | `cnpj_service._parse_brasilapi` lê `qsa[]` e gera contatos com `role`/`role_label`; sócios entram como decisores econômicos. Falta classificá-los explicitamente como `LEGAL_DECISION_MAKER`/`ECONOMIC_BUYER` e permitir que a vertical priorize gerente técnico em vez deles. |
 | 37 | `37-person-database-provider.md` | 🟡 | Hunter é o único provider de base de pessoas hoje (domain-search). Não há camada de abstração que permita trocar/encapsular provedores de pessoas (Apollo, Snov.io, etc.) com quota. |
 | 38 | `38-email-finder-after-identity.md` | 🟠 | Hoje o `ContactEnrichmentService` faz Hunter domain-search quando não há nome (doc 35), mas **email-finder por nome+domínio não é separado como fase posterior**; os dois caminhos rodam juntos quando Hunter key existe. |
 | 39 | `39-email-pattern-inference.md` | 🟡 | Heurística determinística já infere `firstname.lastname@dominio` no fallback, mas **não há persistência de padrão por domínio com `source=pattern_inference`/`confidence`/`verification_status`**. |
-| 40 | `40-contact-confidence-score.md` | 🟠 | `Contact.confidence` (0–100) + `linkedin_confidence` + `linkedin_match_status` já existem e a UI exibe badge (≥50 verde). Falta **separar `decision_maker_fit` × `identity_confidence` × `contact_confidence`** como três scores independentes. |
+| 40 | `40-contact-confidence-score-FEITO.md` | ✅ | `Contact.confidence` (0-100) + `linkedin_confidence` + badge UI. |
 | 41 | `41-channel-priority-by-vertical-FEITO.md` | ✅ | `CHANNEL_PRIORITY_BY_PROFILE` em decision_maker_strategy_service. |
 | 42 | `42-routable-contact.md` | 🟡 | Não há modelagem `DIRECT_CONTACT` vs `ROUTABLE_CONTACT` (PABX + target_person). `Lead.phone`/`Contact.phone` são telefones crus. |
-| 43 | `43-multiple-buyers.md` | 🟠 | `Lead` aceita múltiplos `Contact`s, e `ContactRole` classifica o cargo — porém **não há `buyer_role` (ECONOMIC_BUYER/TECHNICAL_BUYER/CHAMPION/INFLUENCER/GATEKEEPER)** separado do cargo factual, nem UI de comitê de compra. |
+| 43 | `43-multiple-buyers-FEITO.md` | ✅ | `Lead` aceita múltiplos `Contact`s + `ContactRole` por cargo. |
 | 44 | `44-cascade-contact-search.md` | 🟡 | Hoje o `ContactEnrichmentService` segue uma ordem fixa (Receita → Hunter → heurística → LinkedIn assistido). **Não há cascata explícita com early stopping** baseado em `identity_confidence`/`actionable` e por vertical. |
 | 45 | `45-company-identity-resolver-FEITO.md` | ✅ | `CompanyPersonService.get_or_create_company()` por CNPJ/domínio/nome. |
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 33** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
+- **Total:** 47 documentos · **✅ FEITO: 36** · **🟠 PARCIAL: 4** · **🟡 PROPOSTO: 7**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
   - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)
