@@ -66,7 +66,7 @@
 
 | # | Doc | Status | Resumo do estado |
 |---|---|---|---|
-| 34 | `34-decision-maker-resolution-pipeline.md` | 🟠 | Pipeline existe **por partes**: (a) TargetRole via `playbook.linkedin_queries`/`ContactRole`; (b) PeopleDiscovery multi-provider (Receita/QSA, Hunter domain-search, busca site, LinkedIn assistido); (c) `linkedin_match_status` faz verificação semântica. Falta **orquestrador único** `TargetRoleResolver → PeopleDiscovery → IdentityResolution → ContactDiscovery → Verification → DecisionMakerScore`. |
+| 34 | `34-decision-maker-resolution-pipeline-FEITO.md` | ✅ | `run_decision_maker_pipeline(lead, profile)`: target_roles + chain + contact_strategy + accessibility. |
 | 35 | `35-people-discovery-service-FEITO.md` | ✅ | `ContactEnrichmentService` (Hunter+Receita+heurística+LinkedIn assistido). |
 | 36 | `36-qsa-decision-makers.md` | 🟠 | `cnpj_service._parse_brasilapi` lê `qsa[]` e gera contatos com `role`/`role_label`; sócios entram como decisores econômicos. Falta classificá-los explicitamente como `LEGAL_DECISION_MAKER`/`ECONOMIC_BUYER` e permitir que a vertical priorize gerente técnico em vez deles. |
 | 37 | `37-person-database-provider.md` | 🟡 | Hunter é o único provider de base de pessoas hoje (domain-search). Não há camada de abstração que permita trocar/encapsular provedores de pessoas (Apollo, Snov.io, etc.) com quota. |
@@ -81,7 +81,7 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 36** · **🟠 PARCIAL: 4** · **🟡 PROPOSTO: 7**
+- **Total:** 47 documentos · **✅ FEITO: 37** · **🟠 PARCIAL: 3** · **🟡 PROPOSTO: 7**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
   - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)
