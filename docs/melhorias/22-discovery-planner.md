@@ -1,6 +1,6 @@
 # Discovery Planner orientado pela oferta
 
-> **Status: 🟡 Proposto**  
+> **Status: 🟡 Proposto 2192 🟠 PARCIAL (fundação pronta)**  
 > **Prioridade: P0**  
 > **Domínio: Architecture / Discovery**
 
