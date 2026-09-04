@@ -250,13 +250,36 @@ class ContactVerification:
         person: PersonContact,
         mock_mx_check: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Verifica email + identidade."""
+        """Verifica email + identidade.
+
+        Se `mock_mx_check` for fornecido, usa-o (testabilidade). Senão,
+        tenta usar o EmailVerificationService real (sem dependência
+        forçada — se não disponível, marca como `pending_real_check`).
+        """
         # Email verification
         email_verified = False
-        if person.email and mock_mx_check and not self._is_heuristic_source(person):
+        mx_check = mock_mx_check
+        if mx_check is None and person.email and not self._is_heuristic_source(person):
+            # Tenta usar o serviço real
+            try:
+                from services.email_verification_service import EmailVerificationService
+                _svc = EmailVerificationService()
+                # Usa o método de check de domínio (síncrono ou acessível)
+                def _real_mx(domain):
+                    try:
+                        # O serviço expõe verificação assíncrona; para sync
+                        # usamos o check_syntax + MX lookup via método público
+                        result = _svc.check_domain_mx(domain)
+                        return bool(result and result.get("has_mx"))
+                    except Exception:
+                        return False
+                mx_check = _real_mx
+            except Exception:
+                mx_check = None
+        if person.email and mx_check and not self._is_heuristic_source(person):
             try:
                 domain = person.email.split("@", 1)[-1].lower()
-                email_verified = bool(mock_mx_check(domain))
+                email_verified = bool(mx_check(domain))
             except Exception:
                 email_verified = False
         # Identity verification: tem CPF
@@ -267,7 +290,7 @@ class ContactVerification:
         return {
             "email_verified": email_verified,
             "identity_verified": identity_verified,
-            "verification_status": self._status(person, email_verified, identity_verified),
+            "verification_status": self._status(person, email_verified, identity_verified, mock_mx_check),
             "source": person.source,
             "has_email": bool(person.email),
             "has_cpf": bool(person.document_cpf),
@@ -278,6 +301,7 @@ class ContactVerification:
 
     def _status(
         self, person: PersonContact, email_verified: bool, identity_verified: bool,
+        mock_mx_check: Optional[Any] = None,
     ) -> str:
         if email_verified and identity_verified:
             return "fully_verified"
@@ -285,6 +309,9 @@ class ContactVerification:
             return "identity_verified_no_email"
         if email_verified:
             return "email_verified_no_identity"
+        # Tem email mas não foi verificado e não tem mock = pendente de check real
+        if person.email and mock_mx_check is None and not self._is_heuristic_source(person):
+            return "pending_real_check"
         if person.email or person.document_cpf:
             return "partial"
         return "no_email"

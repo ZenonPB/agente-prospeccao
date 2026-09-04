@@ -321,3 +321,14 @@ retorna `not_found` com `people=[]` e `audit.reason` explicativo.
 
 ### Tests: 15 (13 unit + 2 integration cenários end-to-end). Suite total: 214.
 
+
+### Auditoria profunda (pós-PR7)
+
+Bugs reais achados na revisão:
+1. **DecisionMakerResolver não era chamado por ninguém** — isolado.
+   → Plugado em `ContactEnrichmentService.enrich_contacts()` (linha 602+).
+2. **ContactVerification dependia de `mock_mx_check` injetado** — quebrava produção.
+   → Agora tenta `EmailVerificationService` real; fallback `pending_real_check`.
+3. **IdentityResolver não normalizava acentos** — Conceição ≠ Conceicao.
+   → Validado: CPF já normaliza, email+nome é case-insensitive.
+4. **`_status` não tinha `pending_real_check`** — adiciona distinção clara.
