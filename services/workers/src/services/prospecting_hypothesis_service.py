@@ -22,10 +22,10 @@ _HYPOTHESIS_BASE: Dict[str, Dict[str, Any]] = {
         "key_signals": ["HAS_OWN_WEBSITE_FALLBACK_INSTAGRAM", "LOW_GOOGLE_RATING_COUNT"],
     },
     PROFILE_INDUSTRIAL: {
-        "problem": "Indústrias sem presença digital institucional perdem B2B relevante.",
-        "hypothesis": "Site institucional com catálogo técnico gera +30% de consultas qualificadas.",
+        "problem": "Indústrias sem prospecção digital estruturada perdem contratos B2B relevantes.",
+        "hypothesis": "Projeto mecânico / documentação técnica outbound qualificada gera +30% de consultas industriais.",
         "expected_lift": 0.30,
-        "key_signals": ["NO_TECHNICAL_SITE", "LOW_GOOGLE_RATING"],
+        "key_signals": ["HAS_CNPJ", "CNAE_INDUSTRIAL", "HIRING"],
     },
     "generic": {
         "problem": "Ausência de prospecção direcionada reduz taxa de resposta.",
