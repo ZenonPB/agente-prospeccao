@@ -45,19 +45,19 @@
 |---|---|---|---|
 | 17 | `17-prospecting-profile-FEITO.md` | ✅ | `resolve_prospecting_profile` centralizado (deriva de `enrichment_steps` + override em `prescoring_config.profile`). Entidade **versionável** com discovery/decision-maker/outreach strategy segue nos docs 22/25. |
 | 18 | `18-universal-prospecting-questions.md` | 🟡 | As 6 perguntas (quem precisa, sinais de necessidade, capacidade de compra, evento, decisor, abordagem) **não estão formalizadas** num contrato único do agente — `ProspectingProfile` atual só cobre perfil + prescoring; as outras camadas continuam dispersas. |
-| 19 | `19-icp-vs-intent.md` | ✅ | `icp_vs_intent()` (BuyingTrigger service) distingue ICP fixo de intent temporal com classificação TIMELY/PROFILED/COLD. |
+| 19 | `19-icp-vs-intent-FEITO.md` | ✅ | `icp_vs_intent()` (BuyingTrigger service) distingue ICP fixo de intent temporal com classificação TIMELY/PROFILED/COLD. |
 | 20 | `20-signal-registry-FEITO.md` | ✅ | Registry universal com chaves canônicas, metadados, `make_signal` com regras epistêmicas e `merge_signals` com dedup semântico. |
 | 21 | `21-enrichment-capability-registry-FEITO.md` | ✅ | Capabilities com custo/requires/produces + planner `plan_enrichment_run` (skip/stop_after auditáveis). |
-| 22 | `22-discovery-planner.md` | ✅ | `DiscoveryPlanner.plan()` (seam profundo ProspectingProfile→providers/queries/budget, auditável). |
+| 22 | `22-discovery-planner-FEITO.md` | ✅ | `DiscoveryPlanner.plan()` (seam profundo ProspectingProfile→providers/queries/budget, auditável). |
 | 23 | `23-cnae-as-discovery-provider.md` | 🟠 | `cnae_discovery_service.py` existe e está integrado (BrasilAPI + Minha Receita + CNPJá); basta ser plugado como provider nativo de um futuro Discovery Planner. |
-| 24 | `24-intent-engine.md` | ✅ | `IntentEngine.detect_events()` + `score_and_trigger()` (intent_score/buying_trigger/why_now) sobre sinais. |
-| 25 | `25-decision-maker-strategy-by-vertical.md` | ✅ | `resolve_contact_strategy(profile_key)`: mapa profile→ordered providers + channel priority. |
-| 26 | `26-buying-trigger.md` | ✅ | `detect_buying_triggers()` converte intent events → triggers acionáveis com confidência. |
-| 27 | `27-opportunity-vector-v2.md` | ✅ | VECTOR_WEIGHTS expandido (`icp_fit/intent/buying_power/reachability/timing` peso 0, compatível) + formula_version v2. |
-| 28 | `28-prospecting-hypothesis.md` | ✅ | `build_hypothesis(profile_key)`: problem/hypothesis/expected_lift + key_signals. |
+| 24 | `24-intent-engine-FEITO.md` | ✅ | `IntentEngine.detect_events()` + `score_and_trigger()` (intent_score/buying_trigger/why_now) sobre sinais. |
+| 25 | `25-decision-maker-strategy-by-vertical-FEITO.md` | ✅ | `resolve_contact_strategy(profile_key)`: mapa profile→ordered providers + channel priority. |
+| 26 | `26-buying-trigger-FEITO.md` | ✅ | `detect_buying_triggers()` converte intent events → triggers acionáveis com confidência. |
+| 27 | `27-opportunity-vector-v2-FEITO.md` | ✅ | VECTOR_WEIGHTS expandido (`icp_fit/intent/buying_power/reachability/timing` peso 0, compatível) + formula_version v2. |
+| 28 | `28-prospecting-hypothesis-FEITO.md` | ✅ | `build_hypothesis(profile_key)`: problem/hypothesis/expected_lift + key_signals. |
 | 29 | `29-epistemic-status-FEITO.md` | ✅ | `EpistemicStatus` aplicado na fábrica de sinais (FACT sem fonte rebaixado a INFERENCE; UNKNOWN sem valor; HYPOTHESIS com `evidence_refs`); prompt de scoring distingue fato/inferência/hipótese. |
 | 30 | `30-discovery-questions.md` | 🟡 | Templates seed têm `playbook`/ganchos, mas **não há `discovery_questions` por perfil/buyer_role** consumidas nas mensagens ou no roteiro de ligação. |
-| 31 | `31-vertical-pack.md` | ✅ | `vertical_pack_for(profile_key)`: enrichment_pack declarativo por perfil. |
+| 31 | `31-vertical-pack-FEITO.md` | ✅ | `vertical_pack_for(profile_key)`: enrichment_pack declarativo por perfil. |
 | 32 | `32-archetypes-as-fallback.md` | 🟡 | `TemplateGenerationService` + `template_router` cobrem o fallback LLM/exact/fuzzy → Genérico, mas não há **archetype** explícito como bootstrap de um pack novo. |
 | 33 | `33-three-level-learning.md` | 🟡 | `learning_compilation_service` produz regras por **template × org**; **não há** camadas `GLOBAL`/`VERTICAL`/`ORGANIZATION` com precedência explícita. |
 

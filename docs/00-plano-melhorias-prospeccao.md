@@ -50,19 +50,19 @@ Evoluir o projeto para uma plataforma de prospecção B2B genérica, explicável
 
 - [`17-prospecting-profile-FEITO.md`](./17-prospecting-profile-FEITO.md) — ProspectingProfile como contrato universal de prospecção
 - [`18-universal-prospecting-questions.md`](./18-universal-prospecting-questions.md) — Seis perguntas universais do agente de prospecção
-- [`19-icp-vs-intent.md`](./19-icp-vs-intent.md) — Separar ICP Fit de Intent
+- [`19-icp-vs-intent-FEITO.md`](./19-icp-vs-intent.md) — Separar ICP Fit de Intent
 - [`20-signal-registry-FEITO.md`](./20-signal-registry-FEITO.md) — ✅ FEITO — Signal Registry universal
 - [`21-enrichment-capability-registry-FEITO.md`](./21-enrichment-capability-registry-FEITO.md) — ✅ FEITO — Catálogo de capabilities de enriquecimento
-- [`22-discovery-planner.md`](./22-discovery-planner.md) — Discovery Planner orientado pela oferta
+- [`22-discovery-planner-FEITO.md`](./22-discovery-planner.md) — Discovery Planner orientado pela oferta
 - [`23-cnae-as-discovery-provider.md`](./23-cnae-as-discovery-provider.md) — CNAE/CNPJ como provider de discovery para B2B industrial
-- [`24-intent-engine.md`](./24-intent-engine.md) — Intent Engine para sinais de compra
-- [`25-decision-maker-strategy-by-vertical.md`](./25-decision-maker-strategy-by-vertical.md) — Decision Maker Strategy por vertical
-- [`26-buying-trigger.md`](./26-buying-trigger.md) — Buying Trigger e Why Now
-- [`27-opportunity-vector-v2.md`](./27-opportunity-vector-v2.md) — Opportunity Score como vetor universal
-- [`28-prospecting-hypothesis.md`](./28-prospecting-hypothesis.md) — Prospecting Hypothesis por lead
+- [`24-intent-engine-FEITO.md`](./24-intent-engine.md) — Intent Engine para sinais de compra
+- [`25-decision-maker-strategy-by-vertical-FEITO.md`](./25-decision-maker-strategy-by-vertical.md) — Decision Maker Strategy por vertical
+- [`26-buying-trigger-FEITO.md`](./26-buying-trigger.md) — Buying Trigger e Why Now
+- [`27-opportunity-vector-v2-FEITO.md`](./27-opportunity-vector-v2.md) — Opportunity Score como vetor universal
+- [`28-prospecting-hypothesis-FEITO.md`](./28-prospecting-hypothesis.md) — Prospecting Hypothesis por lead
 - [`29-epistemic-status-FEITO.md`](./29-epistemic-status-FEITO.md) — ✅ FEITO — Status epistêmico para fatos, inferências e hipóteses
 - [`30-discovery-questions.md`](./30-discovery-questions.md) — Perguntas de qualificação definidas pela vertical
-- [`31-vertical-pack.md`](./31-vertical-pack.md) — Vertical Pack declarativo
+- [`31-vertical-pack-FEITO.md`](./31-vertical-pack.md) — Vertical Pack declarativo
 - [`32-archetypes-as-fallback.md`](./32-archetypes-as-fallback.md) — Archetypes apenas como fallback de geração
 - [`33-three-level-learning.md`](./33-three-level-learning.md) — Aprendizado em três níveis: global, vertical e organização
 
