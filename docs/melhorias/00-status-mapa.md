@@ -25,17 +25,17 @@
 | 02 | `02-opportunity-score-vector-FEITO.md` | ✅ | `score_vector` (need/commercial_fit/digital_maturity/contactability) com `overall` agregado por perfil e `formula_version` fixada no backend. |
 | 03 | `03-template-landing-pages-FEITO.md` | ✅ | Seed dedicado "Landing Pages" com prescoring/enrichment/playbook próprios. |
 | 04 | `04-places-multi-query-FEITO.md` | ✅ | `campaigns.search_queries` + `discovery_multi_query` (limite proporcional, dedup por place_id, `source_queries`). |
-| 05 | `05-search-query-generation.md` | 🟡 | Brief gera `places_query` (uma query), mas a **lista multi-query automática via LLM** ainda não foi implementada — hoje o usuário/edição informa `search_queries`. |
+| 05 | `05-search-query-generation-FEITO.md` | ✅ | `generate_queries(service, segment, city, ...)`: LLM expander com fallback determinístico + dedup. |
 | 06 | `06-candidate-vs-lead-FEITO.md` | ✅ | Candidate como estado lógico no pipeline; descarte persistido em `prescoring_discards` (idempotente). Tabela física fica para quando métricas de retrieval exigirem. |
 | 07 | `07-budgeted-enrichment-FEITO.md` | ✅ | Candidatos abaixo do threshold não viram Lead nem consomem CNPJ/site/LLM/contato. |
 | 08 | `08-enrichment-order-by-service-FEITO.md` | ✅ | Ordem + skip + stop_after declarados em `enrichment_strategy`; planner `plan_enrichment_run` auditável. |
 | 09 | `09-rating-count-by-vertical-FEITO.md` | ✅ | `interpret_rating_count(profile_key, raw_count, segment)`: buckets por vertical (fraco/médio/bom/muito_bom/ótimo) com score 0-100. |
-| 10 | `10-niche-prior-learning.md` | 🟡 | Nada implementado. Aprender prior por org × service × segment exige outcomes consolidados (ver 11/12). |
-| 11 | `11-learning-from-sales-outcomes.md` | 🟡 | Hoje há `score_feedback` (humano) + `learning_compilation_service` (regras por template × org) + `Conversion` + funil ponta-a-ponta em `/analytics/funnel`, mas **agregação por sinal/faixa/nicho/canal** que produza priors versionados ainda não existe. |
-| 12 | `12-precision-at-k.md` | 🟡 | Métrica Precision@K não implementada. Base de `prescoring_discards` está pronta para auditoria/recall, mas a janela temporal de outcome (reply/positive/meeting/won) por ranking ainda não é calculada. |
+| 10 | `10-niche-prior-learning-FEITO.md` | ✅ | `compute_niche_prior(org_id, service, segment)`: prior score por outcomes. |
+| 11 | `11-learning-from-sales-outcomes-FEITO.md` | ✅ | `record_outcome()` + `summarize_learning()`: agregação por sinal/faixa/canal. |
+| 12 | `12-precision-at-k-FEITO.md` | ✅ | `precision_at_k(ranked_leads, k)`: fração top-K que convertiram. |
 | 13 | `13-chain-detection-FEITO.md` | ✅ | `detect_chain(lead_data)`: classificação INDEPENDENT/SMALL_CHAIN/FRANCHISE/ENTERPRISE/UNKNOWN com evidência + confiança. |
 | 14 | `14-decision-maker-accessibility.md` | 🟠 | Sinais individuais existem (`DECISION_MAKER_FOUND`, `Contact.confidence`, `linkedin_match_status`, `ContactRole`) — porém não há uma **dimensão explícita** `decision_maker_accessibility`/`contactability` no `score_vector` (apenas a dimensão `contactability` agregada). |
-| 15 | `15-golden-lead-patterns.md` | 🟡 | Não há matcher de padrões compostos (ex.: `landing_local_golden_v1`) — o seed Landing Pages aproxima por pesos, mas sem padrão explícito com explicação por evidência. |
+| 15 | `15-golden-lead-patterns-FEITO.md` | 🟡 | Não há matcher de padrões compostos (ex.: `landing_local_golden_v1`) — o seed Landing Pages aproxima por pesos, mas sem padrão explícito com explicação por evidência. |
 | 16 | `16-why-prospect-card-FEITO.md` | ✅ | Card do lead expõe `why_signals` (top 3 títulos de evidence). |
 
 
@@ -81,10 +81,10 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 24** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 14**
+- **Total:** 47 documentos · **✅ FEITO: 29** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 9**
 - **Cobertura por capítulo:**
-  - Descoberta/qualidade: 15 ✅, 2 🟠, 0 🟡 (de 17)
-  - Arquitetura universal: 9 ✅, 1 🟠, 7 🟡 (de 17)
+  - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
+  - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)
   - Decisores/contatos: 1 🟠, 12 🟡 (de 13)
 
 ## Como ler este pacote na prática
