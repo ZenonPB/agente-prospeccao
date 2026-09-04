@@ -232,6 +232,8 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment], include_raw: bool
     if include_raw:
         detail["score_factors"] = lead.score_factors
         detail["evidence"] = lead.evidence
+        if lead.score_vector:
+            detail["score_vector"] = lead.score_vector
         if enrichment:
             detail["enrichment"]["raw_technical_data"] = enrichment.raw_technical_data
     summary.update(detail)

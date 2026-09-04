@@ -26,6 +26,8 @@ from services.scoring_service import AIScoringService
 from services.enrichment_orchestrator import process_single_lead, resolve_enrichment_steps
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
+from services.prospecting_profile_service import resolve_prospecting_profile
+from services.candidate_pre_scoring_service import CandidatePreScoringService
 from services.cnae_discovery_service import CnaeDiscoveryService
 from services.pncp_service import PncpService, default_date_window, format_contract_note
 from services.geo_utils import build_location_circle
@@ -197,6 +199,72 @@ async def run_pipeline(
         )
         goog_key = keys.get("GOOGLE_API_KEY")
         groq_key = keys.get("GROQ_API_KEY")
+
+        # Carrega template de critérios contextual da campanha (uma vez para todo
+        # o job, ANTES da coleta — o pre-scoring do discovery precisa do perfil
+        # da vertical para o gate de promoção Candidate → Lead).
+        # Router inteligente: exact → fuzzy → LLM → geração sob demanda → Genérico (itens 1.2/1.3).
+        scoring_template = None
+        if campaign:
+            route_result = await route_scoring_template(
+                db,
+                target_service=campaign.target_service or "",
+                target_segment=campaign.target_segment or "",
+                explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
+                api_key=groq_key,
+                organization_id=str(campaign.organization_id) if campaign else None,
+            )
+            scoring_template = route_result.get("template")
+            route_label = route_result.get("route")
+            matched_label = route_result.get("matched_label")
+            if route_label == "GENERATE_NEW":
+                yield {
+                    "type": "log",
+                    "message": "Vertical nova detectada — gerando template de critérios sob demanda...",
+                    "timestamp": _ts(),
+                }
+                try:
+                    generation = TemplateGenerationService(api_key=groq_key)
+                    scoring_template = await generation.generate(
+                        db,
+                        target_service=campaign.target_service or "",
+                        target_segment=campaign.target_segment or "",
+                        organization_id=str(campaign.organization_id),
+                    )
+                    if scoring_template:
+                        # Vincula o template gerado à campanha para reuso.
+                        label = scoring_template.get("service_label", "")
+                        tmpl_row = (
+                            db.query(CampaignScoringTemplate)
+                            .filter(
+                                sqlfunc.lower(CampaignScoringTemplate.service_label) == label.lower().strip(),
+                                CampaignScoringTemplate.is_active.is_(True),
+                            )
+                            .order_by(CampaignScoringTemplate.created_at.asc())
+                            .first()
+                        )
+                        if tmpl_row:
+                            campaign.scoring_template_id = tmpl_row.id
+                            db.flush()
+                        yield {
+                            "type": "log",
+                            "message": f"Template gerado: {scoring_template.get('service_label')}",
+                            "timestamp": _ts(),
+                        }
+                except Exception as e:
+                    logger.warning("Falha ao gerar template sob demanda: %s", e)
+            elif scoring_template:
+                yield {
+                    "type": "log",
+                    "message": f"Template de critérios: {matched_label or scoring_template.get('service_label','(none)')}",
+                    "timestamp": _ts(),
+                }
+
+        # Perfil de prospecção da vertical (docs/melhorias/17): resolvido uma
+        # vez por job a partir do template — gate de pre-scoring desligado por
+        # padrão (templates sem `prescoring_config` mantêm o fluxo atual).
+        prospecting_profile = resolve_prospecting_profile(scoring_template)
+        prescoring_discarded = 0
 
         # --- Coleta (pulada em reanalyze_only) ---
         collected_count = 0
@@ -437,6 +505,26 @@ async def run_pipeline(
                 _prepare_batch_items(results), existing_ids_set, existing_domains,
             )
 
+            # Gate de promoção Candidate → Lead (docs/melhorias/01/06/07):
+            # pré-ranking determinístico e barato. Candidatos abaixo do
+            # threshold NÃO viram Lead e NÃO consomem enriquecimento caro.
+            # Desligado quando o template não declara `prescoring_config`.
+            if batch_items and prospecting_profile["prescoring"]["enabled"]:
+                batch_items, prescoring_stats = CandidatePreScoringService().select_candidates(
+                    batch_items, prospecting_profile,
+                )
+                prescoring_discarded = prescoring_stats["discarded"]
+                yield {
+                    "type": "log",
+                    "message": (
+                        f"Pré-scoring ({prospecting_profile['profile_key']}): "
+                        f"{prescoring_stats['eligible']}/{prescoring_stats['evaluated']} candidatos aprovados "
+                        f"(threshold={prospecting_profile['prescoring']['threshold']}, "
+                        f"{prescoring_stats['discarded']} descartados sem custo de enriquecimento)"
+                    ),
+                    "timestamp": _ts(),
+                }
+
             logger.info("Pipeline collected %d results", len(results))
             yield {"type": "log", "message": f"{len(results)} estabelecimentos encontrados ({len(batch_items)} novos)", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 30}
@@ -524,64 +612,8 @@ async def run_pipeline(
         enrichment_service = TechnicalEnrichmentService()
         scoring_service = AIScoringService(api_key=groq_key)
 
-        # Carrega template de critérios contextual da campanha (uma vez para todo o batch).
-        # Router inteligente: exact → fuzzy → LLM → geração sob demanda → Genérico (itens 1.2/1.3).
-        scoring_template = None
-        if campaign:
-            route_result = await route_scoring_template(
-                db,
-                target_service=campaign.target_service or "",
-                target_segment=campaign.target_segment or "",
-                explicit_template_id=str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
-                api_key=groq_key,
-                organization_id=str(campaign.organization_id) if campaign else None,
-            )
-            scoring_template = route_result.get("template")
-            route_label = route_result.get("route")
-            matched_label = route_result.get("matched_label")
-            if route_label == "GENERATE_NEW":
-                yield {
-                    "type": "log",
-                    "message": "Vertical nova detectada — gerando template de critérios sob demanda...",
-                    "timestamp": _ts(),
-                }
-                try:
-                    generation = TemplateGenerationService(api_key=groq_key)
-                    scoring_template = await generation.generate(
-                        db,
-                        target_service=campaign.target_service or "",
-                        target_segment=campaign.target_segment or "",
-                        organization_id=str(campaign.organization_id),
-                    )
-                    if scoring_template:
-                        # Vincula o template gerado à campanha para reuso.
-                        label = scoring_template.get("service_label", "")
-                        tmpl_row = (
-                            db.query(CampaignScoringTemplate)
-                            .filter(
-                                sqlfunc.lower(CampaignScoringTemplate.service_label) == label.lower().strip(),
-                                CampaignScoringTemplate.is_active.is_(True),
-                            )
-                            .order_by(CampaignScoringTemplate.created_at.asc())
-                            .first()
-                        )
-                        if tmpl_row:
-                            campaign.scoring_template_id = tmpl_row.id
-                            db.flush()
-                        yield {
-                            "type": "log",
-                            "message": f"Template gerado: {scoring_template.get('service_label')}",
-                            "timestamp": _ts(),
-                        }
-                except Exception as e:
-                    logger.warning("Falha ao gerar template sob demanda: %s", e)
-            elif scoring_template:
-                yield {
-                    "type": "log",
-                    "message": f"Template de critérios: {matched_label or scoring_template.get('service_label','(none)')}",
-                    "timestamp": _ts(),
-                }
-
+        # Template e perfil da vertical já resolvidos ANTES da coleta (o gate
+        # de pre-scoring precisa deles) — ver bloco após a resolução de chaves.
         # Regras de calibração aprendidas com o time (docs/ai-feedback-loop.md):
         # carregadas uma vez por job e injetadas no prompt de cada scoring.
         learned_instructions: list = []
@@ -825,6 +857,7 @@ async def run_pipeline(
                 "failed": failed_count,
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
                 "queue_remaining": queue_remaining,
+                "prescoring_discarded": prescoring_discarded,
             },
             "timestamp": _ts(),
         }
@@ -842,6 +875,7 @@ async def run_pipeline(
                 "failed": failed_count,
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
                 "queue_remaining": queue_remaining,
+                "prescoring_discarded": prescoring_discarded,
             }
             db.commit()
 
