@@ -1,6 +1,6 @@
 # OfferProfile — entidade central de inteligência comercial
 
-> **Status:** ✅ COMPLETE (Fase B do plano de consolidação).
+> **Status:** 🟠 PARTIAL — contrato/registry/resolver testados; fonte única do pipeline ainda pendente.
 > **Branch:** `fixes-fase3`
 > **Implementação:** `services/workers/src/services/prospecting/`
 
@@ -65,13 +65,14 @@ outreach: {angle, evidence_requirements}
 ## Adicionar nova oferta
 
 1. Adicionar entry em `services/workers/src/services/prospecting/default_profiles.py`
-2. **Nada precisa mudar em engine/pipeline** (consolidação §Fase B critério)
+2. Após a integração do resolver no pipeline, adicionar uma oferta deverá exigir
+   somente configuração; no estado atual ainda há mappings legados a migrar.
 
 ## Status do DoD
 
 - [x] contrato definido (dataclass frozen + dict roundtrip)
 - [x] implementação não-placeholder
-- [x] integrado ao pipeline (via `OfferProfileResolver.resolve()`)
+- [ ] integrado como fonte única do pipeline (`pipeline_worker` ainda usa template legado)
 - [x] configuração/versionamento (`version` por profile)
 - [x] evidência/proveniência (`resolved_from` indica cascata usada)
 - [x] diferencia erro/ausência/desconhecido (cascata cai no `generic`)
@@ -80,7 +81,7 @@ outreach: {angle, evidence_requirements}
 - [x] cenário realista (3 ofertas industriais distintas no mesmo vertical)
 - [x] observabilidade (`resolved_from` retornado)
 - [x] documentação corresponde ao código
-- [x] sem mapping hardcoded que deveria ser config
+- [ ] sem mapping hardcoded que deveria ser config (mappings legados ainda existem)
 
 ## Mapa de capabilities atualizado
 
@@ -95,7 +96,7 @@ outreach: {angle, evidence_requirements}
 
 ## Fase C — OfferMatcher
 
-> **Status:** ✅ COMPLETE (consolidação §Fase C).
+> **Status:** 🟠 PARTIAL — chamado pelo enrichment, mas sem entidade/tabela `LeadOpportunity`.
 
 Associa uma empresa a **múltiplas oportunidades simultâneas** (uma por
 OfferProfile relevante), com score (0-100), evidência e cascata
@@ -142,6 +143,7 @@ class LeadOpportunity:
 - [x] evidência (`evidence` + `signals_matched/missing`)
 - [x] testes (9 unit + 4 integration = 13)
 - [x] múltiplas oportunidades simultâneas
+- [ ] persistência relacional/API de `LeadOpportunity`
 - [x] to_dict/from_dict para persistência futura (`LeadOpportunity`)
 
 ### Próximos passos
@@ -153,7 +155,7 @@ class LeadOpportunity:
 
 ## Fase D — Discovery Provider Executável
 
-> **Status:** ✅ COMPLETE (consolidação §Fase D).
+> **Status:** 🟠 PARTIAL — executor testado; pipeline ainda chama Places/CNAE diretamente.
 
 Critério satisfeito: "Alterar `OfferProfile.discovery` muda a estratégia
 de descoberta **sem editar `pipeline_worker`**".
@@ -179,7 +181,7 @@ class DiscoveryProvider(Protocol):
 1. Criar classe que implementa `DiscoveryProvider` (name + budget_total + run)
 2. `registry.register(provider)`
 3. Adicionar ao `OfferProfile.discovery.providers`
-4. **Pipeline não muda** — `pipeline_worker` passa o plano para o executor
+- **Pipeline ainda precisa ser migrado** — `pipeline_worker` chama Places/CNAE diretamente.
 
 ### `DiscoveryExecutor`
 
@@ -196,7 +198,7 @@ class DiscoveryProvider(Protocol):
 
 ## Fase E — Intent Provider Real
 
-> **Status:** ✅ COMPLETE (consolidação §Fase E).
+> **Status:** 🔵 SCAFFOLDING — producers/testes existem; não há job produtor conectado.
 
 Critério satisfeito: "Um evento real coletado altera timing/intent da
 oportunidade com evidência."
@@ -229,7 +231,7 @@ oportunidade com evidência."
 
 ## Fase F — Event Discovery (Troféus)
 
-> **Status:** ✅ COMPLETE (consolidação §Fase F).
+> **Status:** 🔵 SCAFFOLDING — executor/timing testados; provider externo não configurado.
 
 **Contexto AlphaMec:** Principal motor de receita é venda de troféus
 para eventos esportivos/corporativos sazonais. O pipeline de Event
@@ -275,14 +277,15 @@ Validado por tests:
 3. Executor não executava providers quando plan era vazio
 4. `EventTimingScorer` decaimento pouco agressivo para eventos > 180 dias
 
-### Tests: 21 (19 unit + 2 integration cenários AlphaMec). Suite total: 199.
+### Tests: 21 (19 unit + 2 integration cenários AlphaMec). O número é histórico;
+o status operacional está na matriz de auditoria ao final deste documento.
 
 
 ---
 
 ## Fase G — Decision Maker Resolution Real
 
-> **Status:** ✅ COMPLETE (consolidação §Fase G).
+> **Status:** 🟠 PARTIAL — chamado pelo enrichment e persistido em JSONB; falta persistência própria.
 
 **Critério satisfeito:** "Pipeline retorna pessoa(s) reais ou um estado
 explícito de falha, não apenas roles desejados."
@@ -319,7 +322,8 @@ retorna `not_found` com `people=[]` e `audit.reason` explicativo.
 - Heurística de email (sem CPF): **nunca verificada** (gate de outreach)
 - Status final: `fully_verified` / `identity_verified_no_email` / `email_verified_no_identity` / `partial` / `no_email`
 
-### Tests: 15 (13 unit + 2 integration cenários end-to-end). Suite total: 214.
+### Tests: 15 (13 unit + 2 integration cenários end-to-end). Os testes não
+substituem a validação com providers e PostgreSQL reais.
 
 
 ### Auditoria profunda (pós-PR7)
@@ -337,7 +341,7 @@ Bugs reais achados na revisão:
 
 ## Fase H — Learning & Metrics
 
-> **Status:** ✅ COMPLETE (consolidação §Fase H).
+> **Status:** 🔵 SCAFFOLDING — métricas testadas em memória; falta persistência/API/BI.
 
 **Critério satisfeito:** "É possível provar se uma alteração AUMENTOU
 ou REDUZIU a qualidade comercial."
@@ -372,5 +376,16 @@ result = comparator.compare("trophies", "1.0", "2.0")
 4. Métricas por provider: `google_places` 17/60 WON (28.3%)
 5. Ticket médio: R$ 1900 (mistura v1 R$1500 + v2 R$2000)
 
-### Tests: 15 (14 unit + 1 integration AlphaMec). Suite total: 234.
+### Tests: 15 (14 unit + 1 integration AlphaMec). Os testes comprovam contratos em memória; não substituem PostgreSQL/BI.
+
+---
+
+## Auditoria final (2026-09-04)
+
+Os status anteriores foram revisados contra callers, migrations, providers e
+testes. O mapa `docs/00-status-mapa.md` é a fonte operacional. O grafo mostrou
+caller de produção para `OfferMatcher` no `enrichment_orchestrator`, mas não
+para `EventDiscoveryExecutor`, `IntentProviderRegistry` ou `LearningMetrics`.
+O E2E de outreach permanece condicionado a `E2E_DATABASE_URL`; a migration
+`e8f9a0b1c2d3` de notificações está aplicada no banco local.
 

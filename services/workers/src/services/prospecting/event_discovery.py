@@ -355,16 +355,41 @@ class EventDiscoveryExecutor:
         """Roda provider detectando sync/async."""
         import asyncio
         import inspect
+        import threading
 
         res = provider.discover(lead_context)
         if inspect.isawaitable(res):
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    return []
-                res = loop.run_until_complete(res)
+                asyncio.get_running_loop()
             except RuntimeError:
-                return []
+                # Nenhum loop nesta thread: asyncio.run cria e fecha um loop
+                # próprio, sem emitir o warning de get_event_loop().
+                try:
+                    res = asyncio.run(res)
+                except RuntimeError:
+                    if inspect.iscoroutine(res):
+                        res.close()
+                    return []
+            else:
+                # `execute()` pode ser chamado por código sync que está
+                # hospedado dentro de um loop (ex.: servidor ASGI). Rode
+                # o awaitable numa thread com loop próprio; não descarte
+                # o evento nem deixe coroutine não aguardada.
+                result_box: List[Any] = []
+                error_box: List[BaseException] = []
+
+                def _run() -> None:
+                    try:
+                        result_box.append(asyncio.run(res))
+                    except BaseException as exc:  # noqa: BLE001
+                        error_box.append(exc)
+
+                worker = threading.Thread(target=_run, daemon=True)
+                worker.start()
+                worker.join()
+                if error_box:
+                    return []
+                return list(result_box[0] or []) if result_box else []
         return res or []
 
     def _to_event_opportunity(self, raw: Dict[str, Any]) -> EventOpportunity:

@@ -15,7 +15,7 @@ Cascata de resolução:
        ↓ fallback
     generic
 """
-from dataclasses import dataclass, field, asdict
+from dataclasses import MISSING, dataclass, field, asdict
 from typing import Any, Dict, List, Optional
 
 
@@ -48,7 +48,15 @@ class OfferProfile:
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "OfferProfile":
         """Reconstrói a partir de dict (ex.: persistência/seed)."""
-        return cls(**{k: d.get(k, v) for k, v in cls.__dataclass_fields__.items()})
+        values: Dict[str, Any] = {}
+        for name, definition in cls.__dataclass_fields__.items():
+            if name in d:
+                values[name] = d[name]
+            elif definition.default is not MISSING:
+                values[name] = definition.default
+            elif definition.default_factory is not MISSING:
+                values[name] = definition.default_factory()
+        return cls(**values)
 
 
 class OfferProfileRegistry:
@@ -60,6 +68,19 @@ class OfferProfileRegistry:
         self._by_vertical: Dict[str, List[OfferProfile]] = {}
 
     def register(self, profile: OfferProfile) -> None:
+        previous = self._by_key.get(profile.key)
+        if previous is not None:
+            # Uma chave representa uma versão ativa do profile. Remova a
+            # versão anterior dos índices secundários para que a resolução
+            # não retorne dados obsoletos depois de um upsert.
+            for index, value in (
+                (self._by_archetype, previous.archetype),
+                (self._by_vertical, previous.vertical),
+            ):
+                profiles = index.get(value, [])
+                index[value] = [p for p in profiles if p.key != profile.key]
+                if not index[value]:
+                    index.pop(value, None)
         self._by_key[profile.key] = profile
         self._by_archetype.setdefault(profile.archetype, []).append(profile)
         self._by_vertical.setdefault(profile.vertical, []).append(profile)

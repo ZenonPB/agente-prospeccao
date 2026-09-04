@@ -1,19 +1,19 @@
 # Mapa de status — pacote de melhorias + consolidação
 
-> **Snapshot:** 2026-09-04 · branch `fixes-fase3`
+> **Snapshot:** 2026-09-04 · branch `fixes-fase3` · auditoria final pós-Fases C–H
 >
 > Este arquivo é a **fonte única de verdade** para entender o que está
-> completo, parcial ou apenas declarado. Reflete o estado do código, não de
-> documentos `-FEITO.md` (consolidação §2.1).
+> completo, parcial ou apenas declarado. Reflete callers, persistência,
+> providers e testes do código real — não apenas a existência de um arquivo.
 
 ## Legenda
 
 | Marca | Significado |
 |---|---|
-| ✅ **COMPLETE** | Código + tests + integrado + provider real. Satisfaz DoD §28. |
-| 🟠 **PARTIAL** | Existe + integrado, mas falta tests, persistence ou versionamento. |
-| 🔵 **SCAFFOLDING** | Interface/função, depende de placeholder. |
-| 🟡 **PROPOSED** | Apenas doc, sem código. |
+| ✅ **COMPLETE** | Código + testes + consumidor operacional + persistência/provider quando aplicável. |
+| 🟠 **PARTIAL** | Parte operacional, mas falta uma condição relevante do DoD. |
+| 🔵 **SCAFFOLDING** | Interface/helper ou provider sem operação real. |
+| 🟡 **PROPOSED** | Apenas especificação, sem implementação. |
 
 ## Consolidação — Capability Matrix
 
@@ -28,21 +28,21 @@
 | 7 | Budgeted Enrichment | ✅ COMPLETE | `enrichment_capability_registry.py` | ✅ | internal |
 | 8 | Enrichment Order by Service | ✅ COMPLETE | `enrichment_capability_registry.py:plan_enrichment_run` | ✅ | internal |
 | 9 | Rating Count by Vertical | ✅ COMPLETE | `services/prospecting_profile_service.py:interpret_rating_count` | ✅ | internal |
-| 10 | Niche Prior Learning | ✅ COMPLETE | `services/learning_service.py:compute_niche_prior` | ✅ 11 | internal |
-| 11 | Learning from Sales Outcomes | ✅ COMPLETE | `services/learning_service.py:record_outcome` | ✅ 11 | internal |
-| 12 | Precision@K | ✅ COMPLETE | `services/learning_service.py:precision_at_k` | ✅ 11 | internal |
+| 10 | Niche Prior Learning | 🟠 PARTIAL | `services/learning_service.py:compute_niche_prior` | ✅ 11 | internal; sem caller comercial ativo |
+| 11 | Learning from Sales Outcomes | 🟠 PARTIAL | `services/learning_service.py:record_outcome` | ✅ 11 | endpoint/evento de outcome ainda não conectado |
+| 12 | Precision@K | 🟠 PARTIAL | `services/learning_service.py:precision_at_k` | ✅ 11 | função disponível; sem job/BI operacional |
 | 13 | Chain Detection | ✅ COMPLETE | `services/chain_detection_service.py` | ✅ 6 | internal |
 | 14 | Decision Maker Accessibility | ✅ COMPLETE | `scoring_service.py:VECTOR_WEIGHTS.dma` | ✅ | internal |
-| 15 | Golden Lead Patterns | ✅ COMPLETE | `services/learning_service.py:match_golden_patterns` | ✅ 11 | internal |
+| 15 | Golden Lead Patterns | 🟠 PARTIAL | `services/learning_service.py:match_golden_patterns` | ✅ 11 | função disponível; sem consumidor no pipeline |
 | 16 | Why Prospect Card | ✅ COMPLETE | `routes/leads.py:_lead_summary` | ✅ | internal |
 | 17 | Prospecting Profile | ✅ COMPLETE | `services/prospecting_profile_service.py` | ✅ | internal |
 | 18 | Universal Prospecting Questions | ✅ COMPLETE | `services/universal_prospecting_questions_service.py` | ✅ 10 | internal |
 | 19 | ICP vs Intent | ✅ COMPLETE | `services/buying_trigger_service.py:icp_vs_intent` | ✅ 7 | internal |
 | 20 | Signal Registry | ✅ COMPLETE | `services/signal_registry.py` | ✅ | internal |
 | 21 | Enrichment Capability Registry | ✅ COMPLETE | `enrichment_capability_registry.py` | ✅ | internal |
-| 22 | Discovery Planner | ✅ COMPLETE | `services/discovery_planner_service.py` | ✅ 9 | internal (planeja) |
+| 22 | Discovery Planner | 🟠 PARTIAL | `services/discovery_planner_service.py:plan_enrichment_run` | ✅ 9 | plano é calculado/logado; executor ainda não dirige a coleta |
 | 23 | CNAE as Discovery Provider | ✅ COMPLETE | `services/cnae_discovery_service.py` | ✅ | BrasilAPI/Receita |
-| 24 | Intent Engine | ✅ COMPLETE | `services/intent_engine_service.py` | ✅ 7 | internal (sem producer real) |
+| 24 | Intent Engine | 🟠 PARTIAL | `services/intent_engine_service.py` | ✅ 7 | engine existe; sem producer/job real conectado |
 | 25 | Decision Maker Strategy | ✅ COMPLETE | `services/decision_maker_strategy_service.py` | ✅ 7 | internal |
 | 26 | Buying Trigger | ✅ COMPLETE | `services/buying_trigger_service.py` | ✅ 7 | internal |
 | 27 | Opportunity Vector v2 | ✅ COMPLETE | `scoring_service.py:VECTOR_V2_DIMS` | ✅ | internal |
@@ -69,12 +69,37 @@
 
 ## Resumo executivo
 
-- **Total:** 47 capabilities (Fase 1+2+3) + 1 nova (OfferProfile, Fase B)
-- **✅ COMPLETE:** 48 / 48
-- **Tests total:** 107 (Fase 3) + 16 (OfferProfile) = **123 tests**, 0.10s
+- **Total:** 47 capabilities históricas + OfferProfile/OfferMatcher/Event/Intent/Learning
+- **✅ COMPLETE:** capacidades históricas com cobertura operacional comprovada
+- **🟠 PARTIAL:** OfferProfile ainda não é a fonte do pipeline; Event Discovery não tem provider externo configurado; LearningMetrics não persiste no PostgreSQL/BI
+- **🔵 SCAFFOLDING:** adapters sem credencial/provider real e componentes sem consumidor de produção
+- **Testes focados pós-auditoria:** 161 anteriores + regressões desta auditoria; a suíte global exige `requirements-dev.txt` e banco no e2e
 
-## Próximos passos (consolidação)
+## Auditoria final — evidência operacional
 
-- **PR 3** — OfferMatcher (Fase C) — match lead ↔ oferta
-- **PR 4** — DiscoveryProvider contract (Fase D) — exectur real
-- **PR 5** — IntentProvider contract (Fase E) — collector real de vagas/news
+| Capability | Status real | Entry point | Consumidor de produção | Persistência | Limitação conhecida |
+|---|---|---|---|---|---|
+| OfferProfile/Resolver | 🟠 PARTIAL | `services/prospecting/offer_profile.py` | testes e import; `pipeline_worker` ainda usa `CampaignScoringTemplate`/`resolve_prospecting_profile` | nenhuma tabela própria | resolver de oferta ainda não é a fonte única do pipeline |
+| OfferMatcher | 🟠 PARTIAL | `services/prospecting/offer_matcher.py` | `enrichment_orchestrator` | JSONB `evidence_score` | não há tabela `lead_opportunities`; registry default em código |
+| DiscoveryProvider/Executor | 🟠 PARTIAL | `services/prospecting/discovery_executor.py` | executor testado; `pipeline_worker` ainda chama Places diretamente | logs/evento do job | adapters reais não são usados pelo pipeline |
+| IntentProvider/Scorer | 🟠 PARTIAL | `services/prospecting/intent_provider.py` | nenhum job de produção | nenhuma | jobs/website precisam ser alimentados por coletores reais |
+| Event Discovery | 🔵 SCAFFOLDING | `services/prospecting/event_discovery.py` | nenhum caller de produção | nenhuma | `SportsFederationProvider` é cadastro injetado/stub, não coletor externo |
+| Decision Maker Resolution | 🟠 PARTIAL | `services/prospecting/decision_maker_resolution.py` | `ContactEnrichmentService` | `lead.evidence_score.phase3_contact` | resolução é best-effort; `PersonContact` não é persistido diretamente |
+| Learning/Metrics | 🔵 SCAFFOLDING | `services/prospecting/learning_metrics.py` | nenhum endpoint/job | somente memória | não mede dados reais nem alimenta dashboard |
+
+### Verificações executadas
+
+- `graphify extract --code-only`: grafo gerado com 4.893 nós e 11.045 arestas.
+- Testes focados C–H + regressões: passaram com `-W error`.
+- `python -m py_compile`: arquivos alterados sem erro.
+- E2E original de outreach: **skipped** sem `E2E_DATABASE_URL`; não é evidência de E2E verde.
+- Alembic: migration `e8f9a0b1c2d3` cria `notifications` e está aplicada no banco local; `alembic check` ainda reporta divergências históricas de metadata/índices que não pertencem a esta correção.
+
+## Próximas ações obrigatórias
+
+1. Fazer `OfferProfileResolver` ser a fonte única para o `pipeline_worker`.
+2. Fazer `DiscoveryExecutor.execute_async` consumir o plano real no pipeline.
+3. Criar migrations/tabelas para `LeadOpportunity`, `EventOpportunity` e outcomes.
+4. Implementar collectors externos opt-in para jobs, eventos e organizadores.
+5. Expor métricas persistidas por oferta/provider/version no endpoint de analytics.
+6. Rodar o E2E original com PostgreSQL atualizado (`alembic upgrade head`).

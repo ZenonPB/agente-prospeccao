@@ -394,3 +394,30 @@ class TestEventDiscoveryAlphaMec:
         # 5 raw → 4 únicos (E1+E1-dup deduped)
         assert result["total_events"] == 5
         assert result["unique_count"] == 4
+
+    def test_execute_sync_preserva_eventos_quando_loop_ja_esta_ativo(self):
+        """A API sync não pode descartar corrotinas em host ASGI/loop ativo."""
+        import asyncio
+        from services.prospecting.event_discovery import (
+            EventDiscoveryRegistry,
+            EventDiscoveryExecutor,
+            SportsFederationProvider,
+        )
+
+        registry = EventDiscoveryRegistry()
+        registry.register(SportsFederationProvider(known_events=[{
+            "name": "Evento em loop",
+            "event_type": "sport",
+            "event_date": "2099-01-01",
+            "location": "SP",
+            "source_url": "https://loop-event",
+            "organizer": "Federação X",
+        }]))
+        executor = EventDiscoveryExecutor(registry)
+
+        async def invoke_sync_api_inside_loop():
+            return executor.execute({})
+
+        result = asyncio.run(invoke_sync_api_inside_loop())
+        assert result["unique_count"] == 1
+        assert result["unique_events"][0]["name"] == "Evento em loop"

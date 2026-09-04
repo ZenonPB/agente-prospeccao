@@ -264,15 +264,37 @@ class ContactVerification:
             try:
                 from services.email_verification_service import EmailVerificationService
                 _svc = EmailVerificationService()
-                # Usa o método de check de domínio (síncrono ou acessível)
+                # O serviço real expõe `verify_email` assíncrono (não existe
+                # `check_domain_mx`). Adaptamos a coroutine para a API sync
+                # deste resolver, inclusive quando chamado dentro de ASGI.
                 def _real_mx(domain):
+                    import asyncio
+                    import inspect
+                    import threading
+
+                    async def _verify():
+                        result = await _svc.verify_email(person.email or "")
+                        return bool(result.get("verified"))
+
                     try:
-                        # O serviço expõe verificação assíncrona; para sync
-                        # usamos o check_syntax + MX lookup via método público
-                        result = _svc.check_domain_mx(domain)
-                        return bool(result and result.get("has_mx"))
-                    except Exception:
-                        return False
+                        asyncio.get_running_loop()
+                    except RuntimeError:
+                        return bool(asyncio.run(_verify()))
+
+                    result_box = []
+                    error_box = []
+
+                    def _run():
+                        try:
+                            result_box.append(asyncio.run(_verify()))
+                        except BaseException as exc:  # noqa: BLE001
+                            error_box.append(exc)
+
+                    worker = threading.Thread(target=_run, daemon=True)
+                    worker.start()
+                    worker.join()
+                    return bool(result_box and not error_box and result_box[0])
+
                 mx_check = _real_mx
             except Exception:
                 mx_check = None

@@ -195,3 +195,27 @@ class TestDefaultRegistry:
         # Cada uma tem ICP distinto (consolidação §27: "Não duplicar inteligência")
         cnaes_list = [tuple(p.icp.get("cnaes", [])) for p in mech]
         assert len(set(cnaes_list)) == 3  # CNAEs únicos
+
+    def test_registry_substituir_chave_nao_deixa_indices_stale(self):
+        """Re-registrar uma key deve remover os índices da versão anterior."""
+        from services.prospecting import OfferProfile, OfferProfileRegistry
+
+        registry = OfferProfileRegistry()
+        registry.register(OfferProfile(key="x", archetype="old", vertical="old"))
+        registry.register(OfferProfile(key="x", archetype="new", vertical="new"))
+        assert registry.get("x").archetype == "new"
+        assert registry.by_archetype("old") == []
+        assert registry.by_vertical("old") == []
+        assert registry.by_archetype("new")[0].key == "x"
+
+    def test_from_dict_com_campo_ausente_usa_defaults_corretos(self):
+        from services.prospecting import OfferProfile
+
+        profile = OfferProfile.from_dict({
+            "key": "minimal",
+            "archetype": "generic",
+            "vertical": "generic",
+        })
+        assert profile.version == "1.0"
+        assert profile.discovery == {}
+        assert profile.outreach == {}

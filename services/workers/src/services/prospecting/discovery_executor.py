@@ -139,20 +139,39 @@ class DiscoveryExecutor:
         """
         import asyncio
         import inspect
+        import threading
 
         all_results: List[Dict[str, Any]] = []
         for q in queries:
             res = provider.run(q, lead_context=lead_context)
             if inspect.isawaitable(res):
-                # Async: roda em loop se possível
                 try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # Já em loop — não bloquear; caller deve usar execute_async
-                        continue
-                    res = loop.run_until_complete(res)
+                    asyncio.get_running_loop()
                 except RuntimeError:
-                    continue
+                    try:
+                        res = asyncio.run(res)
+                    except RuntimeError:
+                        if inspect.iscoroutine(res):
+                            res.close()
+                        continue
+                else:
+                    # `execute()` sync dentro de ASGI: execute o awaitable
+                    # numa thread isolada em vez de retornar dados vazios.
+                    result_box: List[Any] = []
+                    error_box: List[BaseException] = []
+
+                    def _run() -> None:
+                        try:
+                            result_box.append(asyncio.run(res))
+                        except BaseException as exc:  # noqa: BLE001
+                            error_box.append(exc)
+
+                    worker = threading.Thread(target=_run, daemon=True)
+                    worker.start()
+                    worker.join()
+                    if error_box:
+                        continue
+                    res = result_box[0] if result_box else []
             all_results.extend(res or [])
         return all_results
 

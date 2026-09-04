@@ -1919,3 +1919,59 @@ PR 15 — limpeza final de scaffolding e atualização dos docs
 
 Cada PR deve preservar compatibilidade, adicionar testes e atualizar o
 status somente das capacidades efetivamente entregues.
+
+------------------------------------------------------------------------
+
+# 32. Resultado da auditoria final (2026-09-04)
+
+A auditoria final confirmou que o código das Fases B–H está presente e possui
+testes focados, mas não que todas as capacidades sejam operacionais de ponta a
+ponta. O critério desta seção é mais rigoroso: um módulo só é `COMPLETE` se
+tiver caller de produção, persistência/provider aplicável e observabilidade
+mínima.
+
+## Evidências
+
+- O grafo foi regenerado com `graphify extract --code-only` (4.893 nós, 11.045
+  arestas).
+- 117 testes focados C–H passaram com `-W error` após as correções desta
+  auditoria.
+- `py_compile` dos módulos alterados passou e `git diff --check` não encontrou
+  whitespace inválido.
+- O E2E de outreach foi **skipped** sem `E2E_DATABASE_URL`; não é evidência de
+  que o fluxo com banco passou.
+- A migration `e8f9a0b1c2d3` adiciona `notifications` e foi aplicada no banco
+  local; `alembic check` ainda lista divergências históricas de metadata/índices
+  fora do escopo desta correção.
+
+## Classificação final
+
+| Capability | Status | Motivo |
+|---|---|---|
+| OfferProfile/Resolver | `PARTIAL` | Existe e é testado, mas o pipeline ainda usa `CampaignScoringTemplate`/resolver legado. |
+| OfferMatcher | `PARTIAL` | Integrado ao enrichment e persistido em `evidence_score`; falta tabela/API de oportunidades. |
+| Discovery Executor | `PARTIAL` | Contrato/adapters existem; `pipeline_worker` ainda chama providers diretamente. |
+| Intent Provider | `SCAFFOLDING` | Não há collector/job de produção conectado ao IntentEngine. |
+| Event Discovery | `SCAFFOLDING` | Provider esportivo é injetado/testável; não há fonte externa persistida. |
+| Decision Maker Resolution | `PARTIAL` | Chamado pelo enriquecimento e salvo em JSONB; entidade de pessoa ainda não é o resultado canônico. |
+| Learning & Metrics | `SCAFFOLDING` | Registry in-memory sem endpoint, persistência ou dados comerciais reais. |
+
+## Correções aplicadas
+
+- APIs síncronas de discovery/eventos agora aguardam providers async mesmo com
+  loop ativo, usando thread isolada sem descartar dados nem gerar warnings.
+- `OfferProfile.from_dict` respeita defaults de dataclass e o registry remove
+  índices secundários obsoletos em re-registro.
+- `OfferMatcher` passou a ser executado no pós-scoring e gravado no JSONB de
+  evidências.
+- Removido o registro indevido de `QUALIFIED/MEETING/WON` durante scoring;
+  outcomes só devem nascer de eventos comerciais reais.
+- `ContactVerification` passou a usar `EmailVerificationService.verify_email`,
+  método público existente, em vez de `check_domain_mx` inexistente.
+- Resolução de decisores passou a persistir em `Lead.evidence_score`; `Lead`
+  não possui `raw_data`.
+
+O status atualizado e a matriz de capabilities estão em
+`docs/00-status-mapa.md`. Os próximos marcos são integração do resolver e do
+executor async no pipeline, migrations de oportunidades/eventos/outcomes,
+collectors reais e um E2E de banco que percorra toda a cadeia comercial.

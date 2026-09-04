@@ -192,3 +192,21 @@ class TestExecuteAsync:
         plan = {"providers": [{"type": "cnae_discovery", "queries": ["q1"]}]}
         result = asyncio.run(executor.execute_async(plan))
         assert result["results_by_provider"]["cnae_discovery"][0]["name"] == "Sync-X"
+
+    def test_execute_sync_preserva_provider_async_com_loop_ativo(self):
+        """A API sync não pode retornar lista vazia silenciosamente em ASGI."""
+        import asyncio
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor, _StubProvider,
+        )
+
+        registry = DiscoveryProviderRegistry()
+        registry.register(_StubProvider("google_places", results=[{"name": "Async-X"}]))
+        executor = DiscoveryExecutor(registry)
+
+        async def invoke_sync_api_inside_loop():
+            return executor.execute({"providers": [{"type": "google_places"}]})
+
+        result = asyncio.run(invoke_sync_api_inside_loop())
+        assert result["unique_count"] == 1
+        assert result["unique_candidates"][0]["name"] == "Async-X"

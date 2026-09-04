@@ -216,7 +216,8 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
   `website`, `normalized_domain`, `phone`, `email`, `category`, `city`, `state`,
   `status`, `qualification_score/reason`, `primary_need`, `pitch_angle`,
   `suggested_subject`, `priority`, `priority_reasoning`, `executive_summary`,
-  `score_factors`, `evidence`, `assigned_to_id/assigned_at`, `opt_out`,
+  `score_factors`, `evidence`, `evidence_score` (outputs estruturados da
+  consolidação), `assigned_to_id/assigned_at`, `opt_out`,
   `whatsapp`, `notes`, `next_action_at`, `last_contacted_at`, campaign FK,
   `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
   (APROVADO/REPROVADO/EM_ANALISE) + `outcome_date` (funil interno C.3),
@@ -257,6 +258,10 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
 - **org_audit_log** (3.3.4) — trilha de eventos administrativos da org
   (convites, papéis, membros, secrets, metas) com actor denormalizado;
   `event` enum `org_audit_event`; nunca grava valor de secret.
+- **notifications** — notificações in-app por usuário e organização
+  (`LEAD_RESPONDED`, `LEAD_ASSIGNED`, `SLA_ALERT`, `CADENCE_DUE`), com vínculo
+  opcional ao lead, estado `is_read` e índices para polling do cabeçalho. A
+  tabela é criada pela migration `e8f9a0b1c2d3`.
 
 ## Scheduler & Tarefas Assíncronas
 
@@ -269,6 +274,34 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
 - **Pipeline em background**: endpoints `POST /pipeline/start`, `collect-cnae`
   criam um `Job` e disparam `pipeline_worker` com streaming via WebSocket.
 - Trabalho síncrono (SMTP, import CSV) roda fora do event loop (`asyncio.to_thread`).
+
+## Estado operacional da consolidação
+
+O fluxo real atual é:
+
+```text
+Campaign → CampaignScoringTemplate/prospecting_profile_service
+  → pipeline_worker (Places/CNAE diretos)
+  → pre-scoring → enrichment_orchestrator
+  → scoring + OfferMatcher (leads.evidence_score)
+  → ContactEnrichmentService + Decision Maker Resolution
+  → outreach/cadência
+```
+
+Os módulos de consolidação possuem testes, mas não substituem automaticamente
+esse fluxo:
+
+| Módulo | Estado | Limitação |
+|---|---|---|
+| `prospecting/offer_profile.py` | PARTIAL | pipeline ainda resolve template legado; sem tabela própria. |
+| `prospecting/discovery_executor.py` | PARTIAL | adapters existem, mas pipeline chama Places/CNAE diretamente. |
+| `prospecting/intent_provider.py` | SCAFFOLDING | não há job que colete e alimente o IntentEngine. |
+| `prospecting/event_discovery.py` | SCAFFOLDING | provider padrão é injetado/testável, sem fonte externa configurada. |
+| `prospecting/learning_metrics.py` | SCAFFOLDING | in-memory, sem endpoint/BI/outcomes reais. |
+
+O status operacional completo fica em `docs/00-status-mapa.md`. A auditoria
+também confirmou que a migration `e8f9a0b1c2d3` é o head do código e está
+aplicada no banco de desenvolvimento.
 
 ## Configuração & Secret
 

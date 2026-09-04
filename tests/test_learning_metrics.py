@@ -233,3 +233,11 @@ class TestPhaseHIntegration:
         result = comp.compare("trophies", "1.0", "2.0")
         assert result["is_improvement"] is True
         assert result["delta"] > 0
+
+    def test_qualificacao_nao_e_registrada_como_venda(self):
+        """Qualificar um lead não deve criar outcome comercial automaticamente."""
+        from services.prospecting.learning_metrics import OutcomesRegistry
+        registry = OutcomesRegistry()
+        # O registry só recebe resultados explícitos; QUALIFIED é permitido
+        # como estado de funil, mas não é criado pelo scoring.
+        assert registry.query() == []

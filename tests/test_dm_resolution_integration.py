@@ -72,6 +72,38 @@ class TestContactVerificationReal:
         assert result["email_verified"] is False
         assert result["verification_status"] in ("pending_real_check", "identity_verified_no_email")
 
+    def test_verification_usa_metodo_publico_verify_email(self, monkeypatch):
+        """O adapter deve chamar `verify_email`, API pública existente."""
+        import sys
+        import types
+        from services.prospecting.decision_maker_resolution import (
+            ContactVerification,
+            PersonContact,
+        )
+
+        calls = []
+
+        class FakeEmailVerificationService:
+            async def verify_email(self, email):
+                calls.append(email)
+                return {"verified": True, "reason": "ok"}
+
+        fake_module = types.ModuleType("services.email_verification_service")
+        fake_module.EmailVerificationService = FakeEmailVerificationService
+        monkeypatch.setitem(sys.modules, "services.email_verification_service", fake_module)
+
+        person = PersonContact(
+            name="Maria",
+            source="receita",
+            email="maria@alpha.com",
+            document_cpf="111",
+        )
+        result = ContactVerification().verify(person)
+
+        assert calls == ["maria@alpha.com"]
+        assert result["email_verified"] is True
+        assert result["verification_status"] == "fully_verified"
+
 
 class TestPhaseGContactEnrichmentIntegration:
     """Valida que ContactEnrichmentService realmente pluga DecisionMakerResolver."""

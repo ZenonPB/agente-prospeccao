@@ -644,21 +644,23 @@ class ContactEnrichmentService:
                         "verification": v,
                     })
 
-            # Anexa ao raw_data do lead (não à lista de contatos) — fica
-            # disponível para a UI e métricas.
-            lead.raw_data = {
-                **(lead.raw_data or {}),
-                "phase3_contact": {
-                    "decision_maker": decision_maker,
-                    "cascade": cascade,
-                    "actionable_rate": actionable,
-                    "resolution": {
-                        "status": resolution.status,
-                        "people": people_verified,
-                        "audit": resolution.audit,
-                    },
+            # Anexa ao JSONB existente do lead (não à lista de contatos).
+            # `Lead` não possui `raw_data`; usar `evidence_score` garante que
+            # os resultados da resolução sejam persistidos pela sessão.
+            existing_evidence = (
+                lead.evidence_score if isinstance(lead.evidence_score, dict) else {}
+            )
+            existing_evidence["phase3_contact"] = {
+                "decision_maker": decision_maker,
+                "cascade": cascade,
+                "actionable_rate": actionable,
+                "resolution": {
+                    "status": resolution.status,
+                    "people": people_verified,
+                    "audit": resolution.audit,
                 },
             }
+            lead.evidence_score = existing_evidence
         except Exception as e:  # noqa: BLE001
             logger.debug("Fase3: falha em decision_maker/cascade/routable: %s", e)
 

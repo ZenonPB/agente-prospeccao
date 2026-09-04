@@ -19,6 +19,32 @@
 
 ### Fase 2 — Sinais, enrichment, score vetorial e discovery ✅ Pronta (2026-09-04)
 
+### Auditoria final das fases de consolidação (2026-09-04)
+
+As Fases B–H possuem código e testes focados, mas a auditoria separou
+**capacidade testada** de **capacidade operacional em produção**. O grafo foi
+regenerado (`graphify extract --code-only`) e confirmou que
+`EventDiscoveryExecutor`, `IntentProvider` e `LearningMetrics` não tinham
+consumidores no fluxo principal; `OfferMatcher` foi conectado ao
+`enrichment_orchestrator` nesta revisão.
+
+Estado real: scoring/pre-scoring, Places/CNAE, enriquecimento, contatos e
+resolução de decisores são operacionais; `OfferProfile` ainda convive com o
+resolver legado de templates; `DiscoveryExecutor` ainda não substitui as
+chamadas diretas do `pipeline_worker`; Event Discovery e Intent não têm
+collectors externos/job produtor; e Learning Metrics continua in-memory, sem
+endpoint/BI. Portanto, os números históricos `48/48 COMPLETE` não representam
+o estado operacional.
+
+Validação: 117 testes focados C–H passaram com `-W error`; `py_compile` passou;
+o E2E de outreach é skipped sem `E2E_DATABASE_URL`; a migration de notificações
+`e8f9a0b1c2d3` foi aplicada e o banco local está nesse head.
+
+**Próximo passo imediato:** integrar `OfferProfileResolver` e
+`DiscoveryExecutor.execute_async` no pipeline e criar persistência/API para
+oportunidades, eventos e outcomes antes de promover essas capacidades a
+COMPLETE.
+
 Branch `feat/fase2-sinais-e-episteme` (4 ondas, commits por onda):
 
 - **W1 — Signal Registry + Status epistêmico (docs 20, 29):**
@@ -50,8 +76,10 @@ Branch `feat/fase2-sinais-e-episteme` (4 ondas, commits por onda):
   NO_OWN_WEBSITE/Instagram/reviews) — ausência total de demanda não vira
   lead quente.
 
-Suíte: **618 testes passando**, compileall limpo, web lint+tsc limpos, 2
-migrations aplicadas no Postgres real.
+Registro histórico: a suíte da Fase 2 foi reportada como **618 testes** em sua
+execução original. Nesta auditoria final, a suíte completa não foi reproduzida
+no Python global (dependências de desenvolvimento ausentes); os testes focados
+C–H passaram e o resultado atual está registrado abaixo.
 
 **Próximo passo imediato:** qualquer doc ainda Proposto do plano (W2+ já
 entregue; candidatos naturais: 22-discovery-planner, 27-v2, 05, 12, 09,
