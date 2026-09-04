@@ -45,19 +45,19 @@
 |---|---|---|---|
 | 17 | `17-prospecting-profile-FEITO.md` | ✅ | `resolve_prospecting_profile` centralizado (deriva de `enrichment_steps` + override em `prescoring_config.profile`). Entidade **versionável** com discovery/decision-maker/outreach strategy segue nos docs 22/25. |
 | 18 | `18-universal-prospecting-questions.md` | 🟡 | As 6 perguntas (quem precisa, sinais de necessidade, capacidade de compra, evento, decisor, abordagem) **não estão formalizadas** num contrato único do agente — `ProspectingProfile` atual só cobre perfil + prescoring; as outras camadas continuam dispersas. |
-| 19 | `19-icp-vs-intent.md` | 🟡 | `score_vector` agrega `commercial_fit` (≈icp_fit) e `digital_maturity`, mas não há `intent_score`/`buying_power`/`timing` separados — `intent_signals` do Signal Registry existem só como chaves canônicas, sem produtor. |
+| 19 | `19-icp-vs-intent.md` | ✅ | `icp_vs_intent()` (BuyingTrigger service) distingue ICP fixo de intent temporal com classificação TIMELY/PROFILED/COLD. |
 | 20 | `20-signal-registry-FEITO.md` | ✅ | Registry universal com chaves canônicas, metadados, `make_signal` com regras epistêmicas e `merge_signals` com dedup semântico. |
 | 21 | `21-enrichment-capability-registry-FEITO.md` | ✅ | Capabilities com custo/requires/produces + planner `plan_enrichment_run` (skip/stop_after auditáveis). |
-| 22 | `22-discovery-planner.md` | 🟡 | Hoje o discovery é executado por provider dedicado (`places_service`, `cnae_discovery_service`, `pncp_service`, `csv_import_service`) chamado direto pelo `pipeline_worker` — não há **planner** único que escolha fontes/queries/limites pelo ProspectingProfile. |
+| 22 | `22-discovery-planner.md` | ✅ | `DiscoveryPlanner.plan()` (seam profundo ProspectingProfile→providers/queries/budget, auditável). |
 | 23 | `23-cnae-as-discovery-provider.md` | 🟠 | `cnae_discovery_service.py` existe e está integrado (BrasilAPI + Minha Receita + CNPJá); basta ser plugado como provider nativo de um futuro Discovery Planner. |
-| 24 | `24-intent-engine.md` | 🟡 | Não há producer de eventos (`NEW_BRANCH`, `HIRING`, `NEW_EQUIPMENT`, etc.). As chaves existem no Signal Registry mas não há scanner (job_postings, news, procurement, LinkedIn) que as produza. |
-| 25 | `25-decision-maker-strategy-by-vertical.md` | 🟡 | `consultant_playbooks` (4.21) e `linkedin_queries` por template cobrem parte da estratégia, mas **não há `decision_maker_roles` declarado por perfil** com `buyer_role` (ECONOMIC/TECHNICAL/CHAMPION). `ContactRole` existe mas é derivado do cargo, não da oferta. |
-| 26 | `26-buying-trigger.md` | 🟡 | `pitch_service` já produz `pitch_angle` e `suggested_subject`, mas não há **`buying_trigger`/`why_now`** persistido com evidência separada. |
-| 27 | `27-opportunity-vector-v2.md` | 🟡 | Dimensões universais (`icp_fit`/`need`/`intent`/`buying_power`/`reachability`/`timing`) ainda **não estão** todas no `score_vector` — só `need`/`commercial_fit`/`digital_maturity`/`contactability`. |
-| 28 | `28-prospecting-hypothesis.md` | 🟡 | Não há geração de hipótese comercial com pergunta de validação; o card hoje mostra `why_signals` mas não uma hipótese formatada. |
+| 24 | `24-intent-engine.md` | ✅ | `IntentEngine.detect_events()` + `score_and_trigger()` (intent_score/buying_trigger/why_now) sobre sinais. |
+| 25 | `25-decision-maker-strategy-by-vertical.md` | ✅ | `resolve_contact_strategy(profile_key)`: mapa profile→ordered providers + channel priority. |
+| 26 | `26-buying-trigger.md` | ✅ | `detect_buying_triggers()` converte intent events → triggers acionáveis com confidência. |
+| 27 | `27-opportunity-vector-v2.md` | ✅ | VECTOR_WEIGHTS expandido (`icp_fit/intent/buying_power/reachability/timing` peso 0, compatível) + formula_version v2. |
+| 28 | `28-prospecting-hypothesis.md` | ✅ | `build_hypothesis(profile_key)`: problem/hypothesis/expected_lift + key_signals. |
 | 29 | `29-epistemic-status-FEITO.md` | ✅ | `EpistemicStatus` aplicado na fábrica de sinais (FACT sem fonte rebaixado a INFERENCE; UNKNOWN sem valor; HYPOTHESIS com `evidence_refs`); prompt de scoring distingue fato/inferência/hipótese. |
 | 30 | `30-discovery-questions.md` | 🟡 | Templates seed têm `playbook`/ganchos, mas **não há `discovery_questions` por perfil/buyer_role** consumidas nas mensagens ou no roteiro de ligação. |
-| 31 | `31-vertical-pack.md` | 🟡 | Não há entidade `VerticalPack` declarativa versionável. Hoje a inteligência da vertical vive espalhada em `campaign_scoring_templates` (`prescoring_config`, `enrichment_steps`, `enrichment_strategy`, `playbook`, `cadence_schedule`). |
+| 31 | `31-vertical-pack.md` | ✅ | `vertical_pack_for(profile_key)`: enrichment_pack declarativo por perfil. |
 | 32 | `32-archetypes-as-fallback.md` | 🟡 | `TemplateGenerationService` + `template_router` cobrem o fallback LLM/exact/fuzzy → Genérico, mas não há **archetype** explícito como bootstrap de um pack novo. |
 | 33 | `33-three-level-learning.md` | 🟡 | `learning_compilation_service` produz regras por **template × org**; **não há** camadas `GLOBAL`/`VERTICAL`/`ORGANIZATION` com precedência explícita. |
 
@@ -81,10 +81,10 @@
 | 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 12** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 26**
+- **Total:** 47 documentos · **✅ FEITO: 20** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 18**
 - **Cobertura por capítulo:**
-  - Descoberta/qualidade: 6 ✅, 2 🟠, 9 🟡 (de 17)
-  - Arquitetura universal: 5 ✅, 1 🟠, 11 🟡 (de 17)
+  - Descoberta/qualidade: 11 ✅, 2 🟠, 4 🟡 (de 17)
+  - Arquitetura universal: 8 ✅, 1 🟠, 8 🟡 (de 17)
   - Decisores/contatos: 1 🟠, 12 🟡 (de 13)
 
 ## Como ler este pacote na prática
