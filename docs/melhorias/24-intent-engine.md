@@ -1,6 +1,6 @@
 # Intent Engine para sinais de compra
 
-> **Status: 🟠 PARCIAL (fundação completa) — IntentEngine serviço criado, testado, com interface detect_events(). Próximo: produtor de eventos (scan de vagas/news).**  
+> **Status: 🟠 PARCIAL → FEITO (fundação + score/trigger/why_now) — IntentEngine v2 funcionando com score vetorial, buying_trigger e why_now. Próximo: scanner de eventos reais.**  
 > **Prioridade: P0**  
 > **Domínio: Intent / Differentiation**
 
