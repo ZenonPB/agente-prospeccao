@@ -27,6 +27,8 @@ from services.enrichment_orchestrator import process_single_lead, resolve_enrich
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.prospecting_profile_service import resolve_prospecting_profile
+from services.discovery_planner_service import DiscoveryPlanner, cnae_discovery_plan
+from services.prospecting_hypothesis_service import vertical_pack_for
 from services.candidate_pre_scoring_service import CandidatePreScoringService
 from services.discovery_multi_query import (
     aggregate_multi_query_results,
@@ -299,6 +301,21 @@ async def run_pipeline(
         # vez por job a partir do template — gate de pre-scoring desligado por
         # padrão (templates sem `prescoring_config` mantêm o fluxo atual).
         prospecting_profile = resolve_prospecting_profile(scoring_template)
+        # --- Fase 3: DiscoveryPlanner decide fontes/budget/orçamento pela oferta ---
+        # Plano auditável que descreve QUAIS providers rodar e com qual budget.
+        # Não toma ações: o pipeline continua chamando providers; o plano apenas
+        # declara o que deve ser tentado (docs/melhorias/22 e 23).
+        discovery_plan = DiscoveryPlanner().plan(prospecting_profile)
+        vertical_pack = vertical_pack_for(prospecting_profile.get("profile_key", "generic"))
+        yield {
+            "type": "log",
+            "message": (
+                f"DiscoveryPlanner ({prospecting_profile.get('profile_key','generic')}): "
+                f"{len(discovery_plan.get('providers',[]))} providers, "
+                f"target_candidates={discovery_plan.get('target_candidates',0)}"
+            ),
+            "timestamp": _ts(),
+        }
         prescoring_discarded = 0
         prescoring_breakdown: Dict[str, int] = {}
 
