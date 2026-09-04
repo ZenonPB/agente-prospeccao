@@ -285,6 +285,10 @@ VECTOR_WEIGHTS = {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
     },
+    "industrial": {
+        "need": 0.35, "commercial_fit": 0.35,
+        "digital_maturity": 0.15, "contactability": 0.15,
+    },
     "generic": {
         "need": 0.25, "commercial_fit": 0.25,
         "digital_maturity": 0.25, "contactability": 0.25,
