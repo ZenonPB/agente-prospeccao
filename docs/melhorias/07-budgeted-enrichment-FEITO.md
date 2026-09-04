@@ -1,6 +1,6 @@
 # Enriquecimento seletivo por custo e valor esperado
 
-> **Status: 🟠 Parcial — primeiro gate determinístico implementado: pre-score barato antes de qualquer enriquecimento caro; descartados não consomem APIs. Falta: capabilities com custo/pré-condições declaradas e planner (doc 21).**  
+> **Status: ✅ FEITO — enriquecimento seletivo implementado**: candidatos abaixo do threshold (ou fora do top_k) não viram Lead e não consomem CNPJ/auditoria/LLM/contato. Capabilities com custo/pré-condições declaradas seguem no doc 21 como evolução.  
 > **Prioridade: P0**  
 > **Domínio: Enrichment**
 

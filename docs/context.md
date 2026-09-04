@@ -17,6 +17,46 @@
 
 ## Estado atual (atualizar a cada sessão)
 
+### Fase 2 — Sinais, enrichment, score vetorial e discovery ✅ Pronta (2026-09-04)
+
+Branch `feat/fase2-sinais-e-episteme` (4 ondas, commits por onda):
+
+- **W1 — Signal Registry + Status epistêmico (docs 20, 29):**
+  `services/workers/src/services/signal_registry.py` — chaves canônicas
+  (`SignalKey`), metadados, fábrica `make_signal` com regras do doc 29
+  (FACT exige fonte+evidência, senão rebaixa a INFERENCE; UNKNOWN sem valor;
+  HYPOTHESIS com `evidence_refs`), `merge_signals` (dedup semântico de
+  evidência; critério de aceite do doc 20) e `to_statement`.
+  Pre-scoring passou a usar o registry; prompt de scoring distingue
+  FATO/INFERÊNCIA/HIPÓTESE.
+- **W2 — Capability registry + ordem/parada pela oferta (docs 21, 08):**
+  `enrichment_capability_registry.py` — capabilities com custo, `requires` e
+  `produces`; planner `plan_enrichment_run` (skip/stop_after declarados em
+  `enrichment_strategy`, pulos auditáveis). Coluna
+  `campaign_scoring_templates.enrichment_strategy` (migration
+  `c5d6e7f8a9b0`). **Fix**: `_serialize` do template não incluía
+  `prescoring_config` — o gate nunca leria a config declarada.
+- **W3 — Score vetorial por perfil + why-prospect card (docs 02, 16):**
+  LLM produz dimensões `need/commercial_fit/digital_maturity/contactability`;
+  `overall` agregado no backend com pesos POR PERFIL
+  (`VECTOR_WEIGHTS`) e `formula_version=vector-v1-<perfil>` fixada
+  (LLM não escolhe fórmula). API lista `why_signals` (top 3 titles de
+  evidence) e o card de leads exibe os chips.
+- **W4 — Places multi-query + template Landing Pages (docs 04, 03):**
+  `campaigns.search_queries` (migration `d6e7f8a9b0c1`) + API;
+  `discovery_multi_query.py` (expansão + dedup por place_id com
+  `source_queries`); pipeline executa todas as queries com limite
+  proporcional. Seed "Landing Pages" com prescoring próprio (pesos
+  NO_OWN_WEBSITE/Instagram/reviews) — ausência total de demanda não vira
+  lead quente.
+
+Suíte: **618 testes passando**, compileall limpo, web lint+tsc limpos, 2
+migrations aplicadas no Postgres real.
+
+**Próximo passo imediato:** qualquer doc ainda Proposto do plano (W2+ já
+entregue; candidatos naturais: 22-discovery-planner, 27-v2, 05, 12, 09,
+19, 24, 28).
+
 ### Fase 1 — Workers (Backend) ✅ Pronta
 
 - `places_service.py` — coleta via Google Places API (async)

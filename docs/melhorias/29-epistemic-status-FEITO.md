@@ -1,6 +1,6 @@
 # Status epistêmico para fatos, inferências e hipóteses
 
-> **Status: 🟡 Proposto**  
+> **Status: ✅ FEITO — `EpistemicStatus` (FACT/INFERENCE/HYPOTHESIS/UNKNOWN) aplicado na fábrica de sinais (FACT sem fonte rebaixado a INFERENCE; UNKNOWN sem valor; HYPOTHESIS com evidence_refs) e no prompt de scoring (hipótese não vira afirmação).  
 > **Prioridade: P0**  
 > **Domínio: Evidence / AI Safety**
 

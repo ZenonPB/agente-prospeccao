@@ -1,6 +1,6 @@
 # Signal Registry universal
 
-> **Status: 🟠 Parcial — sinais do pre-scoring carregam key/value/source/confidence/observed_at/evidence + epistemic=FACT. Falta: registry completo, INFERENCE/HYPOTHESIS/UNKNOWN e evolução de evidence/score_factors existentes.**  
+> **Status: ✅ FEITO — registry universal com chaves canônicas `SignalKey`, metadados, fábrica com regras epistêmicas (FACT exige fonte+evidência) e merge de providers com dedup semântico de evidência.  
 > **Prioridade: P0**  
 > **Domínio: Architecture / Evidence**
 

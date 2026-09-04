@@ -110,8 +110,12 @@ def _serialize(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
         "requires_technical_report": bool(tmpl.requires_technical_report),
         "requires_business_data": bool(tmpl.requires_business_data),
         "enrichment_steps": tmpl.enrichment_steps or None,
+        # Estratégia de execução declarada pela oferta (docs/melhorias/08):
+        # {"skip": [...], "stop_after": "cnpj_receita"}.
+        "enrichment_strategy": tmpl.enrichment_strategy or None,
         "cadence_schedule": tmpl.cadence_schedule or None,
         "extra_instructions": tmpl.extra_instructions,
+        "prescoring_config": tmpl.prescoring_config or None,
         "playbook": tmpl.playbook or {},
     }
 

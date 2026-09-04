@@ -1,6 +1,6 @@
 # ProspectingProfile como contrato universal de prospecção
 
-> **Status: 🟠 Parcial — `resolve_prospecting_profile` como embrião do contrato: deriva perfil da config do template (sem if vertical no core). Falta: entidade versionável com discovery/decision_maker/outreach strategy.**  
+> **Status: ✅ FEITO — perfil de prospecção resolvido centralizadamente** (`prospecting_profile_service.resolve_prospecting_profile`): deriva da config do template (sem `if vertical` no core), override explícito por `prescoring_config.profile`, constantes compartilhadas de steps. Entidade versionável com discovery/decision_maker/outreach strategy é evolução (docs 22/25).  
 > **Prioridade: P0**  
 > **Domínio: Architecture / Vertical Intelligence**
 

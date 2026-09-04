@@ -1,6 +1,6 @@
 # Candidate Pre-Scoring antes do enriquecimento pesado
 
-> **Status: 🟠 Parcial — fundação entregue (ver 00-diagnostico-fase-1.md). Serviço determinístico sem LLM + gate no pipeline + pesos por template implementados. Falta: persistir candidatos descartados p/ auditoria/métricas (sem tabela Candidate ainda).**  
+> **Status: ✅ FEITO — pré-scoring determinístico sem LLM implementado** (`candidate_pre_scoring_service.py`): sinais FACT, pesos por template, gate no pipeline e descartes auditados em `prescoring_discards` (reason + upsert idempotente). Detalhes: `00-diagnostico-fase-1.md`. Evoluções futuras (métricas de retrieval, painel de descartes) seguem nos docs 10/12.  
 > **Prioridade: P0**  
 > **Domínio: Discovery / Ranking**
 

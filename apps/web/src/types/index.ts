@@ -117,6 +117,7 @@ export interface Lead {
   priority?: LeadPriority;
   priority_reasoning?: string;
   executive_summary?: string;
+  why_signals?: string[];
   score_factors?: ScoreFactor[];
   evidence?: EvidenceItem[];
   campaign_id?: string;

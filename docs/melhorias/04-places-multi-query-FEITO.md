@@ -1,6 +1,6 @@
 # Google Places com busca multi-query
 
-> **Status: 🟡 Proposto**  
+> **Status: ✅ FEITO — `campaigns.search_queries` (multi-query), coleta com limite proporcional por query (variedade semântica, não paginação cega), dedup por place_id e `source_queries` auditáveis no candidato.  
 > **Prioridade: P0**  
 > **Domínio: Discovery / Google Places**
 

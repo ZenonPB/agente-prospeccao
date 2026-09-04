@@ -52,10 +52,20 @@ DEFAULT_TEMPLATES = [
         # Pré-scoring de discovery (docs/melhorias/01): ausência de site é
         # público-alvo, mas SÓ pontua com alguma presença ativa — sem site E
         # sem nenhuma presença digital não é bom lead de landing page.
+        # Empresa COM site também é alvo (site desatualizado = ICP clássico):
+        # HAS_OWN_WEBSITE pontua menos que a ausência com tração, mas passa.
         "prescoring_config": {
             "profile": "web_presence",
             "enabled": True,
             "threshold": 45,
+            "weights": {
+                "HAS_OWN_WEBSITE": 20,
+                "NO_OWN_WEBSITE": 25,
+                "HAS_INSTAGRAM": 12,
+                "HAS_PHONE": 8,
+                "GOOGLE_RATING": 15,
+                "GOOGLE_RATING_COUNT": 15,
+            },
         },
         "playbook": {
             "hooks": [
@@ -104,6 +114,77 @@ DEFAULT_TEMPLATES = [
         ),
     },
     {
+        "service_label": "Landing Pages",
+        "requires_technical_report": False,
+        "requires_business_data": False,
+        # Busca multi-query (docs/melhorias/04): variedade semântica já sugerida
+        # no template para subnichos de conversão.
+        "enrichment_steps": ["business_social", "technical_site"],
+        # Landing Page (docs/melhorias/03): o prospect ideal já tem tráfego e
+        # reputação mas NÃO converte. Ausência de site SÓ pontua combinada com
+        # presença ativa (Instagram/reviews) — ausência total de demanda não
+        # vira lead quente.
+        "prescoring_config": {
+            "profile": "web_presence",
+            "enabled": True,
+            "threshold": 45,
+            "weights": {
+                "NO_OWN_WEBSITE": 30,
+                "HAS_INSTAGRAM": 15,
+                "HAS_PHONE": 8,
+                "GOOGLE_RATING": 15,
+                "GOOGLE_RATING_COUNT": 15,
+            },
+        },
+        "playbook": {
+            "hooks": [
+                "Empresa aparece bem no Google/Instagram mas não tem página de conversão — perde cliente para quem tem",
+                "Sem site próprio, pedidos/orçamentos dependem de WhatsApp/Instagram e o funil não escala",
+                "Presença forte nas redes sem CTA: visita vira 'curtida', não vira lead",
+            ],
+            "subject_ideas": [
+                "Sua página de conversão {empresa}",
+                "Seu Instagram atrai — mas converte? Landing page para {serviço}",
+                "{empresa} sem formulário/orçamento online",
+            ],
+            "objections": [
+                {"objection": "Já temos Instagram/WhatsApp", "approach": "Reforçar que redes geram contato, mas não funil/tracking; propor landing como camada de conversão e medição"},
+                {"objection": "Já temos site", "approach": "Perguntar se o site converte (formulário, CTA, orçamento online); se não, é exatamente o caso de landing"},
+                {"objection": "Orçamento apertado", "approach": "Mostrar custo da dependência de WhatsApp/Instagram e o retorno de uma página de conversão simples"},
+            ],
+        },
+        "positive_signals": [
+            {"label": "Sem site próprio / sem página de conversão", "description": "Empresa sem website próprio (usa Instagram/Canva/WhatsApp) OU site institucional sem CTA/formulário — público-alvo direto para landing page", "weight_hint": "high"},
+            {"label": "Instagram ativo", "description": "Perfil ativo com conteúdo recente — tráfego que não converte", "weight_hint": "medium"},
+            {"label": "Reputação Google forte", "description": "Nota >= 4.0 — confiança prévia que uma landing capitaliza", "weight_hint": "medium"},
+            {"label": "Volume de avaliações", "description": "Muitas avaliações (>= 30) — negócio com movimento e prova social", "weight_hint": "medium"},
+            {"label": "Negócio orientado a agendamento/orçamento", "description": "Setor que vende por orçamento/agenda (salão, clínica, oficina, serviço) — conversão direta na landing", "weight_hint": "medium"},
+            {"label": "Dependência de WhatsApp", "description": "Atendimento concentra em WhatsApp — sinal de demanda sem funil", "weight_hint": "low"},
+            {"label": "Bom valor por conversão", "description": "Ticket médio do setor comporta investimento em conversão", "weight_hint": "low"},
+        ],
+        "negative_signals": [
+            {"label": "Landing page já forte / converte", "description": "Página de conversão dedicada com CTA/formulário ativo — já tem o que venderíamos", "weight_hint": "high"},
+            {"label": "Rede / franquia com presença nacional", "description": "Estrutura corporativa que já investe em conversão", "weight_hint": "medium"},
+            {"label": "Atividade digital quase inexistente", "description": "Sem site, sem redes ativas, sem avaliações recentes — ausência de demanda, não só de conversão", "weight_hint": "high"},
+            {"label": "Lead sem canal acionável", "description": "Sem telefone/Instagram/WhatsApp/e-mail público — impossível iniciar contato", "weight_hint": "high"},
+        ],
+        "context_signals": [
+            {"label": "Segmento de conversão", "description": "Salões, clínicas, oficinas, serviços locais — negócios que vivem de orçamento/agenda"},
+            {"label": "Região", "description": "Presença regional e disputa local por cliente"},
+            {"label": "Reputação vs presença", "description": "Boa reputação Google com presença fraca = capital que uma landing converte"},
+        ],
+        "extra_instructions": (
+            "Venda de landing pages (página de conversão). O prospect ideal TEM "
+            "tráfego/reputação/presença social mas NÃO possui página dedicada à "
+            "conversão (CTA, formulário, orçamento). NÃO infira que toda empresa "
+            "sem site é boa: ausência de site só pontua quando combinada com "
+            "sinais de tração (Instagram ativo, avaliações, telefone acionável). "
+            "Empresa sem site, sem reviews e sem social é ausência de demanda — "
+            "não é lead quente. Distinga presença digital sem conversão (público-alvo) "
+            "de ausência total de atividade digital (não prospectar)."
+        ),
+    },
+    {
         "service_label": "SEO / Marketing Digital",
         "requires_technical_report": True,
         "requires_business_data": True,
@@ -132,7 +213,10 @@ DEFAULT_TEMPLATES = [
         "prescoring_config": {
             "profile": "business_opportunity",
             "enabled": True,
-            "threshold": 40,
+            # O fit de ERP vem do cadastro (CNAE/porte/idade), pós-gate. O
+            # pré-score só corta ausência total de presença — site
+            # institucional sem sistema é o público-alvo e precisa passar.
+            "threshold": 15,
         },
         "playbook": {
             "hooks": [
@@ -212,10 +296,13 @@ DEFAULT_TEMPLATES = [
         "requires_business_data": True,
         # Site/SEO praticamente irrelevantes para indústria — reputação leve;
         # atividade/porte (CNPJ) é que qualifica, e isso só chega depois.
+        # O pré-score NÃO tem dados para descartar aqui: o sinal decisivo da
+        # vertical (CNAE/atividade industrial) é pós-gate, então o threshold
+        # baixo só corta ausência total de presença verificável.
         "prescoring_config": {
             "profile": "industrial",
             "enabled": True,
-            "threshold": 25,
+            "threshold": 20,
         },
         # Fontes de informação: Receita Federal (porte/CNAE/idade) + reputação
         # Google. Auditoria de site não faz sentido para indústria — muitos
@@ -382,14 +469,23 @@ def upsert_template(db, tmpl: dict) -> CampaignScoringTemplate:
             setattr(existing, k, v)
         db.flush()
         logger.info("Atualizado template: %s", existing.service_label)
+        cfg = tmpl.get("prescoring_config") or {}
+        if isinstance(cfg, dict) and cfg.get("enabled"):
+            logger.info("Gate de pré-scoring ATIVADO para template %s (perfil=%s, "
+                        "threshold=%s, weights=%s)", existing.service_label,
+                        cfg.get("profile"), cfg.get("threshold"), cfg.get("weights"))
         return existing
 
     obj = CampaignScoringTemplate(**fields)
     db.add(obj)
     db.flush()
     logger.info("Criado template: %s", obj.service_label)
+    cfg = tmpl.get("prescoring_config") or {}
+    if isinstance(cfg, dict) and cfg.get("enabled"):
+        logger.info("Gate de pré-scoring ATIVADO para template %s (perfil=%s, "
+                    "threshold=%s, weights=%s)", obj.service_label,
+                    cfg.get("profile"), cfg.get("threshold"), cfg.get("weights"))
     return obj
-
 
 def run_seed():
     db = SessionLocal()

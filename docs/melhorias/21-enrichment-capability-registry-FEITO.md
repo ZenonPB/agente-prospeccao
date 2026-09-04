@@ -1,6 +1,6 @@
 # Catálogo de capabilities de enriquecimento
 
-> **Status: 🟠 Parcial — `enrichment_steps` do template segue como catálogo inicial; pre-scoring gate consome o perfil. Falta: capabilities com custo/pré-condições/signals produzidos.**  
+> **Status: ✅ FEITO — capabilities com custo/pré-condições/signals produzidos (`produces`) e planner auditável (`plan_enrichment_run`); `enrichment_steps` re-exportado com compat total.  
 > **Prioridade: P0**  
 > **Domínio: Architecture / Enrichment**
 

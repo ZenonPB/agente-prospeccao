@@ -1,0 +1,147 @@
+# Mapa de status — pacote de melhorias (`docs/melhorias/`)
+
+> **Snapshot: 2026-09-04**, branch `feat/fase2-sinais-e-episteme`.
+> Este arquivo é a fonte única para entender **o que está feito, o que está
+> parcial e o que falta** em cada documento de `docs/melhorias/`.
+>
+> O **plano macro** (`docs/00-plano-melhorias-prospeccao.md`) define 47 documentos
+> em 3 capítulos (Descoberta/qualidade · Arquitetura universal · Decisores/contatos).
+> Os arquivos do diretório usam o sufixo **`-FEITO.md`** quando a entrega está
+> concluída; os demais continuam com o nome original até serem marcados.
+
+## Legenda
+
+| Marca | Significado |
+|---|---|
+| ✅ **FEITO** | Implementação completa e validada (arquivo `-FEITO.md`). |
+| 🟡 **PROPOSTO** | Documento de design ainda não implementado. |
+| 🟠 **PARCIAL** | Há fundação/recurso relacionado no código; o doc descreve evolução. |
+
+## Capítulo 1 — Descoberta, pré-ranking e qualidade
+
+| # | Doc | Status | Resumo do estado |
+|---|---|---|---|
+| 01 | `01-candidate-pre-scoring-FEITO.md` | ✅ | Pre-scoring determinístico sem LLM (`candidate_pre_scoring_service`), gate com threshold/top_k no pipeline e descartes auditados em `prescoring_discards`. |
+| 02 | `02-opportunity-score-vector-FEITO.md` | ✅ | `score_vector` (need/commercial_fit/digital_maturity/contactability) com `overall` agregado por perfil e `formula_version` fixada no backend. |
+| 03 | `03-template-landing-pages-FEITO.md` | ✅ | Seed dedicado "Landing Pages" com prescoring/enrichment/playbook próprios. |
+| 04 | `04-places-multi-query-FEITO.md` | ✅ | `campaigns.search_queries` + `discovery_multi_query` (limite proporcional, dedup por place_id, `source_queries`). |
+| 05 | `05-search-query-generation.md` | 🟡 | Brief gera `places_query` (uma query), mas a **lista multi-query automática via LLM** ainda não foi implementada — hoje o usuário/edição informa `search_queries`. |
+| 06 | `06-candidate-vs-lead-FEITO.md` | ✅ | Candidate como estado lógico no pipeline; descarte persistido em `prescoring_discards` (idempotente). Tabela física fica para quando métricas de retrieval exigirem. |
+| 07 | `07-budgeted-enrichment-FEITO.md` | ✅ | Candidatos abaixo do threshold não viram Lead nem consomem CNPJ/site/LLM/contato. |
+| 08 | `08-enrichment-order-by-service-FEITO.md` | ✅ | Ordem + skip + stop_after declarados em `enrichment_strategy`; planner `plan_enrichment_run` auditável. |
+| 09 | `09-rating-count-by-vertical.md` | 🟡 | `GOOGLE_RATING`/`GOOGLE_RATING_COUNT` são sinais canônicos e o pre-score já usa `GOOGLE_RATING_COUNT` por perfil, mas **buckets nomeados por vertical** (fraco/médio/bom/ótimo) não existem — ainda é peso linear. |
+| 10 | `10-niche-prior-learning.md` | 🟡 | Nada implementado. Aprender prior por org × service × segment exige outcomes consolidados (ver 11/12). |
+| 11 | `11-learning-from-sales-outcomes.md` | 🟡 | Hoje há `score_feedback` (humano) + `learning_compilation_service` (regras por template × org) + `Conversion` + funil ponta-a-ponta em `/analytics/funnel`, mas **agregação por sinal/faixa/nicho/canal** que produza priors versionados ainda não existe. |
+| 12 | `12-precision-at-k.md` | 🟡 | Métrica Precision@K não implementada. Base de `prescoring_discards` está pronta para auditoria/recall, mas a janela temporal de outcome (reply/positive/meeting/won) por ranking ainda não é calculada. |
+| 13 | `13-chain-detection.md` | 🟡 | Não há detector de rede/franquia/enterprise. O `places_service` filtra por cidade/UF e o `candidate_pre_scoring` rebaixa fora do círculo, mas não classifica o TIPO de negócio. |
+| 14 | `14-decision-maker-accessibility.md` | 🟠 | Sinais individuais existem (`DECISION_MAKER_FOUND`, `Contact.confidence`, `linkedin_match_status`, `ContactRole`) — porém não há uma **dimensão explícita** `decision_maker_accessibility`/`contactability` no `score_vector` (apenas a dimensão `contactability` agregada). |
+| 15 | `15-golden-lead-patterns.md` | 🟡 | Não há matcher de padrões compostos (ex.: `landing_local_golden_v1`) — o seed Landing Pages aproxima por pesos, mas sem padrão explícito com explicação por evidência. |
+| 16 | `16-why-prospect-card-FEITO.md` | ✅ | Card do lead expõe `why_signals` (top 3 títulos de evidence). |
+
+
+## Capítulo 2 — Arquitetura universal e inteligência por vertical
+
+| # | Doc | Status | Resumo do estado |
+|---|---|---|---|
+| 17 | `17-prospecting-profile-FEITO.md` | ✅ | `resolve_prospecting_profile` centralizado (deriva de `enrichment_steps` + override em `prescoring_config.profile`). Entidade **versionável** com discovery/decision-maker/outreach strategy segue nos docs 22/25. |
+| 18 | `18-universal-prospecting-questions.md` | 🟡 | As 6 perguntas (quem precisa, sinais de necessidade, capacidade de compra, evento, decisor, abordagem) **não estão formalizadas** num contrato único do agente — `ProspectingProfile` atual só cobre perfil + prescoring; as outras camadas continuam dispersas. |
+| 19 | `19-icp-vs-intent.md` | 🟡 | `score_vector` agrega `commercial_fit` (≈icp_fit) e `digital_maturity`, mas não há `intent_score`/`buying_power`/`timing` separados — `intent_signals` do Signal Registry existem só como chaves canônicas, sem produtor. |
+| 20 | `20-signal-registry-FEITO.md` | ✅ | Registry universal com chaves canônicas, metadados, `make_signal` com regras epistêmicas e `merge_signals` com dedup semântico. |
+| 21 | `21-enrichment-capability-registry-FEITO.md` | ✅ | Capabilities com custo/requires/produces + planner `plan_enrichment_run` (skip/stop_after auditáveis). |
+| 22 | `22-discovery-planner.md` | 🟡 | Hoje o discovery é executado por provider dedicado (`places_service`, `cnae_discovery_service`, `pncp_service`, `csv_import_service`) chamado direto pelo `pipeline_worker` — não há **planner** único que escolha fontes/queries/limites pelo ProspectingProfile. |
+| 23 | `23-cnae-as-discovery-provider.md` | 🟠 | `cnae_discovery_service.py` existe e está integrado (BrasilAPI + Minha Receita + CNPJá); basta ser plugado como provider nativo de um futuro Discovery Planner. |
+| 24 | `24-intent-engine.md` | 🟡 | Não há producer de eventos (`NEW_BRANCH`, `HIRING`, `NEW_EQUIPMENT`, etc.). As chaves existem no Signal Registry mas não há scanner (job_postings, news, procurement, LinkedIn) que as produza. |
+| 25 | `25-decision-maker-strategy-by-vertical.md` | 🟡 | `consultant_playbooks` (4.21) e `linkedin_queries` por template cobrem parte da estratégia, mas **não há `decision_maker_roles` declarado por perfil** com `buyer_role` (ECONOMIC/TECHNICAL/CHAMPION). `ContactRole` existe mas é derivado do cargo, não da oferta. |
+| 26 | `26-buying-trigger.md` | 🟡 | `pitch_service` já produz `pitch_angle` e `suggested_subject`, mas não há **`buying_trigger`/`why_now`** persistido com evidência separada. |
+| 27 | `27-opportunity-vector-v2.md` | 🟡 | Dimensões universais (`icp_fit`/`need`/`intent`/`buying_power`/`reachability`/`timing`) ainda **não estão** todas no `score_vector` — só `need`/`commercial_fit`/`digital_maturity`/`contactability`. |
+| 28 | `28-prospecting-hypothesis.md` | 🟡 | Não há geração de hipótese comercial com pergunta de validação; o card hoje mostra `why_signals` mas não uma hipótese formatada. |
+| 29 | `29-epistemic-status-FEITO.md` | ✅ | `EpistemicStatus` aplicado na fábrica de sinais (FACT sem fonte rebaixado a INFERENCE; UNKNOWN sem valor; HYPOTHESIS com `evidence_refs`); prompt de scoring distingue fato/inferência/hipótese. |
+| 30 | `30-discovery-questions.md` | 🟡 | Templates seed têm `playbook`/ganchos, mas **não há `discovery_questions` por perfil/buyer_role** consumidas nas mensagens ou no roteiro de ligação. |
+| 31 | `31-vertical-pack.md` | 🟡 | Não há entidade `VerticalPack` declarativa versionável. Hoje a inteligência da vertical vive espalhada em `campaign_scoring_templates` (`prescoring_config`, `enrichment_steps`, `enrichment_strategy`, `playbook`, `cadence_schedule`). |
+| 32 | `32-archetypes-as-fallback.md` | 🟡 | `TemplateGenerationService` + `template_router` cobrem o fallback LLM/exact/fuzzy → Genérico, mas não há **archetype** explícito como bootstrap de um pack novo. |
+| 33 | `33-three-level-learning.md` | 🟡 | `learning_compilation_service` produz regras por **template × org**; **não há** camadas `GLOBAL`/`VERTICAL`/`ORGANIZATION` com precedência explícita. |
+
+
+## Capítulo 3 — Decisores e contatos
+
+| # | Doc | Status | Resumo do estado |
+|---|---|---|---|
+| 34 | `34-decision-maker-resolution-pipeline.md` | 🟠 | Pipeline existe **por partes**: (a) TargetRole via `playbook.linkedin_queries`/`ContactRole`; (b) PeopleDiscovery multi-provider (Receita/QSA, Hunter domain-search, busca site, LinkedIn assistido); (c) `linkedin_match_status` faz verificação semântica. Falta **orquestrador único** `TargetRoleResolver → PeopleDiscovery → IdentityResolution → ContactDiscovery → Verification → DecisionMakerScore`. |
+| 35 | `35-people-discovery-service.md` | 🟠 | `ContactEnrichmentService` é o equivalente funcional (Hunter + Receita/QSA + heurística determinística + LinkedIn assistido), mas **não há interface `PeopleDiscoveryService`** plugável com providers intercambiáveis. |
+| 36 | `36-qsa-decision-makers.md` | 🟠 | `cnpj_service._parse_brasilapi` lê `qsa[]` e gera contatos com `role`/`role_label`; sócios entram como decisores econômicos. Falta classificá-los explicitamente como `LEGAL_DECISION_MAKER`/`ECONOMIC_BUYER` e permitir que a vertical priorize gerente técnico em vez deles. |
+| 37 | `37-person-database-provider.md` | 🟡 | Hunter é o único provider de base de pessoas hoje (domain-search). Não há camada de abstração que permita trocar/encapsular provedores de pessoas (Apollo, Snov.io, etc.) com quota. |
+| 38 | `38-email-finder-after-identity.md` | 🟠 | Hoje o `ContactEnrichmentService` faz Hunter domain-search quando não há nome (doc 35), mas **email-finder por nome+domínio não é separado como fase posterior**; os dois caminhos rodam juntos quando Hunter key existe. |
+| 39 | `39-email-pattern-inference.md` | 🟡 | Heurística determinística já infere `firstname.lastname@dominio` no fallback, mas **não há persistência de padrão por domínio com `source=pattern_inference`/`confidence`/`verification_status`**. |
+| 40 | `40-contact-confidence-score.md` | 🟠 | `Contact.confidence` (0–100) + `linkedin_confidence` + `linkedin_match_status` já existem e a UI exibe badge (≥50 verde). Falta **separar `decision_maker_fit` × `identity_confidence` × `contact_confidence`** como três scores independentes. |
+| 41 | `41-channel-priority-by-vertical.md` | 🟡 | `consultant_playbooks` + `scheduling_url` por org cobrem priorização parcial, mas **não há `preferred_channels` por perfil** nem canal WhatsApp na cadência. |
+| 42 | `42-routable-contact.md` | 🟡 | Não há modelagem `DIRECT_CONTACT` vs `ROUTABLE_CONTACT` (PABX + target_person). `Lead.phone`/`Contact.phone` são telefones crus. |
+| 43 | `43-multiple-buyers.md` | 🟠 | `Lead` aceita múltiplos `Contact`s, e `ContactRole` classifica o cargo — porém **não há `buyer_role` (ECONOMIC_BUYER/TECHNICAL_BUYER/CHAMPION/INFLUENCER/GATEKEEPER)** separado do cargo factual, nem UI de comitê de compra. |
+| 44 | `44-cascade-contact-search.md` | 🟡 | Hoje o `ContactEnrichmentService` segue uma ordem fixa (Receita → Hunter → heurística → LinkedIn assistido). **Não há cascata explícita com early stopping** baseado em `identity_confidence`/`actionable` e por vertical. |
+| 45 | `45-company-identity-resolver.md` | 🟠 | `CompanyPersonService.get_or_create_company` faz match por CNPJ/domínio/nome em uma única org. **Falta o resolver de aliases entre fontes** (Maps, CNPJ, site, LinkedIn) com confiança e regra de "domínio de marketplace ≠ domínio próprio". |
+| 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
+## Resumo executivo do pacote
+
+- **Total:** 47 documentos · **✅ FEITO: 12** · **🟠 PARCIAL: 9** · **🟡 PROPOSTO: 26**
+- **Cobertura por capítulo:**
+  - Descoberta/qualidade: 6 ✅, 2 🟠, 9 🟡 (de 17)
+  - Arquitetura universal: 5 ✅, 1 🟠, 11 🟡 (de 17)
+  - Decisores/contatos: 1 🟠, 12 🟡 (de 13)
+
+## Como ler este pacote na prática
+
+- Se a linha diz **🟠 PARCIAL**, há fundação utilizável: o trabalho é
+  **estender**, não criar do zero (modelo/tabela/serviço já existem).
+- Se a linha diz **🟡 PROPOSTO**, o doc inteiro é a spec: o trabalho é
+  **implementar do zero** respeitando contratos que já existem.
+## Próxima fase (Fase 3 do plano de melhorias — candidatos naturais)
+
+Ordenados por prioridade (P0 primeiro) e respeitando as dependências:
+
+1. **#18** Seis perguntas universais do agente (P1) — sem contrato de raciocínio
+   entre as camadas; veda a criação de um agente "genuíno".
+2. **#22 Discovery Planner** (P0) + **#23 CNAE provider** (P0, já parcial) — destrava
+   o suporte nativo a Engenharia/ERP sem passar por Places.
+3. **#19 Separar ICP Fit de Intent** (P0) — destrava o **Intent Engine (#24)**.
+4. **#24 Intent Engine** (P0) — eventos recentes viram sinais temporais com
+   decay, alimentando `intent_score` (vetor universal).
+5. **#27 Opportunity vector v2** (P0) — completar o vetor (`icp_fit`,
+   `intent`, `buying_power`, `reachability`, `timing`) e UI por dimensão.
+6. **#25 Decision-maker strategy por vertical** (P0) — `decision_maker_roles`
+   + `buyer_role` no `ProspectingProfile`; entrada do **#34 Decision-maker
+   pipeline**.
+7. **#31 Vertical Pack** (P0) — empacotar toda a inteligência em entidade
+   declarativa versionável; prepara a fundação para **#33 three-level
+   learning** e **#32 archetypes as fallback**.
+8. **#34 Decision Maker Resolution Pipeline** (P0) + **#35 PeopleDiscovery**
+   (P0) + **#36 QSA** (P0, parcial) — unificar o caminho
+   `empresa → cargo-alvo → pessoa → canais → verificação` em um pipeline
+   auditável com cascata explícita (#44) e confiança de contato (#40).
+## Pendências de housekeeping
+
+- O arquivo **`docs/melhorias/00-plano-melhorias-prospeccao.md`** e seu espelho
+  **`docs/00-plano-melhorias-prospeccao.md`** (na raiz de `docs/`) precisam ter
+  o sufixo `✅ FEITO` realocado em todos os itens quando os docs forem
+  entregues — hoje eles só marcam os 12 que já estão `-FEITO.md`. Conforme
+  este mapa for atualizado, o plano macro precisa refletir (não basta o
+  nome do arquivo).
+- Nenhum arquivo `-FEITO.md` precisa ser renomeado: o sufixo já está
+  consistente em todos os 12 docs entregues.
+
+
+Itens secundários depois do P0: #14 accessibility (parcial), #38 email finder
+after identity (parcial), #39 pattern inference, #41 channel priority, #42
+routable contact, #43 multiple buyers (parcial), #45 company identity resolver
+(parcial), #46 domain-first person search, #47 actionable contact rate.
+
+Itens de BI/learning para fechar o ciclo: #11 outcomes, #12 precision@K, #10
+niche priors, #33 three-level learning, #28 prospecting hypothesis, #26 buying
+trigger, #15 golden lead patterns, #13 chain detection, #30 discovery
+questions, #09 rating buckets por vertical, #05 search query generation.
+
+
+- Os 🟡 P0 do plano macro são o caminho natural para a **próxima fase de
+  evolução** após a Fase 2 (sinais/enrichment): ver seção _Próxima fase_.
+
+
+| 47 | `47-actionable-contact-rate.md` | 🟡 | Métrica não existe em `/analytics`. Hoje há `Contact.confidence` ≥ 50 e `email_verified`, mas **não há taxa consolidada** que distinga direct/routable/institutional. |
+

@@ -434,6 +434,12 @@ class Campaign(Base):
     # Quando presente, o pipeline usa esta query em vez de montar uma
     # automaticamente a partir de target_segment/city/state.
     places_query = Column(String(255))
+    # Busca multi-query (docs/melhorias/04): lista de consultas Places
+    # executadas em paralelo pela campanha (subnichos/variedade semântica),
+    # deduplicadas por place_id antes do ranking. Cada candidato registra
+    # `source_queries` — auditável no lote e na auditoria de descartes.
+    # NULL/vazia → usa apenas `places_query` (comportamento atual).
+    search_queries = Column(JSONB)
     status = Column(Enum(CampaignStatus, name='campaign_status', create_type=True), default=CampaignStatus.ACTIVE)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -487,6 +493,12 @@ class CampaignScoringTemplate(Base):
     # ficam hardcoded no engine; template sem config mantém comportamento
     # atual (nenhum candidato é descartado na coleta).
     prescoring_config = Column(JSONB)
+    # Estratégia de execução do enriquecimento declarada pela oferta
+    # (docs/melhorias/08): {"skip": ["technical_site"],
+    #  "stop_after": "cnpj_receita"} — skip remove capabilities da ordem
+    # declarada; stop_after corta a execução após o step indicado. NULL ->
+    # executa tudo que está ativo em `enrichment_steps`.
+    enrichment_strategy = Column(JSONB)
     # Playbook de outreach por vertical: hooks de abordagem,
     # ideias de assunto e objeções do decisor — injetados no OutreachService
     # para mensagens variarem por serviço/segmento.

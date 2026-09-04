@@ -11,18 +11,28 @@ sem nenhuma presença ativa pontua baixo. Os pesos vêm do perfil/vertical
 (`prospecting_profile_service.resolve_prospecting_profile`), nunca hardcoded
 aqui.
 
-Cada sinal carrega o contrato do Signal Registry (docs/melhorias/20):
-{key, value, source, confidence, observed_at, evidence} + `epistemic`
-(SEMPRE "FACT" nesta fase — tudo aqui é dado observado na coleta, não
-inferência).
+Cada sinal carrega o contrato do Signal Registry (docs/melhorias/20 e 29):
+{key, value, source, confidence, observed_at, evidence, evidence_refs,
+epistemic, contributing_sources} — chaves canônicas em
+`signal_registry.SignalKey`. SEMPRE FACT nesta fase: tudo aqui é dado
+observado na coleta, não inferência.
 """
 import logging
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+from services.signal_registry import (
+    EpistemicStatus,
+    SignalKey,
+    make_signal,
+)
 
 logger = logging.getLogger(__name__)
 
-SIGNAL_FACT = "FACT"
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
 
 
 class CandidatePreScoringService:
@@ -40,46 +50,50 @@ class CandidatePreScoringService:
             Lista de sinais no contrato do registry v0 (dicts com key, value,
             source, confidence, observed_at, evidence, epistemic).
         """
-        observed_at = datetime.now(timezone.utc).isoformat()
+        observed_at = _now_iso()
 
         def _signal(key, value, evidence, confidence=1.0):
-            return {
-                "key": key,
-                "value": value,
-                "source": "google_places",
-                "confidence": confidence,
-                "observed_at": observed_at,
-                "evidence": evidence,
-                "epistemic": SIGNAL_FACT,
-            }
+            return make_signal(
+                key, value, source="google_places", confidence=confidence,
+                evidence=evidence, observed_at=observed_at,
+                epistemic=EpistemicStatus.FACT,
+            )
 
         signals: List[Dict[str, Any]] = []
 
         # `website` já chega normalizado: domínio social (Instagram etc.) vem
         # como None (places_service), então site presente = site próprio.
         if item.get("website"):
-            signals.append(_signal("HAS_OWN_WEBSITE", True, f"site: {item['website']}"))
+            signals.append(_signal(
+                SignalKey.HAS_OWN_WEBSITE, True, f"site: {item['website']}"))
         else:
-            signals.append(_signal("NO_OWN_WEBSITE", True, "sem site próprio registrado"))
+            signals.append(_signal(
+                SignalKey.NO_OWN_WEBSITE, True, "sem site próprio registrado"))
 
         if item.get("instagram_url"):
-            signals.append(_signal("HAS_INSTAGRAM", True, f"instagram: {item['instagram_url']}"))
+            signals.append(_signal(
+                SignalKey.HAS_INSTAGRAM, True,
+                f"instagram: {item['instagram_url']}"))
 
         if item.get("phone"):
-            signals.append(_signal("HAS_PHONE", True, f"telefone: {item['phone']}"))
+            signals.append(_signal(
+                SignalKey.HAS_PHONE, True, f"telefone: {item['phone']}"))
 
         rating = item.get("rating")
         if rating is not None:
-            signals.append(_signal("GOOGLE_RATING", rating, f"nota Google {rating}"))
+            signals.append(_signal(
+                SignalKey.GOOGLE_RATING, rating, f"nota Google {rating}"))
 
         rating_count = item.get("rating_count")
         if rating_count:
-            signals.append(
-                _signal("GOOGLE_RATING_COUNT", rating_count, f"{rating_count} avaliações")
-            )
+            signals.append(_signal(
+                SignalKey.GOOGLE_RATING_COUNT, rating_count,
+                f"{rating_count} avaliações"))
 
         if item.get("category"):
-            signals.append(_signal("HAS_CATEGORY", item["category"], f"categoria: {item['category']}"))
+            signals.append(_signal(
+                SignalKey.HAS_CATEGORY, item["category"],
+                f"categoria: {item['category']}"))
 
         return signals
 
@@ -96,8 +110,9 @@ class CandidatePreScoringService:
             [{signal, impact, evidence}], `signals` (registry v0),
             `eligible_for_enrichment` (score >= threshold) e `summary`.
         """
-        weights: Dict[str, Any] = profile.get("prescoring", {}).get("weights", {})
+                weights: Dict[str, Any] = profile.get("prescoring", {}).get("weights", {})
         threshold = profile.get("prescoring", {}).get("threshold", 0)
+        prescoring = profile.get("prescoring", {})
 
         signals = self.collect_signals(item)
         by_key = {s["key"]: s for s in signals}
@@ -135,12 +150,41 @@ class CandidatePreScoringService:
         factors.sort(key=lambda f: -f["impact"])
 
         top = ", ".join(f["signal"] for f in factors[:3]) if factors else "sem sinais"
+
+        # Fronteira semântica do gate (Fase 2.x):
+        #   1) se faltam sinais decisivos (required_signals não observados),
+        #      status = INSUFFICIENT_DATA — não temos base para descartar.
+        #   2) caso contrário, o velho score>=threshold:
+        #      QUALIFIES se passa, DISQUALIFIES se não.
+        required = [str(k) for k in (prescoring.get("required_signals") or [])]
+        on_insufficient = prescoring.get("on_insufficient_data", "discard")
+        observed_keys = {s["key"] for s in signals}
+        missing_required = [k for k in required if k not in observed_keys]
+
+        if missing_required:
+            status = "INSUFFICIENT_DATA"
+            eligible = (on_insufficient == "promote")
+            promote_flag = eligible
+        else:
+            promote_flag = False
+            if score >= threshold:
+                status = "QUALIFIES"
+                eligible = True
+            else:
+                status = "DISQUALIFIES"
+                eligible = False
+
         return {
             "discovery_score": score,
             "score_factors": factors,
             "signals": signals,
-            "eligible_for_enrichment": score >= threshold,
-            "summary": f"{profile.get('profile_key', '')} score={score} ({top})",
+            "eligible_for_enrichment": eligible,
+            "discovery_status": status,
+            "missing_required_signals": missing_required,
+            "eligible_for_promotion_on_insufficient": promote_flag,
+            "summary": f"{profile.get('profile_key', '')} score={score} ({top})"
+                       + (f" [insufficient: {missing_required}]"
+                          if missing_required else ""),
         }
 
     def select_candidates(self, items, profile, persist_fn=None, context=None):
