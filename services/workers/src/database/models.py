@@ -480,6 +480,13 @@ class CampaignScoringTemplate(Base):
     cadence_schedule = Column(JSONB)
     # Instruções extras, free-text, injetadas no prompt.
     extra_instructions = Column(Text)
+
+    # Prescoring declarativo da vertical (docs/melhorias/01 + 17):
+    # {"profile": "web_presence", "enabled": true, "threshold": 45,
+    #  "top_k": null, "weights": {"NO_OWN_WEBSITE": 25, ...}} — pesos não
+    # ficam hardcoded no engine; template sem config mantém comportamento
+    # atual (nenhum candidato é descartado na coleta).
+    prescoring_config = Column(JSONB)
     # Playbook de outreach por vertical: hooks de abordagem,
     # ideias de assunto e objeções do decisor — injetados no OutreachService
     # para mensagens variarem por serviço/segmento.
@@ -575,6 +582,10 @@ class Lead(Base):
     # Problema 2 — Explicabilidade
     score_factors = Column(JSONB)           # [{label, impact: +/−, weight, evidence_ref}]
     evidence = Column(JSONB)               # [{type, severity, title, description, source}]
+    # Vetor de score multidimensional (docs/melhorias/02) — compatível com
+    # qualification_score durante a migração. {"need": .., "icp_fit": ..,
+    # "overall": .., "formula_version": "..."}
+    score_vector = Column(JSONB)
     priority = Column(Enum(LeadPriority, name='lead_priority', create_type=True), nullable=True)
     priority_reasoning = Column(Text)
     executive_summary = Column(Text)

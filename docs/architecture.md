@@ -80,6 +80,8 @@ agente-prospeccao/
 │           │   ├── outreach_service.py
 │           │   ├── campaign_brief_service.py / segment_suggestion_service.py
 │           │   ├── template_router.py / template_generation_service.py
+│           │   ├── prospecting_profile_service.py  ← perfil da vertical por config
+│           │   ├── candidate_pre_scoring_service.py ← pré-ranking determinístico
 │           │   ├── secret_service.py (BYOK) / provider_client.py / domain_utils.py
 │           │   └── main.py
 ├── scripts/                           ← setup.sh / setup.ps1 / setup.cmd / dev.sh / dev.ps1 / dev.cmd / backup.sh / backup.ps1
@@ -191,6 +193,10 @@ exigem `ANALYST`/`MANAGER`/owner/admin.
              → qualification_score, evidence[], priority HOT/WARM/COLD,
                pitch_angle, executive_summary
              → QUALIFICADO (score >= 60) ou DESQUALIFICADO
+
+[Pré-coleta]  candidate_pre_scoring_service (sem LLM, docs/melhorias/01)
+             · gate de promoção Candidate→Lead configurado no template
+               (`prescoring_config`); descartados não consomem enriquecimento
 
 [4. Contatos]  contact_enrichment_service
              → email (Hunter→CNPJ→heurística) + LinkedIn (busca passiva)

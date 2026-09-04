@@ -970,6 +970,26 @@ Branch `feat/universal-sector-scoring`:
 
 ### Próximo passo imediato
 
+> **Atualizado 2026-09-04 — Fundação de pre-scoring por perfil de prospecção (Fase 1 do plano de melhorias):**
+>
+> - `resolve_prospecting_profile` (`prospecting_profile_service.py`): perfil da
+>   vertical resolvido por CONFIGURAÇÃO do template (deriva de
+>   `enrichment_steps` + override em `prescoring_config.profile`) — sem
+>   `if vertical == ...` no core.
+> - `CandidatePreScoringService` (`candidate_pre_scoring_service.py`):
+>   pré-ranking determinístico e sem LLM sobre sinais FACT do discovery, com
+>   pesos declarados por vertical; sinais carregam
+>   `{key, value, source, confidence, observed_at, evidence, epistemic}`.
+> - Gate de promoção Candidate→Lead no `pipeline_worker` (routing de template
+>   hoisted para antes da coleta): candidatos abaixo do threshold não viram
+>   Lead nem consomem enriquecimento caro; desligado sem `prescoring_config`
+>   (compatibilidade total); `prescoring_discarded` no summary do job/WS.
+> - Migration `a7b8c9d0e1f2` — `campaign_scoring_templates.prescoring_config`
+>   + `leads.score_vector` (JSONB; `qualification_score` segue fonte de
+>   verdade do funil). Seeds com prescoring para Sites/ERP/Engenharia.
+> - Diagnóstico completo: `docs/melhorias/00-diagnostico-fase-1.md`.
+> - **Validado:** 559 testes passam (25 novos), compileall limpo.
+
 > **Atualizado 2026-09-01 — Loop de aprendizado da IA completo (Fases 2–3):**
 >
 > - **Fase 2 — a IA aprende com as correções do time** (`docs/ai-feedback-loop.md`):

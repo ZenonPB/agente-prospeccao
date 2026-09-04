@@ -49,6 +49,14 @@ DEFAULT_TEMPLATES = [
         "service_label": "Desenvolvimento de Sites",
         "requires_technical_report": True,
         "requires_business_data": True,
+        # Pré-scoring de discovery (docs/melhorias/01): ausência de site é
+        # público-alvo, mas SÓ pontua com alguma presença ativa — sem site E
+        # sem nenhuma presença digital não é bom lead de landing page.
+        "prescoring_config": {
+            "profile": "web_presence",
+            "enabled": True,
+            "threshold": 45,
+        },
         "playbook": {
             "hooks": [
                 "Site da empresa perde cliente porque não converte (sem CTA/formulário na home)",
@@ -119,6 +127,13 @@ DEFAULT_TEMPLATES = [
         "service_label": "Aplicações Web / ERP",
         "requires_technical_report": True,
         "requires_business_data": True,
+        # Fit de ERP vem do cadastro/porte — site próprio vale pouco e
+        # reputação Google pesa menos que em Landing Pages.
+        "prescoring_config": {
+            "profile": "business_opportunity",
+            "enabled": True,
+            "threshold": 40,
+        },
         "playbook": {
             "hooks": [
                 "Empresa ainda opera com planilha/processo manual que um sistema resolveria",
@@ -195,6 +210,13 @@ DEFAULT_TEMPLATES = [
         "service_label": "Engenharia Mecânica & Desenhos Técnicos CAD",
         "requires_technical_report": False,
         "requires_business_data": True,
+        # Site/SEO praticamente irrelevantes para indústria — reputação leve;
+        # atividade/porte (CNPJ) é que qualifica, e isso só chega depois.
+        "prescoring_config": {
+            "profile": "industrial",
+            "enabled": True,
+            "threshold": 25,
+        },
         # Fontes de informação: Receita Federal (porte/CNAE/idade) + reputação
         # Google. Auditoria de site não faz sentido para indústria — muitos
         # prospects nem têm site relevante.
@@ -351,6 +373,7 @@ def upsert_template(db, tmpl: dict) -> CampaignScoringTemplate:
         "cadence_schedule": tmpl.get("cadence_schedule"),
         "extra_instructions": tmpl.get("extra_instructions"),
         "playbook": tmpl.get("playbook", {}),
+        "prescoring_config": tmpl.get("prescoring_config"),
         "is_active": True,
     }
 

@@ -1,0 +1,61 @@
+"""Resolução do ProspectingProfile a partir do template (docs/melhorias/17)."""
+from services.prospecting_profile_service import (
+    DEFAULT_PRESCORING_WEIGHTS,
+    PROFILE_BUSINESS,
+    PROFILE_INDUSTRIAL,
+    PROFILE_WEB_PRESENCE,
+    derive_profile_key,
+    resolve_prospecting_profile,
+)
+
+
+def test_deriva_web_presence_pelo_step_de_site():
+    profile = derive_profile_key({"enrichment_steps": ["technical_site"]})
+    assert profile == PROFILE_WEB_PRESENCE
+
+
+def test_deriva_business_quando_so_cnpj():
+    profile = derive_profile_key({"enrichment_steps": ["cnpj_receita", "business_social"]})
+    assert profile == PROFILE_BUSINESS
+
+
+def test_sem_template_cai_em_web_presence():
+    """Compatibilidade: template Genérico/ausente mantém o perfil histórico."""
+    assert derive_profile_key(None) == PROFILE_WEB_PRESENCE
+    assert resolve_prospecting_profile(None)["profile_key"] == PROFILE_WEB_PRESENCE
+
+
+def test_config_do_template_sobrescreve_derivacao():
+    profile = resolve_prospecting_profile({
+        "enrichment_steps": ["technical_site"],
+        "prescoring_config": {"profile": PROFILE_INDUSTRIAL},
+    })
+    assert profile["profile_key"] == PROFILE_INDUSTRIAL
+    assert profile["profile_source"] == "template_config"
+
+
+def test_gate_desligado_por_padrao():
+    """Sem prescoring_config, nenhum candidato é descartado (comportamento atual)."""
+    profile = resolve_prospecting_profile({"enrichment_steps": ["technical_site"]})
+    assert profile["prescoring"]["enabled"] is False
+
+
+def test_pesos_default_por_perfil():
+    for key in (PROFILE_WEB_PRESENCE, PROFILE_BUSINESS, PROFILE_INDUSTRIAL):
+        profile = resolve_prospecting_profile({
+            "enrichment_steps": ["technical_site"],
+            "prescoring_config": {"profile": key},
+        })
+        assert profile["prescoring"]["weights"] == DEFAULT_PRESCORING_WEIGHTS[key]
+
+
+def test_config_invalida_cai_no_default():
+    profile = resolve_prospecting_profile({
+        "enrichment_steps": ["cnpj_receita"],
+        "prescoring_config": {
+            "profile": "vertical-inexistente",
+            "threshold": "não-numérico",
+        },
+    })
+    assert profile["profile_key"] == PROFILE_BUSINESS
+    assert profile["prescoring"]["threshold"] > 0

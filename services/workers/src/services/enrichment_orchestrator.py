@@ -331,6 +331,13 @@ def _persist_scoring(
     lead.score_factors = scoring_data.get("score_factors") or []
     lead.evidence = scoring_data.get("evidence") or []
 
+    # Vetor multidimensional (docs/melhorias/02) — opcional; enquanto a LLM
+    # não devolve dimensões, fica NULL e `qualification_score` segue sendo a
+    # fonte de verdade do funil (compatibilidade total).
+    score_vector = scoring_data.get("score_vector")
+    if isinstance(score_vector, dict) and score_vector:
+        lead.score_vector = score_vector
+
     # Atualiza Enrichment.security_issues com titles das evidências técnicas,
     # preservando o formato histórico (lista de strings) para compatibilidade
     # com componentes que ainda consultam security_issues.
