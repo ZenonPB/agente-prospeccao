@@ -1,6 +1,6 @@
 # Ordem de enriquecimento definida pela oferta
 
-> **Status: 🟠 Parcial — ativação por steps do template já existia; perfil da vertical agora resolve pesos/gate. Falta: ordem condicional e stop conditions definidas pela oferta.**  
+> **Status: ✅ FEITO — ordem declarada pela oferta via `enrichment_steps` + `enrichment_strategy` (skip/stop_after) no capability registry; steps irrelevantes pulados com motivo; falha de uma capability não corrompe as demais.  
 > **Prioridade: P0**  
 > **Domínio: Vertical Intelligence / Enrichment**
 

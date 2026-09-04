@@ -28,13 +28,13 @@ Evoluir o projeto para uma plataforma de prospecção B2B genérica, explicável
 ## Descoberta, pré-ranking e qualidade
 
 - [`01-candidate-pre-scoring-FEITO.md`](./01-candidate-pre-scoring-FEITO.md) — ✅ FEITO — Candidate Pre-Scoring antes do enriquecimento pesado
-- [`02-opportunity-score-vector.md`](./02-opportunity-score-vector.md) — Separar oportunidade em múltiplas dimensões de score
-- [`03-template-landing-pages.md`](./03-template-landing-pages.md) — Template específico para Landing Pages
-- [`04-places-multi-query.md`](./04-places-multi-query.md) — Google Places com busca multi-query
+- [`02-opportunity-score-vector-FEITO.md`](./02-opportunity-score-vector-FEITO.md) — ✅ FEITO — Separar oportunidade em múltiplas dimensões de score
+- [`03-template-landing-pages-FEITO.md`](./03-template-landing-pages-FEITO.md) — ✅ FEITO — Template específico para Landing Pages
+- [`04-places-multi-query-FEITO.md`](./04-places-multi-query-FEITO.md) — ✅ FEITO — Google Places com busca multi-query
 - [`05-search-query-generation.md`](./05-search-query-generation.md) — Geração automática de queries de descoberta
 - [`06-candidate-vs-lead-FEITO.md`](./06-candidate-vs-lead-FEITO.md) — ✅ FEITO — Separar Candidate de Lead
 - [`07-budgeted-enrichment-FEITO.md`](./07-budgeted-enrichment-FEITO.md) — ✅ FEITO — Enriquecimento seletivo por custo e valor esperado
-- [`08-enrichment-order-by-service.md`](./08-enrichment-order-by-service.md) — Ordem de enriquecimento definida pela oferta
+- [`08-enrichment-order-by-service-FEITO.md`](./08-enrichment-order-by-service-FEITO.md) — ✅ FEITO — Ordem de enriquecimento definida pela oferta
 - [`09-rating-count-by-vertical.md`](./09-rating-count-by-vertical.md) — Interpretar volume de avaliações por vertical
 - [`10-niche-prior-learning.md`](./10-niche-prior-learning.md) — Niche Prior por serviço e organização
 - [`11-learning-from-sales-outcomes.md`](./11-learning-from-sales-outcomes.md) — Aprendizado por outcomes comerciais
@@ -42,15 +42,15 @@ Evoluir o projeto para uma plataforma de prospecção B2B genérica, explicável
 - [`13-chain-detection.md`](./13-chain-detection.md) — Detecção de franquias, redes e empresas independentes
 - [`14-decision-maker-accessibility.md`](./14-decision-maker-accessibility.md) — Acessibilidade do decisor como sinal de ranking
 - [`15-golden-lead-patterns.md`](./15-golden-lead-patterns.md) — Padrões de Golden Lead por vertical
-- [`16-why-prospect-card.md`](./16-why-prospect-card.md) — Mostrar 'por que prospectar' diretamente no card
+- [`16-why-prospect-card-FEITO.md`](./16-why-prospect-card-FEITO.md) — ✅ FEITO — Mostrar 'por que prospectar' diretamente no card
 
 ## Arquitetura universal e inteligência por vertical
 
 - [`17-prospecting-profile-FEITO.md`](./17-prospecting-profile-FEITO.md) — ✅ FEITO — ProspectingProfile como contrato universal de prospecção
 - [`18-universal-prospecting-questions.md`](./18-universal-prospecting-questions.md) — Seis perguntas universais do agente de prospecção
 - [`19-icp-vs-intent.md`](./19-icp-vs-intent.md) — Separar ICP Fit de Intent
-- [`20-signal-registry.md`](./20-signal-registry.md) — Signal Registry universal
-- [`21-enrichment-capability-registry.md`](./21-enrichment-capability-registry.md) — Catálogo de capabilities de enriquecimento
+- [`20-signal-registry-FEITO.md`](./20-signal-registry-FEITO.md) — ✅ FEITO — Signal Registry universal
+- [`21-enrichment-capability-registry-FEITO.md`](./21-enrichment-capability-registry-FEITO.md) — ✅ FEITO — Catálogo de capabilities de enriquecimento
 - [`22-discovery-planner.md`](./22-discovery-planner.md) — Discovery Planner orientado pela oferta
 - [`23-cnae-as-discovery-provider.md`](./23-cnae-as-discovery-provider.md) — CNAE/CNPJ como provider de discovery para B2B industrial
 - [`24-intent-engine.md`](./24-intent-engine.md) — Intent Engine para sinais de compra
@@ -58,7 +58,7 @@ Evoluir o projeto para uma plataforma de prospecção B2B genérica, explicável
 - [`26-buying-trigger.md`](./26-buying-trigger.md) — Buying Trigger e Why Now
 - [`27-opportunity-vector-v2.md`](./27-opportunity-vector-v2.md) — Opportunity Score como vetor universal
 - [`28-prospecting-hypothesis.md`](./28-prospecting-hypothesis.md) — Prospecting Hypothesis por lead
-- [`29-epistemic-status.md`](./29-epistemic-status.md) — Status epistêmico para fatos, inferências e hipóteses
+- [`29-epistemic-status-FEITO.md`](./29-epistemic-status-FEITO.md) — ✅ FEITO — Status epistêmico para fatos, inferências e hipóteses
 - [`30-discovery-questions.md`](./30-discovery-questions.md) — Perguntas de qualificação definidas pela vertical
 - [`31-vertical-pack.md`](./31-vertical-pack.md) — Vertical Pack declarativo
 - [`32-archetypes-as-fallback.md`](./32-archetypes-as-fallback.md) — Archetypes apenas como fallback de geração

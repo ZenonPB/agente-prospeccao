@@ -1,6 +1,6 @@
 # Mostrar 'por que prospectar' diretamente no card
 
-> **Status: 🟡 Proposto**  
+> **Status: ✅ FEITO — card de leads exibe `why_signals` (top 3 titles de evidence) — rastreáveis por construção, nada inventado fora das evidências.  
 > **Prioridade: P1**  
 > **Domínio: Frontend / Explainability**
 

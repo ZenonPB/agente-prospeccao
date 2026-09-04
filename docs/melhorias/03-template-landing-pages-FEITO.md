@@ -1,6 +1,6 @@
 # Template específico para Landing Pages
 
-> **Status: 🟡 Proposto**  
+> **Status: ✅ FEITO — seed dedicado "Landing Pages": prescoring próprio (pesos NO_OWN_WEBSITE/Instagram/reviews, threshold 45), enrichment Maps+site/social e playbook de conversão; ausência total de demanda não vira lead quente.  
 > **Prioridade: P0**  
 > **Domínio: Vertical Intelligence / Web**
 

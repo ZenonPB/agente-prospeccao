@@ -1,6 +1,6 @@
 # Separar oportunidade em múltiplas dimensões de score
 
-> **Status: 🟠 Parcial — contrato pronto: `leads.score_vector` (JSONB) persistido quando presente, clamp 0-100 e `overall` derivado; `qualification_score` legado intocado. Falta: LLM/pipeline produzir as dimensões; pesos de agregação por vertical.**  
+> **Status: ✅ FEITO — `score_vector` produzido pela LLM (need/commercial_fit/digital_maturity/contactability), `overall` agregado com pesos POR PERFIL e `formula_version` fixada pelo backend (LLM não escolhe fórmula). `qualification_score` legado preservado.  
 > **Prioridade: P0**  
 > **Domínio: Scoring**
 
