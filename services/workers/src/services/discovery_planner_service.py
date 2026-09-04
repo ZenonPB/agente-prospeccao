@@ -60,3 +60,32 @@ class DiscoveryPlanner:
             "capability_registry_referenced=True",
         ]
         return result
+
+
+# --- #23 CNAE as Discovery Provider (helper) ---
+def cnae_discovery_plan(cnae_code: str, state: str = "", city: str = "",
+                       porte_category: Optional[str] = None,
+                       max_leads: int = 100) -> Dict[str, Any]:
+    """Plano de descoberta via CNAE (doc 23).
+
+    Integra `cnae_discovery_service` (BrasilAPI + Minha Receita + CNPJá) como
+    provider nativo do Discovery Planner.
+
+    Returns:
+        {"type": "cnae_discovery", "filters": {...}, "budget": int, "source": str}
+    """
+    filters = {
+        "cnae_code": cnae_code,
+        "state": state or None,
+        "city": city or None,
+        "porte_category": porte_category or None,
+        "max_leads": max_leads,
+    }
+    # Remove None para serialização limpa
+    filters = {k: v for k, v in filters.items() if v is not None}
+    return {
+        "type": "cnae_discovery",
+        "filters": filters,
+        "budget": max(50, min(200, max_leads // 2)),
+        "source": "cnae_as_discovery_provider",
+    }

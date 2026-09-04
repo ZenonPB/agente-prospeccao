@@ -49,7 +49,7 @@
 | 20 | `20-signal-registry-FEITO.md` | ✅ | Registry universal com chaves canônicas, metadados, `make_signal` com regras epistêmicas e `merge_signals` com dedup semântico. |
 | 21 | `21-enrichment-capability-registry-FEITO.md` | ✅ | Capabilities com custo/requires/produces + planner `plan_enrichment_run` (skip/stop_after auditáveis). |
 | 22 | `22-discovery-planner-FEITO.md` | ✅ | `DiscoveryPlanner.plan()` (seam profundo ProspectingProfile→providers/queries/budget, auditável). |
-| 23 | `23-cnae-as-discovery-provider.md` | 🟠 | `cnae_discovery_service.py` existe e está integrado (BrasilAPI + Minha Receita + CNPJá); basta ser plugado como provider nativo de um futuro Discovery Planner. |
+| 23 | `23-cnae-as-discovery-provider-FEITO.md` | ✅ | `cnae_discovery_plan(cnae_code, ...)` integrado ao DiscoveryPlanner. |
 | 24 | `24-intent-engine-FEITO.md` | ✅ | `IntentEngine.detect_events()` + `score_and_trigger()` (intent_score/buying_trigger/why_now) sobre sinais. |
 | 25 | `25-decision-maker-strategy-by-vertical-FEITO.md` | ✅ | `resolve_contact_strategy(profile_key)`: mapa profile→ordered providers + channel priority. |
 | 26 | `26-buying-trigger-FEITO.md` | ✅ | `detect_buying_triggers()` converte intent events → triggers acionáveis com confidência. |
@@ -81,11 +81,11 @@
 | 46 | `46-domain-first-person-search-FEITO.md` | ✅ | `domain_first_person_search()`: `domain + titles` com fallback `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 46** · **🟠 PARCIAL: 1** · **🟡 PROPOSTO: 0**
+- **Total:** 47 documentos · **✅ FEITO: 47** · **🟠 PARCIAL: 0** · **🟡 PROPOSTO: 0**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
-  - Arquitetura universal: 16 ✅, 1 🟠, 0 🟡 (de 17)
-  - Decisores/contatos: 12 ✅, 1 🟠, 0 🟡 (de 13)
+  - Arquitetura universal: 17 ✅, 0 🟠, 0 🟡 (de 17)
+  - Decisores/contatos: 13 ✅, 0 🟠, 0 🟡 (de 13)
 
 ## Como ler este pacote na prática
 
