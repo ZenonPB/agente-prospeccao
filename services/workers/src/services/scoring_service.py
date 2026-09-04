@@ -299,6 +299,12 @@ SYSTEM_PROMPT = (
     "A AUSÊNCIA de site próprio NÃO é, por si só, um contra-sinal: se a campanha vende "
     "presença digital/desenvolvimento de site, empresa sem site é PÚBLICO-ALVO (alto fit "
     "e forte oportunidade); se vende outro serviço, avalie o fit pelos demais sinais. "
+    "STATUS EPISTÊMICO: distinga sempre FATO (dado observado nas evidências, com fonte) "
+    "de INFERÊNCIA (dedução sua a partir de fatos) e HIPÓTESE (possibilidade a validar "
+    "em contato). Nunca apresente inferência ou hipótese como fato: uma hipótese deve "
+    "aparecer como pergunta/proposição a confirmar (ex.: 'provavelmente opera com "
+    "processos manuais — a validar'), não como afirmação. Não invente dado para "
+    "preencher o que é desconhecido — desconhecido permanece desconhecido. "
     "Responda SOMENTE com JSON puro, sem markdown, sem bloco de código, "
     "sem texto antes ou depois do JSON."
 )
