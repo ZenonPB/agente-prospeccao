@@ -2,6 +2,10 @@
 
 > **Status geral: 🟡 Especificação proposta.**
 > Este pacote transforma as recomendações das análises recentes em documentos unitários de implementação, no formato de `docs/` do repositório.
+>
+> **Mapa de status atualizado:** [`00-status-mapa.md`](./00-status-mapa.md) —
+> onde cada um dos 47 docs está (✅ FEITO / 🟠 PARCIAL / 🟡 PROPOSTO) e o que
+> falta corrigir na Fase 2 está em [`00-pendencias-fase-2.md`](./00-pendencias-fase-2.md).
 
 ## Objetivo
 
