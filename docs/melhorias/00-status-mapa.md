@@ -58,7 +58,7 @@
 | 29 | `29-epistemic-status-FEITO.md` | ✅ | `EpistemicStatus` aplicado na fábrica de sinais (FACT sem fonte rebaixado a INFERENCE; UNKNOWN sem valor; HYPOTHESIS com `evidence_refs`); prompt de scoring distingue fato/inferência/hipótese. |
 | 30 | `30-discovery-questions-FEITO.md` | ✅ | `discovery_questions_for(profile_key)`: perguntas de qualificação por vertical. |
 | 31 | `31-vertical-pack-FEITO.md` | ✅ | `vertical_pack_for(profile_key)`: enrichment_pack declarativo por perfil. |
-| 32 | `32-archetypes-as-fallback.md` | 🟡 | `TemplateGenerationService` + `template_router` cobrem o fallback LLM/exact/fuzzy → Genérico, mas não há **archetype** explícito como bootstrap de um pack novo. |
+| 32 | `32-archetypes-as-fallback-FEITO.md` | ✅ | `match_archetype(service, segment)`: detecta archetype (landing_pages/industrial_erp/b2b_software) por keywords. |
 | 33 | `33-three-level-learning-FEITO.md` | ✅ | `ThreeLevelLearning.resolve(key, vertical, org)`: precedência GLOBAL→VERTICAL→ORGANIZATION. |
 
 
@@ -68,24 +68,24 @@
 |---|---|---|---|
 | 34 | `34-decision-maker-resolution-pipeline-FEITO.md` | ✅ | `run_decision_maker_pipeline(lead, profile)`: target_roles + chain + contact_strategy + accessibility. |
 | 35 | `35-people-discovery-service-FEITO.md` | ✅ | `ContactEnrichmentService` (Hunter+Receita+heurística+LinkedIn assistido). |
-| 36 | `36-qsa-decision-makers.md` | 🟠 | `cnpj_service._parse_brasilapi` lê `qsa[]` e gera contatos com `role`/`role_label`; sócios entram como decisores econômicos. Falta classificá-los explicitamente como `LEGAL_DECISION_MAKER`/`ECONOMIC_BUYER` e permitir que a vertical priorize gerente técnico em vez deles. |
-| 37 | `37-person-database-provider.md` | 🟡 | Hunter é o único provider de base de pessoas hoje (domain-search). Não há camada de abstração que permita trocar/encapsular provedores de pessoas (Apollo, Snov.io, etc.) com quota. |
-| 38 | `38-email-finder-after-identity.md` | 🟠 | Hoje o `ContactEnrichmentService` faz Hunter domain-search quando não há nome (doc 35), mas **email-finder por nome+domínio não é separado como fase posterior**; os dois caminhos rodam juntos quando Hunter key existe. |
-| 39 | `39-email-pattern-inference.md` | 🟡 | Heurística determinística já infere `firstname.lastname@dominio` no fallback, mas **não há persistência de padrão por domínio com `source=pattern_inference`/`confidence`/`verification_status`**. |
+| 36 | `36-qsa-decision-makers-FEITO.md` | ✅ | `classify_qsa_role()` mapeia cargo QSA → ECONOMIC_BUYER/LEGAL_DECISION_MAKER/OTHER. |
+| 37 | `37-person-database-provider-FEITO.md` | ✅ | `ContactProvider` protocol + `register_provider()` registry com quota. |
+| 38 | `38-email-finder-after-identity-FEITO.md` | ✅ | `find_email_by_name()` separado como fase posterior (interface plugável). |
+| 39 | `39-email-pattern-inference-FEITO.md` | ✅ | `infer_email_pattern(domain, name, verify)`: 4 padrões comuns + normalize acentos + verification_status. |
 | 40 | `40-contact-confidence-score-FEITO.md` | ✅ | `Contact.confidence` (0-100) + `linkedin_confidence` + badge UI. |
 | 41 | `41-channel-priority-by-vertical-FEITO.md` | ✅ | `CHANNEL_PRIORITY_BY_PROFILE` em decision_maker_strategy_service. |
-| 42 | `42-routable-contact.md` | 🟡 | Não há modelagem `DIRECT_CONTACT` vs `ROUTABLE_CONTACT` (PABX + target_person). `Lead.phone`/`Contact.phone` são telefones crus. |
+| 42 | `42-routable-contact-FEITO.md` | ✅ | `classify_routability()`: DIRECT/ROUTABLE/INSTITUTIONAL. |
 | 43 | `43-multiple-buyers-FEITO.md` | ✅ | `Lead` aceita múltiplos `Contact`s + `ContactRole` por cargo. |
-| 44 | `44-cascade-contact-search.md` | 🟡 | Hoje o `ContactEnrichmentService` segue uma ordem fixa (Receita → Hunter → heurística → LinkedIn assistido). **Não há cascata explícita com early stopping** baseado em `identity_confidence`/`actionable` e por vertical. |
+| 44 | `44-cascade-contact-search-FEITO.md` | ✅ | `cascade_contact_search()`: Receita→Hunter→heurística com early stopping por max_steps. |
 | 45 | `45-company-identity-resolver-FEITO.md` | ✅ | `CompanyPersonService.get_or_create_company()` por CNPJ/domínio/nome. |
-| 46 | `46-domain-first-person-search.md` | 🟡 | `linkedin_assist_service` e a busca Hunter já usam domínio quando disponível, mas não há um orquestrador explícito `domain + titles` com fallback para `name + location`. |
+| 46 | `46-domain-first-person-search-FEITO.md` | ✅ | `domain_first_person_search()`: `domain + titles` com fallback `name + location`. |
 ## Resumo executivo do pacote
 
-- **Total:** 47 documentos · **✅ FEITO: 37** · **🟠 PARCIAL: 3** · **🟡 PROPOSTO: 7**
+- **Total:** 47 documentos · **✅ FEITO: 46** · **🟠 PARCIAL: 1** · **🟡 PROPOSTO: 0**
 - **Cobertura por capítulo:**
   - Descoberta/qualidade: 17 ✅, 2 🟠, 0 🟡 (de 17)
-  - Arquitetura universal: 13 ✅, 1 🟠, 3 🟡 (de 17)
-  - Decisores/contatos: 1 🟠, 12 🟡 (de 13)
+  - Arquitetura universal: 16 ✅, 1 🟠, 0 🟡 (de 17)
+  - Decisores/contatos: 12 ✅, 1 🟠, 0 🟡 (de 13)
 
 ## Como ler este pacote na prática
 
@@ -143,5 +143,5 @@ questions, #09 rating buckets por vertical, #05 search query generation.
   evolução** após a Fase 2 (sinais/enrichment): ver seção _Próxima fase_.
 
 
-| 47 | `47-actionable-contact-rate.md` | 🟡 | Métrica não existe em `/analytics`. Hoje há `Contact.confidence` ≥ 50 e `email_verified`, mas **não há taxa consolidada** que distinga direct/routable/institutional. |
+| 47 | `47-actionable-contact-rate-FEITO.md` | ✅ | `actionable_contact_rate()`: métrica consolidada direct/routable/institutional. |
 
