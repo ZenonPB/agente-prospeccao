@@ -60,3 +60,67 @@ def test_nenhum_item_no_lote_nao_explode():
     selected, stats = SVC.select_candidates([], PROFILE_ON)
     assert selected == []
     assert stats["evaluated"] == 0
+
+
+def test_persist_fn_recebe_descartes_com_reason():
+    """Auditoria: cada descarte carrega reason e contexto do job."""
+    recebidos = []
+    selected, _ = SVC.select_candidates(
+        ITEMS, PROFILE_ON, persist_fn=recebidos.extend,
+        context={"organization_id": "org-1", "campaign_id": "camp-1", "job_id": "job-1"},
+    )
+    assert len(recebidos) >= 1
+    for rec in recebidos:
+        assert rec["reason"] == "below_threshold"
+        assert rec["campaign_id"] == "camp-1"
+        assert rec["company_name"] in {"Médio", "Fraco"}
+        assert rec["signals"]  # sinais FACT vão junto para reprocessamento
+        assert rec["discovery_score"] < rec["threshold"]
+
+
+def test_top_k_cut_gera_reason_proprio():
+    profile = resolve_prospecting_profile({
+        "enrichment_steps": ["technical_site"],
+        "prescoring_config": {"profile": "web_presence", "enabled": True,
+                              "threshold": 0, "top_k": 1},
+    })
+    recebidos = []
+    selected, stats = SVC.select_candidates(ITEMS, profile, persist_fn=recebidos.extend)
+    reasons = {r["reason"] for r in recebidos}
+    assert "top_k_cut" in reasons
+    # items sem place_id não quebram o registro de auditoria
+    assert all(r["place_id"] is None for r in recebidos)
+    assert stats["below_threshold"] == 0
+    assert stats["top_k_cut"] >= 1
+
+
+def test_falha_do_persist_fn_nao_bloqueia_gate():
+    def _boom(records):
+        raise RuntimeError("db down")
+    selected, stats = SVC.select_candidates(ITEMS, PROFILE_ON, persist_fn=_boom)
+    assert selected  # gate segue funcionando
+    assert stats["discarded"] >= 1
+
+
+def test_stats_separam_below_threshold_de_top_k_cut():
+    _, stats = SVC.select_candidates(ITEMS, PROFILE_ON)
+    assert stats["discarded"] == stats["below_threshold"] + stats["top_k_cut"]
+    assert stats["eligible"] == stats["selected"] + stats["top_k_cut"]
+
+
+def test_peso_orfao_nao_explode_e_lote_passa(caplog):
+    """Typo de config no weights não quebra o score nem o gate."""
+    profile = resolve_prospecting_profile({
+        "enrichment_steps": ["technical_site"],
+        "prescoring_config": {"profile": "web_presence", "enabled": True,
+                              "threshold": 45, "weights": {"TYPO_WEIGHT": 20}},
+    })
+    selected, stats = SVC.select_candidates(ITEMS, profile)
+    assert stats["evaluated"] == len(ITEMS)
+
+
+def test_gate_desligado_stats_zeradas():
+    _, stats = SVC.select_candidates(ITEMS, PROFILE_OFF)
+    assert stats["below_threshold"] == 0
+    assert stats["top_k_cut"] == 0
+    assert stats["discarded"] == 0
