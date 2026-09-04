@@ -276,22 +276,32 @@ GROQ_MODEL = settings.GROQ_MODEL_CLASSIFY
 # Pesos de agregação do score vetorial POR PERFIL (docs/melhorias/02):
 # web_presence valoriza maturidade digital; business_opportunity valoriza
 # necessidade + fit comercial. Chaves fora do perfil caem no `generic`.
+# Dimensões universais do vetor v2 — adicionadas a todos os perfis com peso 0
+# (backward-compatible: não alteram o `overall` v1, mas permitem que o LLM as
+# produza e a UI as exiba). Para ativar, elevar peso acima de 0 via config.
+VECTOR_V2_DIMS = ("icp_fit", "intent", "buying_power", "reachability", "timing")
+_V2_ZERO = {d: 0.0 for d in VECTOR_V2_DIMS}
+
 VECTOR_WEIGHTS = {
     "web_presence": {
         "need": 0.25, "commercial_fit": 0.2,
         "digital_maturity": 0.4, "contactability": 0.15,
+        **_V2_ZERO,
     },
     "business_opportunity": {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
+        **_V2_ZERO,
     },
     "industrial": {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
+        **_V2_ZERO,
     },
     "generic": {
         "need": 0.25, "commercial_fit": 0.25,
         "digital_maturity": 0.25, "contactability": 0.25,
+        **_V2_ZERO,
     },
 }
 
@@ -895,17 +905,29 @@ class AIScoringService:
                 profile = profile_key or "generic"
                 weights = VECTOR_WEIGHTS.get(profile, VECTOR_WEIGHTS["generic"])
                 present = {k: v for k, v in clean_vector.items() if k in weights}
+                # v2: se LLM produziu dimensões universais, marca fórmula v2
+                is_v2 = any(d in present for d in VECTOR_V2_DIMS)
                 if present:
-                    wsum = sum(weights[k] for k in present)
-                    clean_vector["overall"] = round(
-                        sum(present[k] * weights[k] for k in present) / wsum
-                    )
+                    # só soma pesos > 0 para o overall (compatível v1);
+                    # dimensões v2 com peso 0 não quebram o cálculo.
+                    active = {k: present[k] for k in present if weights[k] > 0}
+                    if active:
+                        wsum = sum(weights[k] for k in active)
+                        clean_vector["overall"] = round(
+                            sum(active[k] * weights[k] for k in active) / wsum
+                        )
+                    elif "overall" in clean_vector:
+                        clean_vector["overall"] = max(0, min(100, int(clean_vector["overall"])))
+                    else:
+                        clean_vector["overall"] = round(
+                            sum(present.values()) / len(present))
                 elif "overall" in clean_vector:
                     clean_vector["overall"] = max(0, min(100, int(clean_vector["overall"])))
                 else:
                     clean_vector["overall"] = round(
                         sum(clean_vector.values()) / len(clean_vector))
-                clean_vector["formula_version"] = f"vector-v1-{profile}"[:60]
+                version = "vector-v2" if is_v2 else "vector-v1"
+                clean_vector["formula_version"] = f"{version}-{profile}"[:60]
                 rationale = str(raw_vector.get("rationale") or "").strip()
                 if rationale:
                     clean_vector["rationale"] = rationale[:300]
