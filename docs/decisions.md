@@ -103,6 +103,8 @@ A partir de 2026-07-09, todo o código usa:
 | Pre-scoring desligado por padrão em código; ativado por `prescoring_config.enabled` no template | Compatibilidade: campanhas/templates existentes mantêm o fluxo atual até o seed aplicar config; comportamento novo é explícito e auditável (log + `prescoring_discarded`). |
 | `leads.score_vector` JSONB ao lado de `qualification_score` (sem substituir) | Doc 02 exige migração gradual; score legado é a fonte de verdade do funil (UI/BI/endpoints). Dimensões são opcionais — contrato pronto, geração vem depois. |
 | Pre-scoring 100% determinístico (sem LLM), pesos no template | Custo: roda sobre sinais já coletados; doc 01 proíbe LLM no pre-score. Pesos por vertical permitem "sem site + Instagram" pontuar alto em Landing e quase nada em Engenharia. |
+| Descartes do gate persistidos em `prescoring_discards` com `reason` (`below_threshold` × `top_k_cut`) | Auditoria de falsos-negativos e recalibração de threshold (docs 01/06/12) exigem rastreio; sem registro o descarte é irreversível. Upsert idempotente por (campaign_id, place_id). |
+| Persistência dos descartes via callback `persist_fn` injetado no serviço | Mantém `CandidatePreScoringService` puro (sem SQLAlchemy), coerente com a regra de orquestração do repo. Auditoria é best-effort: falha de DB loga e NUNCA bloqueia o pipeline. |
 
 ## Issues Conhecidas (resolvidas)
 Todas as 11 issues da revisão de segurança foram corrigidas (2026-07-09). A lista completa com status está no histórico do `docs/context.md`.

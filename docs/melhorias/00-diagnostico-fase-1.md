@@ -49,7 +49,8 @@
 
 ## O que NÃO foi implementado (fases seguintes)
 
-- Tabela `Candidate` persistida com métricas de retrieval e auditoria de descartes.
+- ~~Candidatos descartados sem auditoria~~ → **corrigido na revisão** (tabela `prescoring_discards`, migration `f1a2b3c4d5e6`); falta endpoint/painel de leitura.
+- Métricas de retrieval e rastreabilidade completa de descartes (doc 12) — base pronta na tabela de descartes.
 - Ordem condicional de enrichment (doc 08 além da ativação atual) e capability registry completo (doc 21).
 - Dimensões de score produzidas pela LLM/pipeline (doc 02: need/icp_fit/intent...), Intent Engine (doc 19/24).
 - ProspectingProfile como entidade versionável com discovery/outreach/decision-maker strategy (docs 17/22/25).
