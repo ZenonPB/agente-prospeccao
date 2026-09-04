@@ -157,3 +157,38 @@ class TestDiscoveryExecutor:
         result = executor.execute(plan)
         assert result["total_candidates"] == 3
         assert result["unique_count"] == 3
+
+
+class TestExecuteAsync:
+    """Testa a versão async do executor (uso em pipeline real)."""
+
+    def test_execute_async_roda_providers_async(self):
+        import asyncio
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor, _StubProvider,
+        )
+
+        class _AsyncProvider(_StubProvider):
+            async def run(self, query, lead_context=None):
+                return list(self._results)
+
+        registry = DiscoveryProviderRegistry()
+        registry.register(_AsyncProvider("google_places", results=[{"name": "Async-X"}]))
+        executor = DiscoveryExecutor(registry)
+        plan = {"providers": [{"type": "google_places", "queries": ["q1"]}]}
+        result = asyncio.run(executor.execute_async(plan))
+        assert "google_places" in result["results_by_provider"]
+        assert result["results_by_provider"]["google_places"][0]["name"] == "Async-X"
+
+    def test_execute_async_lida_com_provider_sync(self):
+        """Mix de providers: sync e async no mesmo plano."""
+        import asyncio
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor, _StubProvider,
+        )
+        registry = DiscoveryProviderRegistry()
+        registry.register(_StubProvider("cnae_discovery", results=[{"name": "Sync-X"}]))
+        executor = DiscoveryExecutor(registry)
+        plan = {"providers": [{"type": "cnae_discovery", "queries": ["q1"]}]}
+        result = asyncio.run(executor.execute_async(plan))
+        assert result["results_by_provider"]["cnae_discovery"][0]["name"] == "Sync-X"

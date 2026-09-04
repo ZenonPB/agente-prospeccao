@@ -17,6 +17,26 @@ from services.prospecting.offer_profile import (
 )
 
 
+def _signal_present(lead: Dict[str, Any], signal: str) -> bool:
+    """Verifica se um sinal positivo está presente no lead.
+
+    Aceita AMBAS as convenções:
+    - NO_OWN_WEBSITE presente ⇔ lead['no_own_website'] == True
+                          ⇔ lead['has_own_website'] == False
+    - HAS_INSTAGRAM presente ⇔ lead['has_instagram'] == True
+    - Sinal genérico ⇔ lead[signal.lower()] == True
+    """
+    sig_l = signal.lower()
+    # 1) Convenção explícita: lead[signal] == True
+    if lead.get(sig_l) is True:
+        return True
+    if sig_l.startswith("no_"):
+        # 2) NO_X implícito via has_X=False (convenção semântica)
+        has_key = "has_" + sig_l[3:]
+        return lead.get(has_key) is False
+    return False
+
+
 @dataclass(frozen=True)
 class LeadOpportunity:
     """Uma oportunidade de venda associando um lead a um OfferProfile."""
@@ -86,9 +106,12 @@ class OfferMatcher:
                 )
 
         # 2. Sinais positivos: quais estão presentes
+        # Normalização semântica: NO_X=True ↔ has_X=False (consolidação §27:
+        # "Não esconder UNKNOWN" — interpretação padronizada)
         matched, missing = [], []
         for sig in positive_signals:
-            if lead.get(sig.lower()) is True:
+            sig_l = sig.lower()
+            if _signal_present(lead, sig_l):
                 matched.append(sig)
             else:
                 missing.append(sig)

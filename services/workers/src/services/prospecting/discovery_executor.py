@@ -75,14 +75,11 @@ class DiscoveryExecutor:
                 "budget_used": {name: int},
             }
         """
-        import asyncio
-
         results_by_provider: Dict[str, List[Dict]] = {}
         execution_order: List[str] = []
         skipped: List[str] = []
         budget_used: Dict[str, int] = {}
 
-        # Mapeia type -> name (no pipeline, o "type" no plano é o "name" do provider)
         for step in plan.get("providers", []):
             provider_name = step.get("type")
             provider = self.registry.get(provider_name)
@@ -93,18 +90,11 @@ class DiscoveryExecutor:
             queries = step.get("queries") or [provider_name]
             max_results = step.get("max_results") or step.get("budget", 50)
 
-            # Roda o provider (assíncrono)
+            # Roda o provider (sync ou async, detectado por inspeção)
             try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Em ambiente async (pytest-asyncio), não podemos reusar loop
-                    # — provider deve expor versão sync para testabilidade
-                    coro = self._run_provider(provider, queries, lead_context, max_results)
-                else:
-                    coro = self._run_provider(provider, queries, lead_context, max_results)
-                candidates = loop.run_until_complete(coro) if not loop.is_running() else []
-            except RuntimeError:
-                # Já em loop async — chama sem await via fallback
+                candidates = self._invoke_provider(provider, queries, lead_context)
+            except Exception:
+                # Provider falhou — pula mas não derruba o batch
                 candidates = []
 
             # Dedup intra-provider por query
@@ -136,19 +126,97 @@ class DiscoveryExecutor:
             "budget_used": budget_used,
         }
 
-    async def _run_provider(
+    def _invoke_provider(
         self,
         provider: DiscoveryProvider,
         queries: List[str],
         lead_context: Optional[Dict[str, Any]],
-        max_results: int,
     ) -> List[Dict[str, Any]]:
-        """Roda o provider em todas as queries, retornando candidatos deduped."""
+        """Roda o provider em todas as queries, detectando sync/async.
+
+        Suporta ambas as convenções sem exigir que o executor seja async.
+        Para testabilidade, providers em tests podem ser sync.
+        """
+        import asyncio
+        import inspect
+
         all_results: List[Dict[str, Any]] = []
         for q in queries:
-            results = await provider.run(q, lead_context=lead_context)
-            all_results.extend(results or [])
+            res = provider.run(q, lead_context=lead_context)
+            if inspect.isawaitable(res):
+                # Async: roda em loop se possível
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Já em loop — não bloquear; caller deve usar execute_async
+                        continue
+                    res = loop.run_until_complete(res)
+                except RuntimeError:
+                    continue
+            all_results.extend(res or [])
         return all_results
+
+    async def execute_async(
+        self, plan: Dict[str, Any], lead_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Versão async do execute — para uso em pipeline real (não testes).
+
+        Em ambiente async, sempre prefira este método ao execute().
+        """
+        import asyncio
+        import inspect
+
+        results_by_provider: Dict[str, List[Dict]] = {}
+        execution_order: List[str] = []
+        skipped: List[str] = []
+        budget_used: Dict[str, int] = {}
+
+        for step in plan.get("providers", []):
+            provider_name = step.get("type")
+            provider = self.registry.get(provider_name)
+            if provider is None:
+                skipped.append(provider_name)
+                continue
+            execution_order.append(provider_name)
+            queries = step.get("queries") or [provider_name]
+            max_results = step.get("max_results") or step.get("budget", 50)
+
+            all_results: List[Dict[str, Any]] = []
+            for q in queries:
+                try:
+                    res = provider.run(q, lead_context=lead_context)
+                    if inspect.isawaitable(res):
+                        res = await res
+                    all_results.extend(res or [])
+                except Exception:
+                    continue
+
+            # Dedup intra-provider
+            seen_keys = set()
+            deduped = []
+            for c in all_results:
+                key = self._identity_key(c)
+                if key and key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                deduped.append(c)
+            results_by_provider[provider_name] = deduped[:max_results]
+            budget_used[provider_name] = len(results_by_provider[provider_name])
+
+        all_candidates = []
+        for name in execution_order:
+            all_candidates.extend(results_by_provider.get(name, []))
+        unique_candidates = self._dedup(all_candidates)
+
+        return {
+            "results_by_provider": results_by_provider,
+            "execution_order": execution_order,
+            "skipped": skipped,
+            "total_candidates": len(all_candidates),
+            "unique_candidates": unique_candidates,
+            "unique_count": len(unique_candidates),
+            "budget_used": budget_used,
+        }
 
     def _identity_key(self, candidate: Dict[str, Any]) -> Optional[str]:
         """Chave de identidade para dedup (primeira chave disponível)."""
