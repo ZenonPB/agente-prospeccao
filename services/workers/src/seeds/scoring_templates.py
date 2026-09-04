@@ -104,6 +104,77 @@ DEFAULT_TEMPLATES = [
         ),
     },
     {
+        "service_label": "Landing Pages",
+        "requires_technical_report": False,
+        "requires_business_data": False,
+        # Busca multi-query (docs/melhorias/04): variedade semântica já sugerida
+        # no template para subnichos de conversão.
+        "enrichment_steps": ["business_social", "technical_site"],
+        # Landing Page (docs/melhorias/03): o prospect ideal já tem tráfego e
+        # reputação mas NÃO converte. Ausência de site SÓ pontua combinada com
+        # presença ativa (Instagram/reviews) — ausência total de demanda não
+        # vira lead quente.
+        "prescoring_config": {
+            "profile": "web_presence",
+            "enabled": True,
+            "threshold": 45,
+            "weights": {
+                "NO_OWN_WEBSITE": 30,
+                "HAS_INSTAGRAM": 15,
+                "HAS_PHONE": 8,
+                "GOOGLE_RATING": 15,
+                "GOOGLE_RATING_COUNT": 15,
+            },
+        },
+        "playbook": {
+            "hooks": [
+                "Empresa aparece bem no Google/Instagram mas não tem página de conversão — perde cliente para quem tem",
+                "Sem site próprio, pedidos/orçamentos dependem de WhatsApp/Instagram e o funil não escala",
+                "Presença forte nas redes sem CTA: visita vira 'curtida', não vira lead",
+            ],
+            "subject_ideas": [
+                "Sua página de conversão {empresa}",
+                "Seu Instagram atrai — mas converte? Landing page para {serviço}",
+                "{empresa} sem formulário/orçamento online",
+            ],
+            "objections": [
+                {"objection": "Já temos Instagram/WhatsApp", "approach": "Reforçar que redes geram contato, mas não funil/tracking; propor landing como camada de conversão e medição"},
+                {"objection": "Já temos site", "approach": "Perguntar se o site converte (formulário, CTA, orçamento online); se não, é exatamente o caso de landing"},
+                {"objection": "Orçamento apertado", "approach": "Mostrar custo da dependência de WhatsApp/Instagram e o retorno de uma página de conversão simples"},
+            ],
+        },
+        "positive_signals": [
+            {"label": "Sem site próprio / sem página de conversão", "description": "Empresa sem website próprio (usa Instagram/Canva/WhatsApp) OU site institucional sem CTA/formulário — público-alvo direto para landing page", "weight_hint": "high"},
+            {"label": "Instagram ativo", "description": "Perfil ativo com conteúdo recente — tráfego que não converte", "weight_hint": "medium"},
+            {"label": "Reputação Google forte", "description": "Nota >= 4.0 — confiança prévia que uma landing capitaliza", "weight_hint": "medium"},
+            {"label": "Volume de avaliações", "description": "Muitas avaliações (>= 30) — negócio com movimento e prova social", "weight_hint": "medium"},
+            {"label": "Negócio orientado a agendamento/orçamento", "description": "Setor que vende por orçamento/agenda (salão, clínica, oficina, serviço) — conversão direta na landing", "weight_hint": "medium"},
+            {"label": "Dependência de WhatsApp", "description": "Atendimento concentra em WhatsApp — sinal de demanda sem funil", "weight_hint": "low"},
+            {"label": "Bom valor por conversão", "description": "Ticket médio do setor comporta investimento em conversão", "weight_hint": "low"},
+        ],
+        "negative_signals": [
+            {"label": "Landing page já forte / converte", "description": "Página de conversão dedicada com CTA/formulário ativo — já tem o que venderíamos", "weight_hint": "high"},
+            {"label": "Rede / franquia com presença nacional", "description": "Estrutura corporativa que já investe em conversão", "weight_hint": "medium"},
+            {"label": "Atividade digital quase inexistente", "description": "Sem site, sem redes ativas, sem avaliações recentes — ausência de demanda, não só de conversão", "weight_hint": "high"},
+            {"label": "Lead sem canal acionável", "description": "Sem telefone/Instagram/WhatsApp/e-mail público — impossível iniciar contato", "weight_hint": "high"},
+        ],
+        "context_signals": [
+            {"label": "Segmento de conversão", "description": "Salões, clínicas, oficinas, serviços locais — negócios que vivem de orçamento/agenda"},
+            {"label": "Região", "description": "Presença regional e disputa local por cliente"},
+            {"label": "Reputação vs presença", "description": "Boa reputação Google com presença fraca = capital que uma landing converte"},
+        ],
+        "extra_instructions": (
+            "Venda de landing pages (página de conversão). O prospect ideal TEM "
+            "tráfego/reputação/presença social mas NÃO possui página dedicada à "
+            "conversão (CTA, formulário, orçamento). NÃO infira que toda empresa "
+            "sem site é boa: ausência de site só pontua quando combinada com "
+            "sinais de tração (Instagram ativo, avaliações, telefone acionável). "
+            "Empresa sem site, sem reviews e sem social é ausência de demanda — "
+            "não é lead quente. Distinga presença digital sem conversão (público-alvo) "
+            "de ausência total de atividade digital (não prospectar)."
+        ),
+    },
+    {
         "service_label": "SEO / Marketing Digital",
         "requires_technical_report": True,
         "requires_business_data": True,

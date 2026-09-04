@@ -33,6 +33,9 @@ class CreateCampaignRequest(BaseModel):
     target_country: Optional[str] = None
     analysis_profile: str = "web_presence"
     places_query: Optional[str] = Field(None, max_length=255)
+    # Busca multi-query (docs/melhorias/04): consultas Places adicionais para
+    # cobertura por variedade semântica; dedup por place_id no pipeline.
+    search_queries: Optional[List[str]] = Field(None, max_length=10)
 
 
 class BriefCampaignRequest(BaseModel):
@@ -81,6 +84,7 @@ class PatchCampaignRequest(BaseModel):
     target_country: Optional[str] = Field(None, max_length=100)
     analysis_profile: Optional[str] = Field(None, pattern="^(web_presence|business_opportunity)$")
     places_query: Optional[str] = Field(None, max_length=255)
+    search_queries: Optional[List[str]] = Field(None, max_length=10)
     scoring_template_id: Optional[str] = Field(None)
     status: Optional[str] = Field(None, pattern="^(ACTIVE|PAUSED|COMPLETED|ARCHIVED)$")
 
@@ -129,6 +133,7 @@ def list_campaigns(
             "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
             "status": campaign.status.value if campaign.status else None,
             "places_query": campaign.places_query,
+            "search_queries": campaign.search_queries,
             "lead_count": lead_count,
             "avg_score": round(avg_score, 1),
             "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -159,6 +164,7 @@ def create_campaign(
         target_country=request.target_country or "Brasil",
         analysis_profile=request.analysis_profile,
         places_query=request.places_query,
+        search_queries=request.search_queries,
         status=CampaignStatus.ACTIVE,
     )
     db.add(campaign)
@@ -177,6 +183,7 @@ def create_campaign(
         "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
         "places_query": campaign.places_query,
+        "search_queries": campaign.search_queries,
         "lead_count": 0,
         "avg_score": 0,
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -344,6 +351,7 @@ def get_campaign(
         "analysis_profile": campaign.analysis_profile.value if campaign.analysis_profile else "web_presence",
         "status": campaign.status.value if campaign.status else None,
         "places_query": campaign.places_query,
+        "search_queries": campaign.search_queries,
         "scoring_template_id": str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
         "lead_count": lead_count,
         "avg_score": round(float(avg_score), 1),
@@ -390,7 +398,8 @@ def patch_campaign(
         campaign.scoring_template_id = None
 
     for field in ("name", "target_service", "target_segment", "target_city",
-                  "target_state", "target_country", "places_query"):
+                  "target_state", "target_country", "places_query",
+                  "search_queries"):
         if field in updates:
             setattr(campaign, field, updates[field])
 

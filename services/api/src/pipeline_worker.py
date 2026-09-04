@@ -28,6 +28,10 @@ from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.prospecting_profile_service import resolve_prospecting_profile
 from services.candidate_pre_scoring_service import CandidatePreScoringService
+from services.discovery_multi_query import (
+    aggregate_multi_query_results,
+    expand_search_queries,
+)
 from services.cnae_discovery_service import CnaeDiscoveryService
 from services.pncp_service import PncpService, default_date_window, format_contract_note
 from services.geo_utils import build_location_circle
@@ -521,17 +525,28 @@ async def run_pipeline(
             if included_type:
                 logger.info("Included type: %s (segment=%s)", included_type, target_segment)
 
-            results = await places_service.search_places(
-                query,
-                max_results=max_leads,
-                exclude_place_ids=existing_ids_set,
-                db=db,
-                organization_id=str(campaign.organization_id) if campaign else None,
-                filter_city=target_city,
-                filter_state=target_state,
-                location_bias=location_bias,
-                included_type=included_type,
-            )
+            # Multi-query (docs/melhorias/04): executa TODAS as consultas
+            # declaradas na campanha (variedade semântica, limite por query
+            # proporcional — nunca paginação cega) e agrega dedup por
+            # place_id com `source_queries` auditáveis.
+            search_queries = expand_search_queries(campaign, fallback_query=query)
+            per_query_limit = max(1, -(-max_leads // len(search_queries)))
+            per_query_results = []
+            for sq in search_queries:
+                found = await places_service.search_places(
+                    sq,
+                    max_results=per_query_limit,
+                    exclude_place_ids=existing_ids_set,
+                    db=db,
+                    organization_id=str(campaign.organization_id) if campaign else None,
+                    filter_city=target_city,
+                    filter_state=target_state,
+                    location_bias=location_bias,
+                    included_type=included_type,
+                )
+                per_query_results.append((sq, found))
+                logger.info("Places multi-query %r: %d resultados", sq, len(found))
+            results = aggregate_multi_query_results(per_query_results)
 
             batch_items = filter_new_batch_items(
                 _prepare_batch_items(results), existing_ids_set, existing_domains,
