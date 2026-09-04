@@ -29,13 +29,13 @@ Evoluir o projeto para uma plataforma de prospecção B2B genérica, explicável
 
 > **Fase 1 (fundação) entregue — ver [`00-diagnostico-fase-1.md`](./00-diagnostico-fase-1.md).**
 
-- [`01-candidate-pre-scoring.md`](./01-candidate-pre-scoring.md) — Candidate Pre-Scoring antes do enriquecimento pesado
+- [`01-candidate-pre-scoring-FEITO.md`](./01-candidate-pre-scoring-FEITO.md) — Candidate Pre-Scoring antes do enriquecimento pesado
 - [`02-opportunity-score-vector.md`](./02-opportunity-score-vector.md) — Separar oportunidade em múltiplas dimensões de score
 - [`03-template-landing-pages.md`](./03-template-landing-pages.md) — Template específico para Landing Pages
 - [`04-places-multi-query.md`](./04-places-multi-query.md) — Google Places com busca multi-query
 - [`05-search-query-generation.md`](./05-search-query-generation.md) — Geração automática de queries de descoberta
-- [`06-candidate-vs-lead.md`](./06-candidate-vs-lead.md) — Separar Candidate de Lead
-- [`07-budgeted-enrichment.md`](./07-budgeted-enrichment.md) — Enriquecimento seletivo por custo e valor esperado
+- [`06-candidate-vs-lead-FEITO.md`](./06-candidate-vs-lead-FEITO.md) — Separar Candidate de Lead
+- [`07-budgeted-enrichment-FEITO.md`](./07-budgeted-enrichment-FEITO.md) — Enriquecimento seletivo por custo e valor esperado
 - [`08-enrichment-order-by-service.md`](./08-enrichment-order-by-service.md) — Ordem de enriquecimento definida pela oferta
 - [`09-rating-count-by-vertical.md`](./09-rating-count-by-vertical.md) — Interpretar volume de avaliações por vertical
 - [`10-niche-prior-learning.md`](./10-niche-prior-learning.md) — Niche Prior por serviço e organização
@@ -48,7 +48,7 @@ Evoluir o projeto para uma plataforma de prospecção B2B genérica, explicável
 
 ## Arquitetura universal e inteligência por vertical
 
-- [`17-prospecting-profile.md`](./17-prospecting-profile.md) — ProspectingProfile como contrato universal de prospecção
+- [`17-prospecting-profile-FEITO.md`](./17-prospecting-profile-FEITO.md) — ProspectingProfile como contrato universal de prospecção
 - [`18-universal-prospecting-questions.md`](./18-universal-prospecting-questions.md) — Seis perguntas universais do agente de prospecção
 - [`19-icp-vs-intent.md`](./19-icp-vs-intent.md) — Separar ICP Fit de Intent
 - [`20-signal-registry.md`](./20-signal-registry.md) — Signal Registry universal

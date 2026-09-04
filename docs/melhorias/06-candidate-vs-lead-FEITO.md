@@ -1,6 +1,6 @@
 # Separar Candidate de Lead
 
-> **Status: 🟠 Parcial — Candidate implementado logicamente (estado no pipeline, conforme sugerido no doc): gate de promoção Candidate→Lead com descarte idempotente. Falta: entidade persistida, métricas de retrieval e rastreabilidade de descartes.**  
+> **Status: ✅ FEITO — Candidate como estado no pipeline**: gate de promoção Candidate→Lead no discovery com descarte auditável e idempotente (`prescoring_discards`, migration `f1a2b3c4d5e6`). Entidade Candidate persistida/step separado fica para quando métricas de retrieval exigirem (docs 10/12).  
 > **Prioridade: P0**  
 > **Domínio: Data Model / Funnel**
 
