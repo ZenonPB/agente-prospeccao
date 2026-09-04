@@ -12,7 +12,7 @@ from sqlalchemy import func as sqlfunc
 from sqlalchemy.exc import IntegrityError
 
 from src.db.session import SessionLocal
-from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile, CampaignScoringTemplate
+from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile, CampaignScoringTemplate, PrescoringDiscard
 
 # Importa serviços dos workers
 import sys
@@ -41,6 +41,37 @@ logger = logging.getLogger(__name__)
 
 def _ts() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _persist_prescoring_discards(db: Session):
+    """Fábrica do callback de auditoria do gate de pre-scoring.
+
+    Upsert idempotente por (campaign_id, place_id): re-coleta atualiza o
+    registro em vez de duplicar. Erros são propagados — o chamador decide
+    (o serviço de pre-scoring trata auditoria como best-effort).
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    def _persist(records):
+        if not records:
+            return
+        stmt = pg_insert(PrescoringDiscard).values(records)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_prescoring_discards_campaign_place",
+            set_={
+                "job_id": stmt.excluded.job_id,
+                "candidate_data": stmt.excluded.candidate_data,
+                "signals": stmt.excluded.signals,
+                "discovery_score": stmt.excluded.discovery_score,
+                "threshold": stmt.excluded.threshold,
+                "reason": stmt.excluded.reason,
+                "created_at": sqlfunc.now(),
+            },
+        )
+        db.execute(stmt)
+        db.commit()
+
+    return _persist
 
 
 def _prepare_batch_items(results):
@@ -265,6 +296,7 @@ async def run_pipeline(
         # padrão (templates sem `prescoring_config` mantêm o fluxo atual).
         prospecting_profile = resolve_prospecting_profile(scoring_template)
         prescoring_discarded = 0
+        prescoring_breakdown: Dict[str, int] = {}
 
         # --- Coleta (pulada em reanalyze_only) ---
         collected_count = 0
@@ -510,17 +542,29 @@ async def run_pipeline(
             # threshold NÃO viram Lead e NÃO consomem enriquecimento caro.
             # Desligado quando o template não declara `prescoring_config`.
             if batch_items and prospecting_profile["prescoring"]["enabled"]:
+                prescoring_context = {
+                    "organization_id": str(campaign.organization_id) if campaign else None,
+                    "campaign_id": str(campaign.id) if campaign else None,
+                    "job_id": str(job.id) if job else None,
+                }
                 batch_items, prescoring_stats = CandidatePreScoringService().select_candidates(
                     batch_items, prospecting_profile,
+                    persist_fn=_persist_prescoring_discards(db),
+                    context=prescoring_context,
                 )
                 prescoring_discarded = prescoring_stats["discarded"]
+                prescoring_breakdown = {
+                    "below_threshold": prescoring_stats["below_threshold"],
+                    "top_k_cut": prescoring_stats["top_k_cut"],
+                }
                 yield {
                     "type": "log",
                     "message": (
                         f"Pré-scoring ({prospecting_profile['profile_key']}): "
                         f"{prescoring_stats['eligible']}/{prescoring_stats['evaluated']} candidatos aprovados "
                         f"(threshold={prospecting_profile['prescoring']['threshold']}, "
-                        f"{prescoring_stats['discarded']} descartados sem custo de enriquecimento)"
+                        f"{prescoring_stats['below_threshold']} abaixo do threshold, "
+                        f"{prescoring_stats['top_k_cut']} cortados por top_k)"
                     ),
                     "timestamp": _ts(),
                 }
@@ -858,6 +902,7 @@ async def run_pipeline(
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
                 "queue_remaining": queue_remaining,
                 "prescoring_discarded": prescoring_discarded,
+                "prescoring_breakdown": prescoring_breakdown,
             },
             "timestamp": _ts(),
         }
@@ -876,6 +921,7 @@ async def run_pipeline(
                 "total_processed": len(leads_to_process) if leads_to_process else 0,
                 "queue_remaining": queue_remaining,
                 "prescoring_discarded": prescoring_discarded,
+                "prescoring_breakdown": prescoring_breakdown,
             }
             db.commit()
 

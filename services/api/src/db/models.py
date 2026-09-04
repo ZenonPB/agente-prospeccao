@@ -9,6 +9,7 @@ sys.path.insert(0, workers_path)
 from database.models import (
     Lead,
     Campaign,
+    PrescoringDiscard,
     Enrichment,
     Message,
     FollowUp,
