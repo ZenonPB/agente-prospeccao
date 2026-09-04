@@ -143,31 +143,44 @@ class CandidatePreScoringService:
             "summary": f"{profile.get('profile_key', '')} score={score} ({top})",
         }
 
-    def select_candidates(self, items, profile):
+    def select_candidates(self, items, profile, persist_fn=None, context=None):
         """Aplica o gate de promoção Candidate → Lead sobre o lote coletado.
 
         Args:
             items: itens brutos de coleta já deduplicados.
             profile: perfil resolvido (`resolve_prospecting_profile`).
+            persist_fn: callback opcional `(records) -> None` para auditar os
+                descartes (injetado pelo chamador — este serviço não toca DB).
+                Falha do callback é logada e NUNCA interrompe o gate.
+            context: dict opcional `{organization_id, campaign_id, job_id}`
+                repassado nos records de descarte.
 
         Returns:
             Tupla (selecionados, stats). Selecionados são os itens originais
             com `discovery_score`/`prescoring_summary` anotados, ordenados por
             score desc (empate: ordem original — estável). Respeita
-            `prescoring.top_k` quando definido. Stats traz
-            evaluated/eligible/discarded/top_score para o summary do job.
+            `prescoring.top_k` quando definido. Stats separam
+            `below_threshold` de `top_k_cut` (`discarded` = soma, para
+            compatibilidade com consumidores do summary do job).
         """
         prescoring = profile.get("prescoring", {})
         if not prescoring.get("enabled"):
-            return items, {"evaluated": 0, "eligible": len(items), "discarded": 0, "top_score": None}
+            return items, {
+                "evaluated": 0, "eligible": len(items), "selected": len(items),
+                "below_threshold": 0, "top_k_cut": 0, "discarded": 0,
+                "top_score": None,
+            }
 
         scored = [(item, self.score_candidate(item, profile)) for item in items]
         eligible = [(i, s) for i, s in scored if s["eligible_for_enrichment"]]
+        below_threshold = [(i, s) for i, s in scored if not s["eligible_for_enrichment"]]
         # Ordenação estável: score desc, empates mantêm a ordem da coleta.
         eligible.sort(key=lambda pair: -pair[1]["discovery_score"])
 
         top_k = prescoring.get("top_k")
+        top_k_cut: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
         if top_k:
+            top_k_cut = eligible[top_k:]
             eligible = eligible[:top_k]
 
         selected: List[Dict[str, Any]] = []
@@ -176,17 +189,67 @@ class CandidatePreScoringService:
                          "prescoring_summary": s["summary"]}
             selected.append(annotated)
 
-        discarded = len(items) - len(selected)
+        self._warn_orphan_weights(prescoring.get("weights") or {}, scored)
+
+        discarded_records = (
+            [self._discard_record(item, s, profile, prescoring, "below_threshold", context)
+             for item, s in below_threshold]
+            + [self._discard_record(item, s, profile, prescoring, "top_k_cut", context)
+               for item, s in top_k_cut]
+        )
+        if discarded_records and persist_fn:
+            try:
+                persist_fn(discarded_records)
+            except Exception as e:
+                # Auditoria é best-effort: nunca bloqueia o pipeline.
+                logger.warning("Falha ao persistir descartes do pre-scoring: %s", e)
+
         top_score = eligible[0][1]["discovery_score"] if eligible else None
         stats = {
             "evaluated": len(items),
             "eligible": len(selected),
-            "discarded": discarded,
+            "selected": len(selected),
+            "below_threshold": len(below_threshold),
+            "top_k_cut": len(top_k_cut),
+            "discarded": len(below_threshold) + len(top_k_cut),
             "top_score": top_score,
         }
-        if discarded:
+        if stats["discarded"]:
             logger.info(
-                "Pre-scoring: %d/%d candidatos descartados (threshold=%s, perfil=%s)",
-                discarded, len(items), prescoring.get("threshold"), profile.get("profile_key"),
+                "Pre-scoring: %d/%d candidatos descartados "
+                "(below_threshold=%d, top_k_cut=%d, threshold=%s, perfil=%s)",
+                stats["discarded"], len(items), stats["below_threshold"],
+                stats["top_k_cut"], prescoring.get("threshold"),
+                profile.get("profile_key"),
             )
         return selected, stats
+
+    def _discard_record(self, item, scored, profile, prescoring, reason, context):
+        """Monta o registro de auditoria de um descarte."""
+        ctx = context or {}
+        return {
+            "organization_id": ctx.get("organization_id"),
+            "campaign_id": ctx.get("campaign_id"),
+            "job_id": ctx.get("job_id"),
+            "place_id": item.get("place_id"),
+            "company_name": item.get("name") or item.get("company_name"),
+            "candidate_data": item,
+            "signals": scored["signals"],
+            "discovery_score": scored["discovery_score"],
+            "threshold": prescoring.get("threshold"),
+            "profile_key": profile.get("profile_key"),
+            "reason": reason,
+        }
+
+    def _warn_orphan_weights(self, weights, scored):
+        """Peso declarado que não corresponde a sinal algum do lote quase
+        sempre é typo de config — avisa uma vez por lote."""
+        if not weights:
+            return
+        seen = {sig["key"] for _, s in scored for sig in s["signals"]}
+        orphans = [k for k in weights if k not in seen]
+        if orphans:
+            logger.warning(
+                "prescoring weights sem sinal correspondente no lote: %s "
+                "(typo de config ou sinal nunca coletado)", orphans,
+            )
