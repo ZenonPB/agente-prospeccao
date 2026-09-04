@@ -266,3 +266,6 @@ silenciosamente caem no default — bug latente.
 - 🟡 #5 required_signals — aguarda decisão de produto (não automático; documentado)
 - 🟡 #2 endpoint descartes — próximo a ser feito (rota simples)
 - 🟡 #3 regexes para config — precisa de decisão de engenharia (não automativo)
+#4 _serialize audit: confirmado OK (prescoring_config + enrichment_strategy já inclusos)
+#6 prescoring_discarded int -> documentado como legado (não urgente)
+#11 doc sync (decisions.md/context.md) -> documentado, não bloqueia
