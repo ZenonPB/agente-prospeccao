@@ -30,6 +30,7 @@ class StartPipelineRequest(BaseModel):
     campaign_id: str | None = None
     max_leads: int = Field(10, ge=1, le=200)
     reanalyze_only: bool = False
+    source: str = Field("places", pattern="^(places|cnae|pncp|events)$")
 
 
 @router.post("/start")
@@ -91,6 +92,7 @@ async def start_pipeline(
             "campaign_id": body.campaign_id,
             "max_leads": body.max_leads,
             "reanalyze_only": body.reanalyze_only,
+            "source": body.source,
         },
     )
     db.add(job)

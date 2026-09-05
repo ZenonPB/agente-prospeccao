@@ -43,6 +43,7 @@ class LeadOpportunity:
     offer_key: str
     profile_key: str
     score: int  # 0-100
+    offer_version: Optional[str] = None
     evidence: List[str] = field(default_factory=list)
     resolved_from: str = "explicit"  # explicit|vertical|archetype|generic
     signals_matched: List[str] = field(default_factory=list)
@@ -101,6 +102,7 @@ class OfferMatcher:
                     offer_key=profile.key,
                     profile_key=profile.archetype,
                     score=0,
+                    offer_version=profile.version,
                     evidence=[f"DISQUALIFIED_BY_{dq}"],
                     resolved_from="explicit",
                 )
@@ -142,6 +144,7 @@ class OfferMatcher:
             offer_key=profile.key,
             profile_key=profile.archetype,
             score=score,
+            offer_version=profile.version,
             evidence=evidence,
             resolved_from="explicit",
             signals_matched=matched,

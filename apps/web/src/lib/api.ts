@@ -1,5 +1,5 @@
 import { getSession } from "next-auth/react";
-import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult } from "@/types";
+import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult, LeadOpportunity, EventOpportunity, CommercialOutcome, CommercialOutcomeMetric } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
 
@@ -117,6 +117,8 @@ export const leadsApi = {
   }) => request<{ leads: Lead[]; total: number }>("/api/leads", { params: params as Record<string, string | number | boolean | undefined> }),
 
   get: (id: string) => request<Lead & { enrichment?: Enrichment }>(`/api/leads/${id}`),
+
+  opportunities: (id: string) => request<{ oportunidades: LeadOpportunity[] }>(`/api/leads/${id}/oportunidades`),
 
   update: (id: string, data: { notes?: string; whatsapp?: string; next_action_at?: string | null; value?: number; expected_close_date?: string | null; lost_reason?: string }) =>
     request<Lead>(`/api/leads/${id}`, {
@@ -349,6 +351,7 @@ export const campaignsApi = {
     target_country?: string;
     places_query?: string;
     scoring_template_id?: string | null;
+    offer_profile_key?: string | null;
     status?: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
   }) =>
     request<Campaign>(`/api/campaigns/${id}`, {
@@ -365,6 +368,7 @@ export const campaignsApi = {
     target_state?: string;
     target_country?: string;
     places_query?: string;
+    offer_profile_key?: string;
   }) =>
     request<Campaign>("/api/campaigns", {
       method: "POST",
@@ -444,6 +448,12 @@ export const campaignsApi = {
     request<{ rules: string[] }>(`/api/campaigns/${campaignId}/learning/${ruleIndex}`, {
       method: "DELETE",
     }),
+};
+
+export const intelligenceApi = {
+  events: (limit = 100) => request<{ events: EventOpportunity[]; total: number }>("/api/intelligence/events", { params: { limit } }),
+  outcomes: (params?: { offer_key?: string; offer_version?: string }) =>
+    request<{ outcomes: CommercialOutcome[]; metrics: CommercialOutcomeMetric[]; total_outcomes: number }>("/api/intelligence/outcomes", { params }),
 };
 
 // Loop de aprendizado da IA: regras de calibração + convergência IA × time.
@@ -927,10 +937,16 @@ export const pipelineApi = {
     max_leads?: number;
     campaign_id?: string;
     reanalyze_only?: boolean;
+    source?: 'places' | 'cnae' | 'pncp' | 'events';
   }) =>
     request<{ job_id: string; status: string }>("/api/pipeline/start", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  discoverEvents: (campaign_id: string, max_leads = 100) =>
+    request<{ job_id: string; status: string }>("/api/pipeline/start", {
+      method: "POST",
+      body: JSON.stringify({ campaign_id, max_leads, source: "events" }),
     }),
   reanalyzeCampaign: (campaign_id: string, unscored_only = false) =>
     request<{ job_id: string; status: string; leads_to_reanalyze: number }>(

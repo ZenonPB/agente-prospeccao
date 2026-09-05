@@ -9,7 +9,8 @@ import {
   Play, CheckCircle, XCircle, Loader2,
   ExternalLink, Sparkles, RefreshCw, WifiOff,
 } from 'lucide-react';
-import { useStartPipeline, useReanalyzeCampaign, usePipelineJobs, useInvalidateJobs } from '@/hooks/use-api';
+import { useStartPipeline, useReanalyzeCampaign, usePipelineJobs, useInvalidateJobs, useDiscoverEvents } from '@/hooks/use-api';
+import { useQueryClient } from '@tanstack/react-query';
 import { useReconnectableWs } from '@/hooks/use-reconnectable-ws';
 import { createPipelineWsUrl, getPipelineAuthPayload } from '@/lib/api';
 import { toast } from 'sonner';
@@ -32,6 +33,7 @@ interface PipelineEvent {
     failed: number;
     total_processed: number;
     queue_remaining?: number;
+    events_found?: number;
   };
   timestamp?: string;
 }
@@ -61,8 +63,10 @@ export function CampaignPipeline({
   const logsEndRef = useRef<HTMLDivElement>(null);
   const startPipeline = useStartPipeline();
   const reanalyzeCampaign = useReanalyzeCampaign();
+  const discoverEvents = useDiscoverEvents();
   const jobsQuery = usePipelineJobs(campaignId, 5);
   const invalidateJobs = useInvalidateJobs();
+  const queryClient = useQueryClient();
 
   const { wsRef, isReconnecting, reconnectCount, connect, disconnect } = useReconnectableWs({
     maxRetries: 5,
@@ -79,7 +83,12 @@ export function CampaignPipeline({
       if (event.type === 'done') {
         setSummary(event.summary);
         setIsRunning(false);
+        if (event.summary?.events_found !== undefined) {
+          toast.success(`${event.summary.events_found} eventos futuros encontrados.`);
+        }
         invalidateJobs();
+        queryClient.invalidateQueries({ queryKey: ['intelligence'] });
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
       }
 
       if (event.type === 'error') {
@@ -169,6 +178,25 @@ export function CampaignPipeline({
     setIsRunning(false);
   };
 
+  const handleDiscoverEvents = useCallback(async () => {
+    setHasStarted(true);
+    setIsRunning(true);
+    setMode('collect');
+    setEvents([]);
+    setProgress(0);
+    setErrorMessage(null);
+    try {
+      const result = await discoverEvents.mutateAsync({ campaignId, maxLeads: 100 });
+      invalidateJobs();
+      connect(createPipelineWsUrl(result.job_id), getPipelineAuthPayload());
+    } catch (error) {
+      setIsRunning(false);
+      const message = error instanceof Error ? error.message : 'Erro ao descobrir eventos';
+      setErrorMessage(message);
+      setEvents((prev) => [...prev, { type: 'error', message }]);
+    }
+  }, [campaignId, discoverEvents, invalidateJobs, connect]);
+
   return (
     <div className="space-y-6" data-tour="campanha-pipeline">
       {!hasStarted && !isRunning && (
@@ -192,6 +220,10 @@ export function CampaignPipeline({
                     <Play className="mr-2 h-5 w-5" />
                   )}
                   Iniciar Coleta
+                </Button>
+                <Button size="lg" variant="outline" onClick={handleDiscoverEvents} disabled={discoverEvents.isPending || startPipeline.isPending || reanalyzeCampaign.isPending}>
+                  {discoverEvents.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
+                  Descobrir eventos
                 </Button>
                 {hasExistingLeads && (
                   <>
@@ -378,7 +410,7 @@ export function CampaignPipeline({
                     const scoreColor = event.score >= 60 ? 'text-emerald-500' : 'text-amber-500';
                     return (
                       <p key={i}>
-                        <span className={scoreColor}>→</span> {event.name} — Score: {event.score} ({event.status})
+                        <span className={scoreColor}>→</span> {event.name} — Pontuação: {event.score} ({event.status})
                       </p>
                     );
                   }

@@ -79,8 +79,13 @@ class DiscoveryExecutor:
         execution_order: List[str] = []
         skipped: List[str] = []
         budget_used: Dict[str, int] = {}
+        total_budget = plan.get("max_results") or plan.get("target_candidates")
+        remaining_budget = int(total_budget) if total_budget is not None else None
 
         for step in plan.get("providers", []):
+            if remaining_budget is not None and remaining_budget <= 0:
+                skipped.append(step.get("type"))
+                continue
             provider_name = step.get("type")
             provider = self.registry.get(provider_name)
             if provider is None:
@@ -89,6 +94,8 @@ class DiscoveryExecutor:
             execution_order.append(provider_name)
             queries = step.get("queries") or [provider_name]
             max_results = step.get("max_results") or step.get("budget", 50)
+            if remaining_budget is not None:
+                max_results = min(max_results, remaining_budget)
 
             # Roda o provider (sync ou async, detectado por inspeção)
             try:
@@ -108,6 +115,8 @@ class DiscoveryExecutor:
                 deduped.append(c)
             results_by_provider[provider_name] = deduped[:max_results]
             budget_used[provider_name] = len(results_by_provider[provider_name])
+            if remaining_budget is not None:
+                remaining_budget -= budget_used[provider_name]
 
         # Dedup entre providers (consolidação §7)
         all_candidates = []
@@ -189,9 +198,14 @@ class DiscoveryExecutor:
         execution_order: List[str] = []
         skipped: List[str] = []
         budget_used: Dict[str, int] = {}
+        total_budget = plan.get("max_results") or plan.get("target_candidates")
+        remaining_budget = int(total_budget) if total_budget is not None else None
 
         for step in plan.get("providers", []):
             provider_name = step.get("type")
+            if remaining_budget is not None and remaining_budget <= 0:
+                skipped.append(provider_name)
+                continue
             provider = self.registry.get(provider_name)
             if provider is None:
                 skipped.append(provider_name)
@@ -199,6 +213,8 @@ class DiscoveryExecutor:
             execution_order.append(provider_name)
             queries = step.get("queries") or [provider_name]
             max_results = step.get("max_results") or step.get("budget", 50)
+            if remaining_budget is not None:
+                max_results = min(max_results, remaining_budget)
 
             all_results: List[Dict[str, Any]] = []
             for q in queries:
@@ -221,6 +237,8 @@ class DiscoveryExecutor:
                 deduped.append(c)
             results_by_provider[provider_name] = deduped[:max_results]
             budget_used[provider_name] = len(results_by_provider[provider_name])
+            if remaining_budget is not None:
+                remaining_budget -= budget_used[provider_name]
 
         all_candidates = []
         for name in execution_order:

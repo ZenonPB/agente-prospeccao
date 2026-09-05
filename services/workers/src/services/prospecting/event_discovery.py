@@ -20,6 +20,8 @@ from dataclasses import dataclass, field, asdict
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
+import httpx
+
 
 # ============================================================
 # EventOpportunity — entidade conceitual (consolidação §13)
@@ -429,8 +431,51 @@ class SportsFederationProvider:
         return list(self._known_events)
 
 
-def build_default_event_registry() -> EventDiscoveryRegistry:
-    """Registry padrão com SportsFederationProvider."""
+class HttpEventDiscoveryProvider:
+    """Coletor opt-in para um endpoint externo de eventos.
+
+    O endpoint deve responder JSON com uma lista de eventos no mesmo contrato
+    do provider. Nenhuma URL é chamada quando a configuração está ausente.
+    """
+
+    name = "event_http"
+
+    def __init__(self, endpoint: str, timeout: float = 10.0):
+        self.endpoint = endpoint.rstrip("/")
+        self.timeout = timeout
+
+    async def discover(self, lead_context=None):
+        context = lead_context or {}
+        params = {
+            key: value
+            for key, value in {
+                "city": context.get("city"),
+                "state": context.get("state"),
+                "event_type": context.get("event_type"),
+            }.items()
+            if value
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+                response = await client.get(self.endpoint, params=params)
+                response.raise_for_status()
+                data = response.json()
+        except (httpx.HTTPError, ValueError):
+            return []
+        if isinstance(data, dict):
+            data = data.get("events", [])
+        return list(data) if isinstance(data, list) else []
+
+
+def build_default_event_registry(endpoint: Optional[str] = None) -> EventDiscoveryRegistry:
+    """Registry padrão; endpoint externo só é habilitado explicitamente.
+
+    Sem argumento, preserva o registry de teste com o provider em memória.
+    O pipeline sempre passa a configuração (string vazia desabilita providers).
+    """
     reg = EventDiscoveryRegistry()
-    reg.register(SportsFederationProvider())
+    if endpoint:
+        reg.register(HttpEventDiscoveryProvider(endpoint))
+    elif endpoint is None:
+        reg.register(SportsFederationProvider())
     return reg

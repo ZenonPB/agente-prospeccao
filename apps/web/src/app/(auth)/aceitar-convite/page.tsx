@@ -189,7 +189,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
               <Input id="invite-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-email">Email</Label>
+              <Label htmlFor="invite-email">E-mail</Label>
               <Input id="invite-email" type="email" value={invite.email} disabled />
             </div>
             <div className="space-y-2">
@@ -246,7 +246,7 @@ function invalidCard(title: string, description: string) {
         </CardHeader>
         <CardContent className="text-center">
           <Link href="/dashboard">
-            <Button variant="outline" className="h-11">Ir para o dashboard</Button>
+            <Button variant="outline" className="h-11">Ir para o painel</Button>
           </Link>
         </CardContent>
       </Card>
@@ -271,8 +271,8 @@ function successCard(orgName: string, viaRegister = false) {
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-          <Button className="h-11 w-full" onClick={() => (window.location.href = '/dashboard')}>
-            Ir para o dashboard
+            <Button className="h-11 w-full" onClick={() => (window.location.href = '/dashboard')}>
+            Ir para o painel
           </Button>
         </CardContent>
       </Card>

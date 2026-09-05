@@ -148,3 +148,40 @@ class OfferProfileResolver:
             vertical="generic",
         )
         return _ResolvedOffer(generic, "generic")
+
+    def resolve_campaign(
+        self,
+        *,
+        offer_profile_key: Optional[str] = None,
+        target_service: Optional[str] = None,
+        target_segment: Optional[str] = None,
+        archetype_key: Optional[str] = None,
+    ) -> _ResolvedOffer:
+        """Resolve uma campanha nova ou legada sem exigir migração manual.
+
+        Campanhas antigas não possuem ``offer_profile_key``. Neste caso, usa
+        correspondência exata no nome/tagline da oferta, depois no segmento ou
+        archetype. O fallback genérico mantém o comportamento histórico.
+        """
+        if offer_profile_key:
+            resolved = self.resolve(offer_profile_key=offer_profile_key)
+            if resolved.resolved_from == "explicit":
+                return resolved
+
+        needle = " ".join(filter(None, (target_service, target_segment))).strip().lower()
+        if needle:
+            for profile in self.registry.list():
+                terms = {
+                    profile.key.lower(),
+                    str((profile.offer or {}).get("name", "")).lower(),
+                    str((profile.offer or {}).get("tagline", "")).lower(),
+                    profile.vertical.lower(),
+                    profile.archetype.lower(),
+                }
+                if any(term and (term in needle or needle in term) for term in terms):
+                    return _ResolvedOffer(profile, "vertical")
+
+        return self.resolve(
+            vertical_key=target_segment,
+            archetype_key=archetype_key,
+        )

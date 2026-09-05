@@ -288,22 +288,18 @@ VECTOR_WEIGHTS = {
     "web_presence": {
         "need": 0.25, "commercial_fit": 0.2,
         "digital_maturity": 0.4, "contactability": 0.15,
-        **_V2_ZERO, **_V2_DMA_ZERO,
     },
     "business_opportunity": {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
-        **_V2_ZERO, **_V2_DMA_ZERO,
     },
     "industrial": {
         "need": 0.35, "commercial_fit": 0.35,
         "digital_maturity": 0.15, "contactability": 0.15,
-        **_V2_ZERO, **_V2_DMA_ZERO,
     },
     "generic": {
         "need": 0.25, "commercial_fit": 0.25,
         "digital_maturity": 0.25, "contactability": 0.25,
-        **_V2_ZERO, **_V2_DMA_ZERO,
     },
 }
 
@@ -908,11 +904,13 @@ class AIScoringService:
                 weights = VECTOR_WEIGHTS.get(profile, VECTOR_WEIGHTS["generic"])
                 present = {k: v for k, v in clean_vector.items() if k in weights}
                 # v2: se LLM produziu dimensões universais, marca fórmula v2
-                is_v2 = any(d in present for d in VECTOR_V2_DIMS)
+                is_v2 = any(d in clean_vector for d in VECTOR_V2_DIMS)
                 if present:
                     # só soma pesos > 0 para o overall (compatível v1);
                     # dimensões v2 com peso 0 não quebram o cálculo.
                     active = {k: present[k] for k in present if weights[k] > 0}
+                    # Dimensões v2/dma têm peso 0 durante rollout; não devem
+                    # aparecer na API de pesos exigidos pelos callers v1.
                     if active:
                         wsum = sum(weights[k] for k in active)
                         clean_vector["overall"] = round(

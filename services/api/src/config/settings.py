@@ -77,4 +77,7 @@ class Settings(BaseSettings):
     # tracking desativado (não injeta pixel/redirect nos envios).
     TRACKING_BASE_URL: str = Field("", description='URL pública da API para pixel/redirect de tracking')
 
+    # Coletor opcional de eventos. Vazio mantém o provider desabilitado.
+    EVENT_DISCOVERY_URL: str = Field("", description='Endpoint JSON externo de eventos (opt-in)')
+
 settings = Settings()

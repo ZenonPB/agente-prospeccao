@@ -36,6 +36,7 @@ class CreateCampaignRequest(BaseModel):
     # Busca multi-query (docs/melhorias/04): consultas Places adicionais para
     # cobertura por variedade semântica; dedup por place_id no pipeline.
     search_queries: Optional[List[str]] = Field(None, max_length=10)
+    offer_profile_key: Optional[str] = Field(None, max_length=64)
 
 
 class BriefCampaignRequest(BaseModel):
@@ -87,6 +88,7 @@ class PatchCampaignRequest(BaseModel):
     search_queries: Optional[List[str]] = Field(None, max_length=10)
     scoring_template_id: Optional[str] = Field(None)
     status: Optional[str] = Field(None, pattern="^(ACTIVE|PAUSED|COMPLETED|ARCHIVED)$")
+    offer_profile_key: Optional[str] = Field(None, max_length=64)
 
 
 @router.get("")
@@ -134,6 +136,7 @@ def list_campaigns(
             "status": campaign.status.value if campaign.status else None,
             "places_query": campaign.places_query,
             "search_queries": campaign.search_queries,
+            "offer_profile_key": campaign.offer_profile_key,
             "lead_count": lead_count,
             "avg_score": round(avg_score, 1),
             "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -153,6 +156,12 @@ def create_campaign(
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
+    if request.offer_profile_key:
+        from services.prospecting.default_profiles import get_default_registry
+
+        if get_default_registry().get(request.offer_profile_key) is None:
+            raise HTTPException(status_code=422, detail="Perfil de oferta não encontrado")
+
     campaign = Campaign(
         user_id=user.id,
         organization_id=_org.id,
@@ -165,6 +174,7 @@ def create_campaign(
         analysis_profile=request.analysis_profile,
         places_query=request.places_query,
         search_queries=request.search_queries,
+        offer_profile_key=request.offer_profile_key,
         status=CampaignStatus.ACTIVE,
     )
     db.add(campaign)
@@ -184,6 +194,7 @@ def create_campaign(
         "status": campaign.status.value if campaign.status else None,
         "places_query": campaign.places_query,
         "search_queries": campaign.search_queries,
+        "offer_profile_key": campaign.offer_profile_key,
         "lead_count": 0,
         "avg_score": 0,
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -353,6 +364,7 @@ def get_campaign(
         "places_query": campaign.places_query,
         "search_queries": campaign.search_queries,
         "scoring_template_id": str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
+        "offer_profile_key": campaign.offer_profile_key,
         "lead_count": lead_count,
         "avg_score": round(float(avg_score), 1),
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
@@ -403,6 +415,14 @@ def patch_campaign(
         if field in updates:
             setattr(campaign, field, updates[field])
 
+    if "offer_profile_key" in updates:
+        if updates["offer_profile_key"]:
+            from services.prospecting.default_profiles import get_default_registry
+
+            if get_default_registry().get(updates["offer_profile_key"]) is None:
+                raise HTTPException(status_code=422, detail="Perfil de oferta não encontrado")
+        campaign.offer_profile_key = updates["offer_profile_key"]
+
     if "analysis_profile" in updates:
         campaign.analysis_profile = updates["analysis_profile"]
 
@@ -420,6 +440,7 @@ def patch_campaign(
         "id": str(campaign.id),
         "name": campaign.name,
         "scoring_template_id": str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
+        "offer_profile_key": campaign.offer_profile_key,
     }
 
 
@@ -491,12 +512,32 @@ async def reanalyze_campaign(
 
 
 @router.get("/{campaign_id}/prescoring-discards")
-async def get_prescoring_discards(campaign_id: str, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+async def get_prescoring_discards(
+    campaign_id: str,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    org: Organization = Depends(get_user_organization),
+):
     """Audit: descartes do gate de pre-scoring por campanha (Fase 2 pendência #2)."""
     from src.db.models import PrescoringDiscard
     from sqlalchemy import desc
+    from uuid import UUID
+
+    try:
+        campaign_uuid = UUID(campaign_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="ID de campanha inválido") from exc
+
+    campaign = db.query(Campaign).filter(
+        Campaign.id == campaign_uuid,
+        Campaign.organization_id == org.id,
+    ).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campanha não encontrada")
+
     discards = db.query(PrescoringDiscard).filter(
-        PrescoringDiscard.campaign_id == int(campaign_id)
+        PrescoringDiscard.campaign_id == campaign_uuid,
+        PrescoringDiscard.organization_id == org.id,
     ).order_by(desc(PrescoringDiscard.created_at)).limit(200).all()
     return [{"company_name": d.candidate_data.get("name") if d.candidate_data else None,
              "discovery_score": d.discovery_score,

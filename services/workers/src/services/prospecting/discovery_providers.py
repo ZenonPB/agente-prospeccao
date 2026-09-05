@@ -26,7 +26,13 @@ class GooglePlacesAdapter(DiscoveryProvider):
             results = await self._service.search_places(
                 query,
                 max_results=self.budget_total,
+                exclude_place_ids=(lead_context or {}).get("exclude_place_ids"),
+                db=(lead_context or {}).get("db"),
                 organization_id=(lead_context or {}).get("organization_id"),
+                filter_city=(lead_context or {}).get("filter_city"),
+                filter_state=(lead_context or {}).get("filter_state"),
+                location_bias=(lead_context or {}).get("location_bias"),
+                included_type=(lead_context or {}).get("included_type"),
             )
             return list(results or [])
         except Exception:
@@ -50,8 +56,11 @@ class CnaeDiscoveryAdapter(DiscoveryProvider):
         try:
             results = await self._service.search_by_cnae(
                 cnae_code=query,
-                max_results=self.budget_total,
-                organization_id=(lead_context or {}).get("organization_id"),
+                state=(lead_context or {}).get("state"),
+                city=(lead_context or {}).get("city"),
+                limit=self.budget_total,
+                cnpjs_input=(lead_context or {}).get("cnpjs_input"),
+                porte_category=(lead_context or {}).get("porte_category"),
             )
             return list(results or [])
         except Exception:

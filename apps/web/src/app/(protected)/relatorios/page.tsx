@@ -17,6 +17,7 @@ import { TimelineCard, TimelineSkeleton } from '@/components/relatorios/timeline
 import { ThresholdCard } from '@/components/relatorios/threshold-card';
 import { ConvergenceCard } from '@/components/relatorios/convergence-card';
 import { MessageVariantsCard } from '@/components/relatorios/message-variants-card';
+import { IntelligenceSection } from '@/components/relatorios/intelligence-section';
 import { ReportControls, downloadBlob } from '@/components/relatorios/report-controls';
 import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { Reveal } from '@/components/ui/motion';
@@ -119,6 +120,9 @@ export default function RelatoriosPage() {
               <ForecastCard forecast={forecastQ.data} />
             </Reveal>
           )}
+          <Reveal delay={90}>
+            <IntelligenceSection />
+          </Reveal>
           {metricsQ.data && metricsQ.data.total_feedbacks > 0 && (
             <Reveal delay={100}>
               <ConvergenceCard metrics={metricsQ.data} />

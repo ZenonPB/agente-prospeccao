@@ -95,6 +95,11 @@ class CandidatePreScoringService:
                 SignalKey.HAS_CATEGORY, item["category"],
                 f"categoria: {item['category']}"))
 
+        if item.get("cnae"):
+            signals.append(_signal(
+                SignalKey.CNAE, str(item["cnae"]),
+                f"CNAE: {item['cnae']}"))
+
         return signals
 
     def score_candidate(self, item, profile):
@@ -156,7 +161,7 @@ class CandidatePreScoringService:
         #      status = INSUFFICIENT_DATA — não temos base para descartar.
         #   2) caso contrário, o velho score>=threshold:
         #      QUALIFIES se passa, DISQUALIFIES se não.
-        required = [str(k) for k in (prescoring.get("required_signals") or [])]
+        required = [getattr(k, "value", str(k)) for k in (prescoring.get("required_signals") or [])]
         on_insufficient = prescoring.get("on_insufficient_data", "discard")
         observed_keys = {s["key"] for s in signals}
         missing_required = [k for k in required if k not in observed_keys]
@@ -212,12 +217,35 @@ class CandidatePreScoringService:
             return items, {
                 "evaluated": 0, "eligible": len(items), "selected": len(items),
                 "below_threshold": 0, "top_k_cut": 0, "discarded": 0,
-                "top_score": None,
+                "top_score": None, "insufficient_data": 0,
+                "insufficient_data_promoted": 0,
             }
 
         scored = [(item, self.score_candidate(item, profile)) for item in items]
-        eligible = [(i, s) for i, s in scored if s["eligible_for_enrichment"]]
-        below_threshold = [(i, s) for i, s in scored if not s["eligible_for_enrichment"]]
+        eligible = [
+            (i, s) for i, s in scored
+            if s["eligible_for_enrichment"]
+            and s.get("discovery_status") != "INSUFFICIENT_DATA"
+        ]
+        below_threshold = [
+            (i, s) for i, s in scored
+            if not s["eligible_for_enrichment"]
+            and s.get("discovery_status") != "INSUFFICIENT_DATA"
+        ]
+        insufficient = [
+            (i, s) for i, s in scored
+            if s.get("discovery_status") == "INSUFFICIENT_DATA"
+        ]
+        insufficient_promoted = [
+            pair for pair in insufficient
+            if pair[1].get("eligible_for_promotion_on_insufficient")
+        ]
+        insufficient_discarded = [
+            pair for pair in insufficient if pair not in insufficient_promoted
+        ]
+        eligible.extend(insufficient_promoted)
+        # Um mesmo par não pode entrar duas vezes quando o fluxo promove
+        # insuficientes; a separação acima mantém as métricas claras.
         # Ordenação estável: score desc, empates mantêm a ordem da coleta.
         eligible.sort(key=lambda pair: -pair[1]["discovery_score"])
 
@@ -229,8 +257,12 @@ class CandidatePreScoringService:
 
         selected: List[Dict[str, Any]] = []
         for item, s in eligible:
-            annotated = {**item, "discovery_score": s["discovery_score"],
-                         "prescoring_summary": s["summary"]}
+            annotated = {
+                **item,
+                "discovery_score": s["discovery_score"],
+                "discovery_status": s.get("discovery_status"),
+                "prescoring_summary": s["summary"],
+            }
             selected.append(annotated)
 
         self._warn_orphan_weights(prescoring.get("weights") or {}, scored)
@@ -238,6 +270,8 @@ class CandidatePreScoringService:
         discarded_records = (
             [self._discard_record(item, s, profile, prescoring, "below_threshold", context)
              for item, s in below_threshold]
+            + [self._discard_record(item, s, profile, prescoring, "insufficient_data", context)
+               for item, s in insufficient_discarded]
             + [self._discard_record(item, s, profile, prescoring, "top_k_cut", context)
                for item, s in top_k_cut]
         )
@@ -255,7 +289,9 @@ class CandidatePreScoringService:
             "selected": len(selected),
             "below_threshold": len(below_threshold),
             "top_k_cut": len(top_k_cut),
-            "discarded": len(below_threshold) + len(top_k_cut),
+            "discarded": len(below_threshold) + len(insufficient_discarded) + len(top_k_cut),
+            "insufficient_data": len(insufficient_discarded),
+            "insufficient_data_promoted": len(insufficient_promoted),
             "top_score": top_score,
         }
         if stats["discarded"]:

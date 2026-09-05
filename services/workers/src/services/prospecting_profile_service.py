@@ -217,7 +217,8 @@ def resolve_prospecting_profile(
     raw_required = config.get("required_signals") or []
     if not isinstance(raw_required, (list, tuple)):
         raw_required = []
-    required_signals = [str(k) for k in raw_required]
+    # Chaves podem chegar como constantes string ou com representação de enum.
+    required_signals = [getattr(k, "value", str(k)) for k in raw_required]
 
     on_insufficient = config.get("on_insufficient_data", "discard")
     if on_insufficient not in ("discard", "promote"):
