@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from src.db.session import SessionLocal
 from src.db.models import Lead, LeadStatus, Campaign, Enrichment, Job, JobStatus, AnalysisProfile, CampaignScoringTemplate, PrescoringDiscard
+from src.config.settings import settings
 
 # Importa serviços dos workers
 import sys
@@ -41,6 +42,17 @@ from services.segment_type_mapping import map_segment_to_places_types
 from services.secret_service import SecretService
 from services.domain_utils import normalize_domain
 from services.company_person_service import CompanyPersonService
+from services.prospecting.default_profiles import get_default_registry
+from services.prospecting.offer_profile import OfferProfileResolver
+from services.prospecting.discovery_executor import DiscoveryExecutor
+from services.prospecting.discovery_providers import (
+    GooglePlacesAdapter,
+    CnaeDiscoveryAdapter,
+)
+from services.prospecting.event_discovery import (
+    EventDiscoveryExecutor,
+    build_default_event_registry,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +228,7 @@ async def run_pipeline(
                     if campaign.places_query:
                         # Query sugerida pelo agente — prioridade.
                         query = campaign.places_query
+
                     else:
                         parts = []
                         if campaign.target_segment:
@@ -225,6 +238,10 @@ async def run_pipeline(
                         if campaign.target_state:
                             parts.append(campaign.target_state)
                         query = ', '.join(parts) if parts else campaign.name
+
+        organization_id = campaign.organization_id if campaign else (job.organization_id if job else None)
+        if organization_id is None:
+            raise ValueError("O pipeline precisa de uma organização para persistir leads")
 
         if not query:
             query = "empresas"
@@ -322,15 +339,68 @@ async def run_pipeline(
                     "timestamp": _ts(),
                 }
 
-        # Perfil de prospecção da vertical (docs/melhorias/17): resolvido uma
-        # vez por job a partir do template — gate de pre-scoring desligado por
-        # padrão (templates sem `prescoring_config` mantêm o fluxo atual).
+        # Oferta declarativa é a fonte principal. Campanhas antigas continuam
+        # usando o resolver legado como fallback de compatibilidade.
+        offer_resolution = OfferProfileResolver(get_default_registry()).resolve_campaign(
+            offer_profile_key=getattr(campaign, "offer_profile_key", None) if campaign else None,
+            target_service=(campaign.target_service if campaign else None),
+            target_segment=(campaign.target_segment if campaign else None),
+            archetype_key=(campaign.analysis_profile.value if campaign and campaign.analysis_profile else None),
+        )
         prospecting_profile = resolve_prospecting_profile(scoring_template)
+        if offer_resolution.resolved_from != "generic":
+            offer_template = {
+                "service_label": (offer_resolution.offer or {}).get("name") or offer_resolution.key,
+                "positive_signals": (offer_resolution.signals or {}).get("positive", []),
+                "negative_signals": (offer_resolution.signals or {}).get("negative", []),
+                "context_signals": offer_resolution.icp or {},
+                "requires_technical_report": "technical_site" in (offer_resolution.enrichment or {}).get("steps", []),
+                "requires_business_data": True,
+                "enrichment_steps": (offer_resolution.enrichment or {}).get("steps", []),
+                "prescoring_config": {
+                    "profile": offer_resolution.key,
+                    "enabled": bool((offer_resolution.prescoring or {}).get("enabled", False)),
+                    **(offer_resolution.prescoring or {}),
+                },
+            }
+            # O profile declarativo é a fonte de scoring quando foi resolvido;
+            # o template legado segue disponível como fallback de compatibilidade.
+            scoring_template = {**(scoring_template or {}), **offer_template}
+            prospecting_profile = dict(prospecting_profile)
+            offer_prescoring = offer_resolution.prescoring or {}
+            prospecting_profile["prescoring"] = {
+                "enabled": bool(offer_prescoring.get("enabled", True)),
+                "threshold": offer_prescoring.get("threshold", 0),
+                "top_k": offer_prescoring.get("top_k"),
+                "weights": offer_prescoring.get("weights", {}),
+                "required_signals": offer_prescoring.get("required_signals", []),
+                "on_insufficient_data": offer_prescoring.get("on_insufficient_data", "promote"),
+            }
+            prospecting_profile["profile_key"] = offer_resolution.key
+            prospecting_profile["offer_profile_key"] = offer_resolution.key
+            prospecting_profile["offer_version"] = offer_resolution.version
+            prospecting_profile["resolved_from"] = offer_resolution.resolved_from
+            prospecting_profile["offer_profile"] = offer_resolution.to_dict()
         # --- Fase 3: DiscoveryPlanner decide fontes/budget/orçamento pela oferta ---
         # Plano auditável que descreve QUAIS providers rodar e com qual budget.
         # Não toma ações: o pipeline continua chamando providers; o plano apenas
         # declara o que deve ser tentado (docs/melhorias/22 e 23).
-        discovery_plan = DiscoveryPlanner().plan(prospecting_profile)
+        if offer_resolution.resolved_from != "generic":
+            discovery_plan = {
+                "providers": [
+                    {
+                        "type": provider,
+                        "queries": list((campaign.search_queries or []) if campaign and campaign.search_queries else [query]),
+                        "budget": (offer_resolution.discovery.get("provider_budgets") or {}).get(provider, 50),
+                    }
+                    for provider in (offer_resolution.discovery.get("providers") or [])
+                ],
+                "target_candidates": offer_resolution.discovery.get("target_candidates", max_leads),
+                "profile_key": offer_resolution.key,
+                "plan_source": "offer_profile",
+            }
+        else:
+            discovery_plan = DiscoveryPlanner().plan(prospecting_profile)
         vertical_pack = vertical_pack_for(prospecting_profile.get("profile_key", "generic"))
         yield {
             "type": "log",
@@ -347,7 +417,48 @@ async def run_pipeline(
         # --- Coleta (pulada em reanalyze_only) ---
         collected_count = 0
         cnae_created_ids: list[str] = []
-        if reanalyze_only:
+        if source == "events":
+            yield {"type": "log", "message": "Descobrindo eventos futuros para oportunidades de troféus...", "timestamp": _ts()}
+            # String vazia desabilita o collector externo; sem argumento o
+            # builder continua oferecendo o stub somente para testes.
+            event_registry = build_default_event_registry(settings.EVENT_DISCOVERY_URL)
+            event_result = EventDiscoveryExecutor(event_registry).execute(
+                lead_context={
+                    "city": campaign.target_city if campaign else None,
+                    "state": campaign.target_state if campaign else None,
+                },
+            )
+            from services.prospecting.event_opportunity_service import EventOpportunityService
+
+            if organization_id:
+                EventOpportunityService().replace_events(
+                    db, organization_id, event_result.get("unique_events", []),
+                )
+                db.commit()
+            yield {
+                "type": "log",
+                "message": f"{event_result.get('unique_count', 0)} eventos futuros normalizados",
+                "timestamp": _ts(),
+            }
+            yield {"type": "progress", "step": "coleta", "percent": 50}
+            # Descoberta de eventos é um fluxo próprio: não transforma eventos
+            # em leads nem dispara enriquecimento/scoring de empresas.
+            summary = {
+                "collected": 0,
+                "qualified": 0,
+                "scored": 0,
+                "failed": 0,
+                "total_processed": 0,
+                "events_found": event_result.get("unique_count", 0),
+            }
+            if job:
+                job.status = JobStatus.COMPLETED
+                job.completed_at = datetime.now(timezone.utc)
+                job.payload = {**(job.payload or {}), "summary": summary}
+                db.commit()
+            yield {"type": "done", "summary": summary, "timestamp": _ts()}
+            return
+        elif reanalyze_only:
             yield {"type": "log", "message": "Modo reanálise: pulando coleta, reusando leads existentes", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 50}
         elif source == "cnae":
@@ -379,7 +490,7 @@ async def run_pipeline(
                 normalized_domain = normalize_domain(website_val)
 
                 existing_lead = db.query(Lead).filter(
-                    (Lead.organization_id == (campaign.organization_id if campaign else None)) &
+                    (Lead.organization_id == organization_id) &
                     ((Lead.place_id == place_id_val) |
                      (Lead.cnpj == cnpj_val) |
                      ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
@@ -389,7 +500,7 @@ async def run_pipeline(
                     continue
 
                 new_lead = Lead(
-                    organization_id=campaign.organization_id if campaign else None,
+                    organization_id=organization_id,
                     place_id=place_id_val,
                     name=company_name,
                     company_name=company_name,
@@ -414,7 +525,7 @@ async def run_pipeline(
 
                 yield {"type": "log", "message": f"{collected_count} novos leads por CNAE salvos", "timestamp": _ts()}
 
-            org_id = campaign.organization_id if campaign else None
+            org_id = organization_id
             _dispatch_lead_created_webhooks(db, org_id, cnae_created_ids)
         elif source == "pncp":
             start, end = pncp_start, pncp_end
@@ -436,7 +547,7 @@ async def run_pipeline(
             yield {"type": "log", "message": f"{len(suppliers)} fornecedores vencedores localizados no PNCP", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 30}
 
-            org_id = campaign.organization_id if campaign else None
+            org_id = organization_id
             existing_ids = {
                 row[0]
                 for row in db.query(Lead.place_id).filter(Lead.organization_id == org_id).all()
@@ -520,7 +631,7 @@ async def run_pipeline(
             # Coleta incremental: place_ids já salvos na organização são
             # excluídos ANTES da paginação, para que cada rodada traga leads
             # realmente novos (e não gaste páginas da API com já coletados).
-            org_id = campaign.organization_id if campaign else None
+            org_id = organization_id
             existing_ids = [
                 row[0] for row in db.query(Lead.place_id)
                 .filter(Lead.organization_id == org_id)
@@ -567,28 +678,66 @@ async def run_pipeline(
             if included_type:
                 logger.info("Included type: %s (segment=%s)", included_type, target_segment)
 
-            # Multi-query (docs/melhorias/04): executa TODAS as consultas
-            # declaradas na campanha (variedade semântica, limite por query
-            # proporcional — nunca paginação cega) e agrega dedup por
-            # place_id com `source_queries` auditáveis.
+            # DiscoveryExecutor é o caminho oficial: a oferta escolhe providers
+            # e o pipeline só fornece contexto, filtros e orçamento. O fallback
+            # legado abaixo mantém campanhas sem provider declarativo operando.
             search_queries = expand_search_queries(campaign, fallback_query=query)
-            per_query_limit = max(1, -(-max_leads // len(search_queries)))
-            per_query_results = []
-            for sq in search_queries:
-                found = await places_service.search_places(
-                    sq,
-                    max_results=per_query_limit,
-                    exclude_place_ids=existing_ids_set,
-                    db=db,
-                    organization_id=str(campaign.organization_id) if campaign else None,
-                    filter_city=target_city,
-                    filter_state=target_state,
-                    location_bias=location_bias,
-                    included_type=included_type,
+            provider_steps = [
+                step for step in discovery_plan.get("providers", [])
+                if step.get("type") in {"google_places", "cnae_discovery"}
+            ]
+            provider_registry = None
+            if provider_steps:
+                from services.prospecting.discovery_executor import DiscoveryProviderRegistry
+
+                provider_registry = DiscoveryProviderRegistry()
+                provider_registry.register(GooglePlacesAdapter(places_service, budget_total=max_leads))
+                provider_registry.register(CnaeDiscoveryAdapter(CnaeDiscoveryService(), budget_total=max_leads))
+                execution_plan = {
+                    "max_results": max_leads,
+                    "providers": [
+                        {
+                            **step,
+                            "queries": (
+                                search_queries
+                                if step.get("type") == "google_places"
+                                else [cnae_code or (campaign.target_segment if campaign else None) or query]
+                            ),
+                            "budget": min(max_leads, step.get("budget", max_leads)),
+                        }
+                        for step in provider_steps
+                    ],
+                }
+                discovery_result = await DiscoveryExecutor(provider_registry).execute_async(
+                    execution_plan,
+                    lead_context={
+                        "db": db,
+                        "organization_id": str(campaign.organization_id) if campaign else None,
+                        "exclude_place_ids": existing_ids_set,
+                        "filter_city": target_city,
+                        "filter_state": target_state,
+                        "location_bias": location_bias,
+                        "included_type": included_type,
+                        "state": target_state,
+                        "city": target_city,
+                        "cnpjs_input": cnpjs,
+                        "porte_category": porte_category,
+                    },
                 )
-                per_query_results.append((sq, found))
-                logger.info("Places multi-query %r: %d resultados", sq, len(found))
-            results = aggregate_multi_query_results(per_query_results)
+                results = [
+                    {**item, "source_queries": search_queries}
+                    for item in discovery_result.get("unique_candidates", [])
+                ]
+                yield {
+                    "type": "log",
+                    "message": (
+                        f"DiscoveryExecutor: {discovery_result.get('unique_count', 0)} candidatos únicos; "
+                        f"providers={','.join(discovery_result.get('execution_order', []))}"
+                    ),
+                    "timestamp": _ts(),
+                }
+            else:
+                results = []
 
             batch_items = filter_new_batch_items(
                 _prepare_batch_items(results), existing_ids_set, existing_domains,
@@ -600,7 +749,7 @@ async def run_pipeline(
             # Desligado quando o template não declara `prescoring_config`.
             if batch_items and prospecting_profile["prescoring"]["enabled"]:
                 prescoring_context = {
-                    "organization_id": str(campaign.organization_id) if campaign else None,
+                    "organization_id": str(organization_id),
                     "campaign_id": str(campaign.id) if campaign else None,
                     "job_id": str(job.id) if job else None,
                 }
@@ -640,7 +789,7 @@ async def run_pipeline(
                 normalized_domain = item.get("normalized_domain")
 
                 existing_lead = db.query(Lead).filter(
-                    (Lead.organization_id == (campaign.organization_id if campaign else None)) &
+                    (Lead.organization_id == organization_id) &
                     ((Lead.place_id == google_place_id) |
                      ((Lead.company_name == company_name) & (Lead.website == website_url)) |
                      ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
@@ -650,7 +799,7 @@ async def run_pipeline(
                     continue
 
                 new_lead = Lead(
-                    organization_id=campaign.organization_id if campaign else None,
+                    organization_id=organization_id,
                     place_id=google_place_id,
                     name=company_name,
                     company_name=company_name,
@@ -697,7 +846,7 @@ async def run_pipeline(
 
             db.commit()
             places_created_ids = [lid for lid in places_created_ids if lid]
-            org_id = campaign.organization_id if campaign else None
+            org_id = organization_id
             _dispatch_lead_created_webhooks(db, org_id, places_created_ids)
             yield {"type": "log", "message": f"{collected_count} leads novos coletados", "timestamp": _ts()}
             yield {"type": "progress", "step": "coleta", "percent": 50}
@@ -741,7 +890,7 @@ async def run_pipeline(
         if campaign:
             leads_query = leads_query.filter(Lead.organization_id == campaign.organization_id)
         else:
-            leads_query = leads_query.filter(Lead.organization_id.is_(None))
+            leads_query = leads_query.filter(Lead.organization_id == organization_id)
         if reanalyze_only:
             if campaign:
                 leads_query = leads_query.filter(Lead.campaign_id == campaign.id)
@@ -898,7 +1047,7 @@ async def run_pipeline(
             if campaign:
                 enrich_query = enrich_query.filter(Lead.campaign_id == campaign.id)
             else:
-                enrich_query = enrich_query.filter(Lead.organization_id.is_(None))
+                enrich_query = enrich_query.filter(Lead.organization_id == organization_id)
             to_enrich = enrich_query.limit(max_leads).all()
 
             from services.contact_enrichment_service import ContactEnrichmentService
@@ -935,7 +1084,7 @@ async def run_pipeline(
         if campaign:
             lead_filter = lead_filter & (Lead.campaign_id == campaign.id)
         else:
-            lead_filter = lead_filter & (Lead.organization_id.is_(None))
+            lead_filter = lead_filter & (Lead.organization_id == organization_id)
         qualified = db.query(Lead).filter(lead_filter).count()
 
         # Leads NOVO que ainda aguardam pontuação (próximo lote) — publica no
@@ -946,7 +1095,7 @@ async def run_pipeline(
             if campaign:
                 queue_filter = queue_filter & (Lead.campaign_id == campaign.id)
             else:
-                queue_filter = queue_filter & (Lead.organization_id.is_(None))
+                queue_filter = queue_filter & (Lead.organization_id == organization_id)
             queue_remaining = db.query(Lead).filter(queue_filter).count()
 
         yield {

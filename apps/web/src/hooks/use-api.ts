@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, type ScoringTemplateInput } from "@/lib/api";
+import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, intelligenceApi, type ScoringTemplateInput } from "@/lib/api";
 import type { SalesRole, OrgRole, OnboardingStatus } from "@/types";
 
 export type SegmentSuggestion = {
@@ -87,6 +87,36 @@ export function useLead(id: string) {
     queryFn: () => leadsApi.get(id),
     enabled: !!id,
   });
+}
+
+export function useLeadOpportunities(id: string) {
+  return useQuery({
+    queryKey: ["leads", id, "opportunities"],
+    queryFn: () => leadsApi.opportunities(id),
+    enabled: !!id,
+  });
+}
+
+export function useIntelligenceEvents(limit = 100, enabled = true) {
+  return useQuery({
+    queryKey: ["intelligence", "events", limit],
+    queryFn: () => intelligenceApi.events(limit),
+    enabled,
+  });
+}
+
+export function useCommercialOutcomes(params?: { offer_key?: string; offer_version?: string }, enabled = true) {
+  return useQuery({
+    queryKey: ["intelligence", "outcomes", params],
+    queryFn: () => intelligenceApi.outcomes(params),
+    enabled,
+  });
+}
+
+export function useIntelligence(enabled = true) {
+  const events = useIntelligenceEvents(100, enabled);
+  const outcomes = useCommercialOutcomes(undefined, enabled);
+  return { events, outcomes };
 }
 
 export function useLeadStats() {
@@ -294,6 +324,18 @@ export function useStartPipeline() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["metrics"] });
+    },
+  });
+}
+
+export function useDiscoverEvents() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ campaignId, maxLeads }: { campaignId: string; maxLeads?: number }) =>
+      pipelineApi.discoverEvents(campaignId, maxLeads),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["intelligence", "events"] });
+      queryClient.invalidateQueries({ queryKey: ["pipeline"] });
     },
   });
 }

@@ -599,16 +599,68 @@ class ContactEnrichmentService:
                 for c in results
             ] if results else [])
 
-            # Anexa ao raw_data do lead (não à lista de contatos) — fica
-            # disponível para a UI e métricas.
-            lead.raw_data = {
-                **(lead.raw_data or {}),
-                "phase3_contact": {
-                    "decision_maker": decision_maker,
-                    "cascade": cascade,
-                    "actionable_rate": actionable,
+            # --- Fase G: Decision Maker Resolution real ---
+            # Aplica IdentityResolver + ContactVerification aos contatos
+            # REAIS criados pela Receita/Hunter (não roles). Critério:
+            # "pessoa(s) reais ou estado explícito de falha".
+            from services.prospecting.decision_maker_resolution import (
+                DecisionMakerResolver, IdentityResolver, ContactVerification,
+                PersonContact,
+            )
+            sources = {
+                "receita_federal": [
+                    {
+                        "name": c.get("name"),
+                        "role": c.get("role_label") or c.get("role"),
+                        "document_cpf": c.get("document_cpf"),
+                        "email": c.get("email"),
+                    }
+                    for c in results
+                    if c.get("name")
+                ]
+            } if results else {}
+            resolver = DecisionMakerResolver()
+            resolution = resolver.resolve(
+                company_data={"cnpj": getattr(lead, "cnpj", None), "domain": domain},
+                profile={"decision_makers": decision_maker.get("decision_maker_accessibility", {}) and {
+                    "roles": [r["role"] for r in decision_maker.get("target_roles", [])],
+                }},
+                sources=sources,
+            )
+            # Identity resolution + verification (apenas se tem pessoas)
+            people_verified = []
+            if resolution.people:
+                identity = IdentityResolver()
+                merged_people = identity.merge(resolution.people)
+                verifier = ContactVerification()
+                for p in merged_people:
+                    v = verifier.verify(p)
+                    people_verified.append({
+                        "name": p.name,
+                        "source": p.source,
+                        "source_merged": p.source_merged,
+                        "document_cpf": p.document_cpf,
+                        "email": p.email,
+                        "verification": v,
+                    })
+
+            # Anexa ao JSONB existente do lead (não à lista de contatos).
+            # `Lead` não possui `raw_data`; usar `evidence_score` garante que
+            # os resultados da resolução sejam persistidos pela sessão.
+            existing_evidence = (
+                lead.evidence_score if isinstance(lead.evidence_score, dict) else {}
+            )
+            existing_evidence["phase3_contact"] = {
+                "decision_maker": decision_maker,
+                "cascade": cascade,
+                "actionable_rate": actionable,
+                "resolution": {
+                    "status": resolution.status,
+                    "people": people_verified,
+                    "audit": resolution.audit,
                 },
             }
+            lead.evidence_score = existing_evidence
         except Exception as e:  # noqa: BLE001
             logger.debug("Fase3: falha em decision_maker/cascade/routable: %s", e)
 

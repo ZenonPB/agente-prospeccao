@@ -27,6 +27,7 @@ import {
   useUpdateCadenceStep,
   useCreatePlaybook,
   useLeadDuplicates,
+  useLeadOpportunities,
 } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
@@ -63,6 +64,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const router = useRouter();
   const { data: lead, isLoading } = useLead(leadId);
   const duplicatesQ = useLeadDuplicates(leadId);
+  const opportunitiesQ = useLeadOpportunities(leadId);
   const updateStatus = useUpdateLeadStatus();
   const generateMessagesMutation = useGenerateMessages();
   const updateStepMutation = useUpdateCadenceStep();
@@ -302,6 +304,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       <Tabs defaultValue="overview" className="space-y-4 animate-fade-up stagger-2">
         <TabsList className="h-11 w-full max-w-full justify-start gap-1 overflow-x-auto">
           <TabsTrigger value="overview" className="h-11 shrink-0">Visão Geral</TabsTrigger>
+          <TabsTrigger value="offers" className="h-11 shrink-0">Ofertas relacionadas</TabsTrigger>
           <TabsTrigger value="pitch" className="h-11 shrink-0">Resumo para o Vendedor</TabsTrigger>
           <TabsTrigger value="evidence" className="h-11 shrink-0">Por que a IA recomendou</TabsTrigger>
           <TabsTrigger value="technical" className="h-11 shrink-0">Análise da Página</TabsTrigger>
@@ -313,6 +316,39 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
         <TabsContent value="overview" className="space-y-4">
           <OverviewTab lead={lead} />
+        </TabsContent>
+
+        <TabsContent value="offers" className="space-y-4">
+          <Card>
+            <CardContent className="space-y-3 pt-6">
+              <div>
+                <h3 className="font-semibold">Oportunidades por oferta</h3>
+                <p className="text-sm text-muted-foreground">
+                  Correspondências calculadas pelo perfil comercial e suas evidências.
+                </p>
+              </div>
+              {opportunitiesQ.isLoading && <p className="text-sm text-muted-foreground">Carregando ofertas…</p>}
+              {!opportunitiesQ.isLoading && (opportunitiesQ.data?.oportunidades ?? []).length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhuma oferta relacionada foi registrada.</p>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(opportunitiesQ.data?.oportunidades ?? []).map((opportunity) => (
+                  <div key={opportunity.id} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{opportunity.offer_key}</span>
+                      <Badge>{opportunity.score}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Versão {opportunity.offer_version ?? 'não informada'} · origem {opportunity.resolved_from ?? 'não informada'}
+                    </p>
+                    {opportunity.evidence.length > 0 && (
+                      <p className="mt-2 text-xs">Evidências: {opportunity.evidence.join(', ')}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="pitch" className="space-y-4">

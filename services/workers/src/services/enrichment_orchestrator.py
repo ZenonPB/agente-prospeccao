@@ -261,7 +261,14 @@ async def process_single_lead(
     # não derruba o batch. Os resultados são persistidos no lead.evidence_score
     # (JSONB) e usados pela UI/score_vector/buying_trigger.
     if scoring_data and lead.organization_id:
-        _run_phase3_post_scoring(lead, scoring_data, enrichment, db)
+        await _run_phase3_post_scoring(
+            lead,
+            scoring_data,
+            enrichment,
+            db,
+            target_service=campaign_target_service,
+            target_segment=campaign_target_segment,
+        )
 
     _persist_scoring(lead, scoring_data, enrichment, qualification_threshold)
 
@@ -283,11 +290,13 @@ async def process_single_lead(
     return enrichment, scoring_data
 
 
-def _run_phase3_post_scoring(
+async def _run_phase3_post_scoring(
     lead: "Lead",
     scoring_data: Dict[str, Any],
     enrichment: Optional["Enrichment"],
     db: "Session",
+    target_service: str = "",
+    target_segment: str = "",
 ) -> Dict[str, Any]:
     """Integra serviços Fase 3 no pipeline real (#13 #19 #24 #25 #26 #28 #31 #32).
 
@@ -298,12 +307,79 @@ def _run_phase3_post_scoring(
     results: Dict[str, Any] = {}
     profile_key = (scoring_data.get("profile_key") or "generic")
 
+    # OfferMatcher: transforma o lead pontuado em uma ou mais oportunidades
+    # comerciais. Além do snapshot JSONB legado, persiste a entidade relacional
+    # para consulta, reprocessamento e BI. A persistência é best-effort para
+    # não bloquear o scoring se a migration estiver pendente em um ambiente.
+    try:
+        from services.prospecting import OfferMatcher
+        from services.prospecting.default_profiles import get_default_registry
+
+        matcher = OfferMatcher(get_default_registry())
+        lead_data = {
+            "company_name": lead.company_name,
+            "segment": target_segment or getattr(lead, "category", None),
+            "cnae": getattr(lead, "cnae", None),
+            "company_size": None,
+            "has_cnpj": bool(getattr(lead, "cnpj", None)),
+            "has_phone": bool(getattr(lead, "phone", None)),
+            "has_own_website": bool(getattr(lead, "website", None)),
+            "has_instagram": bool(getattr(lead, "instagram_url", None)),
+            "google_rating": getattr(lead, "google_rating", None),
+            "google_rating_count": getattr(lead, "google_rating_count", None),
+            "hosts_events": bool(
+                target_service and any(k in target_service.lower() for k in ("trofé", "trofe", "evento"))
+            ),
+        }
+        opportunities = matcher.match(lead_data, min_score=1, top_k=5)
+        from services.prospecting.lead_opportunity_service import LeadOpportunityService
+
+        LeadOpportunityService().replace_opportunities(db, lead, opportunities)
+        results["offer_matcher"] = {
+            "opportunities": [o.to_dict() for o in opportunities],
+            "target_service": target_service or None,
+            "target_segment": target_segment or None,
+            "source": "offer_matcher",
+        }
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Fase3: falha em offer_matcher: %s", e)
+
     # #19 + #26: ICP vs Intent + Buying Triggers
     try:
         from services.buying_trigger_service import icp_vs_intent, detect_buying_triggers
         from services.intent_engine_service import IntentEngine
+        from services.prospecting.intent_provider import (
+            IntentScorer,
+            IntentProviderRegistry,
+            WebsiteIntentProvider,
+            JobPostingIntentProvider,
+        )
 
         intent_events = []
+        provider_events = []
+        registry = IntentProviderRegistry()
+        registry.register(WebsiteIntentProvider())
+        registry.register(JobPostingIntentProvider())
+        html = (enrichment.raw_technical_data or {}).get("html_content") if enrichment else None
+        website_provider = registry.get("website")
+        if html and lead.website and website_provider:
+            provider_events.extend(await website_provider.collect({
+                "html": html,
+                "base_url": lead.website,
+            }))
+        jobs_provider = registry.get("jobs")
+        if jobs_provider and scoring_data.get("jobs"):
+            provider_events.extend(await jobs_provider.collect({
+                "jobs": scoring_data.get("jobs", []),
+                "domain": lead.normalized_domain,
+            }))
+        intent_events.extend({
+            "key": event.get("key"),
+            "value": True,
+            "confidence": event.get("confidence", 0),
+            "evidence": event.get("evidence"),
+            "source": event.get("source"),
+        } for event in provider_events if event.get("key"))
         # Extrai eventos de sinais do enrichment/score
         for ev in (scoring_data.get("evidence") or []):
             kind = (ev.get("type") or ev.get("title") or "").lower()
@@ -321,6 +397,7 @@ def _run_phase3_post_scoring(
         icp_intent = icp_vs_intent(profile_key, score_and_trig.get("intent_score", 0), True)
 
         results["intent_engine"] = score_and_trig
+        results["intent_providers"] = provider_events
         results["buying_trigger"] = triggers
         results["icp_vs_intent"] = icp_intent
     except Exception as e:  # noqa: BLE001
@@ -425,25 +502,7 @@ def _persist_scoring(
     else:
         lead.status = LeadStatus.DESQUALIFICADO
 
-    # Fase 3 (#10/#11): registra outcome no LearningService para alimentar
-    # niche priors. Roda best-effort: falha nunca derruba o batch.
-    if lead.status == LeadStatus.QUALIFICADO and lead.organization_id:
-        try:
-            from services.learning_service import record_outcome
-            target_service = campaign_target_service or ""
-            target_segment = campaign_target_segment or ""
-            if target_service and target_segment:
-                outcome_label = (
-                    "WON" if lead.qualification_score >= 80
-                    else "MEETING" if lead.qualification_score >= 70
-                    else "QUALIFIED"
-                )
-                record_outcome(
-                    org_id=str(lead.organization_id),
-                    service=target_service,
-                    segment=target_segment,
-                    outcome=outcome_label,
-                    channel=None,
-                )
-        except Exception as e:  # noqa: BLE001
-            logger.debug("Fase3: falha em learning.record_outcome: %s", e)
+    # Outcomes comerciais não nascem do scoring. `QUALIFICADO` é apenas um
+    # estado do funil, não uma venda, reunião ou resposta. O LearningService
+    # deve receber WON/LOST/MEETING/REPLIED somente dos endpoints/eventos que
+    # registram o resultado real, evitando contaminar priors e Precision@K.

@@ -34,7 +34,15 @@ def _layer_for(idx: int) -> str:
 
 def validate_answer_coverage(answers: List[Optional[Any]]) -> Dict[str, Any]:
     """Valida se todas as 6 perguntas foram respondidas."""
-    filled = [a for a in answers if a not in (None, "", [], {})]
+    def _is_filled(a: Any) -> bool:
+        if a is None:
+            return False
+        if isinstance(a, (str, list, dict, tuple, set)) and len(a) == 0:
+            return False
+        if a == "":
+            return False
+        return True
+    filled = [a for a in answers if _is_filled(a)]
     return {
         "answered": len(filled),
         "total": len(_QUESTIONS),

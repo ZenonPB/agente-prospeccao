@@ -430,6 +430,8 @@ class Campaign(Base):
     scoring_template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=True)
     target_state = Column(String(2))
     target_country = Column(String(100))
+    # Oferta declarativa ativa; NULL mantém compatibilidade com campanhas antigas.
+    offer_profile_key = Column(String(64), nullable=True)
     # Query otimizada para o Google Places.
     # Quando presente, o pipeline usa esta query em vez de montar uma
     # automaticamente a partir de target_segment/city/state.
@@ -959,6 +961,93 @@ class WebhookLog(Base):
 
     def __repr__(self):
         return f"<WebhookLog(id='{self.id}', event='{self.event_type}', success={self.success})>"
+
+
+class LeadOpportunityRow(Base):
+    """Persistencia do resultado do OfferMatcher (consolidacao item 3).
+
+    Um lead pode ter multiplas oportunidades simultaneas, uma por OfferProfile
+    relevante. Idempotente em (lead_id, offer_key) via upsert. Fonte de verdade
+    para o endpoint GET /api/leads/{id}/oportunidades e para futuras
+    integracoes com BI/learning.
+
+    Convivem com o JSONB `leads.evidence_score.phase3` (snapshot legado) ate a
+    migracao total para este modelo.
+    """
+    __tablename__ = "lead_opportunities"
+    __table_args__ = (
+        UniqueConstraint("lead_id", "offer_key", name="uq_lead_opportunities_lead_offer"),
+        Index("ix_lead_opportunities_organization_id", "organization_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    offer_key = Column(String(64), nullable=False)
+    offer_version = Column(String(32), nullable=True)
+    profile_key = Column(String(64), nullable=True)
+    score = Column(Integer, nullable=False, server_default="0")
+    resolved_from = Column(String(16), nullable=True)
+    evidence = Column(JSONB, nullable=True)
+    signals_matched = Column(JSONB, nullable=True)
+    signals_missing = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<LeadOpportunityRow(lead='{self.lead_id}', offer='{self.offer_key}', score={self.score})>"
+
+
+class EventOpportunityRow(Base):
+    """Evento descoberto e normalizado para prospecção rastreável."""
+    __tablename__ = "event_opportunities"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "source_url", name="uq_event_opportunities_org_source"),
+        Index("ix_event_opportunities_org_date", "organization_id", "event_date"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    offer_key = Column(String(64), nullable=True)
+    name = Column(String(255), nullable=False)
+    event_type = Column(String(64), nullable=False, default="other")
+    event_date = Column(Date, nullable=False)
+    location = Column(String(500), nullable=True)
+    source_url = Column(String(1000), nullable=False)
+    organizer = Column(String(255), nullable=True)
+    organizer_resolved = Column(JSONB, nullable=True)
+    timing = Column(JSONB, nullable=True)
+    confidence = Column(Float, nullable=False, server_default="0.5")
+    registration_status = Column(String(32), nullable=False, server_default="unknown")
+    observed_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<EventOpportunityRow(name='{self.name}', event_date='{self.event_date}')>"
+
+
+class CommercialOutcomeRow(Base):
+    """Outcome comercial real, versionado por oferta e provider."""
+    __tablename__ = "commercial_outcomes"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "event_key", name="uq_commercial_outcomes_org_event"),
+        Index("ix_commercial_outcomes_org_offer", "organization_id", "offer_key", "offer_version"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    offer_key = Column(String(64), nullable=False)
+    offer_version = Column(String(32), nullable=True)
+    outcome = Column(String(32), nullable=False)
+    value = Column(Numeric(12, 2), nullable=False, server_default="0")
+    provider = Column(String(64), nullable=True)
+    outreach_at = Column(DateTime(timezone=True), nullable=True)
+    recorded_at = Column(DateTime(timezone=True), server_default=func.now())
+    event_key = Column(String(255), nullable=False)
+
+    def __repr__(self):
+        return f"<CommercialOutcomeRow(lead='{self.lead_id}', outcome='{self.outcome}')>"
 
 
 class Conversion(Base):

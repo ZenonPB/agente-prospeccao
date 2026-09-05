@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -46,6 +46,24 @@ def _suggest_next_action_at(status: LeadStatus) -> Optional[datetime]:
     return None
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+
+def _opportunity_to_dict(opportunity: LeadOpportunityRow) -> dict:
+    """Serializa uma oportunidade persistida para o contrato da API."""
+    return {
+        "id": str(opportunity.id),
+        "lead_id": str(opportunity.lead_id),
+        "offer_key": opportunity.offer_key,
+        "offer_version": opportunity.offer_version,
+        "profile_key": opportunity.profile_key,
+        "score": opportunity.score,
+        "resolved_from": opportunity.resolved_from,
+        "evidence": opportunity.evidence or [],
+        "signals_matched": opportunity.signals_matched or [],
+        "signals_missing": opportunity.signals_missing or [],
+        "created_at": opportunity.created_at.isoformat() if opportunity.created_at else None,
+        "updated_at": opportunity.updated_at.isoformat() if opportunity.updated_at else None,
+    }
 
 # Status em que faz sentido registrar o funil interno de negociação
 # (RD/ORÇAMENTO/RP) — a fase comercial entre responder e fechar.
@@ -168,7 +186,11 @@ def _lead_summary(lead: Lead) -> dict:
         # card (doc 16): só titles de evidence — nada inventado fora deles.
         "score_vector": lead.score_vector,
         "why_signals": sorted(
-            [str(e.get("title")) for e in (lead.evidence or []) if isinstance(e, dict) and e.get("title")],
+            [
+                str(e.get("title"))
+                for e in (lead.evidence or [])
+                if isinstance(e, dict) and e.get("title") and e.get("severity")
+            ],
             key=lambda t: (0 if "crítico" in t.lower() or "alto" in t.lower() else 1 if "médio" in t.lower() else 2, t),
         )[:3],
         "suggested_subject": lead.suggested_subject,
@@ -256,6 +278,30 @@ def _can_access_lead(member: OrganizationMember, lead: Lead) -> bool:
     if is_full_access(member):
         return True
     return lead.assigned_to_id is None or lead.assigned_to_id == member.user_id
+
+
+def _record_commercial_outcome(
+    db: Session,
+    lead: Lead,
+    outcome: str,
+    event_key: str,
+    value: float = 0.0,
+) -> None:
+    """Registra um evento comercial persistente sem bloquear a transição."""
+    try:
+        from services.prospecting.commercial_outcome_service import CommercialOutcomeService
+
+        CommercialOutcomeService().record_for_lead(
+            db,
+            lead.organization_id,
+            lead.id,
+            outcome=outcome,
+            event_key=event_key,
+            value=value,
+        )
+    except Exception as exc:  # noqa: BLE001
+        # A trilha/status continuam sendo a fonte operacional do funil.
+        logger.warning("Falha ao persistir outcome do lead %s: %s", lead.id, exc)
 
 
 @router.get("")
@@ -426,7 +472,7 @@ def update_lead_status(
     lead.status = body.status
     if body.lost_reason is not None:
         lead.lost_reason = body.lost_reason
-    log_status_change(
+    status_activity = log_status_change(
         db, lead, user_id=str(user.id), status_to=body.status,
         status_from=previous,
         detail=f"{previous.value if previous else '?'} → {body.status.value}",
@@ -435,11 +481,24 @@ def update_lead_status(
     # -> MEETING_SCHEDULED, PROPOSTA_ENVIADA -> PROPOSAL_SENT, PERDIDO -> LOST).
     semantic = semantic_action_for(body.status)
     if semantic:
-        log_activity(
+        semantic_activity = log_activity(
             db, lead, action=semantic, user_id=str(user.id),
             status_to=body.status,
             detail=body.status.value,
         )
+        db.flush()
+        outcome_by_status = {
+            LeadStatus.RESPONDIDO: "RESPONDED",
+            LeadStatus.REUNIAO_MARCADA: "MEETING",
+            LeadStatus.REUNIAO_FEITA: "MEETING",
+            LeadStatus.PERDIDO: "LOST",
+        }
+        outcome = outcome_by_status.get(body.status)
+        if outcome:
+            _record_commercial_outcome(
+                db, lead, outcome,
+                event_key=f"activity:{semantic_activity.id}",
+            )
     db.commit()
     db.refresh(lead)
 
@@ -700,6 +759,35 @@ def get_lead_duplicates(
     }
     matches = find_duplicate_signals(target_payload, others_payload)
     return {"matches": matches, "count": len(matches)}
+
+
+@router.get("/{lead_id}/oportunidades")
+def get_lead_opportunities(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Lista as oportunidades comerciais persistidas para um lead da org ativa."""
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    opportunities = (
+        db.query(LeadOpportunityRow)
+        .filter(
+            LeadOpportunityRow.lead_id == lead.id,
+            LeadOpportunityRow.organization_id == _org.id,
+        )
+        .order_by(LeadOpportunityRow.score.desc(), LeadOpportunityRow.offer_key.asc())
+        .all()
+    )
+    return {"oportunidades": [_opportunity_to_dict(item) for item in opportunities]}
 
 
 @router.get("/{lead_id}")
@@ -1065,6 +1153,14 @@ def register_conversion(
         assigned_to_id=lead.assigned_to_id,
     )
     db.add(conversion)
+    db.flush()
+    _record_commercial_outcome(
+        db,
+        lead,
+        outcome="WON",
+        event_key=f"conversion:{conversion.id}",
+        value=float(body.contract_value or 0),
+    )
 
     # Contrato fechado ⇒ resultado final APROVADO.
     lead.contract_outcome = ContractOutcome.APROVADO

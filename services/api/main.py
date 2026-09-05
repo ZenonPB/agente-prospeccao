@@ -18,7 +18,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
 from src.middleware.rate_limit import limiter
-from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback
+from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, intelligence
 from src.routes.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
@@ -284,6 +284,7 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(score_feedback.router, prefix="/api")
 app.include_router(invites.router, prefix="/api")
 app.include_router(leads.router, prefix="/api")
+app.include_router(intelligence.router, prefix="/api")
 app.include_router(campaigns.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")

@@ -142,6 +142,55 @@ export interface Lead {
   updated_at: string;
 }
 
+export interface LeadOpportunity {
+  id: string;
+  lead_id: string;
+  offer_key: string;
+  offer_version?: string | null;
+  profile_key?: string | null;
+  score: number;
+  resolved_from?: string | null;
+  evidence: string[];
+  signals_matched: string[];
+  signals_missing: string[];
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface EventOpportunity {
+  id: string;
+  name: string;
+  event_type: string;
+  event_date: string;
+  location?: string | null;
+  source_url: string;
+  organizer?: string | null;
+  organizer_resolved: Record<string, unknown>;
+  timing: Record<string, unknown>;
+  offer_key?: string | null;
+  registration_status: string;
+}
+
+export interface CommercialOutcome {
+  id: string;
+  lead_id: string;
+  offer_key: string;
+  offer_version?: string | null;
+  outcome: string;
+  value: number;
+  provider?: string | null;
+  recorded_at?: string | null;
+}
+
+export interface CommercialOutcomeMetric {
+  offer_key: string;
+  offer_version?: string | null;
+  total: number;
+  won: number;
+  conversion_rate: number;
+  average_ticket: number;
+}
+
 export interface SlaAlertItem {
   id: string;
   company_name: string;
@@ -317,7 +366,9 @@ export interface Campaign {
   target_country?: string;
   analysis_profile?: 'web_presence' | 'business_opportunity';
   places_query?: string;
+  search_queries?: string[] | null;
   scoring_template_id?: string | null;
+  offer_profile_key?: string | null;
   status: CampaignStatus;
   lead_count?: number;
   avg_score?: number;

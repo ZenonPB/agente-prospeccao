@@ -71,6 +71,17 @@ A partir de 2026-07-09, todo o código usa:
 - Apenas comentários necessários (obviedades como `// Leads` antes de `export function useLeads` foram removidos)
 - Docstrings em português e apenas quando a função não é autoexplicativa
 
+## Decisões da auditoria de consolidação (2026-09-04)
+
+| Decisão | Motivo |
+|---|---|
+| Não promover capability a `COMPLETE` apenas por possuir classe e testes | O DoD de `docs/consolidacao.md` exige consumidor operacional, persistência/provider quando aplicável e comportamento verificável. |
+| Persistência temporária do `OfferMatcher` em `leads.evidence_score` | O schema ainda não possui `LeadOpportunity`; JSONB evita inventar uma tabela não migrada, mas mantém o status PARTIAL. |
+| `execute_async` é o caminho oficial no código async; `execute` permanece compatível | Evita perda silenciosa de corrotinas dentro de ASGI e preserva callers síncronos. |
+| Scoring não cria outcome comercial | `QUALIFICADO` é estado do funil, não venda/reunião; registrar como WON/MEETING contamina priors e A/B. |
+| Verificação usa `EmailVerificationService.verify_email` | Esse é o método público existente; `check_domain_mx` não existe e causava falso negativo silencioso. |
+| Status documental segue callers, persistência e providers | Evita que documentos `-FEITO` transformem scaffolding em premissa de produção. |
+
 ## Fixes Aplicados (2026-07-09)
 
 | Decisão | Motivo |

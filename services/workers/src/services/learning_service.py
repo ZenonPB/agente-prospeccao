@@ -33,7 +33,9 @@ def compute_niche_prior(org_id: str, service: str, segment: str) -> Dict[str, An
     counter = _outcome_counters.get(key, {})
     total = sum(counter.get(k, 0) for k in ("WON", "MEETING", "REPLIED", "QUALIFIED", "NEW") if k in counter)
     if total == 0:
-        total = sum(counter.values()) or 1
+        # Sem outcomes relevantes: NÃO invente denominador 1 (consolidação §27:
+        # "Não esconder UNKNOWN") — retorna total=0 e conversion=0
+        total = 0
 
     wins = counter.get("WON", 0)
     conversion = round(wins / total * 100, 2) if total else 0.0

@@ -19,6 +19,50 @@
 
 ### Fase 2 — Sinais, enrichment, score vetorial e discovery ✅ Pronta (2026-09-04)
 
+### Auditoria final das fases de consolidação (2026-09-04)
+
+### Consolidação operacional pós-auditoria (2026-09-04)
+
+As capacidades de oferta, discovery, oportunidades e outcomes agora possuem
+consumidores operacionais e persistência no PostgreSQL:
+
+- `Campaign.offer_profile_key` é opcional e permite resolver uma oferta
+  declarativa; campanhas antigas fazem fallback por serviço/segmento.
+- `pipeline_worker` usa o `OfferProfileResolver` para contexto e o
+  `DiscoveryExecutor.execute_async` para Places/CNAE, sem perder o fallback
+  legado.
+- `lead_opportunities` persiste o resultado do `OfferMatcher` com versão,
+  evidências e upsert por lead/oferta; `GET /api/leads/{id}/oportunidades`
+  expõe o contrato org-scoped.
+- `event_opportunities` recebe eventos normalizados; `source=events` agenda a
+  coleta e `EVENT_DISCOVERY_URL` habilita um provider HTTP externo de forma
+  explícita.
+- `commercial_outcomes` registra conversão, resposta, reunião e perda de forma
+  idempotente; `GET /api/intelligence/outcomes` retorna métricas por oferta e
+  versão.
+- A suíte final desta etapa passou com 889 testes, compilação Python e
+  validações do Web (lint, TypeScript e build); Alembic está no head
+  `fc2d3e4f5a6b`.
+
+O pipeline agora usa o `OfferProfileResolver` e o `DiscoveryExecutor` para
+campanhas declarativas, mantém o escopo da organização também em execuções sem
+campanha e trata a descoberta de eventos como um job próprio, sem enviar eventos
+ao scoring de leads. O orçamento de discovery é global por execução.
+
+Event Discovery e Learning Metrics permanecem parcialmente operacionais por
+decisão de produto: o provider externo é opt-in via `EVENT_DISCOVERY_URL` e o
+dashboard de inteligência exibe eventos persistidos e outcomes por oferta. A
+resolução de decisores continua best-effort e preserva o snapshot legado para
+compatibilidade.
+
+Validação: 889 testes Python passaram, `compileall`, lint, TypeScript e build do
+Web passaram; o E2E de outreach é skipped sem `E2E_DATABASE_URL`; o grafo AST foi
+atualizado; Alembic está no head `fc2d3e4f5a6b`.
+
+**Próximo passo imediato:** configurar um provider externo de eventos em ambiente
+controlado e validar o fluxo ponta a ponta com dados reais (sem habilitar coleta
+externa por padrão).
+
 Branch `feat/fase2-sinais-e-episteme` (4 ondas, commits por onda):
 
 - **W1 — Signal Registry + Status epistêmico (docs 20, 29):**
@@ -50,8 +94,10 @@ Branch `feat/fase2-sinais-e-episteme` (4 ondas, commits por onda):
   NO_OWN_WEBSITE/Instagram/reviews) — ausência total de demanda não vira
   lead quente.
 
-Suíte: **618 testes passando**, compileall limpo, web lint+tsc limpos, 2
-migrations aplicadas no Postgres real.
+Registro histórico: a suíte da Fase 2 foi reportada como **618 testes** em sua
+execução original. Nesta auditoria final, a suíte completa não foi reproduzida
+no Python global (dependências de desenvolvimento ausentes); os testes focados
+C–H passaram e o resultado atual está registrado abaixo.
 
 **Próximo passo imediato:** qualquer doc ainda Proposto do plano (W2+ já
 entregue; candidatos naturais: 22-discovery-planner, 27-v2, 05, 12, 09,
