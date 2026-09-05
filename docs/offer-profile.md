@@ -1,6 +1,6 @@
 # OfferProfile — entidade central de inteligência comercial
 
-> **Status:** 🟠 PARTIAL — contrato/registry/resolver testados; fonte única do pipeline ainda pendente.
+> **Status:** ✅ COMPLETE — contrato/registry/resolver testados e consumidos pelo pipeline; campanhas legadas fazem fallback.
 > **Branch:** `fixes-fase3`
 > **Implementação:** `services/workers/src/services/prospecting/`
 
@@ -72,7 +72,7 @@ outreach: {angle, evidence_requirements}
 
 - [x] contrato definido (dataclass frozen + dict roundtrip)
 - [x] implementação não-placeholder
-- [ ] integrado como fonte única do pipeline (`pipeline_worker` ainda usa template legado)
+- [x] integrado como fonte principal do pipeline (`pipeline_worker` mantém template legado como fallback)
 - [x] configuração/versionamento (`version` por profile)
 - [x] evidência/proveniência (`resolved_from` indica cascata usada)
 - [x] diferencia erro/ausência/desconhecido (cascata cai no `generic`)
@@ -81,7 +81,7 @@ outreach: {angle, evidence_requirements}
 - [x] cenário realista (3 ofertas industriais distintas no mesmo vertical)
 - [x] observabilidade (`resolved_from` retornado)
 - [x] documentação corresponde ao código
-- [ ] sem mapping hardcoded que deveria ser config (mappings legados ainda existem)
+- [x] sem mapping hardcoded no caminho declarativo; mappings legados permanecem apenas para compatibilidade
 
 ## Mapa de capabilities atualizado
 

@@ -126,7 +126,8 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET/POST | `/campaigns` | Lista (lead_count/avg_score) e criação |
-| GET/PATCH | `/campaigns/{id}` | Detalhe + vínculo de template |
+| GET/PATCH | `/campaigns/{id}` | Detalhe + vínculo de template e `offer_profile_key` |
+| POST | `/pipeline/start` com `source=events` | Descoberta de eventos futuros (provider externo opt-in) |
 | POST | `/campaigns/{id}/reanalyze` | Reanalisa leads (reescreve scoring legado) |
 | POST | `/campaigns/{id}/import` | Import CSV (multipart; dedupe, relatório) |
 | POST | `/campaigns/{id}/collect-cnae` | Coleta por CNAE em background |
@@ -136,6 +137,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | GET | `/leads` | Lista (filtros: status, campaign, search, min_score, assigned, next_action_before) |
+| GET | `/leads/{id}/oportunidades` | Ofertas relacionadas persistidas pelo OfferMatcher |
 | GET | `/leads/sla-alerts` · `GET /leads/stats` · `GET /leads/{id}` | Alertas SLA (4.10), agregados e detalhe (contatos, atividades, assigned_to) |
 | PATCH | `/leads/{id}` | `whatsapp`, `notes`, `next_action_at` |
 | PATCH | `/leads/{id}/status` · PATCH `/leads/{id}/assign` | Status (trilha) e atribuição |
@@ -158,6 +160,7 @@ a API os re-exporta em `services/api/src/db/models.py` — não há modelos dupl
 | GET | `/analytics/consultants/{user_id}` · `/analytics/consultants/{user_id}/activity` | Perfil de um consultor (KPIs da planilha Alphamec + funil ponta-a-ponta) e trilha recente de atividades |
 | GET | `/analytics/geo` · `/analytics/campaigns` · `/analytics/timeline` | Geo, campanhas, evolução temporal |
 | GET | `/analytics/forecast` | Forecast ponderado por estágio (5% a 90%), pipeline total e motivos de perda (Item 4.8) |
+| GET | `/intelligence/events` · `/intelligence/outcomes` | Eventos descobertos e outcomes por oferta/versão (org-scoped) |
 | GET | `/analytics/export/pdf` | PDF executivo (WeasyPrint) |
 | GET/POST/PATCH | `/scoring-templates` | CRUD de templates (globais + da org) |
 

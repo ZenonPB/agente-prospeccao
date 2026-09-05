@@ -1,6 +1,6 @@
 # Mapa de status — pacote de melhorias + consolidação
 
-> **Snapshot:** 2026-09-04 · branch `fixes-fase3` · auditoria final pós-Fases C–H
+> **Snapshot:** 2026-09-04 · branch `fixes-fase3` · consolidação operacional pós-Fases C–H
 >
 > Este arquivo é a **fonte única de verdade** para entender o que está
 > completo, parcial ou apenas declarado. Reflete callers, persistência,
@@ -71,35 +71,34 @@
 
 - **Total:** 47 capabilities históricas + OfferProfile/OfferMatcher/Event/Intent/Learning
 - **✅ COMPLETE:** capacidades históricas com cobertura operacional comprovada
-- **🟠 PARTIAL:** OfferProfile ainda não é a fonte do pipeline; Event Discovery não tem provider externo configurado; LearningMetrics não persiste no PostgreSQL/BI
-- **🔵 SCAFFOLDING:** adapters sem credencial/provider real e componentes sem consumidor de produção
-- **Testes focados pós-auditoria:** 161 anteriores + regressões desta auditoria; a suíte global exige `requirements-dev.txt` e banco no e2e
+- **🟠 PARTIAL:** coletores externos permanecem opt-in; resolução de decisores ainda mantém snapshot JSONB legado além dos contatos canônicos
+- **🔵 SCAFFOLDING:** `learning_metrics.py` in-memory continua disponível para comparação offline; o endpoint operacional usa `commercial_outcomes`
+- **Validação atual:** suíte Python completa, compilação dos serviços, lint/tsc/build do Web e migrations aplicadas no Postgres local
 
 ## Auditoria final — evidência operacional
 
 | Capability | Status real | Entry point | Consumidor de produção | Persistência | Limitação conhecida |
 |---|---|---|---|---|---|
-| OfferProfile/Resolver | 🟠 PARTIAL | `services/prospecting/offer_profile.py` | testes e import; `pipeline_worker` ainda usa `CampaignScoringTemplate`/`resolve_prospecting_profile` | nenhuma tabela própria | resolver de oferta ainda não é a fonte única do pipeline |
-| OfferMatcher | 🟠 PARTIAL | `services/prospecting/offer_matcher.py` | `enrichment_orchestrator` | JSONB `evidence_score` | não há tabela `lead_opportunities`; registry default em código |
-| DiscoveryProvider/Executor | 🟠 PARTIAL | `services/prospecting/discovery_executor.py` | executor testado; `pipeline_worker` ainda chama Places diretamente | logs/evento do job | adapters reais não são usados pelo pipeline |
-| IntentProvider/Scorer | 🟠 PARTIAL | `services/prospecting/intent_provider.py` | nenhum job de produção | nenhuma | jobs/website precisam ser alimentados por coletores reais |
-| Event Discovery | 🔵 SCAFFOLDING | `services/prospecting/event_discovery.py` | nenhum caller de produção | nenhuma | `SportsFederationProvider` é cadastro injetado/stub, não coletor externo |
+| OfferProfile/Resolver | ✅ COMPLETE | `services/prospecting/offer_profile.py` | `pipeline_worker` resolve oferta explícita e campanhas legadas | oferta/versionamento no contexto + campaign.offer_profile_key | perfis customizados ainda são cadastrados em código |
+| OfferMatcher | ✅ COMPLETE | `services/prospecting/offer_matcher.py` | `enrichment_orchestrator` pós-scoring | `lead_opportunities` + snapshot JSONB compatível | sem tela de gestão dedicada; detalhe do lead já exibe |
+| DiscoveryProvider/Executor | ✅ COMPLETE | `services/prospecting/discovery_executor.py` | `pipeline_worker` usa `execute_async` para Places/CNAE declarativos | logs do job + provenance dos candidatos | providers sem credencial são pulados explicitamente |
+| IntentProvider/Scorer | 🟠 PARTIAL | `services/prospecting/intent_provider.py` | `enrichment_orchestrator` usa HTML cacheado e jobs fornecidos no contexto | `lead.evidence_score.phase3` | job board externo precisa fornecer `scoring_data.jobs` |
+| Event Discovery | 🟠 PARTIAL | `services/prospecting/event_discovery.py` | `pipeline_worker` via `source=events` | `event_opportunities` + `/api/intelligence/events` | endpoint externo é opt-in via `EVENT_DISCOVERY_URL` |
 | Decision Maker Resolution | 🟠 PARTIAL | `services/prospecting/decision_maker_resolution.py` | `ContactEnrichmentService` | `lead.evidence_score.phase3_contact` | resolução é best-effort; `PersonContact` não é persistido diretamente |
-| Learning/Metrics | 🔵 SCAFFOLDING | `services/prospecting/learning_metrics.py` | nenhum endpoint/job | somente memória | não mede dados reais nem alimenta dashboard |
+| Learning/Metrics | 🟠 PARTIAL | `services/prospecting/commercial_outcome_service.py` | conversão/status real + `/api/intelligence/outcomes` | `commercial_outcomes` | dashboard dedicado e comparação A/B SQL ainda pendentes |
 
 ### Verificações executadas
 
-- `graphify extract --code-only`: grafo gerado com 4.893 nós e 11.045 arestas.
-- Testes focados C–H + regressões: passaram com `-W error`.
-- `python -m py_compile`: arquivos alterados sem erro.
-- E2E original de outreach: **skipped** sem `E2E_DATABASE_URL`; não é evidência de E2E verde.
-- Alembic: migration `e8f9a0b1c2d3` cria `notifications` e está aplicada no banco local; `alembic check` ainda reporta divergências históricas de metadata/índices que não pertencem a esta correção.
+- `graphify update . --no-cluster`: grafo atualizado com 5.508 nós e 13.047 arestas.
+- `python -m pytest tests -q`: 889 testes passaram; o E2E original continua condicionado a `E2E_DATABASE_URL`.
+- `python -m compileall -q services/api services/workers`: passou.
+- `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram nas validações desta consolidação.
+- Alembic: head `fc2d3e4f5a6b`, com `lead_opportunities`, `offer_profile_key`, `event_opportunities`, `commercial_outcomes` e versionamento aplicados.
 
 ## Próximas ações obrigatórias
 
-1. Fazer `OfferProfileResolver` ser a fonte única para o `pipeline_worker`.
-2. Fazer `DiscoveryExecutor.execute_async` consumir o plano real no pipeline.
-3. Criar migrations/tabelas para `LeadOpportunity`, `EventOpportunity` e outcomes.
-4. Implementar collectors externos opt-in para jobs, eventos e organizadores.
-5. Expor métricas persistidas por oferta/provider/version no endpoint de analytics.
-6. Rodar o E2E original com PostgreSQL atualizado (`alembic upgrade head`).
+1. Configurar e validar um provider externo de eventos em ambiente controlado.
+2. Adicionar um job opt-in para coletar vagas e alimentar `IntentProvider`.
+3. Promover `commercial_outcomes` ao dashboard de BI com comparação SQL por versão.
+4. Persistir `PersonContact` como entidade canônica de decisor, mantendo o snapshot legado durante a migração.
+5. Rodar o E2E original com `E2E_DATABASE_URL` e credenciais de teste controladas.
