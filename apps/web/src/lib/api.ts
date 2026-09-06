@@ -1,5 +1,5 @@
 import { getSession } from "next-auth/react";
-import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult, LeadOpportunity, EventOpportunity, CommercialOutcome, CommercialOutcomeMetric } from "@/types";
+import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult, LeadOpportunity, EventOpportunity, CommercialOutcome, CommercialOutcomeMetric, CommercialComparison } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
 
@@ -457,6 +457,10 @@ export const intelligenceApi = {
   events: (limit = 100) => request<{ events: EventOpportunity[]; total: number }>("/api/intelligence/events", { params: { limit } }),
   outcomes: (params?: { offer_key?: string; offer_version?: string; from?: string; to?: string }) =>
     request<{ outcomes: CommercialOutcome[]; metrics: CommercialOutcomeMetric[]; total_outcomes: number; sample_minimum: number }>("/api/intelligence/outcomes", { params }),
+  compare: (params: { offer_key: string; version_a: string; version_b: string; min_samples?: number }) =>
+    request<CommercialComparison>("/api/intelligence/comparisons", { params }),
+  approveComparison: (id: string, body: { approved_version: string; evidence: string }) =>
+    request<CommercialComparison>(`/api/intelligence/comparisons/${id}/approval`, { method: "POST", body: JSON.stringify(body) }),
 };
 
 // Loop de aprendizado da IA: regras de calibração + convergência IA × time.

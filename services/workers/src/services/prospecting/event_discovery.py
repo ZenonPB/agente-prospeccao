@@ -36,6 +36,7 @@ class EventOpportunity:
     location: str
     source_url: str
     organizer: str
+    source_identifier: Optional[str] = None
     # Campos opcionais com defaults (consolidação §Fase F)
     confidence: float = 0.5
     registration_status: str = "unknown"  # open | closed | unknown
@@ -264,6 +265,14 @@ class EventTimingScorer:
         }
 
 
+class EventProviderError(Exception):
+    """Falha do provider de eventos (rede, HTTP, JSON inválido).
+
+    Existe para que "provider indisponível" nunca seja tratado como
+    "nenhum evento encontrado" (P1.1).
+    """
+
+
 # ============================================================
 # EventDiscoveryExecutor — pipeline completo
 # ============================================================
@@ -299,6 +308,9 @@ class EventDiscoveryExecutor:
         events_by_provider: Dict[str, List[EventOpportunity]] = {}
         execution_order: List[str] = []
         skipped: List[str] = []
+        provider_status: Dict[str, str] = {}
+        provider_errors: Dict[str, str] = {}
+        rejected_count = 0
 
         # 1) Provider collection — usa plan se fornecido, senão todos
         plan_providers = plan.get("providers") or [{"type": k} for k in self.registry.list_keys()]
@@ -307,29 +319,53 @@ class EventDiscoveryExecutor:
             provider = self.registry.get(provider_name)
             if provider is None:
                 skipped.append(provider_name)
+                provider_status[provider_name] = "skipped"
                 continue
             execution_order.append(provider_name)
-            # Roda provider (sync ou async)
+            # Roda provider (sync ou async). Falha do provider é registrada —
+            # NUNCA silenciada como "zero eventos" (P1.1).
             try:
                 raw_events = self._invoke_provider(provider, lead_context)
-            except Exception:
-                raw_events = []
-            # 2) Converte para EventOpportunity
-            opps = [self._to_event_opportunity(e) for e in raw_events]
+            except Exception as exc:  # noqa: BLE001 — registrado no resultado
+                provider_status[provider_name] = "failed"
+                provider_errors[provider_name] = f"{type(exc).__name__}: {exc}"
+                events_by_provider[provider_name] = []
+                continue
+            # 2) Converte para EventOpportunity; inválidos são rejeitados e contados
+            opps: List[EventOpportunity] = []
+            for raw in raw_events:
+                opp = self._to_event_opportunity(raw)
+                if opp is None:
+                    rejected_count += 1
+                else:
+                    opps.append(opp)
             events_by_provider[provider_name] = opps
+            provider_status[provider_name] = "ok" if opps else "empty"
 
         # 3) Dedup por source_url
         all_events: List[EventOpportunity] = []
         for name in execution_order:
-            all_events.extend(events_by_provider.get(name, []))
+            for event in events_by_provider.get(name, []):
+                # A proveniência do provider acompanha o evento até a camada
+                # persistente; o mesmo URL em fontes distintas continua
+                # deduplicado, mas não perde a fonte vencedora.
+                setattr(event, "_provider", name)
+                all_events.append(event)
 
         # 4) Resolve organizer + timing para cada evento
         unique_events: List[Dict[str, Any]] = []
-        seen_urls: set = set()
+        seen_events: set = set()
         for ev in all_events:
-            if ev.source_url in seen_urls:
+            # URL canônico deduplica entre providers; identificador externo é
+            # escopado pela fonte para permitir IDs iguais em fontes distintas.
+            dedup_key = (
+                ("identifier", getattr(ev, "_provider", "unknown"), ev.source_identifier)
+                if ev.source_identifier
+                else ("url", ev.source_url)
+            )
+            if dedup_key in seen_events:
                 continue
-            seen_urls.add(ev.source_url)
+            seen_events.add(dedup_key)
             # Organizer resolution
             org_resolved = self.organizer_resolver.resolve_by_name(ev.organizer)
             # Timing score
@@ -337,6 +373,8 @@ class EventDiscoveryExecutor:
             # Concatena como dict puro (sem objetos aninhados problemáticos)
             ev_with_meta = {
                 **ev.to_dict(),
+                "provider": getattr(ev, "_provider", "unknown"),
+                "provider_status": provider_status.get(getattr(ev, "_provider", ""), "ok"),
                 "organizer_resolved": dict(org_resolved),
                 "timing": dict(timing),
             }
@@ -346,6 +384,9 @@ class EventDiscoveryExecutor:
             "events_by_provider": {k: [e.to_dict() for e in v] for k, v in events_by_provider.items()},
             "execution_order": execution_order,
             "skipped": skipped,
+            "provider_status": provider_status,
+            "provider_errors": provider_errors,
+            "rejected_count": rejected_count,
             "total_events": len(all_events),
             "unique_events": unique_events,
             "unique_count": len(unique_events),
@@ -390,24 +431,35 @@ class EventDiscoveryExecutor:
                 worker.start()
                 worker.join()
                 if error_box:
-                    return []
+                    # Propaga a falha real — nunca converte erro em "zero eventos".
+                    raise error_box[0]
                 return list(result_box[0] or []) if result_box else []
         return res or []
 
-    def _to_event_opportunity(self, raw: Dict[str, Any]) -> EventOpportunity:
-        """Converte dict raw em EventOpportunity, com defaults seguros."""
-        return EventOpportunity.from_dict({
+    def _to_event_opportunity(self, raw: Dict[str, Any]) -> Optional[EventOpportunity]:
+        """Converte dict raw em EventOpportunity; None quando inválido.
+
+        Um evento sem `name`, `event_date` ou `source_url` não pode virar
+        oportunidade rastreável — o executor conta como rejeitado (P1.1).
+        """
+        if not isinstance(raw, dict):
+            return None
+        event = EventOpportunity.from_dict({
             "name": raw.get("name", ""),
             "event_type": raw.get("event_type", "other"),
             "event_date": raw.get("event_date", ""),
             "location": raw.get("location", ""),
             "source_url": raw.get("source_url", ""),
+            "source_identifier": raw.get("source_identifier") or raw.get("event_id") or raw.get("external_id") or raw.get("id"),
             "organizer": raw.get("organizer", ""),
             "confidence": float(raw.get("confidence", 0.5)),
             "registration_status": raw.get("registration_status", "unknown"),
             "observed_at": raw.get("observed_at"),
             "expires_at": raw.get("expires_at"),
         })
+        if not (event.name.strip() and event.event_date.strip() and event.source_url.strip()):
+            return None
+        return event
 
 
 # ============================================================
@@ -434,15 +486,25 @@ class SportsFederationProvider:
 class HttpEventDiscoveryProvider:
     """Coletor opt-in para um endpoint externo de eventos.
 
-    O endpoint deve responder JSON com uma lista de eventos no mesmo contrato
-    do provider. Nenhuma URL é chamada quando a configuração está ausente.
+    Contrato do endpoint: JSON `{"events": [...]}` ou lista direta. Falha de
+    rede/HTTP/JSON levanta `EventProviderError` — o chamador distingue
+    "provider indisponível" de "nenhum evento" (P1.1). Erros transitórios
+    (rede, 429/5xx) são re-tentados até `max_retries` vezes.
     """
 
     name = "event_http"
 
-    def __init__(self, endpoint: str, timeout: float = 10.0):
+    def __init__(
+        self,
+        endpoint: str,
+        timeout: float = 10.0,
+        token: Optional[str] = None,
+        max_retries: int = 1,
+    ):
         self.endpoint = endpoint.rstrip("/")
         self.timeout = timeout
+        self.token = token
+        self.max_retries = max(0, int(max_retries))
 
     async def discover(self, lead_context=None):
         context = lead_context or {}
@@ -455,19 +517,51 @@ class HttpEventDiscoveryProvider:
             }.items()
             if value
         }
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
-                response = await client.get(self.endpoint, params=params)
-                response.raise_for_status()
-                data = response.json()
-        except (httpx.HTTPError, ValueError):
-            return []
+        headers: Dict[str, str] = {}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+
+        last_error: Optional[Exception] = None
+        for _attempt in range(self.max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+                    response = await client.get(self.endpoint, params=params, headers=headers)
+                    response.raise_for_status()
+                    data = response.json()
+            except (httpx.TransportError, httpx.HTTPStatusError) as exc:
+                # Transitório (rede, timeout, 429/5xx): tenta novamente.
+                last_error = exc
+                continue
+            except ValueError as exc:
+                raise EventProviderError(
+                    f"Resposta com JSON inválido de {self.endpoint}: {exc}",
+                ) from exc
+            last_error = None
+            break
+        if last_error is not None:
+            raise EventProviderError(
+                f"Provider {self.endpoint} indisponível após "
+                f"{self.max_retries + 1} tentativa(s): {last_error}",
+            ) from last_error
+
         if isinstance(data, dict):
-            data = data.get("events", [])
-        return list(data) if isinstance(data, list) else []
+            if "events" not in data:
+                raise EventProviderError(
+                    f"Resposta de {self.endpoint} sem a chave 'events'",
+                )
+            data = data["events"]
+        if not isinstance(data, list):
+            raise EventProviderError(
+                f"Resposta de {self.endpoint} não é uma lista de eventos",
+            )
+        return list(data)
 
 
-def build_default_event_registry(endpoint: Optional[str] = None) -> EventDiscoveryRegistry:
+def build_default_event_registry(
+    endpoint: Optional[str] = None,
+    token: Optional[str] = None,
+    max_retries: int = 1,
+) -> EventDiscoveryRegistry:
     """Registry padrão; endpoint externo só é habilitado explicitamente.
 
     Sem argumento, preserva o registry de teste com o provider em memória.
@@ -475,7 +569,7 @@ def build_default_event_registry(endpoint: Optional[str] = None) -> EventDiscove
     """
     reg = EventDiscoveryRegistry()
     if endpoint:
-        reg.register(HttpEventDiscoveryProvider(endpoint))
+        reg.register(HttpEventDiscoveryProvider(endpoint, token=token, max_retries=max_retries))
     elif endpoint is None:
         reg.register(SportsFederationProvider())
     return reg

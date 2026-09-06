@@ -1,8 +1,13 @@
 'use client';
 
-import { CalendarDays, ExternalLink, Loader2, TrendingUp } from 'lucide-react';
+import { CalendarDays, ExternalLink, Loader2, TrendingUp, FlaskConical } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useIntelligence } from '@/hooks/use-api';
+import { useApproveCommercialComparison, useCommercialComparison, useIntelligence } from '@/hooks/use-api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`));
@@ -49,6 +54,57 @@ export function IntelligenceSection({ period }: { period?: { from?: string; to?:
           </CardContent>
         </Card>
       </div>
+      <ComparisonCard />
     </section>
+  );
+}
+
+function ComparisonCard() {
+  const [offerKey, setOfferKey] = useState('trophies');
+  const [versionA, setVersionA] = useState('1.0');
+  const [versionB, setVersionB] = useState('2.0');
+  const [run, setRun] = useState(false);
+  const comparison = useCommercialComparison({ offer_key: offerKey, version_a: versionA, version_b: versionB }, run);
+  const approval = useApproveCommercialComparison();
+  const result = comparison.data?.result;
+  const canApprove = !!result?.recommendation && (result.verdict === 'v1' || result.verdict === 'v2');
+
+  const approve = async () => {
+    if (!comparison.data || !canApprove) return;
+    const selected = result.verdict === 'v1' ? versionA : versionB;
+    const evidence = `Aprovação manual baseada no veredicto ${result.verdict}, delta ${result.delta}pp e intervalos de Wilson.`;
+    try {
+      await approval.mutateAsync({ id: comparison.data.id, approved_version: selected, evidence });
+      toast.success(`Versão ${selected} aprovada e auditada.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível aprovar a versão.');
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2"><FlaskConical className="h-4 w-4 text-primary" />Comparação A/B</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">Compare versões com amostra mínima e intervalo de confiança. Nenhuma recomendação altera o sistema sem aprovação humana.</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div><Label htmlFor="comparison-offer">Oferta</Label><Input id="comparison-offer" value={offerKey} onChange={(e) => setOfferKey(e.target.value)} /></div>
+          <div><Label htmlFor="comparison-a">Versão A</Label><Input id="comparison-a" value={versionA} onChange={(e) => setVersionA(e.target.value)} /></div>
+          <div><Label htmlFor="comparison-b">Versão B</Label><Input id="comparison-b" value={versionB} onChange={(e) => setVersionB(e.target.value)} /></div>
+        </div>
+        <Button type="button" onClick={() => setRun(true)} disabled={comparison.isFetching || !offerKey || !versionA || !versionB}>
+          {comparison.isFetching ? 'Calculando…' : 'Calcular comparação'}
+        </Button>
+        {comparison.isError && <p className="text-sm text-amber-700">Não foi possível calcular a comparação agora.</p>}
+        {result && (
+          <div className="rounded-lg border p-4 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2"><strong>Veredicto: {result.verdict}</strong><span className="text-sm text-muted-foreground">Delta: {result.delta.toLocaleString('pt-BR')}pp</span></div>
+            <p className="text-sm">A: {result.v1_conversion}% ({result.v1_total}) · B: {result.v2_conversion}% ({result.v2_total})</p>
+            <p className="text-xs text-muted-foreground">{result.recommendation || 'Sem recomendação: amostra insuficiente ou intervalos sobrepostos.'}</p>
+            {comparison.data?.approved_version && <p className="text-sm text-emerald-700">Aprovada: versão {comparison.data.approved_version}</p>}
+            {canApprove && !comparison.data?.approved_version && <Button type="button" variant="secondary" onClick={approve} disabled={approval.isPending}>Aprovar recomendação</Button>}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

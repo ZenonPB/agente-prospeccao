@@ -119,6 +119,22 @@ export function useIntelligence(period?: { from?: string; to?: string }, enabled
   return { events, outcomes };
 }
 
+export function useCommercialComparison(params: { offer_key: string; version_a: string; version_b: string; min_samples?: number }, enabled = true) {
+  return useQuery({
+    queryKey: ["intelligence", "comparison", params],
+    queryFn: () => intelligenceApi.compare(params),
+    enabled: enabled && !!params.offer_key && !!params.version_a && !!params.version_b,
+  });
+}
+
+export function useApproveCommercialComparison() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; approved_version: string; evidence: string }) => intelligenceApi.approveComparison(id, body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["intelligence", "comparison"] }),
+  });
+}
+
 export function useLeadStats() {
   return useQuery({
     queryKey: ["leads", "stats"],

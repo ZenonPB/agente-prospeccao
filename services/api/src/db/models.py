@@ -11,6 +11,7 @@ from database.models import (
     LeadOpportunityRow,
     EventOpportunityRow,
     CommercialOutcomeRow,
+    CommercialComparison,
     Campaign,
     PrescoringDiscard,
     Enrichment,

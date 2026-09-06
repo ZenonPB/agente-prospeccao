@@ -1,15 +1,22 @@
 """Endpoints org-scoped para eventos descobertos e métricas comerciais."""
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_user_organization, require_analyst
 from src.db.dependencies import get_db
-from src.db.models import Organization, OrganizationMember
+from src.db.models import Organization, OrganizationMember, User, CommercialComparison
+from src.auth.dependencies import get_current_user, require_manager
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
+
+
+class ComparisonApprovalRequest(BaseModel):
+    approved_version: str = Field(..., min_length=1, max_length=32)
+    evidence: str = Field(..., min_length=3, max_length=1000)
 
 
 @router.get("/events")
@@ -19,12 +26,14 @@ def list_events(
     org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(require_analyst()),
 ):
-    """Lista eventos futuros persistidos pelo Event Discovery."""
+    """Lista eventos ainda acionáveis; históricos permanecem consultáveis."""
     from src.db.models import EventOpportunityRow
 
     rows = db.query(EventOpportunityRow).filter(
         EventOpportunityRow.organization_id == org.id,
+        EventOpportunityRow.status == "upcoming",
         EventOpportunityRow.event_date >= date.today(),
+        (EventOpportunityRow.expires_at.is_(None) | EventOpportunityRow.expires_at > datetime.now(timezone.utc)),
     ).order_by(EventOpportunityRow.event_date.asc()).limit(limit).all()
     return {
         "events": [
@@ -40,10 +49,70 @@ def list_events(
                 "timing": row.timing or {},
                 "offer_key": row.offer_key,
                 "registration_status": row.registration_status,
+                "status": row.status,
+                "provider": row.provider,
+                "provider_status": row.provider_status,
+                "source_identifier": row.source_identifier,
+                "provenance": row.provenance or {},
+                "lead_id": str(row.lead_id) if row.lead_id else None,
             }
             for row in rows
         ],
         "total": len(rows),
+    }
+
+
+@router.get("/comparisons")
+def compare_versions(
+    offer_key: str = Query(..., min_length=1, max_length=64),
+    version_a: str = Query(..., min_length=1, max_length=32),
+    version_b: str = Query(..., min_length=1, max_length=32),
+    min_samples: int = Query(5, ge=1, le=10000),
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    from src.services.commercial_comparison_service import CommercialComparisonService
+    comparison = CommercialComparisonService().compute_and_persist(
+        db, org.id, offer_key, version_a, version_b, min_samples,
+    )
+    db.commit()
+    return _comparison_dict(comparison)
+
+
+@router.post("/comparisons/{comparison_id}/approval")
+def approve_comparison(
+    comparison_id: str,
+    body: ComparisonApprovalRequest,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    actor: User = Depends(get_current_user),
+    _member: OrganizationMember = Depends(require_manager()),
+):
+    from uuid import UUID
+    from src.services.commercial_comparison_service import CommercialComparisonService
+    try:
+        comparison = CommercialComparisonService().approve(
+            db, org.id, UUID(comparison_id), body.approved_version, actor, body.evidence,
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    db.commit()
+    return _comparison_dict(comparison)
+
+
+def _comparison_dict(comparison: CommercialComparison) -> dict:
+    return {
+        "id": str(comparison.id),
+        "offer_key": comparison.offer_key,
+        "version_a": comparison.version_a,
+        "version_b": comparison.version_b,
+        "result": comparison.result,
+        "computed_at": comparison.computed_at.isoformat() if comparison.computed_at else None,
+        "approved_version": comparison.approved_version,
+        "approved_by_id": str(comparison.approved_by_id) if comparison.approved_by_id else None,
+        "approved_at": comparison.approved_at.isoformat() if comparison.approved_at else None,
+        "approval_evidence": comparison.approval_evidence,
     }
 
 
