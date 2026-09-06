@@ -83,14 +83,29 @@ durante as próximas mudanças:
 
 #### P0.3 Corrigir a política de warnings Python 3.14
 
-- **Status:** 🟠 Parcial.
+- **Status:** ✅ Operacional.
 - **Problema:** a execução com `-W error` encontra a depreciação de
   `asyncio.iscoroutinefunction` usada pelo `slowapi` instalado no ambiente.
 - **Por que importa:** CI pode tratar warnings como erro e bloquear merges mesmo
   quando o comportamento funcional está correto.
+- **Implementado:** o adaptador de rate limit usa a API `inspect` no Python 3.14;
+  o CI executa a suíte com `-W error` e mantém filtros somente para o fallback
+  upstream do Starlette.
 - **Critério de aceite:** suíte com `-W error` passa, seja por atualização
   compatível de dependência, patch upstream ou política explícita de versão
   Python suportada.
+
+#### P0.5 Observabilidade mínima do pipeline
+
+- **Status:** 🟠 Parcial.
+- **Implementado nesta onda:** eventos de início, fim, falha e recuperação de
+  jobs carregam `job_id`, organização, campanha, duração e erro; exceções do
+  consumidor preservam traceback; campos sensíveis de logs são redigidos.
+- **O que falta:** métricas agregadas por provider, custo/quota, fallback de
+  oferta e dashboards/alertas operacionais.
+- **Critério de aceite desta etapa:** um job pode ser correlacionado do início
+  ao fim sem registrar secrets ou payloads sensíveis; a expansão para métricas
+  de provider permanece uma etapa posterior.
 
 ### P1 — Event Discovery ponta a ponta
 

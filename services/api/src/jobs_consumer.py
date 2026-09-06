@@ -21,6 +21,7 @@ from sqlalchemy import text
 from src.config.settings import settings
 from src.db.session import SessionLocal
 from src.db.models import Job, JobStatus
+from src.services.observability import log_job_event
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,14 @@ def _reclaim_stale_jobs(db) -> None:
         job.status = JobStatus.FAILED
         job.error_message = "Job interrompido (processo reiniciado) — rode novamente."
         job.completed_at = datetime.now(timezone.utc)
+        log_job_event(
+            "job_reclaimed",
+            job_id=str(job.id),
+            organization_id=str(job.organization_id) if job.organization_id else None,
+            campaign_id=str(job.campaign_id) if job.campaign_id else None,
+            started_at=job.started_at,
+            error=job.error_message,
+        )
     if stale:
         db.commit()
         logger.warning("Recuperados %d job(s) IN_PROGRESS preso(s).", len(stale))
@@ -81,6 +90,14 @@ async def _run_job(job: Job) -> None:
     from src.pipeline_worker import run_pipeline
 
     payload = job.payload if isinstance(job.payload, dict) else {}
+    log_job_event(
+        "job_started",
+        job_id=str(job.id),
+        organization_id=str(job.organization_id) if job.organization_id else None,
+        campaign_id=str(job.campaign_id) if job.campaign_id else None,
+        started_at=job.started_at,
+        job_type=job.job_type.value if job.job_type else None,
+    )
 
     try:
         async for event in run_pipeline(
@@ -109,8 +126,44 @@ async def _run_job(job: Job) -> None:
                     dead.append(ws)
             for ws in dead:
                 connections.remove(ws)
+        final_db = SessionLocal()
+        try:
+            final_job = final_db.query(Job).filter(Job.id == job.id).first()
+            if final_job:
+                event_name = (
+                    "job_completed"
+                    if final_job.status == JobStatus.COMPLETED
+                    else "job_failed"
+                    if final_job.status == JobStatus.FAILED
+                    else "job_finished_unknown"
+                )
+                log_job_event(
+                    event_name,
+                    job_id=str(final_job.id),
+                    organization_id=(
+                        str(final_job.organization_id)
+                        if final_job.organization_id
+                        else None
+                    ),
+                    campaign_id=(
+                        str(final_job.campaign_id) if final_job.campaign_id else None
+                    ),
+                    started_at=final_job.started_at,
+                    error=final_job.error_message,
+                    status=final_job.status.value if final_job.status else None,
+                )
+        finally:
+            final_db.close()
     except Exception as e:  # noqa: BLE001 — run_pipeline já trata; defesa extra
-        logger.error("Job %s falhou: %s", job.id, e)
+        logger.exception("Job %s falhou", job.id)
+        log_job_event(
+            "job_failed",
+            job_id=str(job.id),
+            organization_id=str(job.organization_id) if job.organization_id else None,
+            campaign_id=str(job.campaign_id) if job.campaign_id else None,
+            started_at=job.started_at,
+            error=str(e)[:2000],
+        )
         db = SessionLocal()
         try:
             row = db.query(Job).filter(Job.id == job.id).first()

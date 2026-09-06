@@ -23,6 +23,18 @@
 
 ### Consolidação operacional pós-auditoria (2026-09-04)
 
+### Onda 0 — confiabilidade (em execução)
+
+- A política de warnings Python 3.14 está ativa: a suíte passa com `-W error`
+  usando `inspect.iscoroutinefunction` no adaptador local do slowapi e um filtro
+  específico para o fallback de `httpx` do Starlette.
+- O E2E de outreach agora verifica a venda persistida e remove a organização
+  temporária no cleanup; ainda requer PostgreSQL para ser executado.
+- `scripts/verify_migrations.py` valida head único, tabelas, índices e FKs
+  essenciais sem autogenerate, downgrade ou alteração por padrão.
+- Jobs registram eventos correlacionados de início/fim/falha/recuperação, com
+  duração e redação de credenciais nos logs.
+
 As capacidades de oferta, discovery, oportunidades e outcomes agora possuem
 consumidores operacionais e persistência no PostgreSQL:
 
@@ -40,7 +52,7 @@ consumidores operacionais e persistência no PostgreSQL:
 - `commercial_outcomes` registra conversão, resposta, reunião e perda de forma
   idempotente; `GET /api/intelligence/outcomes` retorna métricas por oferta e
   versão.
-- A suíte final desta etapa passou com 889 testes, compilação Python e
+- A suíte final desta etapa passou com 897 testes, compilação Python e
   validações do Web (lint, TypeScript e build); Alembic está no head
   `fc2d3e4f5a6b`.
 
@@ -55,9 +67,11 @@ dashboard de inteligência exibe eventos persistidos e outcomes por oferta. A
 resolução de decisores continua best-effort e preserva o snapshot legado para
 compatibilidade.
 
-Validação: 889 testes Python passaram, `compileall`, lint, TypeScript e build do
-Web passaram; o E2E de outreach é skipped sem `E2E_DATABASE_URL`; o grafo AST foi
-atualizado; Alembic está no head `fc2d3e4f5a6b`.
+Validação: 897 testes Python passaram sob `-W error`, `compileall` passou; o E2E
+real passou no PostgreSQL local; o verificador de schema está disponível em
+`scripts/verify_migrations.py`; o
+  grafo AST foi atualizado após esta rodada; Alembic está no head
+  `fc2d3e4f5a6b`.
 
 **Próximo passo imediato:** configurar um provider externo de eventos em ambiente
 controlado e validar o fluxo ponta a ponta com dados reais (sem habilitar coleta

@@ -32,7 +32,7 @@ os.environ["ENVIRONMENT"] = "test"
 from database.session import SessionLocal  # noqa: E402
 from database.models import (  # noqa: E402
     Campaign, Contact, Enrichment, FollowUp, FollowUpStatus, FollowUpStep,
-    Lead, LeadActivity, LeadStatus, Message, Organization, User,
+    Conversion, Lead, LeadActivity, LeadStatus, Message, Organization, User,
 )
 from services.enrichment_orchestrator import process_single_lead  # noqa: E402
 from services.outreach_service import OutreachService  # noqa: E402
@@ -107,12 +107,13 @@ def _cleanup(db, org: Organization, user: User) -> None:
     db.rollback()
     org_id = org.id
     lead_ids = [r[0] for r in db.query(Lead.id).filter(Lead.organization_id == org_id).all()]
-    for model in (LeadActivity, FollowUp, Message, Contact, Enrichment):
+    for model in (LeadActivity, FollowUp, Message, Contact, Enrichment, Conversion):
         if lead_ids:
             db.query(model).filter(model.lead_id.in_(lead_ids)).delete(synchronize_session=False)
     db.query(Lead).filter(Lead.organization_id == org_id).delete(synchronize_session=False)
     db.query(Campaign).filter(Campaign.organization_id == org_id).delete(synchronize_session=False)
     db.query(User).filter(User.id == user.id).delete(synchronize_session=False)
+    db.query(Organization).filter(Organization.id == org_id).delete(synchronize_session=False)
     db.commit()
 
 
@@ -161,8 +162,9 @@ async def _run_cycle() -> None:
         assert enrichment is None  # sem website → sem relatório técnico
         assert scoring_data and scoring_data.get("qualification_score", 0) >= 60
 
-        lead.status = LeadStatus.QUALIFICADO
         db.commit()
+        db.refresh(lead)
+        assert lead.status == LeadStatus.QUALIFICADO
 
         # 2) Geração de mensagens + cadência (dia 0/3/7/14).
         lead_dict = {
@@ -212,6 +214,20 @@ async def _run_cycle() -> None:
         assert all(
             fu.status in (FollowUpStatus.SENT, FollowUpStatus.CANCELLED) for fu in remaining
         )
+
+        # 5) Venda registrada no mesmo banco da cadência.
+        conversion = Conversion(
+            lead_id=lead.id,
+            service_sold="Criação de Sites",
+            contract_value=2500,
+            user_id=user.id,
+            assigned_to_id=lead.assigned_to_id,
+        )
+        db.add(conversion)
+        db.commit()
+        db.refresh(conversion)
+        assert conversion.id is not None
+        assert conversion.contract_value == 2500
     finally:
         _cleanup(db, org, user)
         db.close()
