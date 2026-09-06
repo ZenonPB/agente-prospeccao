@@ -198,8 +198,12 @@ class VersionComparator:
     """Compara duas versões da mesma oferta para detectar regressão/melhoria.
 
     Critério Fase H: 'provar se alteração aumentou ou reduziu a qualidade
-    comercial'.
+    comercial'. A recomendação (`verdict`/`recommendation`) só é emitida com
+    amostras mínimas nos dois lados E intervalos de Wilson (z=1.96) separados —
+    nunca apenas pela taxa bruta (P1.8: aprendizado controlado).
     """
+
+    Z_95 = 1.96
 
     def __init__(
         self, registry: OutcomesRegistry, min_samples: int = 10,
@@ -208,6 +212,23 @@ class VersionComparator:
         self.registry = registry
         self.min_samples = min_samples
         self.regression_threshold = regression_threshold
+
+    def _wilson_interval_pct(self, wins: int, total: int) -> Dict[str, float]:
+        """Intervalo de confiança de Wilson (95%) em percentual 0-100."""
+        if total <= 0:
+            return {"low": 0.0, "high": 100.0}
+        p = wins / total
+        z2 = self.Z_95 ** 2
+        center = (p + z2 / (2 * total)) / (1 + z2 / total)
+        half = (
+            self.Z_95
+            * ((p * (1 - p) / total + z2 / (4 * total ** 2)) ** 0.5)
+            / (1 + z2 / total)
+        )
+        return {
+            "low": round(max(0.0, center - half) * 100, 2),
+            "high": round(min(100.0, center + half) * 100, 2),
+        }
 
     def compare(
         self, offer_key: str, v1: str, v2: str,
@@ -225,6 +246,11 @@ class VersionComparator:
                 "is_improvement": bool,
                 "is_conclusive": bool,
                 "reason": str | None,
+                "v1": {..., "confidence_interval": {"low", "high"}},
+                "v2": {..., "confidence_interval": {"low", "high"}},
+                "verdict": "v1" | "v2" | "empate" | "inconclusivo",
+                "recommendation": str | None,
+                "is_statistically_significant": bool,
             }
         """
         m = CommercialMetrics(self.registry)
@@ -232,32 +258,63 @@ class VersionComparator:
         r2 = m.conversion_rate_by_offer(offer_key, offer_version=v2)
         v1_total = r1["total"]
         v2_total = r2["total"]
-        # Inconclusivo se samples insuficientes
-        if v1_total < self.min_samples or v2_total < self.min_samples:
+        v1_ci = self._wilson_interval_pct(r1["wins"], v1_total)
+        v2_ci = self._wilson_interval_pct(r2["wins"], v2_total)
+
+        def _base(significant: bool) -> Dict[str, Any]:
             return {
                 "offer_key": offer_key,
-                "v1": v1, "v2": v2,
-                "v1_total": v1_total, "v2_total": v2_total,
+                "v1": {"version": v1, "confidence_interval": v1_ci},
+                "v2": {"version": v2, "confidence_interval": v2_ci},
+                "v1_total": v1_total,
+                "v2_total": v2_total,
                 "v1_conversion": r1["conversion_rate"],
                 "v2_conversion": r2["conversion_rate"],
                 "delta": round(r2["conversion_rate"] - r1["conversion_rate"], 2),
+                "is_statistically_significant": significant,
+            }
+
+        # Inconclusivo se samples insuficientes — nenhuma recomendação sai.
+        if v1_total < self.min_samples or v2_total < self.min_samples:
+            return {
+                **_base(False),
                 "is_regression": False,
                 "is_improvement": False,
                 "is_conclusive": False,
                 "reason": "insufficient_samples",
+                "verdict": "inconclusivo",
+                "recommendation": None,
             }
+
         delta = round(r2["conversion_rate"] - r1["conversion_rate"], 2)
         is_regression = delta < self.regression_threshold
         is_improvement = delta > abs(self.regression_threshold)  # melhoria >= 5pp
+        # Gate estatístico: intervalos separados ⇔ sem sobreposição.
+        separated = v1_ci["high"] < v2_ci["low"] or v2_ci["high"] < v1_ci["low"]
+        if not separated:
+            return {
+                **_base(False),
+                "is_regression": is_regression,
+                "is_improvement": is_improvement,
+                "is_conclusive": True,
+                "reason": "confidence_intervals_overlap",
+                "verdict": "empate",
+                "recommendation": None,
+            }
+        if v2_ci["low"] > v1_ci["high"]:
+            verdict, winner = "v2", v2
+        else:
+            verdict, winner = "v1", v1
         return {
-            "offer_key": offer_key,
-            "v1": v1, "v2": v2,
-            "v1_total": v1_total, "v2_total": v2_total,
-            "v1_conversion": r1["conversion_rate"],
-            "v2_conversion": r2["conversion_rate"],
-            "delta": delta,
+            **_base(True),
             "is_regression": is_regression,
             "is_improvement": is_improvement,
             "is_conclusive": True,
             "reason": None,
+            "verdict": verdict,
+            "recommendation": (
+                f"Recomendado: versão {winner} da oferta {offer_key} "
+                f"(intervalo de confiança 95% sem sobreposição). "
+                f"Aplicação requer aprovação humana e registro de versão/autor."
+            ),
         }

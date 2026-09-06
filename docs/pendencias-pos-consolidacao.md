@@ -208,12 +208,19 @@ durante as próximas mudanças:
 
 #### P1.8 A/B estatístico e aprendizado controlado
 
-- **Status:** 🔵 Estrutural.
-- **O que falta:** intervalo de confiança, regra de amostra mínima, comparação
-  A/B por etapa/canal, recomendação de vencedor e processo de aprovação humana.
-- **Por que importa:** primeiro medir; depois recomendar; só então permitir ajuste
-  controlado. O sistema não deve alterar scoring ou outreach automaticamente por
-  uma amostra pequena.
+- **Status:** 🟠 Parcial — gate estatístico operacional.
+- **Implementado:** `VersionComparator` calcula intervalo de confiança de
+  Wilson (95%) por versão; `verdict` só sai como vencedor (`v1`/`v2`) quando
+  ambos os lados têm amostra mínima **e** os intervalos não se sobrepõem;
+  caso contrário retorna `empate` ou `inconclusivo` com `recommendation: None`.
+  A recomendação emitida declara explicitamente que a aplicação exige
+  aprovação humana e registro de versão/autor — nenhum ajuste automático de
+  scoring/outreach.
+- **O que falta:** consumidor de BI na UI exibindo o veredicto e o fluxo de
+  aprovação humana com auditoria (quem aprovou, versão, evidência).
+- **Por que importa:** primeiro medir; depois recomendar; só então permitir
+  ajuste controlado. O sistema não deve alterar scoring ou outreach
+  automaticamente por uma amostra pequena.
 - **Critério de aceite:** nenhuma recomendação é exibida sem amostra mínima e
   toda alteração aplicada guarda versão, autor e evidência.
 
