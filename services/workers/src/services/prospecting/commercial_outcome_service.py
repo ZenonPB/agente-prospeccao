@@ -22,6 +22,7 @@ class CommercialOutcomeService:
         value: float = 0.0,
         offer_key: str | None = None,
         offer_version: str | None = None,
+        lead_opportunity_id: UUID | None = None,
         provider: str | None = None,
         outreach_at: datetime | None = None,
     ) -> CommercialOutcomeRow:
@@ -50,6 +51,7 @@ class CommercialOutcomeService:
         row = CommercialOutcomeRow(
             organization_id=organization_id,
             lead_id=lead_id,
+            lead_opportunity_id=lead_opportunity_id,
             offer_key=offer_key,
             offer_version=offer_version,
             outcome=outcome,

@@ -31,6 +31,7 @@ REQUIRED_TABLES = {
     "lead_opportunities",
     "event_opportunities",
     "commercial_outcomes",
+    "conversions",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",
@@ -43,6 +44,7 @@ REQUIRED_FKS = {
     "lead_opportunities": {"organizations.id", "leads.id"},
     "event_opportunities": {"organizations.id", "leads.id"},
     "commercial_outcomes": {"organizations.id", "leads.id"},
+    "conversions": {"leads.id", "lead_opportunities.id"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},

@@ -239,10 +239,13 @@ export const leadsApi = {
       body: JSON.stringify({ message_text: messageText }),
     }),
 
-  registerConversion: (id: string, data: { service_sold?: string; contract_value?: number; notes?: string }) =>
+  registerConversion: (id: string, data: { offer_key: string; offer_version?: string; lead_opportunity_id?: string; service_sold?: string; contract_value?: number; notes?: string }) =>
     request<{
       id: string;
       lead_id: string;
+      offer_key: string;
+      offer_version: string | null;
+      lead_opportunity_id: string | null;
       service_sold: string | null;
       contract_value: number | null;
       time_to_close_days: number | null;

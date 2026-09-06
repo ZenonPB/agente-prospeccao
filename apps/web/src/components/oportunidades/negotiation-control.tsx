@@ -56,7 +56,7 @@ export function NegotiationControl({
       if (isApproved && hasValue) {
         await register.mutateAsync({
           id: leadId,
-          data: { contract_value: normalizedValue },
+          data: { offer_key: "unknown", contract_value: normalizedValue },
         });
       }
 

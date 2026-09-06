@@ -175,13 +175,17 @@ durante as próximas mudanças:
 
 #### P1.6 Atribuição explícita de outcome à oferta
 
-- **Status:** 🟠 Parcial.
-- **Hoje:** quando uma conversão não informa a oferta, o sistema usa a
-  oportunidade de maior score como fallback.
+- **Status:** ✅ Operacional para novas conversões.
+- **Histórico:** conversões antigas podiam usar a oportunidade de maior score
+  como fallback quando não havia atribuição disponível.
 - **Problema:** um lead pode ter várias ofertas; a de maior score não é
   necessariamente a que foi vendida.
-- **O que falta:** campo `offer_key`/`offer_version` na conversão e seleção da
-  oportunidade na UI, mantendo o fallback apenas para dados históricos.
+- **Política atual:** novas conversões não usam esse fallback; dados históricos
+  permanecem identificáveis e revisáveis.
+- **Implementado:** novas conversões exigem `offer_key`, aceitam `unknown` como
+  estado revisável, validam a oportunidade no mesmo tenant/lead e persistem
+  `offer_version` e `lead_opportunity_id`; a UI oferece as oportunidades
+  registradas sem escolher automaticamente pela maior pontuação.
 - **Critério de aceite:** toda nova conversão comercial tem oferta explícita ou
   estado `unknown` revisável; o BI não atribui silenciosamente uma oferta errada.
 

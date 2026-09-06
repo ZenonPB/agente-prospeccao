@@ -14,16 +14,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Trophy } from 'lucide-react';
 import { useRegisterConversion } from '@/hooks/use-api';
 import { toast } from 'sonner';
+import type { LeadOpportunity } from '@/types';
 
 interface ConversionDialogProps {
   leadId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  opportunities: LeadOpportunity[];
 }
 
-export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialogProps) {
+export function ConversionDialog({ leadId, open, onOpenChange, opportunities }: ConversionDialogProps) {
   const registerConversion = useRegisterConversion();
   const [service, setService] = useState('');
+  const [offerKey, setOfferKey] = useState('unknown');
+  const [opportunityId, setOpportunityId] = useState('');
   const [value, setValue] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -33,6 +37,8 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
       await registerConversion.mutateAsync({
         id: leadId,
         data: {
+          offer_key: offerKey,
+          lead_opportunity_id: opportunityId || undefined,
           service_sold: service || undefined,
           contract_value: numeric ? Number(numeric) : undefined,
           notes: notes || undefined,
@@ -41,6 +47,8 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
       toast.success('Conversão registrada.');
       onOpenChange(false);
       setService('');
+      setOfferKey('unknown');
+      setOpportunityId('');
       setValue('');
       setNotes('');
     } catch (error) {
@@ -55,6 +63,31 @@ export function ConversionDialog({ leadId, open, onOpenChange }: ConversionDialo
           <DialogTitle>Registrar conversão</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="convOffer" className="text-sm font-medium">
+              Oferta relacionada
+            </label>
+            <select
+              id="convOffer"
+              value={offerKey}
+              onChange={(event) => {
+                const nextKey = event.target.value;
+                setOfferKey(nextKey);
+                setOpportunityId(opportunities.find((item) => item.offer_key === nextKey)?.id ?? '');
+              }}
+              className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            >
+              <option value="unknown">Não identificada (revisar depois)</option>
+              {opportunities.map((opportunity) => (
+                <option key={opportunity.id} value={opportunity.offer_key}>
+                  {opportunity.offer_key} · {opportunity.score} pontos
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Selecione a oferta vendida. O sistema não atribui automaticamente pela maior pontuação.
+            </p>
+          </div>
           <div className="space-y-2">
             <label htmlFor="convService" className="text-sm font-medium">
               Serviço vendido

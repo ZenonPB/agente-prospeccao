@@ -52,9 +52,10 @@ consumidores operacionais e persistência no PostgreSQL:
 - `commercial_outcomes` registra conversão, resposta, reunião e perda de forma
   idempotente; `GET /api/intelligence/outcomes` retorna métricas por oferta e
   versão.
-- A suíte final desta etapa passou com 897 testes, compilação Python e
+- A suíte final desta etapa passou com 900 testes, compilação Python e
   validações do Web (lint, TypeScript e build); Alembic está no head
-  `fc2d3e4f5a6b`.
+  `fd3e4f5a6b7c`; a conversão nova exige oferta explícita ou `unknown` revisável e
+  preserva a oportunidade selecionada.
 
 O pipeline agora usa o `OfferProfileResolver` e o `DiscoveryExecutor` para
 campanhas declarativas, mantém o escopo da organização também em execuções sem
@@ -67,11 +68,10 @@ dashboard de inteligência exibe eventos persistidos e outcomes por oferta. A
 resolução de decisores continua best-effort e preserva o snapshot legado para
 compatibilidade.
 
-Validação: 897 testes Python passaram sob `-W error`, `compileall` passou; o E2E
+Validação: 900 testes Python passaram sob `-W error`, `compileall` passou; o E2E
 real passou no PostgreSQL local; o verificador de schema está disponível em
-`scripts/verify_migrations.py`; o
-  grafo AST foi atualizado após esta rodada; Alembic está no head
-  `fc2d3e4f5a6b`.
+`scripts/verify_migrations.py`; o grafo AST foi atualizado após esta rodada;
+Alembic está no head `fd3e4f5a6b7c`.
 
 **Próximo passo imediato:** configurar um provider externo de eventos em ambiente
 controlado e validar o fluxo ponta a ponta com dados reais (sem habilitar coleta

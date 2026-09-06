@@ -67,6 +67,7 @@ def list_outcomes(
             {
                 "id": str(row.id),
                 "lead_id": str(row.lead_id),
+                "lead_opportunity_id": str(row.lead_opportunity_id) if row.lead_opportunity_id else None,
                 "offer_key": row.offer_key,
                 "offer_version": row.offer_version,
                 "outcome": row.outcome,
