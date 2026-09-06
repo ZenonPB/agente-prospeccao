@@ -286,6 +286,9 @@ def _record_commercial_outcome(
     outcome: str,
     event_key: str,
     value: float = 0.0,
+    offer_key: str | None = None,
+    offer_version: str | None = None,
+    lead_opportunity_id: uuid.UUID | None = None,
 ) -> None:
     """Registra um evento comercial persistente sem bloquear a transição."""
     try:
@@ -298,6 +301,9 @@ def _record_commercial_outcome(
             outcome=outcome,
             event_key=event_key,
             value=value,
+            offer_key=offer_key,
+            offer_version=offer_version,
+            lead_opportunity_id=lead_opportunity_id,
         )
     except Exception as exc:  # noqa: BLE001
         # A trilha/status continuam sendo a fonte operacional do funil.
@@ -1079,6 +1085,9 @@ async def associate_contact_linkedin(
 
 
 class RegisterConversionRequest(BaseModel):
+    offer_key: str = Field(..., min_length=1, max_length=64)
+    offer_version: Optional[str] = Field(None, max_length=32)
+    lead_opportunity_id: Optional[uuid.UUID] = None
     service_sold: Optional[str] = None
     contract_value: Optional[float] = None
     notes: Optional[str] = None
@@ -1136,6 +1145,24 @@ def register_conversion(
     if body.contract_value is not None and body.contract_value < 0:
         raise HTTPException(status_code=400, detail="contract_value não pode ser negativo")
 
+    opportunity = None
+    if body.offer_key != "unknown":
+        opportunity_query = db.query(LeadOpportunityRow).filter(
+            LeadOpportunityRow.id == body.lead_opportunity_id,
+            LeadOpportunityRow.organization_id == _org.id,
+            LeadOpportunityRow.lead_id == lead.id,
+        ) if body.lead_opportunity_id else None
+        opportunity = opportunity_query.first() if opportunity_query is not None else None
+        if body.lead_opportunity_id and opportunity is None:
+            raise HTTPException(status_code=400, detail="Oportunidade não pertence a este lead")
+        if opportunity and opportunity.offer_key != body.offer_key:
+            raise HTTPException(status_code=400, detail="A oferta não corresponde à oportunidade selecionada")
+    elif body.lead_opportunity_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Uma conversão unknown não pode apontar para uma oportunidade",
+        )
+
     from datetime import datetime, timezone
     days_to_close = None
     if lead.created_at:
@@ -1145,6 +1172,9 @@ def register_conversion(
 
     conversion = Conversion(
         lead_id=lead.id,
+        lead_opportunity_id=opportunity.id if opportunity else None,
+        offer_key=body.offer_key,
+        offer_version=body.offer_version or (opportunity.offer_version if opportunity else None),
         service_sold=body.service_sold,
         contract_value=body.contract_value,
         notes=body.notes,
@@ -1160,6 +1190,9 @@ def register_conversion(
         outcome="WON",
         event_key=f"conversion:{conversion.id}",
         value=float(body.contract_value or 0),
+        offer_key=conversion.offer_key,
+        offer_version=conversion.offer_version,
+        lead_opportunity_id=conversion.lead_opportunity_id,
     )
 
     # Contrato fechado ⇒ resultado final APROVADO.
@@ -1188,6 +1221,9 @@ def register_conversion(
             "lead_id": str(lead.id),
             "company_name": lead.company_name,
             "service_sold": conversion.service_sold,
+            "offer_key": conversion.offer_key,
+            "offer_version": conversion.offer_version,
+            "lead_opportunity_id": str(conversion.lead_opportunity_id) if conversion.lead_opportunity_id else None,
             "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
             "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,
             "converted_by": str(user.id) if user else None,
@@ -1198,6 +1234,9 @@ def register_conversion(
         "id": str(conversion.id),
         "lead_id": str(conversion.lead_id),
         "service_sold": conversion.service_sold,
+        "offer_key": conversion.offer_key,
+        "offer_version": conversion.offer_version,
+        "lead_opportunity_id": str(conversion.lead_opportunity_id) if conversion.lead_opportunity_id else None,
         "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
         "time_to_close_days": conversion.time_to_close_days,
         "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,

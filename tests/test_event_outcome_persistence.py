@@ -1,7 +1,7 @@
 """Testes dos serviços persistentes de eventos e outcomes."""
 import os
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -80,3 +80,27 @@ def test_commercial_outcome_is_idempotent_and_metrics_are_real(session):
     assert metrics["metrics"][0]["total"] == 2
     assert metrics["metrics"][0]["won"] == 1
     assert metrics["metrics"][0]["conversion_rate"] == 50.0
+    assert metrics["metrics"][0]["sample_size"] == 2
+    assert metrics["metrics"][0]["sample_minimum"] == 5
+    assert metrics["metrics"][0]["sample_sufficient"] is False
+
+
+def test_commercial_outcomes_filtra_periodo_inclusivo(session):
+    from services.prospecting.commercial_outcome_service import CommercialOutcomeService
+
+    db, org, lead = session
+    service = CommercialOutcomeService()
+    old = service.record_for_lead(db, org.id, lead.id, "LOST", "old", offer_key="landing_page")
+    old.recorded_at = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    current = service.record_for_lead(db, org.id, lead.id, "WON", "current", offer_key="landing_page")
+    current.recorded_at = datetime(2025, 2, 1, tzinfo=timezone.utc)
+    db.commit()
+
+    rows = service.list_for_organization(
+        db,
+        org.id,
+        offer_key="landing_page",
+        date_from=date(2025, 2, 1),
+        date_to=date(2025, 2, 1),
+    )
+    assert [row.event_key for row in rows] == ["current"]

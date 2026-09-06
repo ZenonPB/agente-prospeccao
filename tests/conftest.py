@@ -10,7 +10,42 @@ Mapeamento de imports (igual ao runtime):
 """
 import os
 import sys
+import warnings
 from pathlib import Path
+
+# Starlette 1.3 tenta importar o pacote futuro `httpx2` apenas para emitir um
+# aviso ao usar httpx 0.28. A aplicação declara httpx 0.28; este alias de teste
+# mantém o TestClient funcional sem instalar uma dependência não declarada.
+try:
+    import httpx
+
+    sys.modules.setdefault("httpx2", httpx)
+except ImportError:
+    pass
+
+
+def pytest_configure(config):
+    """Mantém compatibilidade transitória com o TestClient do Starlette.
+
+    O ambiente suportado ainda usa httpx 0.28; versões novas do Starlette
+    sinalizam essa combinação durante a coleta. O filtro é específico para a
+    categoria e módulo upstream, sem esconder depreciações da aplicação.
+    """
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        message=r".*asyncio\.iscoroutinefunction.*",
+        module=r"asyncio\.coroutines",
+    )
+    try:
+        from starlette.exceptions import StarletteDeprecationWarning
+    except ImportError:
+        return
+    warnings.filterwarnings(
+        "ignore",
+        category=StarletteDeprecationWarning,
+        module=r"starlette\.testclient",
+    )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKERS_SRC = REPO_ROOT / "services" / "workers" / "src"

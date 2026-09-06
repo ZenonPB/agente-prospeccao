@@ -1,5 +1,5 @@
 """Persistência de outcomes comerciais para aprendizagem auditável."""
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Dict, Iterable, List
 from uuid import UUID
 
@@ -22,6 +22,7 @@ class CommercialOutcomeService:
         value: float = 0.0,
         offer_key: str | None = None,
         offer_version: str | None = None,
+        lead_opportunity_id: UUID | None = None,
         provider: str | None = None,
         outreach_at: datetime | None = None,
     ) -> CommercialOutcomeRow:
@@ -50,6 +51,7 @@ class CommercialOutcomeService:
         row = CommercialOutcomeRow(
             organization_id=organization_id,
             lead_id=lead_id,
+            lead_opportunity_id=lead_opportunity_id,
             offer_key=offer_key,
             offer_version=offer_version,
             outcome=outcome,
@@ -68,6 +70,8 @@ class CommercialOutcomeService:
         organization_id: UUID,
         offer_key: str | None = None,
         offer_version: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
     ) -> List[CommercialOutcomeRow]:
         query = select(CommercialOutcomeRow).where(
             CommercialOutcomeRow.organization_id == organization_id,
@@ -76,6 +80,20 @@ class CommercialOutcomeService:
             query = query.where(CommercialOutcomeRow.offer_key == offer_key)
         if offer_version:
             query = query.where(CommercialOutcomeRow.offer_version == offer_version)
+        if date_from:
+            query = query.where(
+                CommercialOutcomeRow.recorded_at >= datetime.combine(
+                    date_from, time.min, tzinfo=timezone.utc,
+                )
+            )
+        if date_to:
+            query = query.where(
+                CommercialOutcomeRow.recorded_at < datetime.combine(
+                    date_to + timedelta(days=1),
+                    time.min,
+                    tzinfo=timezone.utc,
+                )
+            )
         return list(db.scalars(query.order_by(CommercialOutcomeRow.recorded_at.desc())).all())
 
     def metrics(self, rows: Iterable[CommercialOutcomeRow]) -> Dict[str, Any]:
@@ -93,5 +111,12 @@ class CommercialOutcomeService:
                 "won": wins,
                 "conversion_rate": round(wins / len(items) * 100, 2) if items else 0.0,
                 "average_ticket": round(sum(float(item.value or 0) for item in items if item.outcome == "WON") / wins, 2) if wins else 0.0,
+                "sample_size": len(items),
+                "sample_minimum": 5,
+                "sample_sufficient": len(items) >= 5,
             })
-        return {"metrics": result, "total_outcomes": len(materialized)}
+        return {
+            "metrics": result,
+            "total_outcomes": len(materialized),
+            "sample_minimum": 5,
+        }

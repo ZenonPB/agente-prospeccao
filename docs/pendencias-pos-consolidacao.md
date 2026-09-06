@@ -83,14 +83,29 @@ durante as próximas mudanças:
 
 #### P0.3 Corrigir a política de warnings Python 3.14
 
-- **Status:** 🟠 Parcial.
+- **Status:** ✅ Operacional.
 - **Problema:** a execução com `-W error` encontra a depreciação de
   `asyncio.iscoroutinefunction` usada pelo `slowapi` instalado no ambiente.
 - **Por que importa:** CI pode tratar warnings como erro e bloquear merges mesmo
   quando o comportamento funcional está correto.
+- **Implementado:** o adaptador de rate limit usa a API `inspect` no Python 3.14;
+  o CI executa a suíte com `-W error` e mantém filtros somente para o fallback
+  upstream do Starlette.
 - **Critério de aceite:** suíte com `-W error` passa, seja por atualização
   compatível de dependência, patch upstream ou política explícita de versão
   Python suportada.
+
+#### P0.5 Observabilidade mínima do pipeline
+
+- **Status:** 🟠 Parcial.
+- **Implementado nesta onda:** eventos de início, fim, falha e recuperação de
+  jobs carregam `job_id`, organização, campanha, duração e erro; exceções do
+  consumidor preservam traceback; campos sensíveis de logs são redigidos.
+- **O que falta:** métricas agregadas por provider, custo/quota, fallback de
+  oferta e dashboards/alertas operacionais.
+- **Critério de aceite desta etapa:** um job pode ser correlacionado do início
+  ao fim sem registrar secrets ou payloads sensíveis; a expansão para métricas
+  de provider permanece uma etapa posterior.
 
 ### P1 — Event Discovery ponta a ponta
 
@@ -160,23 +175,32 @@ durante as próximas mudanças:
 
 #### P1.6 Atribuição explícita de outcome à oferta
 
-- **Status:** 🟠 Parcial.
-- **Hoje:** quando uma conversão não informa a oferta, o sistema usa a
-  oportunidade de maior score como fallback.
+- **Status:** ✅ Operacional para novas conversões.
+- **Histórico:** conversões antigas podiam usar a oportunidade de maior score
+  como fallback quando não havia atribuição disponível.
 - **Problema:** um lead pode ter várias ofertas; a de maior score não é
   necessariamente a que foi vendida.
-- **O que falta:** campo `offer_key`/`offer_version` na conversão e seleção da
-  oportunidade na UI, mantendo o fallback apenas para dados históricos.
+- **Política atual:** novas conversões não usam esse fallback; dados históricos
+  permanecem identificáveis e revisáveis.
+- **Implementado:** novas conversões exigem `offer_key`, aceitam `unknown` como
+  estado revisável, validam a oportunidade no mesmo tenant/lead e persistem
+  `offer_version` e `lead_opportunity_id`; a UI oferece as oportunidades
+  registradas sem escolher automaticamente pela maior pontuação.
 - **Critério de aceite:** toda nova conversão comercial tem oferta explícita ou
   estado `unknown` revisável; o BI não atribui silenciosamente uma oferta errada.
 
 #### P1.7 BI por oferta, versão e variante
 
-- **Status:** 🟠 Parcial.
+- **Status:** 🟠 Parcial — período e amostra operacionais.
 - **Hoje:** endpoint e cartão exibem total, ganhos, taxa de conversão e ticket
-  médio por oferta/versão.
-- **O que falta:** comparação por período, vertical, consultor, etapa, canal,
-  variante e tamanho de amostra.
+  médio por oferta/versão, com filtros de período inclusivo sobre
+  `recorded_at` (`from`/`to`) e por oferta/versão.
+- **Implementado:** cada métrica expõe `sample_size`, `sample_minimum` (5) e
+  `sample_sufficient`; o painel de relatórios reutiliza o período global
+  selecionado e marca "Amostra insuficiente" sem esconder os dados.
+- **O que falta:** comparação por vertical, consultor, etapa, canal e variante —
+  depende de esses atributos ficarem persistidos de forma confiável nos
+  outcomes (`provider` existe, canal/consultor ainda não).
 - **Por que importa:** uma taxa simples não explica se a oferta é melhor ou se há
   apenas poucos dados enviesados.
 - **Critério de aceite:** métricas têm filtros, período, amostra mínima e
@@ -184,12 +208,19 @@ durante as próximas mudanças:
 
 #### P1.8 A/B estatístico e aprendizado controlado
 
-- **Status:** 🔵 Estrutural.
-- **O que falta:** intervalo de confiança, regra de amostra mínima, comparação
-  A/B por etapa/canal, recomendação de vencedor e processo de aprovação humana.
-- **Por que importa:** primeiro medir; depois recomendar; só então permitir ajuste
-  controlado. O sistema não deve alterar scoring ou outreach automaticamente por
-  uma amostra pequena.
+- **Status:** 🟠 Parcial — gate estatístico operacional.
+- **Implementado:** `VersionComparator` calcula intervalo de confiança de
+  Wilson (95%) por versão; `verdict` só sai como vencedor (`v1`/`v2`) quando
+  ambos os lados têm amostra mínima **e** os intervalos não se sobrepõem;
+  caso contrário retorna `empate` ou `inconclusivo` com `recommendation: None`.
+  A recomendação emitida declara explicitamente que a aplicação exige
+  aprovação humana e registro de versão/autor — nenhum ajuste automático de
+  scoring/outreach.
+- **O que falta:** consumidor de BI na UI exibindo o veredicto e o fluxo de
+  aprovação humana com auditoria (quem aprovou, versão, evidência).
+- **Por que importa:** primeiro medir; depois recomendar; só então permitir
+  ajuste controlado. O sistema não deve alterar scoring ou outreach
+  automaticamente por uma amostra pequena.
 - **Critério de aceite:** nenhuma recomendação é exibida sem amostra mínima e
   toda alteração aplicada guarda versão, autor e evidência.
 

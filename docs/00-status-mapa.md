@@ -73,7 +73,7 @@
 - **✅ COMPLETE:** capacidades históricas com cobertura operacional comprovada
 - **🟠 PARTIAL:** coletores externos permanecem opt-in; resolução de decisores ainda mantém snapshot JSONB legado além dos contatos canônicos
 - **🔵 SCAFFOLDING:** `learning_metrics.py` in-memory continua disponível para comparação offline; o endpoint operacional usa `commercial_outcomes`
-- **Validação atual:** suíte Python completa, compilação dos serviços, lint/tsc/build do Web e migrations aplicadas no Postgres local
+- **Validação atual:** suíte Python completa sob `-W error`, compilação dos serviços, lint/tsc/build do Web; a verificação explícita de schema está disponível em `scripts/verify_migrations.py` e a execução real depende de PostgreSQL controlado.
 
 ## Auditoria final — evidência operacional
 
@@ -89,11 +89,12 @@
 
 ### Verificações executadas
 
-- `graphify update . --no-cluster`: grafo atualizado com 5.508 nós e 13.047 arestas.
-- `python -m pytest tests -q`: 889 testes passaram; o E2E original continua condicionado a `E2E_DATABASE_URL`.
+- `graphify update . --no-cluster`: grafo atualizado com 5.649 nós e 13.809 arestas.
+- `python -m pytest tests -q -W error`: 901 testes passaram; o E2E real passou no PostgreSQL controlado.
 - `python -m compileall -q services/api services/workers`: passou.
 - `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram nas validações desta consolidação.
-- Alembic: head `fc2d3e4f5a6b`, com `lead_opportunities`, `offer_profile_key`, `event_opportunities`, `commercial_outcomes` e versionamento aplicados.
+- Alembic: head `fd3e4f5a6b7c`, com atribuição explícita de oferta/oportunidade em conversões e outcomes.
+- Observabilidade mínima: jobs emitem eventos correlacionados de início/fim/falha/recuperação e redigem credenciais nos campos livres.
 
 ## Próximas ações obrigatórias
 

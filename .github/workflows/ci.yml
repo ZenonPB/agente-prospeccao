@@ -31,14 +31,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
       - name: Compile Python
         run: |
           python -m compileall -q services/api services/workers
       - name: Unit tests (sem banco)
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q -W error
 
   migrations:
     name: Migrations (alembic upgrade head)
@@ -80,6 +80,24 @@ jobs:
           GOOGLE_API_KEY: test
           SECRETS_ENCRYPTION_KEY: ""
         run: alembic upgrade head
+      - name: Alembic upgrade head (idempotente)
+        working-directory: services/workers
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+          PGADMIN_EMAIL: admin@test.local
+          PGADMIN_PASSWORD: admin
+          GROQ_API_KEY: test
+          GOOGLE_API_KEY: test
+          SECRETS_ENCRYPTION_KEY: ""
+        run: alembic upgrade head
+      - name: Verify schema contract
+        working-directory: .
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+        run: python scripts/verify_migrations.py --database-url "$DATABASE_URL"
       - name: Seed templates (smoke)
         working-directory: services/workers
         env:

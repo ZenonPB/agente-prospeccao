@@ -439,7 +439,12 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         </TabsContent>
       </Tabs>
 
-      <ConversionDialog leadId={lead.id} open={convOpen} onOpenChange={setConvOpen} />
+      <ConversionDialog
+        leadId={lead.id}
+        open={convOpen}
+        onOpenChange={setConvOpen}
+        opportunities={opportunitiesQ.data?.oportunidades ?? []}
+      />
 
       <OutreachMessagesModal
         lead={lead}

@@ -1132,7 +1132,7 @@ async def run_pipeline(
             db.commit()
 
     except Exception as e:
-        logger.error("Pipeline error: %s", e)
+        logger.exception("Pipeline error")
         yield {"type": "error", "message": str(e), "timestamp": _ts()}
 
         if job:

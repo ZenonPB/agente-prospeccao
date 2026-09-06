@@ -203,6 +203,71 @@ class TestVersionComparator:
         assert result["v2_conversion"] == 0
 
 
+class TestVersionComparatorStatistics:
+    """P1.8: recomendação só sai com amostra mínima e intervalos separados."""
+
+    def test_intervalo_wilson_presente_por_versao(self):
+        from services.prospecting.learning_metrics import (
+            OutcomesRegistry, VersionComparator,
+        )
+        reg = OutcomesRegistry()
+        for i in range(10):
+            reg.record("o", "x", "WON" if i < 5 else "LOST", f"l_{i}", offer_version="1.0")
+        comp = VersionComparator(reg)
+        result = comp.compare("x", "1.0", "2.0")
+        ci = result["v1"]["confidence_interval"]
+        assert set(ci.keys()) == {"low", "high"}
+        assert 0.0 <= ci["low"] <= ci["high"] <= 100.0
+        # 5/10 com n=10: intervalo de Wilson ~ [23.7, 76.3] (z=1.96)
+        assert 20.0 <= ci["low"] <= 28.0
+        assert 72.0 <= ci["high"] <= 80.0
+
+    def test_recomendacao_bloqueada_sem_amostra_minima(self):
+        """Menos de min_samples em qualquer lado → nenhuma recomendação."""
+        from services.prospecting.learning_metrics import (
+            OutcomesRegistry, VersionComparator,
+        )
+        reg = OutcomesRegistry()
+        reg.record("o", "x", "WON", "l1", offer_version="1.0")
+        reg.record("o", "x", "LOST", "l2", offer_version="2.0")
+        comp = VersionComparator(reg, min_samples=5)
+        result = comp.compare("x", "1.0", "2.0")
+        assert result["verdict"] == "inconclusivo"
+        assert result["recommendation"] is None
+
+    def test_recomendacao_bloqueada_com_intervalos_sobrepostos(self):
+        """Amostras grandes mas intervalos sobrepostos → empate estatístico."""
+        from services.prospecting.learning_metrics import (
+            OutcomesRegistry, VersionComparator,
+        )
+        reg = OutcomesRegistry()
+        # 30 amostras por lado, taxas 30% e 40% → CIs de Wilson se sobrepõem.
+        for i in range(30):
+            reg.record("o", "x", "WON" if i < 9 else "LOST", f"a_{i}", offer_version="1.0")
+            reg.record("o", "x", "WON" if i < 12 else "LOST", f"b_{i}", offer_version="2.0")
+        comp = VersionComparator(reg, min_samples=5)
+        result = comp.compare("x", "1.0", "2.0")
+        assert result["verdict"] == "empate"
+        assert result["recommendation"] is None
+
+    def test_recomendacao_emitida_com_intervalos_separados(self):
+        """Diferença clara + amostras suficientes → vencedor recomendado."""
+        from services.prospecting.learning_metrics import (
+            OutcomesRegistry, VersionComparator,
+        )
+        reg = OutcomesRegistry()
+        # 50 amostras: 10% vs 60% — intervalos de Wilson bem separados.
+        for i in range(50):
+            reg.record("o", "x", "WON" if i < 5 else "LOST", f"a_{i}", offer_version="1.0")
+            reg.record("o", "x", "WON" if i < 30 else "LOST", f"b_{i}", offer_version="2.0")
+        comp = VersionComparator(reg, min_samples=5)
+        result = comp.compare("x", "1.0", "2.0")
+        assert result["verdict"] == "v2"
+        assert result["recommendation"] is not None
+        assert "2.0" in result["recommendation"]
+        assert result["is_statistically_significant"] is True
+
+
 class TestPhaseHIntegration:
     """Critério Fase H: 'provar se alteração aumentou/reduziu qualidade'."""
 

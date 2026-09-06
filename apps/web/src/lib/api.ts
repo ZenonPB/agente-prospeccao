@@ -239,10 +239,13 @@ export const leadsApi = {
       body: JSON.stringify({ message_text: messageText }),
     }),
 
-  registerConversion: (id: string, data: { service_sold?: string; contract_value?: number; notes?: string }) =>
+  registerConversion: (id: string, data: { offer_key: string; offer_version?: string; lead_opportunity_id?: string; service_sold?: string; contract_value?: number; notes?: string }) =>
     request<{
       id: string;
       lead_id: string;
+      offer_key: string;
+      offer_version: string | null;
+      lead_opportunity_id: string | null;
       service_sold: string | null;
       contract_value: number | null;
       time_to_close_days: number | null;
@@ -452,8 +455,8 @@ export const campaignsApi = {
 
 export const intelligenceApi = {
   events: (limit = 100) => request<{ events: EventOpportunity[]; total: number }>("/api/intelligence/events", { params: { limit } }),
-  outcomes: (params?: { offer_key?: string; offer_version?: string }) =>
-    request<{ outcomes: CommercialOutcome[]; metrics: CommercialOutcomeMetric[]; total_outcomes: number }>("/api/intelligence/outcomes", { params }),
+  outcomes: (params?: { offer_key?: string; offer_version?: string; from?: string; to?: string }) =>
+    request<{ outcomes: CommercialOutcome[]; metrics: CommercialOutcomeMetric[]; total_outcomes: number; sample_minimum: number }>("/api/intelligence/outcomes", { params }),
 };
 
 // Loop de aprendizado da IA: regras de calibração + convergência IA × time.
