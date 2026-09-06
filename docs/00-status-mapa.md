@@ -1,6 +1,6 @@
 # Mapa de status — pacote de melhorias + consolidação
 
-> **Snapshot:** 2026-09-04 · branch `fixes-fase3` · consolidação operacional pós-Fases C–H
+> **Snapshot:** 2026-09-06 · branch `feat/onda-2-event-discovery-final` · consolidação operacional pós-Onda 2
 >
 > Este arquivo é a **fonte única de verdade** para entender o que está
 > completo, parcial ou apenas declarado. Reflete callers, persistência,
@@ -73,7 +73,7 @@
 - **✅ COMPLETE:** capacidades históricas com cobertura operacional comprovada
 - **🟠 PARTIAL:** coletores externos permanecem opt-in; resolução de decisores ainda mantém snapshot JSONB legado além dos contatos canônicos
 - **🔵 SCAFFOLDING:** `learning_metrics.py` in-memory continua disponível para comparação offline; o endpoint operacional usa `commercial_outcomes`
-- **Validação atual:** suíte Python completa sob `-W error`, compilação dos serviços, lint/tsc/build do Web; a verificação explícita de schema está disponível em `scripts/verify_migrations.py` e a execução real depende de PostgreSQL controlado.
+- **Validação atual:** 919 testes Python sob `-W error`, compilação dos serviços, lint/tsc/build do Web e migration verifier no head `fe4f5a6b7c8d`.
 
 ## Auditoria final — evidência operacional
 
@@ -83,23 +83,21 @@
 | OfferMatcher | ✅ COMPLETE | `services/prospecting/offer_matcher.py` | `enrichment_orchestrator` pós-scoring | `lead_opportunities` + snapshot JSONB compatível | sem tela de gestão dedicada; detalhe do lead já exibe |
 | DiscoveryProvider/Executor | ✅ COMPLETE | `services/prospecting/discovery_executor.py` | `pipeline_worker` usa `execute_async` para Places/CNAE declarativos | logs do job + provenance dos candidatos | providers sem credencial são pulados explicitamente |
 | IntentProvider/Scorer | 🟠 PARTIAL | `services/prospecting/intent_provider.py` | `enrichment_orchestrator` usa HTML cacheado e jobs fornecidos no contexto | `lead.evidence_score.phase3` | job board externo precisa fornecer `scoring_data.jobs` |
-| Event Discovery | 🟠 PARTIAL | `services/prospecting/event_discovery.py` | `pipeline_worker` via `source=events` | `event_opportunities` + `/api/intelligence/events` | endpoint externo é opt-in via `EVENT_DISCOVERY_URL` |
+| Event Discovery | ✅ COMPLETE | `services/prospecting/event_discovery.py` | `pipeline_worker` via `source=events` | `event_opportunities` + `/api/intelligence/events` | provider externo opt-in; status, provenance, lead e expiração idempotente persistidos |
 | Decision Maker Resolution | 🟠 PARTIAL | `services/prospecting/decision_maker_resolution.py` | `ContactEnrichmentService` | `lead.evidence_score.phase3_contact` | resolução é best-effort; `PersonContact` não é persistido diretamente |
-| Learning/Metrics | 🟠 PARTIAL | `services/prospecting/commercial_outcome_service.py` | conversão/status real + `/api/intelligence/outcomes` | `commercial_outcomes` | dashboard dedicado e comparação A/B SQL ainda pendentes |
+| Learning/Metrics | ✅ COMPLETE | `services/prospecting/commercial_outcome_service.py` | outcomes + `/api/intelligence/outcomes` + `/comparisons` | outcomes/comparisons/audit | comparador Wilson com amostra mínima e aprovação humana auditada |
 
 ### Verificações executadas
 
 - `graphify update . --no-cluster`: grafo atualizado com 5.649 nós e 13.809 arestas.
-- `python -m pytest tests -q -W error`: 901 testes passaram; o E2E real passou no PostgreSQL controlado.
+- `python -m pytest tests -q -W error`: 919 testes passaram; o E2E de persistência passou no PostgreSQL local.
 - `python -m compileall -q services/api services/workers`: passou.
 - `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram nas validações desta consolidação.
-- Alembic: head `fd3e4f5a6b7c`, com atribuição explícita de oferta/oportunidade em conversões e outcomes.
+- Alembic: head `fe4f5a6b7c8d`, com status/provenance de eventos e comparação A/B auditável além da atribuição explícita de oferta/oportunidade.
 - Observabilidade mínima: jobs emitem eventos correlacionados de início/fim/falha/recuperação e redigem credenciais nos campos livres.
 
 ## Próximas ações obrigatórias
 
 1. Configurar e validar um provider externo de eventos em ambiente controlado.
 2. Adicionar um job opt-in para coletar vagas e alimentar `IntentProvider`.
-3. Promover `commercial_outcomes` ao dashboard de BI com comparação SQL por versão.
-4. Persistir `PersonContact` como entidade canônica de decisor, mantendo o snapshot legado durante a migração.
-5. Rodar o E2E original com `E2E_DATABASE_URL` e credenciais de teste controladas.
+3. Persistir `PersonContact` como entidade canônica de decisor, mantendo o snapshot legado durante a migração.

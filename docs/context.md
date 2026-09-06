@@ -48,36 +48,38 @@ consumidores operacionais e persistência no PostgreSQL:
   expõe o contrato org-scoped.
 - `event_opportunities` recebe eventos normalizados; `source=events` agenda a
   coleta e `EVENT_DISCOVERY_URL` habilita um provider HTTP externo de forma
-  explícita.
+  explícita. Status do provider, provenance, identificador externo, vínculo
+  org-scoped com Lead/Company e expiração idempotente são persistidos.
 - `commercial_outcomes` registra conversão, resposta, reunião e perda de forma
   idempotente; `GET /api/intelligence/outcomes` retorna métricas por oferta e
   versão.
-- A suíte final desta etapa passou com 900 testes, compilação Python e
+- A suíte final desta etapa passou com 919 testes, compilação Python e
   validações do Web (lint, TypeScript e build); Alembic está no head
-  `fd3e4f5a6b7c`; a conversão nova exige oferta explícita ou `unknown` revisável e
+  `fe4f5a6b7c8d`; a conversão nova exige oferta explícita ou `unknown` revisável e
   preserva a oportunidade selecionada.
 
 O pipeline agora usa o `OfferProfileResolver` e o `DiscoveryExecutor` para
 campanhas declarativas, mantém o escopo da organização também em execuções sem
 campanha e trata a descoberta de eventos como um job próprio, sem enviar eventos
 ao scoring de leads. O orçamento de discovery é global por execução.
-
-Event Discovery e Learning Metrics permanecem parcialmente operacionais por
-decisão de produto: o provider externo é opt-in via `EVENT_DISCOVERY_URL` e o
-dashboard de inteligência exibe eventos persistidos e outcomes por oferta. A
-resolução de decisores continua best-effort e preserva o snapshot legado para
-compatibilidade.
-
-Validação: 901 testes Python passaram sob `-W error`, `compileall` passou; o E2E
-real passou no PostgreSQL local; o verificador de schema está disponível em
-`scripts/verify_migrations.py`; o grafo AST foi atualizado após esta rodada;
-Alembic está no head `fd3e4f5a6b7c`.
+- Event Discovery e Learning Metrics estão operacionais no caminho opt-in:
+  provider externo distingue falha de lista vazia, eventos mantêm histórico e
+  provenance, e o dashboard de inteligência compara versões com Wilson e
+  aprovação humana auditável. A resolução de decisores continua best-effort e
+  preserva o snapshot legado para compatibilidade.
+**Validação:** 919 testes Python passaram sob `-W error`, `compileall`, lint,
+TypeScript e build Web passaram; o E2E de persistência passou no PostgreSQL
+local; `scripts/verify_migrations.py` confirmou head `fe4f5a6b7c8d` e o grafo AST
+foi atualizado após esta rodada.
 
 **Próximo passo imediato:** configurar um provider externo de eventos em ambiente
 controlado e validar o fluxo ponta a ponta com dados reais (sem habilitar coleta
 externa por padrão).
 
-Branch `feat/fase2-sinais-e-episteme` (4 ondas, commits por onda):
+Branch atual: `feat/onda-2-event-discovery-final` (snapshot de 2026-09-06).
+
+Branch histórica de planejamento: `feat/fase2-sinais-e-episteme` (4 ondas,
+commits por onda):
 
 - **W1 — Signal Registry + Status epistêmico (docs 20, 29):**
   `services/workers/src/services/signal_registry.py` — chaves canônicas

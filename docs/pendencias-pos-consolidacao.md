@@ -6,6 +6,9 @@
 > apenas porque existe uma classe, endpoint ou teste isolado: o critério é o
 > fluxo real integrado, persistido, observável e utilizável.
 
+> **Snapshot:** 2026-09-06 · branch `feat/onda-2-event-discovery-final` ·
+> 919 testes Python verdes, migration head `fe4f5a6b7c8d`.
+
 ## 1. Como ler este mapa
 
 ### Status
@@ -111,11 +114,11 @@ durante as próximas mudanças:
 
 #### P1.1 Provider externo de eventos real
 
-- **Status:** 🟠 Parcial.
-- **Hoje:** `EVENT_DISCOVERY_URL` habilita um provider HTTP opt-in; sem a variável
-  o collector externo fica desabilitado.
-- **O que falta:** escolher uma fonte real, validar contrato JSON, autenticação,
-  timeout, retry, limites, observabilidade e testes com respostas reais.
+- **Status:** ✅ Operacional como provider HTTP opt-in.
+- **Hoje:** `EVENT_DISCOVERY_URL` habilita o provider; `EVENT_DISCOVERY_TOKEN`
+  configura Bearer opcional e `EVENT_DISCOVERY_MAX_RETRIES` limita retentativas.
+  O contrato aceita lista ou `{ "events": [...] }`, rejeita shapes inválidos e
+  diferencia `ok`, `empty`, `failed` e `skipped`.
 - **Por que importa:** sem provider configurado, o sistema apenas executa o
   fluxo e pode retornar zero eventos; isso não equivale a uma descoberta real.
 - **Critério de aceite:** erro da fonte aparece como erro de coleta, não como
@@ -123,11 +126,13 @@ durante as próximas mudanças:
 
 #### P1.2 Evento → organizador → lead
 
-- **Status:** 🟠 Parcial.
+- **Status:** ✅ Operacional com revisão humana para resoluções de baixa confiança.
 - **Hoje:** o evento é normalizado, o organizador recebe resolução best-effort,
   timing é calculado e o evento é salvo em `event_opportunities`.
-- **O que falta:** procurar/criar o `Lead` do organizador, resolver CNPJ/empresa,
-  associar o evento ao lead e preservar a provenance dessa associação.
+- **Implementado:** match org-scoped por nome oficial, criação idempotente de
+  `Company`/`Lead` somente quando a resolução tem confiança >= 0.8, vínculo no
+  evento e provenance de provider, identificador, fonte e resolução. Eventos sem
+  evidência suficiente permanecem explicitamente sem lead.
 - **Por que importa:** o sistema atualmente descobre um sinal, mas não o coloca
   automaticamente no funil comercial.
 - **Critério de aceite:** um evento válido produz uma associação rastreável com
@@ -148,10 +153,11 @@ durante as próximas mudanças:
 
 #### P1.4 Expiração e histórico de eventos
 
-- **Status:** 🟠 Parcial.
-- **Hoje:** a listagem principal filtra eventos cuja data já passou.
-- **O que falta:** política explícita para `upcoming`, `expired`, `cancelled` e
-  `unknown`, com job ou atualização idempotente de expiração.
+- **Status:** ✅ Operacional para `upcoming`/`expired`; `cancelled`/`unknown`
+  continuam reservados para fontes que declararem esses estados.
+- **Implementado:** coluna de status, cálculo por data/`expires_at`, job
+  periódico idempotente e listagem de ações somente para `upcoming`; histórico
+  permanece persistido para auditoria.
 - **Por que importa:** filtrar na leitura evita exibição incorreta, mas não
   organiza o histórico nem impede crescimento indefinido da tabela.
 - **Critério de aceite:** eventos vencidos não entram em novas ações; o histórico
@@ -208,7 +214,7 @@ durante as próximas mudanças:
 
 #### P1.8 A/B estatístico e aprendizado controlado
 
-- **Status:** 🟠 Parcial — gate estatístico operacional.
+- **Status:** ✅ Operacional com gate estatístico e aprovação auditável.
 - **Implementado:** `VersionComparator` calcula intervalo de confiança de
   Wilson (95%) por versão; `verdict` só sai como vencedor (`v1`/`v2`) quando
   ambos os lados têm amostra mínima **e** os intervalos não se sobrepõem;
@@ -216,8 +222,9 @@ durante as próximas mudanças:
   A recomendação emitida declara explicitamente que a aplicação exige
   aprovação humana e registro de versão/autor — nenhum ajuste automático de
   scoring/outreach.
-- **O que falta:** consumidor de BI na UI exibindo o veredicto e o fluxo de
-  aprovação humana com auditoria (quem aprovou, versão, evidência).
+- **Implementado:** comparação persistida em `commercial_comparisons`, endpoint
+  org-scoped, painel de BI com veredicto/intervalos e aprovação MANAGER/owner
+  auditada em `org_audit_log`; comparações inconclusivas não podem ser aprovadas.
 - **Por que importa:** primeiro medir; depois recomendar; só então permitir
   ajuste controlado. O sistema não deve alterar scoring ou outreach
   automaticamente por uma amostra pequena.
