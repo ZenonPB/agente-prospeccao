@@ -121,7 +121,7 @@ export default function RelatoriosPage() {
             </Reveal>
           )}
           <Reveal delay={90}>
-            <IntelligenceSection />
+            <IntelligenceSection period={period} />
           </Reveal>
           {metricsQ.data && metricsQ.data.total_feedbacks > 0 && (
             <Reveal delay={100}>

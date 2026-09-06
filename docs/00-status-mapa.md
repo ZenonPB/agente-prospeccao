@@ -90,7 +90,7 @@
 ### Verificações executadas
 
 - `graphify update . --no-cluster`: grafo atualizado com 5.649 nós e 13.809 arestas.
-- `python -m pytest tests -q -W error`: 900 testes passaram; o E2E real passou no PostgreSQL controlado.
+- `python -m pytest tests -q -W error`: 901 testes passaram; o E2E real passou no PostgreSQL controlado.
 - `python -m compileall -q services/api services/workers`: passou.
 - `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram nas validações desta consolidação.
 - Alembic: head `fd3e4f5a6b7c`, com atribuição explícita de oferta/oportunidade em conversões e outcomes.

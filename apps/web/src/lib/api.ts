@@ -455,8 +455,8 @@ export const campaignsApi = {
 
 export const intelligenceApi = {
   events: (limit = 100) => request<{ events: EventOpportunity[]; total: number }>("/api/intelligence/events", { params: { limit } }),
-  outcomes: (params?: { offer_key?: string; offer_version?: string }) =>
-    request<{ outcomes: CommercialOutcome[]; metrics: CommercialOutcomeMetric[]; total_outcomes: number }>("/api/intelligence/outcomes", { params }),
+  outcomes: (params?: { offer_key?: string; offer_version?: string; from?: string; to?: string }) =>
+    request<{ outcomes: CommercialOutcome[]; metrics: CommercialOutcomeMetric[]; total_outcomes: number; sample_minimum: number }>("/api/intelligence/outcomes", { params }),
 };
 
 // Loop de aprendizado da IA: regras de calibração + convergência IA × time.

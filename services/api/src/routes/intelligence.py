@@ -51,6 +51,8 @@ def list_events(
 def list_outcomes(
     offer_key: Optional[str] = Query(None, max_length=64),
     offer_version: Optional[str] = Query(None, max_length=32),
+    date_from: Optional[date] = Query(None, alias="from"),
+    date_to: Optional[date] = Query(None, alias="to"),
     db: Session = Depends(get_db),
     org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(require_analyst()),
@@ -60,7 +62,12 @@ def list_outcomes(
     from services.prospecting.commercial_outcome_service import CommercialOutcomeService
 
     rows = CommercialOutcomeService().list_for_organization(
-        db, org.id, offer_key=offer_key, offer_version=offer_version,
+        db,
+        org.id,
+        offer_key=offer_key,
+        offer_version=offer_version,
+        date_from=date_from,
+        date_to=date_to,
     )
     return CommercialOutcomeService().metrics(rows) | {
         "outcomes": [

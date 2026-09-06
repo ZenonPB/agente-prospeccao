@@ -105,7 +105,7 @@ export function useIntelligenceEvents(limit = 100, enabled = true) {
   });
 }
 
-export function useCommercialOutcomes(params?: { offer_key?: string; offer_version?: string }, enabled = true) {
+export function useCommercialOutcomes(params?: { offer_key?: string; offer_version?: string; from?: string; to?: string }, enabled = true) {
   return useQuery({
     queryKey: ["intelligence", "outcomes", params],
     queryFn: () => intelligenceApi.outcomes(params),
@@ -113,9 +113,9 @@ export function useCommercialOutcomes(params?: { offer_key?: string; offer_versi
   });
 }
 
-export function useIntelligence(enabled = true) {
+export function useIntelligence(period?: { from?: string; to?: string }, enabled = true) {
   const events = useIntelligenceEvents(100, enabled);
-  const outcomes = useCommercialOutcomes(undefined, enabled);
+  const outcomes = useCommercialOutcomes(period, enabled);
   return { events, outcomes };
 }
 

@@ -68,7 +68,7 @@ dashboard de inteligência exibe eventos persistidos e outcomes por oferta. A
 resolução de decisores continua best-effort e preserva o snapshot legado para
 compatibilidade.
 
-Validação: 900 testes Python passaram sob `-W error`, `compileall` passou; o E2E
+Validação: 901 testes Python passaram sob `-W error`, `compileall` passou; o E2E
 real passou no PostgreSQL local; o verificador de schema está disponível em
 `scripts/verify_migrations.py`; o grafo AST foi atualizado após esta rodada;
 Alembic está no head `fd3e4f5a6b7c`.

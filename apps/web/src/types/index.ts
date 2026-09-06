@@ -189,6 +189,9 @@ export interface CommercialOutcomeMetric {
   won: number;
   conversion_rate: number;
   average_ticket: number;
+  sample_size: number;
+  sample_minimum: number;
+  sample_sufficient: boolean;
 }
 
 export interface SlaAlertItem {

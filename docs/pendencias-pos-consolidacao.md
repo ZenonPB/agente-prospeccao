@@ -191,11 +191,16 @@ durante as próximas mudanças:
 
 #### P1.7 BI por oferta, versão e variante
 
-- **Status:** 🟠 Parcial.
+- **Status:** 🟠 Parcial — período e amostra operacionais.
 - **Hoje:** endpoint e cartão exibem total, ganhos, taxa de conversão e ticket
-  médio por oferta/versão.
-- **O que falta:** comparação por período, vertical, consultor, etapa, canal,
-  variante e tamanho de amostra.
+  médio por oferta/versão, com filtros de período inclusivo sobre
+  `recorded_at` (`from`/`to`) e por oferta/versão.
+- **Implementado:** cada métrica expõe `sample_size`, `sample_minimum` (5) e
+  `sample_sufficient`; o painel de relatórios reutiliza o período global
+  selecionado e marca "Amostra insuficiente" sem esconder os dados.
+- **O que falta:** comparação por vertical, consultor, etapa, canal e variante —
+  depende de esses atributos ficarem persistidos de forma confiável nos
+  outcomes (`provider` existe, canal/consultor ainda não).
 - **Por que importa:** uma taxa simples não explica se a oferta é melhor ou se há
   apenas poucos dados enviesados.
 - **Critério de aceite:** métricas têm filtros, período, amostra mínima e

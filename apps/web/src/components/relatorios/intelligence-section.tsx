@@ -8,8 +8,8 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(`${value}T12:00:00`));
 }
 
-export function IntelligenceSection() {
-  const { events, outcomes } = useIntelligence();
+export function IntelligenceSection({ period }: { period?: { from?: string; to?: string } }) {
+  const { events, outcomes } = useIntelligence(period);
 
   if (events.isLoading || outcomes.isLoading) {
     return <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
@@ -43,8 +43,8 @@ export function IntelligenceSection() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-primary" />Resultados por oferta</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {metrics.length === 0 ? <p className="text-sm text-muted-foreground">Ainda não há resultados comerciais registrados.</p> : metrics.map((metric) => (
-              <div key={`${metric.offer_key}-${metric.offer_version || 'atual'}`} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{metric.offer_key}</p><p className="text-xs text-muted-foreground">{metric.won} de {metric.total} conversões · ticket médio R$ {metric.average_ticket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div><strong className="text-emerald-600">{metric.conversion_rate.toLocaleString('pt-BR')}%</strong></div>
+            {metrics.length === 0 ? <p className="text-sm text-muted-foreground">Ainda não há resultados comerciais registrados neste período.</p> : metrics.map((metric) => (
+              <div key={`${metric.offer_key}-${metric.offer_version || 'atual'}`} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{metric.offer_key}</p><p className="text-xs text-muted-foreground">{metric.won} de {metric.total} outcomes · amostra {metric.sample_size}/{metric.sample_minimum}</p><p className="text-xs text-muted-foreground">Ticket médio R$ {metric.average_ticket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p></div><div className="text-right"><strong className="text-emerald-600">{metric.conversion_rate.toLocaleString('pt-BR')}%</strong>{!metric.sample_sufficient && <p className="text-[11px] text-amber-700">Amostra insuficiente</p>}</div></div>
             ))}
           </CardContent>
         </Card>
