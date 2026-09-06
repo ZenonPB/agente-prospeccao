@@ -72,7 +72,7 @@
 - **Total:** 47 capabilities históricas + OfferProfile/OfferMatcher/Event/Intent/Learning
 - **✅ COMPLETE:** capacidades históricas com cobertura operacional comprovada
 - **🟠 PARTIAL:** coletores externos permanecem opt-in; resolução de decisores ainda mantém snapshot JSONB legado além dos contatos canônicos
-- **🔵 SCAFFOLDING:** `learning_metrics.py` in-memory continua disponível para comparação offline; o endpoint operacional usa `commercial_outcomes`
+- **🔵 SCAFFOLDING:** `learning_metrics.py` in-memory continua disponível para comparação offline; o endpoint operacional usa `commercial_outcomes` e `commercial_comparisons`
 - **Validação atual:** 919 testes Python sob `-W error`, compilação dos serviços, lint/tsc/build do Web e migration verifier no head `fe4f5a6b7c8d`.
 
 ## Auditoria final — evidência operacional
@@ -89,7 +89,7 @@
 
 ### Verificações executadas
 
-- `graphify update . --no-cluster`: grafo atualizado com 5.649 nós e 13.809 arestas.
+- `graphify update . --no-cluster`: grafo atualizado após a branch atual.
 - `python -m pytest tests -q -W error`: 919 testes passaram; o E2E de persistência passou no PostgreSQL local.
 - `python -m compileall -q services/api services/workers`: passou.
 - `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram nas validações desta consolidação.

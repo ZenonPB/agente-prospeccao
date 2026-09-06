@@ -23,13 +23,14 @@
 
 ### Consolidação operacional pós-auditoria (2026-09-04)
 
-### Onda 0 — confiabilidade (em execução)
+### Onda 0 — confiabilidade ✅ Fechada
 
 - A política de warnings Python 3.14 está ativa: a suíte passa com `-W error`
   usando `inspect.iscoroutinefunction` no adaptador local do slowapi e um filtro
   específico para o fallback de `httpx` do Starlette.
-- O E2E de outreach agora verifica a venda persistida e remove a organização
-  temporária no cleanup; ainda requer PostgreSQL para ser executado.
+- O E2E de outreach verifica a venda persistida e remove a organização
+  temporária no cleanup; os testes de persistência controlada rodam em
+  PostgreSQL.
 - `scripts/verify_migrations.py` valida head único, tabelas, índices e FKs
   essenciais sem autogenerate, downgrade ou alteração por padrão.
 - Jobs registram eventos correlacionados de início/fim/falha/recuperação, com
@@ -111,9 +112,8 @@ commits por onda):
   lead quente.
 
 Registro histórico: a suíte da Fase 2 foi reportada como **618 testes** em sua
-execução original. Nesta auditoria final, a suíte completa não foi reproduzida
-no Python global (dependências de desenvolvimento ausentes); os testes focados
-C–H passaram e o resultado atual está registrado abaixo.
+execução original. O estado atual consolidado está registrado acima com **919
+testes** sob `-W error`.
 
 **Próximo passo imediato:** qualquer doc ainda Proposto do plano (W2+ já
 entregue; candidatos naturais: 22-discovery-planner, 27-v2, 05, 12, 09,
