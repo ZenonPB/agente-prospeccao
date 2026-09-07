@@ -21,6 +21,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 import httpx
+import time
 
 
 # ============================================================
@@ -310,6 +311,7 @@ class EventDiscoveryExecutor:
         skipped: List[str] = []
         provider_status: Dict[str, str] = {}
         provider_errors: Dict[str, str] = {}
+        provider_metrics: Dict[str, Dict[str, Any]] = {}
         rejected_count = 0
 
         # 1) Provider collection — usa plan se fornecido, senão todos
@@ -320,16 +322,24 @@ class EventDiscoveryExecutor:
             if provider is None:
                 skipped.append(provider_name)
                 provider_status[provider_name] = "skipped"
+                provider_metrics[provider_name] = self._provider_metric(
+                    "skipped", 0, 0, error_code=None, retryable=False,
+                )
                 continue
             execution_order.append(provider_name)
             # Roda provider (sync ou async). Falha do provider é registrada —
             # NUNCA silenciada como "zero eventos" (P1.1).
+            started = time.perf_counter()
             try:
                 raw_events = self._invoke_provider(provider, lead_context)
             except Exception as exc:  # noqa: BLE001 — registrado no resultado
                 provider_status[provider_name] = "failed"
                 provider_errors[provider_name] = f"{type(exc).__name__}: {exc}"
                 events_by_provider[provider_name] = []
+                provider_metrics[provider_name] = self._provider_metric(
+                    "failed", 0, started, error_code=type(exc).__name__,
+                    retryable=self._is_retryable(exc),
+                )
                 continue
             # 2) Converte para EventOpportunity; inválidos são rejeitados e contados
             opps: List[EventOpportunity] = []
@@ -341,6 +351,10 @@ class EventDiscoveryExecutor:
                     opps.append(opp)
             events_by_provider[provider_name] = opps
             provider_status[provider_name] = "ok" if opps else "empty"
+            provider_metrics[provider_name] = self._provider_metric(
+                "success" if opps else "empty", len(opps), started,
+                error_code=None, retryable=False,
+            )
 
         # 3) Dedup por source_url
         all_events: List[EventOpportunity] = []
@@ -386,10 +400,40 @@ class EventDiscoveryExecutor:
             "skipped": skipped,
             "provider_status": provider_status,
             "provider_errors": provider_errors,
+            "provider_metrics": provider_metrics,
             "rejected_count": rejected_count,
             "total_events": len(all_events),
             "unique_events": unique_events,
             "unique_count": len(unique_events),
+        }
+
+    @staticmethod
+    def _is_retryable(exc: Exception) -> bool:
+        """Indica se a falha parece transitória para monitoramento operacional."""
+        message = str(exc).lower()
+        return any(token in message for token in (
+            "429", "408", "500", "502", "503", "504", "timeout",
+            "timed out", "indisponível", "temporar",
+        ))
+
+    @staticmethod
+    def _provider_metric(
+        status: str,
+        result_count: int,
+        started: float,
+        *,
+        error_code: Optional[str],
+        retryable: bool,
+    ) -> Dict[str, Any]:
+        """Monta o contrato estável de observabilidade de um provider."""
+        elapsed = int(max(0, (time.perf_counter() - started) * 1000)) if started else 0
+        return {
+            "status": status,
+            "result_count": result_count,
+            "duration_ms": elapsed,
+            "budget_used": result_count,
+            "error_code": error_code,
+            "retryable": retryable,
         }
 
     def _invoke_provider(

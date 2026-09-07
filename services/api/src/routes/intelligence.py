@@ -55,6 +55,11 @@ def list_events(
                 "source_identifier": row.source_identifier,
                 "provenance": row.provenance or {},
                 "lead_id": str(row.lead_id) if row.lead_id else None,
+                "decision_maker_id": str(row.decision_maker_id) if row.decision_maker_id else None,
+                "decision_maker_status": row.decision_maker_status,
+                "recommended_channel": row.recommended_channel,
+                "action_status": row.action_status,
+                "next_action": row.next_action,
             }
             for row in rows
         ],

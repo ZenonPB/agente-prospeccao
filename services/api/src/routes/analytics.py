@@ -16,6 +16,7 @@ Endpoints:
 - `GET /api/analytics/timeline`      — evolução temporal (novos/reuniões/fechados)
 - `GET /api/analytics/forecast`      — forecast ponderado por estágio
 - `GET /api/analytics/export/pdf`    — relatório executivo em PDF
+- `GET /api/analytics/provider-usage` — execução, latência e falhas por provider
 """
 from typing import Optional
 import uuid
@@ -213,6 +214,44 @@ def deliverability(
     deve ser pausado (bounce rate > 5%).
     """
     return analytics.check_email_deliverability(from_date=from_date, to_date=to_date)
+
+
+@router.get("/provider-usage")
+def provider_usage(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    provider: Optional[str] = Query(None, min_length=1, max_length=64),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+    db: Session = Depends(get_db),
+):
+    """Agrega execuções de providers sem expor dados de outra organização."""
+    from datetime import datetime, timezone
+    from services.provider_execution_metric_service import ProviderExecutionMetricService
+
+    def parse_boundary(value: Optional[str], end: bool = False):
+        if not value:
+            return None
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+
+    try:
+        metrics = ProviderExecutionMetricService().list_for_organization(
+            db,
+            org.id,
+            date_from=parse_boundary(from_date),
+            date_to=parse_boundary(to_date, end=True),
+            provider=provider,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Período inválido: {exc}") from exc
+    return {
+        "providers": ProviderExecutionMetricService.aggregate_metrics(metrics),
+        "sample_size": len(metrics),
+        "cost_available": any(metric.cost is not None for metric in metrics),
+    }
 
 
 @router.get("/message-variants")

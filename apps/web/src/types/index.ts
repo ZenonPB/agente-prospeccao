@@ -60,6 +60,14 @@ export interface ContactItem {
   email_verified_at?: string;
   linkedin_url?: string;
   linkedin_confidence?: number;
+  identity_confidence?: number;
+  contact_confidence?: number;
+  source_reliability?: number;
+  verification_status?: string;
+  last_verified_at?: string | null;
+  routability_type?: 'DIRECT_CONTACT' | 'ROUTABLE_CONTACT' | 'INSTITUTIONAL' | 'UNKNOWN';
+  routable?: boolean;
+  routability_reason?: string | null;
   linkedin_match_status?: 'NOT_FOUND' | 'CANDIDATE' | 'NEEDS_REVIEW' | 'VERIFIED';
   is_primary?: boolean;
   source?: string;
@@ -175,6 +183,11 @@ export interface EventOpportunity {
   source_identifier?: string | null;
   provenance?: Record<string, unknown>;
   lead_id?: string | null;
+  decision_maker_id?: string | null;
+  decision_maker_status?: 'resolved' | 'not_found' | 'failed' | null;
+  recommended_channel?: 'email' | 'phone' | 'whatsapp' | 'instagram' | null;
+  action_status?: 'ready' | 'needs_review' | null;
+  next_action?: string | null;
 }
 
 export interface CommercialOutcome {

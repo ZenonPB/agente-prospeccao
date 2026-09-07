@@ -1,7 +1,7 @@
 # OfferProfile e oportunidades comerciais
 
 > **Status atual:** contrato, registry, resolver e matcher estão operacionais no
-> pipeline. Snapshot: 2026-09-06 · branch `feat/onda-2-event-discovery-final`.
+> pipeline. Snapshot: 2026-09-07 · branch `feat/sprint-identidade-decisores`.
 > Este documento substitui os status históricos das fases C–H; o plano original
 > está preservado em `docs/consolidacao.md`.
 
@@ -83,9 +83,9 @@ resolve o organizador, calcula timing e persiste `event_opportunities`. A
 persistência aceita `offer_key` (default `trophies`) e vincula o organizador a
 `Company`/`Lead` somente com evidência suficiente.
 
-O fluxo ainda **não** executa automaticamente `EventOpportunity → OfferMatcher
-→ LeadOpportunity → decisor → outreach`. Essa integração é pendência, não deve
-ser descrita como entregue.
+O fluxo executa `EventOpportunity → OfferMatcher → LeadOpportunity` e prepara
+uma ação recomendada para eventos futuros com contato persistido. Ainda não
+executa descoberta externa de decisor nem `→ outreach`; o envio permanece humano.
 
 ## Outcomes e versões
 
@@ -114,5 +114,5 @@ operacional lê e grava no PostgreSQL.
 
 O contrato é coberto por testes unitários/integrados de resolver, matcher,
 persistência de oportunidades, outcomes e comparação A/B. O snapshot geral da
-branch foi validado com 919 testes Python sob `-W error`, `compileall`, lint,
-TypeScript, build Web e migration verifier no head `fe4f5a6b7c8d`.
+branch foi validado com 939 testes Python sob `-W error`, `compileall`, lint,
+TypeScript, build Web e migration verifier no head `cc8d9e0f1a2b`.

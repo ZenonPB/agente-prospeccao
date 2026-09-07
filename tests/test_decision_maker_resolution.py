@@ -76,6 +76,29 @@ class TestDecisionMakerResolver:
         # roles do profile guiam busca
         assert "plant_engineer" in str(result.audit.get("profile_roles_searched", []))
 
+    def test_resolver_pode_resolver_sem_cpf_com_evidencias_concordantes(self):
+        from services.prospecting.decision_maker_resolution import DecisionMakerResolver
+
+        result = DecisionMakerResolver().resolve(
+            company_data={"domain": "empresa.com.br"},
+            profile={"decision_makers": {"roles": ["founder"]}},
+            sources={
+                "company_site": [{
+                    "name": "Maria Silva",
+                    "email": "maria@empresa.com.br",
+                    "linkedin_url": "https://www.linkedin.com/in/maria-silva",
+                }],
+                "verified_email": [{
+                    "name": "Maria Silva",
+                    "email": "maria@empresa.com.br",
+                }],
+            },
+        )
+
+        assert result.status == "resolved"
+        assert result.audit["has_cpf"] is False
+        assert result.audit["identity_confidence"] >= 70
+
 
 class TestIdentityResolver:
     def test_merge_contatos_duplicados_por_cpf(self):
@@ -136,6 +159,61 @@ class TestIdentityResolver:
 
 
 class TestContactConfidence:
+    def test_source_reliability_tem_pesos_calibraveis(self):
+        from services.prospecting.decision_maker_resolution import ContactConfidence
+
+        confidence = ContactConfidence()
+
+        assert confidence.source_reliability("receita_qsa") == 0.95
+        assert confidence.source_reliability("company_site") == 0.90
+        assert confidence.source_reliability("provider_desconhecido") == 0.30
+
+    def test_identity_confidence_resolve_sem_cpf_com_fontes_concordantes(self):
+        from services.prospecting.decision_maker_resolution import ContactConfidence, PersonContact
+
+        person = PersonContact(
+            name="Maria Silva",
+            source="company_site",
+            email="maria@empresa.com.br",
+            linkedin_url="https://www.linkedin.com/in/maria-silva",
+        )
+        confidence = ContactConfidence().identity_confidence(
+            person,
+            ["company_site", "verified_email", "linkedin_current"],
+        )
+
+        assert confidence["status"] == "resolved"
+        assert confidence["confidence"] >= 70
+        assert confidence["has_cpf"] is False
+        assert confidence["sources"] == ["company_site", "verified_email", "linkedin_current"]
+
+    def test_identity_confidence_partial_com_uma_fonte_fraca(self):
+        from services.prospecting.decision_maker_resolution import ContactConfidence, PersonContact
+
+        person = PersonContact(name="Maria Silva", source="search_engine")
+        confidence = ContactConfidence().identity_confidence(person, ["search_engine"])
+
+        assert confidence["status"] == "partial"
+        assert confidence["confidence"] < 70
+
+    def test_contact_confidence_considera_fonte_e_canais_verificados(self):
+        from services.prospecting.decision_maker_resolution import ContactConfidence, PersonContact
+
+        person = PersonContact(
+            name="Maria Silva",
+            source="company_site",
+            email="maria@empresa.com.br",
+            linkedin_url="https://www.linkedin.com/in/maria-silva",
+        )
+        confidence = ContactConfidence().contact_confidence(
+            person,
+            sources=["company_site", "verified_email"],
+            email_verified=True,
+        )
+
+        assert confidence["confidence"] >= 80
+        assert confidence["actionable"] is True
+        assert confidence["identity"]["status"] == "resolved"
     def test_aggregate_de_multiplas_fontes(self):
         from services.prospecting.decision_maker_resolution import (
             ContactConfidence, PersonContact,

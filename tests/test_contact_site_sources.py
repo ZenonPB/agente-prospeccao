@@ -183,3 +183,51 @@ def test_enrich_email_heuristica_ultimo_recurso():
     assert contact.email == "joao.silva@exemplo.com.br"
     assert contact.raw_data["email_source"] == "heuristic"
     assert contact.raw_data["email_verified"] is False
+
+
+def test_update_contact_confidence_persiste_identidade_sem_cpf():
+    contact = _make_contact(name="Maria Silva")
+    contact.source = "company_site"
+    contact.email = "maria@exemplo.com.br"
+    contact.email_verified = True
+    contact.linkedin_url = "https://www.linkedin.com/in/maria-silva"
+    contact.raw_data = {
+        "email_source": "verified_email",
+        "linkedin_source": "linkedin_current",
+    }
+
+    metadata = ContactEnrichmentService().update_contact_confidence(contact)
+
+    assert metadata["identity"]["status"] == "resolved"
+    assert contact.identity_confidence >= 70
+    assert contact.contact_confidence >= 80
+    assert contact.verification_status == "fully_verified"
+    assert contact.source_reliability == 0.9
+
+
+def test_update_contact_confidence_fonte_desconhecida_fica_em_revisao():
+    contact = _make_contact(name="Maria Silva")
+    contact.source = "provider_novo"
+    contact.email = "maria@gmail.com"
+    contact.raw_data = {}
+
+    metadata = ContactEnrichmentService().update_contact_confidence(contact)
+
+    assert metadata["identity"]["status"] == "partial"
+    assert contact.identity_confidence < 70
+    assert contact.verification_status == "needs_review"
+    assert contact.source_reliability == 0.3
+
+
+def test_update_contact_confidence_persiste_routability_do_contato():
+    contact = _make_contact(name="Maria Silva")
+    contact.source = "company_site"
+    contact.phone = "1633334000"
+
+    metadata = ContactEnrichmentService().update_contact_confidence(contact)
+
+    assert metadata["routability"]["type"] == "DIRECT_CONTACT"
+    assert metadata["routability"]["routable"] is True
+    assert contact.routability_type == "DIRECT_CONTACT"
+    assert contact.routable is True
+    assert contact.routability_reason == "direct_line"

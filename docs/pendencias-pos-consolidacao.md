@@ -2,15 +2,15 @@
 
 > **Objetivo:** registrar apenas o que ainda falta implementar, validar, integrar, persistir ou tornar operacional no sistema atual.
 >
-> **Base da revisão:** estado atual do repositório no branch `feat/onda-2-event-discovery-final`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
+> **Base da revisão:** estado atual do repositório no branch `feat/sprint-identidade-decisores`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
 >
 > **Regra principal:** uma capacidade não deve ser chamada de concluída apenas porque existe classe, helper, registry, teste unitário ou retorno estruturado. Para ser **Operacional**, precisa existir no fluxo real, com persistência quando necessária, tenant scope, estados de erro explícitos, observabilidade e comportamento verificável.
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-06 · `919 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-07 · `939 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `fe4f5a6b7c8d`.
+> `cc8d9e0f1a2b`.
 
 ## Resumo desta revisão
 
@@ -32,7 +32,7 @@
 
 - identidade cross-provider de empresas e provenance genérica de Candidate/Lead;
 - schema semântico e administração de `OfferProfile`;
-- evento → `OfferMatcher` → decisor → outreach;
+- evento → decisor → outreach (a etapa evento → `OfferMatcher` → oportunidade já está operacional);
 - provider real especializado de vagas e intent;
 - BI por vertical/consultor/canal/etapa/variante e Precision@K operacional;
 - entidade canônica e pipeline completo de decisores;
@@ -44,17 +44,22 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `fe4f5a6b7c8d`. |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `cc8d9e0f1a2b`. |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
-| P0.5 Observabilidade agregada | 🟠 Parcial | Status/erros de Event Discovery existem; faltam métricas agregadas por provider/custo/quota. |
+| P0.5 Observabilidade agregada | 🟠 Parcial | Métricas históricas por execução e endpoint org-scoped existem; ainda faltam custo real e correlação consolidada com quota. |
 | P1.15–P1.16 Event Discovery/provider → Lead | ✅ Feito | Provider confiável, dedup, provenance e vínculo org-scoped. |
-| P1.19 Expiração de eventos | 🟠 Parcial | `upcoming`/`expired` e job idempotente por `event_date`; TTL explícito em string ainda precisa conversão. |
+| P1.19 Expiração de eventos | ✅ Feito | `upcoming`/`expired`, TTL ISO normalizado para UTC e job idempotente. |
 | P1.22–P1.24 Atribuição comercial | ✅ Feito | Oferta, versão e oportunidade persistidas. |
 | P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
-| P1.17–P1.18 Evento → oferta/decisor/outreach | 🔵 Estrutural | Ainda não há consumidor ponta a ponta. |
-| P1.31–P1.39 Decisores canônicos | 🟠 Parcial | Contatos existem; entidade/provenance/resolução completa faltam. |
+| P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
+| P1.18 Evento → decisor/outreach | 🟠 Parcial | Ação recomendada persiste contato/canal quando já há decisor; descoberta externa e outreach ainda faltam. |
+| P1.31 Entidade canônica de pessoa | 🟠 Parcial | Metadados de confiança e acionabilidade persistidos em `Contact`; entidade canônica independente ainda falta. |
+| P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
+| P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | Contatos e ação recomendada existem; discovery externo e cascade completa ainda faltam. |
+| P1.39 Routable contact | 🟠 Parcial | Classificação persistida e exposta; integração efetiva à cadência ainda falta. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
 
@@ -324,7 +329,7 @@ A operação consegue explicar **por que uma campanha trouxe poucos leads**.
 
 ## P1.1 — Cross-provider Company Identity Resolution
 
-**Status:** 🔵 Estrutural
+**Status:** 🟠 Parcial
 
 ### Problema
 
@@ -383,7 +388,6 @@ services/api/src/pipeline_worker.py
 
 ---
 
-## P1.2 — Persistir provenance por provider no Candidate/Lead
 
 **Status:** 🟠 Parcial
 
@@ -990,9 +994,11 @@ failed
 
 ## P1.17 — Evento → OfferMatcher → oportunidade
 
-**Status:** 🔵 Estrutural
+**Status:** ✅ Operacional para eventos futuros com lead resolvido
 
-Evento não deve parar em relatório.
+Evento não deve parar em relatório. Eventos futuros com lead resolvido agora são
+processados pelo `EventOpportunityService` e persistidos como oportunidade de
+`trophies` usando o `OfferMatcher` existente.
 
 Fluxo desejado:
 
@@ -1007,15 +1013,18 @@ EventOpportunity
 
 ### Critério de aceite
 
-Evento futuro gera oportunidade comercial rastreável para troféus.
+Evento futuro com organizador resolvido gera oportunidade comercial rastreável
+para troféus, com versão, evidências temporais e operação idempotente. Eventos
+sem lead ou expirados ficam explicitamente ignorados; decisor e outreach não são
+disparados automaticamente.
 
 ---
 
 ## P1.18 — Evento → decisor → ação comercial
 
-**Status:** 🔵 Estrutural
+**Status:** 🟠 Parcial
 
-Após resolver organizador:
+Após resolver organizador e, quando disponível, selecionar um contato persistido:
 
 ```text
 OfferProfile.trophies.decision_makers
@@ -1025,7 +1034,7 @@ OfferProfile.trophies.decision_makers
 → próxima ação
 ```
 
-UI deve mostrar:
+O backend agora persiste a recomendação quando há contato acionável. A UI deve mostrar:
 
 ```text
 Evento
@@ -1616,6 +1625,10 @@ em serviços antigos.
 **Status:** 🟠 Parcial
 
 Nome + departamento + telefone geral pode ser suficiente para ação humana.
+
+A classificação agora é persistida em `Contact` (`routability_type`, `routable`
+e `routability_reason`) e exposta na API. A integração da classificação com a
+cadência continua pendente.
 
 Cadência/next action deve distinguir:
 

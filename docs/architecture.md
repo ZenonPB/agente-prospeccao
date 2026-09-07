@@ -1,8 +1,9 @@
 # Arquitetura atual
 
 > **Fonte operacional:** este documento descreve o código presente no branch
-> atual, não o plano histórico de consolidação. Snapshot: 2026-09-06 · branch
-> `feat/onda-2-event-discovery-final` · Alembic head `fe4f5a6b7c8d`.
+> atual, não o plano histórico de consolidação. Snapshot: 2026-09-07 · branch
+> `feat/sprint-identidade-decisores` ·
+> Alembic head `cc8d9e0f1a2b`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -104,10 +105,11 @@ EventDiscoveryProvider
 O provider HTTP aceita uma lista JSON ou `{ "events": [...] }` e distingue erro
 de rede/HTTP/JSON de lista vazia.
 
-O job de eventos **não** cria automaticamente scoring, oferta, decisor ou
-outreach para o evento. A associação padrão é `offer_key=trophies` na camada de
-persistência, mas o encadeamento evento → OfferMatcher → outreach ainda é
-pendência (`docs/pendencias-pos-consolidacao.md`).
+O job de eventos associa eventos futuros vinculados a um lead à oportunidade
+`trophies` por meio do `OfferMatcher`, com upsert idempotente em
+`lead_opportunities`. Ele **não** resolve automaticamente decisor nem dispara
+outreach; essas etapas permanecem no loop humano e são pendência
+(`docs/pendencias-pos-consolidacao.md`).
 
 ### Outcomes e comparação A/B
 
@@ -152,7 +154,8 @@ Os modelos vivem em `services/workers/src/database/models.py`. A API importa-os
 por `services/api/src/db/models.py`.
 
 - **Tenant e acesso:** `organizations`, `users`, `organization_members`,
-  `organization_secrets`, `provider_usage`, `org_audit_log`.
+  `organization_secrets`, `provider_usage`, `provider_execution_metrics`,
+  `org_audit_log`.
 - **Prospecção:** `campaigns`, `campaign_scoring_templates`, `jobs`, `leads`,
   `companies`, `persons`, `company_records`, `enrichments`,
   `prescoring_discards`.
@@ -164,8 +167,11 @@ por `services/api/src/db/models.py`.
 - **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
   por organização; isso é distinto de métricas comerciais A/B.
 
-O head atual é `fe4f5a6b7c8d`, que adiciona status/provenance de eventos e
-comparações A/B auditáveis. Migrations antigas não devem ser editadas.
+O head atual é `cc8d9e0f1a2b`, que adiciona classificação persistida de
+acionabilidade de contatos, além da confiança de identidade, ação comercial
+recomendada, telemetria histórica de providers, status/provenance de eventos e
+comparações A/B auditáveis.
+Migrations antigas não devem ser editadas.
 
 ## Tarefas e scheduler
 
@@ -186,25 +192,24 @@ credenciais nos campos livres.
 
 - Providers externos de eventos e vagas são opt-in; não são habilitados por
   padrão nem constituem garantia de cobertura externa.
-- Event Discovery persiste evento e organizador/lead, mas ainda não percorre o
-  funil completo de oferta, decisor e outreach.
+- Event Discovery já persiste evento, organizador/lead e a oportunidade `trophies`,
+  mas ainda não percorre o funil completo de decisor e outreach.
 - `OfferProfile` e suas versões são cadastrados em código; não há CRUD
   administrativo nem rollback de publicação.
 - A resolução de decisores é best-effort e mantém snapshot JSONB compatível;
   `Person` ainda não substituiu todos os snapshots legados.
 - BI comercial expõe oferta, versão, período e amostra, mas ainda não oferece
   todos os cortes por vertical, consultor, canal, campanha e Precision@K.
-- `EventOpportunityService` calcula expiração por `event_date`; valores
-  explícitos de `expires_at`/`observed_at` fornecidos como string ainda precisam
-  de correção de conversão antes de serem tratados como TTL confiável.
+- `EventOpportunityService` calcula expiração por `event_date` ou `expires_at`,
+  normalizando timestamps ISO para UTC; recorrência e estados adicionais de
+  evento continuam fora do escopo atual.
 
 ## Verificação do snapshot
 
 No snapshot desta documentação foram validados:
-
 ```text
-python -m pytest tests -q -W error       → 919 passed
+python -m pytest tests -q -W error       → 939 passed
 python -m compileall -q services/api services/workers
 apps/web: npm run lint → npx tsc --noEmit → npm run build
-scripts/verify_migrations.py             → head fe4f5a6b7c8d
+scripts/verify_migrations.py             → head cc8d9e0f1a2b
 ```

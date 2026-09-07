@@ -32,6 +32,7 @@ REQUIRED_TABLES = {
     "event_opportunities",
     "commercial_outcomes",
     "commercial_comparisons",
+    "provider_execution_metrics",
     "conversions",
 }
 REQUIRED_INDEXES = {
@@ -39,15 +40,18 @@ REQUIRED_INDEXES = {
     "ix_event_opportunities_org_date",
     "uq_event_opportunities_org_provider_identifier",
     "ix_commercial_comparisons_org_offer",
+    "ix_provider_execution_metrics_org_recorded",
+    "ix_provider_execution_metrics_org_provider",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
     "leads": {"organizations.id"},
     "jobs": {"organizations.id"},
     "lead_opportunities": {"organizations.id", "leads.id"},
-    "event_opportunities": {"organizations.id", "leads.id"},
+    "event_opportunities": {"organizations.id", "leads.id", "contacts.id"},
     "commercial_outcomes": {"organizations.id", "leads.id"},
     "commercial_comparisons": {"organizations.id", "users.id"},
+    "provider_execution_metrics": {"organizations.id", "jobs.id"},
     "conversions": {"leads.id", "lead_opportunities.id"},
 }
 REQUIRED_UNIQUES = {

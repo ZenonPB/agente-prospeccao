@@ -16,6 +16,24 @@ from services.routable_contact_service import (  # noqa: E402
 )
 
 
+def test_routability_metadata_preserva_tipo_e_motivo():
+    from services.routable_contact_service import routability_metadata
+
+    result = routability_metadata(
+        phone="1633334000",
+        pabx_extension="123",
+        target_person="Maria Silva",
+    )
+
+    assert result == {
+        "type": "ROUTABLE_CONTACT",
+        "routable": True,
+        "reason": "pabx_with_target_person",
+        "pabx_extension": "123",
+        "target_person": "Maria Silva",
+    }
+
+
 class TestClassifyRoutability:
     def test_sem_phone_e_unknown(self):
         r = classify_routability(None)
