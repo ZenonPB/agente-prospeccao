@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     # por vez — a fila respeita o pacing da Groq (rate-limit).
     JOB_POLL_SECONDS: int = Field(5, description='Segundos entre verificações de Jobs PENDING')
 
+    EVENT_EXPIRATION_POLL_SECONDS: int = Field(3600, description='Segundos entre atualizações de expiração de eventos')
+
     # Throttling: teto diário de envios automáticos por org quando a
     # org não define o próprio `daily_email_limit`. A janela de espalhamento
     # também é configurável por org (`send_window_start/end`, HH:MM no fuso do
@@ -79,5 +81,7 @@ class Settings(BaseSettings):
 
     # Coletor opcional de eventos. Vazio mantém o provider desabilitado.
     EVENT_DISCOVERY_URL: str = Field("", description='Endpoint JSON externo de eventos (opt-in)')
+    EVENT_DISCOVERY_TOKEN: str = Field("", description='Token opcional Bearer do provider de eventos')
+    EVENT_DISCOVERY_MAX_RETRIES: int = Field(1, ge=0, le=5, description='Retentativas do provider de eventos')
 
 settings = Settings()

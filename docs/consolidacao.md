@@ -1,4 +1,11 @@
-# Plano de Consolidação e Evolução --- Agente de Prospecção
+# Plano histórico de Consolidação e Evolução --- Agente de Prospecção
+
+> **Natureza do documento:** plano e registro histórico das ondas de
+> consolidação. Não é a fonte do estado atual. Para a arquitetura atual use
+> `docs/architecture.md`; para status use `docs/00-status-mapa.md`; para o
+> backlog restante use `docs/pendencias-pos-consolidacao.md`. Trechos marcados
+> como diagnóstico ou “a fazer” representam o momento em que o plano foi
+> escrito, não necessariamente uma pendência atual.
 
 > **Repositório:** `ZenonPB/agente-prospeccao`\
 > **Objetivo deste documento:** transformar as fundações arquiteturais

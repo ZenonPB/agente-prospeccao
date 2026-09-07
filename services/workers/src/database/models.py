@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, Index, Date
+from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, Index, Date, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -367,6 +367,7 @@ class OrgAuditEvent(enum.Enum):
     SECRET_DELETED = "SECRET_DELETED"
     SALES_TARGET_UPSERTED = "SALES_TARGET_UPSERTED"
     SALES_TARGET_DELETED = "SALES_TARGET_DELETED"
+    AB_COMPARISON_APPROVED = "AB_COMPARISON_APPROVED"
 
 
 class OrgAuditLog(Base):
@@ -1003,6 +1004,12 @@ class EventOpportunityRow(Base):
     __table_args__ = (
         UniqueConstraint("organization_id", "source_url", name="uq_event_opportunities_org_source"),
         Index("ix_event_opportunities_org_date", "organization_id", "event_date"),
+        Index(
+            "uq_event_opportunities_org_provider_identifier",
+            "organization_id", "provider", "source_identifier",
+            unique=True,
+            postgresql_where=text("source_identifier IS NOT NULL"),
+        ),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
@@ -1013,8 +1020,13 @@ class EventOpportunityRow(Base):
     event_date = Column(Date, nullable=False)
     location = Column(String(500), nullable=True)
     source_url = Column(String(1000), nullable=False)
+    source_identifier = Column(String(255), nullable=True)
+    provider = Column(String(64), nullable=True)
+    provider_status = Column(String(16), nullable=False, server_default="ok")
+    status = Column(String(16), nullable=False, server_default="upcoming")
     organizer = Column(String(255), nullable=True)
     organizer_resolved = Column(JSONB, nullable=True)
+    provenance = Column(JSONB, nullable=True)
     timing = Column(JSONB, nullable=True)
     confidence = Column(Float, nullable=False, server_default="0.5")
     registration_status = Column(String(32), nullable=False, server_default="unknown")
@@ -1049,6 +1061,25 @@ class CommercialOutcomeRow(Base):
 
     def __repr__(self):
         return f"<CommercialOutcomeRow(lead='{self.lead_id}', outcome='{self.outcome}')>"
+
+
+class CommercialComparison(Base):
+    """Comparação A/B calculada e aprovada de forma auditável."""
+    __tablename__ = "commercial_comparisons"
+    __table_args__ = (
+        Index("ix_commercial_comparisons_org_offer", "organization_id", "offer_key", "computed_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    offer_key = Column(String(64), nullable=False)
+    version_a = Column(String(32), nullable=False)
+    version_b = Column(String(32), nullable=False)
+    result = Column(JSONB, nullable=False)
+    computed_at = Column(DateTime(timezone=True), server_default=func.now())
+    approved_version = Column(String(32), nullable=True)
+    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approval_evidence = Column(Text, nullable=True)
 
 
 class Conversion(Base):

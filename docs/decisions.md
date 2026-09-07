@@ -37,7 +37,7 @@ ADRs consolidadas inline abaixo (a pasta `docs/decisions/` não existe neste rep
 |---|---|
 | `JWT_SECRET` deve ser configurado via pydantic-settings (`settings.py`), não via `os.getenv` direto | Consistência com workers (coding-standards.md); validação em startup (fail fast se env var faltar); facilita teste com injeção de config |
 | Rate limiting em auth endpoints (login/register) | Prevenir brute force; implementar como middleware FastAPI (ex: `slowapi`) ou via nginx se em produção |
-| WebSocket /ws/{job_id} requer autenticação | Impedir que terceiros escutem eventos de pipeline sem token válido |
+| WebSocket `/api/pipeline/ws/{job_id}` requer autenticação na primeira mensagem | Impedir que terceiros escutem eventos de pipeline sem token válido; o JWT não vai na URL porque URLs podem parar em logs de proxy |
 | `getSession()` não deve ser chamado em toda request de API | Substituir por leitura do token do store Zustand ou cookie — `getSession()` faz fetch HTTP a cada chamada, dobrando latência |
 
 ## ADRs de Scoring Contextual & Explicabilidade (2026-07-09)

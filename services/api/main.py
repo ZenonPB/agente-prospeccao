@@ -150,12 +150,33 @@ async def _deliverability_check_loop():
         await asyncio.sleep(settings.DELIVERABILITY_POLL_SECONDS)
 
 
+async def _event_expiration_loop():
+    """Atualiza eventos vencidos sem apagar o histórico."""
+    from src.db.session import SessionLocal
+    from services.prospecting.event_opportunity_service import EventOpportunityService
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                expired = await asyncio.to_thread(EventOpportunityService().expire_events, db)
+                if expired:
+                    db.commit()
+                    logger.info("Event Discovery: %d evento(s) marcado(s) como expired", expired)
+            finally:
+                db.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Erro ao expirar eventos: %s", exc)
+        await asyncio.sleep(settings.EVENT_EXPIRATION_POLL_SECONDS)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(_cadence_scheduler_loop())
     requeue_task = asyncio.create_task(_lost_requeue_loop())
     cadence_close_task = asyncio.create_task(_cadence_close_loop())
     deliverability_task = asyncio.create_task(_deliverability_check_loop())
+    event_expiration_task = asyncio.create_task(_event_expiration_loop())
     from src.jobs_consumer import job_consumer_loop
     jobs_task = asyncio.create_task(job_consumer_loop())
     logger.info("Cadence scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
@@ -178,6 +199,7 @@ async def lifespan(app: FastAPI):
         requeue_task.cancel()
         cadence_close_task.cancel()
         deliverability_task.cancel()
+        event_expiration_task.cancel()
         jobs_task.cancel()
         try:
             await task
@@ -193,6 +215,10 @@ async def lifespan(app: FastAPI):
             pass
         try:
             await deliverability_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await event_expiration_task
         except asyncio.CancelledError:
             pass
         try:

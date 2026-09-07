@@ -421,7 +421,11 @@ async def run_pipeline(
             yield {"type": "log", "message": "Descobrindo eventos futuros para oportunidades de troféus...", "timestamp": _ts()}
             # String vazia desabilita o collector externo; sem argumento o
             # builder continua oferecendo o stub somente para testes.
-            event_registry = build_default_event_registry(settings.EVENT_DISCOVERY_URL)
+            event_registry = build_default_event_registry(
+                settings.EVENT_DISCOVERY_URL,
+                token=settings.EVENT_DISCOVERY_TOKEN,
+                max_retries=settings.EVENT_DISCOVERY_MAX_RETRIES,
+            )
             event_result = EventDiscoveryExecutor(event_registry).execute(
                 lead_context={
                     "city": campaign.target_city if campaign else None,
@@ -447,9 +451,12 @@ async def run_pipeline(
                 "collected": 0,
                 "qualified": 0,
                 "scored": 0,
-                "failed": 0,
+                "failed": sum(1 for status in event_result.get("provider_status", {}).values() if status == "failed"),
                 "total_processed": 0,
                 "events_found": event_result.get("unique_count", 0),
+                "provider_status": event_result.get("provider_status", {}),
+                "provider_errors": event_result.get("provider_errors", {}),
+                "rejected_count": event_result.get("rejected_count", 0),
             }
             if job:
                 job.status = JobStatus.COMPLETED

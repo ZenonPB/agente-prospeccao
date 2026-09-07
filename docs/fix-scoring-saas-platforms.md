@@ -1,5 +1,8 @@
 # Fix: Detecção de plataformas SaaS de terceiros no scoring
 
+> **Natureza do documento:** registro histórico de correção já incorporada ao
+> código. Para o estado geral atual, consulte `docs/context.md`.
+
 > **Status: ✅ Entregue (2026-09-01, branch `fix/scoring-erp-webapps`).**
 > Todas as mudanças listadas abaixo foram implementadas — ver também a sessão
 > correspondente em `docs/context.md` ("scoring de ERP/webapps corrigido").

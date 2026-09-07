@@ -169,6 +169,12 @@ export interface EventOpportunity {
   timing: Record<string, unknown>;
   offer_key?: string | null;
   registration_status: string;
+  status?: 'upcoming' | 'expired' | 'cancelled' | 'unknown';
+  provider?: string | null;
+  provider_status?: 'ok' | 'empty' | 'failed' | 'skipped' | null;
+  source_identifier?: string | null;
+  provenance?: Record<string, unknown>;
+  lead_id?: string | null;
 }
 
 export interface CommercialOutcome {
@@ -192,6 +198,30 @@ export interface CommercialOutcomeMetric {
   sample_size: number;
   sample_minimum: number;
   sample_sufficient: boolean;
+}
+
+export interface CommercialComparison {
+  id: string;
+  offer_key: string;
+  version_a: string;
+  version_b: string;
+  result: {
+    verdict: 'v1' | 'v2' | 'empate' | 'inconclusivo';
+    recommendation: string | null;
+    v1_total: number;
+    v2_total: number;
+    v1_conversion: number;
+    v2_conversion: number;
+    delta: number;
+    is_statistically_significant: boolean;
+    v1?: { confidence_interval: { low: number; high: number } };
+    v2?: { confidence_interval: { low: number; high: number } };
+  };
+  computed_at?: string | null;
+  approved_version?: string | null;
+  approved_by_id?: string | null;
+  approved_at?: string | null;
+  approval_evidence?: string | null;
 }
 
 export interface SlaAlertItem {

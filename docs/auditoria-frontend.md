@@ -1,5 +1,10 @@
 # Auditoria Técnica Completa — React, Next.js, Performance, UX e Responsividade
 
+> **Natureza do documento:** checklist/relatório de auditoria frontend. Não é
+> uma descrição normativa do estado do produto; confirme o estado atual em
+> `docs/architecture.md`, `docs/context.md` e `apps/web/AGENTS.md`. Pendências
+> de device real permanecem QA planejado, não capacidade já validada.
+
 Quero que você atue como um **Senior Frontend Engineer especializado em React, Next.js, TypeScript, performance web, arquitetura frontend, UX/UI e responsividade**.
 
 Este sistema está nos ajustes finais antes do lançamento. Quero que você faça uma **auditoria profunda de todo o frontend**, verificando se o projeto está utilizando corretamente as melhores práticas atuais de **React e Next.js** e identificando oportunidades reais de melhoria.
