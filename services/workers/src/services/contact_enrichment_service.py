@@ -1288,6 +1288,48 @@ class ContactEnrichmentService:
     # ------------------------------------------------------------------ #
     # Confidence e serialização
     # ------------------------------------------------------------------ #
+    def update_contact_confidence(self, contact: Contact) -> Dict[str, Any]:
+        """Atualiza confiança de identidade/contato e status de verificação."""
+        from services.prospecting.decision_maker_resolution import (
+            ContactConfidence,
+            PersonContact,
+        )
+
+        raw_data = contact.raw_data if isinstance(contact.raw_data, dict) else {}
+        sources = [contact.source]
+        sources.extend(
+            value
+            for key in ("email_source", "linkedin_source")
+            for value in [raw_data.get(key)]
+            if value
+        )
+        confidence = ContactConfidence().contact_confidence(
+            PersonContact(
+                name=contact.name,
+                source=contact.source or "heuristic",
+                document_cpf=contact.document_cpf,
+                email=contact.email,
+                phone=contact.phone,
+                linkedin_url=contact.linkedin_url,
+            ),
+            sources,
+            email_verified=bool(contact.email_verified),
+            phone_verified=False,
+        )
+        contact.identity_confidence = confidence["identity"]["confidence"]
+        contact.contact_confidence = confidence["confidence"]
+        contact.source_reliability = confidence["source_reliability"]
+        if confidence["identity"]["status"] == "resolved" and contact.email_verified:
+            contact.verification_status = "fully_verified"
+            contact.last_verified_at = contact.email_verified_at or datetime.now(timezone.utc)
+        elif confidence["identity"]["status"] == "resolved":
+            contact.verification_status = "identity_verified"
+        elif contact.email_verified:
+            contact.verification_status = "email_verified_needs_identity"
+        else:
+            contact.verification_status = "needs_review"
+        return confidence
+
     def _recalc_confidence(self, contact: Contact) -> int:
         """Confiança agregada: base do contato + bônus de canais confirmados.
 
@@ -1295,6 +1337,7 @@ class ContactEnrichmentService:
         "heuristic"`) NUNCA deixa a confiança cruzar o gate de outreach
         automático (>= 50) — o agregado é limitado a 40 para o humano decidir.
         """
+        metadata = self.update_contact_confidence(contact)
         base = contact.confidence or 30
         if contact.email:
             if (contact.raw_data or {}).get("email_source") == "heuristic":
@@ -1303,7 +1346,7 @@ class ContactEnrichmentService:
                 base = min(100, base + 10)
         if contact.linkedin_url:
             base = min(100, base + 10)
-        return base
+        return max(base, min(100, int(metadata["confidence"])))
 
     def _contact_to_dict(self, c: Contact) -> Dict[str, Any]:
         return {
@@ -1315,6 +1358,11 @@ class ContactEnrichmentService:
             "phone": c.phone,
             "document_cpf": c.document_cpf,
             "confidence": c.confidence,
+            "identity_confidence": getattr(c, "identity_confidence", 0),
+            "contact_confidence": getattr(c, "contact_confidence", 0),
+            "source_reliability": getattr(c, "source_reliability", 0),
+            "verification_status": getattr(c, "verification_status", "needs_review"),
+            "last_verified_at": c.last_verified_at.isoformat() if getattr(c, "last_verified_at", None) else None,
             "email_verified": c.email_verified if hasattr(c, "email_verified") else False,
             "email_verified_at": c.email_verified_at.isoformat() if hasattr(c, "email_verified_at") and c.email_verified_at else None,
             "linkedin_url": c.linkedin_url,

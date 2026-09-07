@@ -115,4 +115,4 @@ operacional lê e grava no PostgreSQL.
 O contrato é coberto por testes unitários/integrados de resolver, matcher,
 persistência de oportunidades, outcomes e comparação A/B. O snapshot geral da
 branch foi validado com 928 testes Python sob `-W error`, `compileall`, lint,
-TypeScript, build Web e migration verifier no head `aa6b7c8d9e0f`.
+TypeScript, build Web e migration verifier no head `bb7c8d9e0f1a`.

@@ -151,6 +151,38 @@ def test_evento_com_contato_persistido_gera_acao_comercial_sem_enviar_mensagem(s
     assert "não envia" in rows[0].next_action.lower()
 
 
+def test_confianças_do_contato_sao_persistidas_no_postgresql(session):
+    from services.contact_enrichment_service import ContactEnrichmentService
+
+    db, org, lead = session
+    contact = Contact(
+        lead_id=lead.id,
+        name="Maria Silva",
+        email="maria@empresa.com.br",
+        email_verified=True,
+        email_verified_at=datetime.now(timezone.utc),
+        linkedin_url="https://www.linkedin.com/in/maria-silva",
+        source="company_site",
+        raw_data={
+            "email_source": "verified_email",
+            "linkedin_source": "linkedin_current",
+        },
+    )
+    db.add(contact)
+    db.flush()
+    ContactEnrichmentService().update_contact_confidence(contact)
+    db.commit()
+    db.expire_all()
+
+    persisted = db.query(Contact).filter(Contact.id == contact.id).one()
+
+    assert persisted.identity_confidence >= 70
+    assert persisted.contact_confidence >= 80
+    assert persisted.source_reliability == 0.9
+    assert persisted.verification_status == "fully_verified"
+    assert persisted.last_verified_at is not None
+
+
 def test_commercial_outcome_is_idempotent_and_metrics_are_real(session):
     from services.prospecting.commercial_outcome_service import CommercialOutcomeService
 

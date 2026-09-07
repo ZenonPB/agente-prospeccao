@@ -113,6 +113,9 @@ class DecisionMakerResolver:
                 profile_roles=profile_roles,
             )
 
+        # Consolida pessoas equivalentes antes de calcular confiança; assim a
+        # evidência do site e do e-mail pertence à mesma identidade.
+        all_contacts = IdentityResolver().merge(all_contacts)
         # Determina status por evidências, não por CPF obrigatório.
         confidence_service = ContactConfidence()
         people_confidence = [
@@ -124,7 +127,10 @@ class DecisionMakerResolver:
             (item["confidence"] for item in people_confidence),
             default=0,
         )
-        status = "resolved" if identity_confidence >= 70 else "partial"
+        status = "resolved" if (
+            identity_confidence >= 70
+            or (has_cpf and identity_confidence >= 50)
+        ) else "partial"
 
         return ResolutionResult(
             status=status,

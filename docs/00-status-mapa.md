@@ -1,6 +1,6 @@
 # Mapa de status operacional
 > **Snapshot:** 2026-09-07 · branch `feat/onda-2-event-discovery-final` ·
-> Alembic head `aa6b7c8d9e0f`.
+> Alembic head `bb7c8d9e0f1a`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -51,7 +51,7 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 - `python -m pytest tests -q -W error`: **928 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `aa6b7c8d9e0f`.
+- `scripts/verify_migrations.py`: head único `bb7c8d9e0f1a`.
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 

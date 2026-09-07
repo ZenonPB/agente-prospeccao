@@ -60,6 +60,11 @@ export interface ContactItem {
   email_verified_at?: string;
   linkedin_url?: string;
   linkedin_confidence?: number;
+  identity_confidence?: number;
+  contact_confidence?: number;
+  source_reliability?: number;
+  verification_status?: string;
+  last_verified_at?: string | null;
   linkedin_match_status?: 'NOT_FOUND' | 'CANDIDATE' | 'NEEDS_REVIEW' | 'VERIFIED';
   is_primary?: boolean;
   source?: string;

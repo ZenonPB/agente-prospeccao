@@ -848,6 +848,11 @@ class Contact(Base):
     # Canal LinkedIn do decisor (busca passiva + validação HEAD).
     linkedin_url = Column(String(255))
     linkedin_confidence = Column(Integer, default=0)
+    identity_confidence = Column(Integer, nullable=False, server_default="0")
+    contact_confidence = Column(Integer, nullable=False, server_default="0")
+    source_reliability = Column(Float, nullable=False, server_default="0")
+    verification_status = Column(String(40), nullable=False, server_default="needs_review")
+    last_verified_at = Column(DateTime(timezone=True), nullable=True)
     is_primary = Column(Boolean, default=False)
     source = Column(String(60), default="cnpj_receita")
     raw_data = Column(JSONB)

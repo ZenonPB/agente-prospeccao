@@ -10,7 +10,7 @@
 
 > **Snapshot:** 2026-09-07 · `928 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `aa6b7c8d9e0f`.
+> `bb7c8d9e0f1a`.
 
 ## Resumo desta revisão
 
@@ -44,7 +44,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `aa6b7c8d9e0f`. |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `bb7c8d9e0f1a`. |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | 🟠 Parcial | Métricas históricas por execução e endpoint org-scoped existem; ainda faltam custo real e correlação consolidada com quota. |
@@ -55,7 +55,10 @@
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
 | P1.18 Evento → decisor/outreach | 🟠 Parcial | Ação recomendada persiste contato/canal quando já há decisor; descoberta externa e outreach ainda faltam. |
-| P1.31–P1.39 Decisores canônicos | 🟠 Parcial | Contatos existem; entidade/provenance/resolução completa faltam. |
+| P1.31 Entidade canônica de pessoa | 🟠 Parcial | Metadados de confiança persistidos em `Contact`; entidade canônica independente ainda falta. |
+| P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
+| P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
+| P1.34–P1.39 People Discovery/decisores | 🟠 Parcial | Contatos e ação recomendada existem; discovery externo, cascade completa e cadência ainda faltam. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
 

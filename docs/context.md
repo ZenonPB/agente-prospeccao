@@ -4,7 +4,7 @@
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
 > **Snapshot:** 2026-09-07 · branch `feat/onda-2-event-discovery-final` ·
-> Alembic head `aa6b7c8d9e0f`.
+> Alembic head `bb7c8d9e0f1a`.
 
 ## Leitura obrigatória
 
@@ -51,7 +51,7 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - `python -m pytest tests -q -W error`: **928 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `aa6b7c8d9e0f`;
+- `scripts/verify_migrations.py`: head único `bb7c8d9e0f1a`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato
