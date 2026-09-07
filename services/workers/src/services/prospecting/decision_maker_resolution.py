@@ -113,9 +113,18 @@ class DecisionMakerResolver:
                 profile_roles=profile_roles,
             )
 
-        # Determina status baseado na qualidade dos dados
+        # Determina status por evidências, não por CPF obrigatório.
+        confidence_service = ContactConfidence()
+        people_confidence = [
+            confidence_service.identity_confidence(person, person.source_merged)
+            for person in all_contacts
+        ]
         has_cpf = any(p.document_cpf for p in all_contacts)
-        status = "resolved" if has_cpf else "partial"
+        identity_confidence = max(
+            (item["confidence"] for item in people_confidence),
+            default=0,
+        )
+        status = "resolved" if identity_confidence >= 70 else "partial"
 
         return ResolutionResult(
             status=status,
@@ -127,6 +136,7 @@ class DecisionMakerResolver:
                 "sources_used": sources_used,
                 "sources_attempted": sources_attempted,
                 "has_cpf": has_cpf,
+                "identity_confidence": identity_confidence,
             },
         )
 
@@ -204,6 +214,119 @@ class ContactConfidence:
     - 2 fontes: confidence = max(X) + boost
     - 3+ fontes: confidence = max(X) + boost_2
     """
+
+    SOURCE_RELIABILITY: Dict[str, float] = {
+        "receita_qsa": 0.95,
+        "company_site": 0.90,
+        "verified_email": 0.90,
+        "linkedin_current": 0.80,
+        "hunter": 0.75,
+        "search_engine": 0.55,
+        "heuristic": 0.30,
+    }
+
+    @classmethod
+    def source_reliability(cls, source: str) -> float:
+        """Retorna a confiabilidade calibrada de uma fonte conhecida."""
+        normalized = cls._normalize_source(source)
+        return cls.SOURCE_RELIABILITY.get(normalized, cls.SOURCE_RELIABILITY["heuristic"])
+
+    @classmethod
+    def identity_confidence(
+        cls,
+        person: PersonContact,
+        sources: List[str],
+    ) -> Dict[str, Any]:
+        """Calcula identidade por evidências, sem exigir CPF.
+
+        O score usa os pesos definidos no plano de consolidação. A lista de
+        fontes representa evidências independentes que confirmam a pessoa; o
+        resultado é limitado a 100 e ``resolved`` exige 70 pontos.
+        """
+        normalized_sources = list(dict.fromkeys(cls._normalize_source(item) for item in sources if item))
+        score = 0
+        evidence: List[str] = []
+        if person.document_cpf or "receita_qsa" in normalized_sources:
+            score += 50
+            evidence.append("CPF/QSA")
+        if "company_site" in normalized_sources:
+            score += 35
+            evidence.append("site oficial")
+        if "verified_email" in normalized_sources or (
+            person.email and "company_site" in normalized_sources
+        ):
+            score += 25
+            evidence.append("email corporativo")
+        if "linkedin_current" in normalized_sources or (
+            person.linkedin_url and "search_engine" not in normalized_sources
+        ):
+            score += 25
+            evidence.append("LinkedIn atual")
+        if len(normalized_sources) >= 2:
+            score += 20
+            evidence.append("fontes concordantes")
+        if score == 0 and normalized_sources:
+            score = round(max(cls.source_reliability(item) for item in normalized_sources) * 100)
+            evidence.append("fonte única")
+        score = min(100, score)
+        return {
+            "confidence": score,
+            "status": "resolved" if score >= 70 else "partial" if score > 0 else "not_found",
+            "has_cpf": bool(person.document_cpf),
+            "sources": normalized_sources,
+            "evidence": evidence,
+        }
+
+    @classmethod
+    def contact_confidence(
+        cls,
+        person: PersonContact,
+        sources: List[str],
+        *,
+        email_verified: bool = False,
+        phone_verified: bool = False,
+    ) -> Dict[str, Any]:
+        """Calcula confiança de contato e indica se há canal acionável."""
+        identity = cls.identity_confidence(person, sources)
+        score = identity["confidence"]
+        if email_verified:
+            score += 10
+        if phone_verified:
+            score += 5
+        if person.linkedin_url:
+            score += 5
+        score = min(100, score)
+        return {
+            "confidence": score,
+            "identity": identity,
+            "actionable": bool((person.email and email_verified) or person.phone),
+            "email_verified": email_verified,
+            "phone_verified": phone_verified,
+            "source_reliability": max(
+                (cls.source_reliability(item) for item in sources),
+                default=0.0,
+            ),
+        }
+
+    @staticmethod
+    def _normalize_source(source: str) -> str:
+        """Canonicaliza variantes de provenance produzidas pelos adapters."""
+        value = str(source or "").strip().lower()
+        if value.startswith("cnpj_receita") or value.startswith("receita"):
+            return "receita_qsa"
+        if value.startswith("site") or value == "company_site":
+            return "company_site"
+        if value.startswith("hunter"):
+            return "hunter"
+        if value.startswith("linkedin") or value.startswith("manual:"):
+            return "linkedin_current"
+        if value.startswith("search:") or value.startswith("search_engine"):
+            return "search_engine"
+        if "heuristic" in value:
+            return "heuristic"
+        if value in {"verified_email", "email_verified"}:
+            return "verified_email"
+        return value
 
     def aggregate(self, person: PersonContact, sources: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Agrega confidence de N fontes para a mesma pessoa."""
