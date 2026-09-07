@@ -1,7 +1,7 @@
 # OfferProfile e oportunidades comerciais
 
 > **Status atual:** contrato, registry, resolver e matcher estão operacionais no
-> pipeline. Snapshot: 2026-09-07 · branch `feat/sprint-identidade-decisores`.
+> pipeline. Snapshot: 2026-09-07 · branch `feat/identidade-cross-provider`.
 > Este documento substitui os status históricos das fases C–H; o plano original
 > está preservado em `docs/consolidacao.md`.
 
@@ -114,5 +114,5 @@ operacional lê e grava no PostgreSQL.
 
 O contrato é coberto por testes unitários/integrados de resolver, matcher,
 persistência de oportunidades, outcomes e comparação A/B. O snapshot geral da
-branch foi validado com 939 testes Python sob `-W error`, `compileall`, lint,
-TypeScript, build Web e migration verifier no head `cc8d9e0f1a2b`.
+branch foi validado com 948 testes Python sob `-W error`, `compileall`, lint,
+TypeScript, build Web e migration verifier no head `dd9e0f1a2b3c`.

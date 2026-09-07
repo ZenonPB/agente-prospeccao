@@ -245,6 +245,7 @@ export interface SlaAlertItem {
   status?: string | null;
   qualification_score: number;
   assigned_to_name?: string | null;
+  discovery_provenance?: Record<string, unknown> | null;
   alert_type: 'QUALIFICADO_NO_CONTACT' | 'RESPONDIDO_NO_NEXT_ACTION' | 'OPENED_NO_RESPONSE';
   alert_label: string;
   days_since: number;

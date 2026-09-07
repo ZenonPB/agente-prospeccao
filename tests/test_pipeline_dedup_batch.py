@@ -17,6 +17,32 @@ def test_prepare_batch_items_anota_normalized_domain():
     assert social[0]["normalized_domain"] is None
 
 
+def test_prepare_batch_items_preserva_provenance_do_discovery():
+    from src.pipeline_worker import _prepare_batch_items
+
+    items = [{
+        "name": "Empresa Alpha",
+        "website": "https://alpha.com.br",
+        "provider": "google_places",
+        "provider_query": "metalúrgica São Paulo",
+        "place_id_candidate": "place-1",
+        "identity_resolution": {
+            "status": "confirmed",
+            "matched_by": "normalized_domain",
+        },
+    }]
+
+    prepared = _prepare_batch_items(items, discovery_plan_id="plan-industrial")
+    provenance = prepared[0]["discovery_provenance"]
+
+    assert provenance["provider"] == "google_places"
+    assert provenance["provider_query"] == "metalúrgica São Paulo"
+    assert provenance["provider_candidate_id"] == "place-1"
+    assert provenance["discovery_plan_id"] == "plan-industrial"
+    assert provenance["matched_identity_rule"] == "normalized_domain"
+    assert provenance["retrieved_at"]
+
+
 def test_segunda_loja_mesma_rede_e_filtrada_do_lote():
     """Duas filiais com o MESMO site no mesmo lote = só a primeira entra."""
     items = [

@@ -2,8 +2,8 @@
 
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-07 · branch
-> `feat/sprint-identidade-decisores` ·
-> Alembic head `cc8d9e0f1a2b`.
+> `feat/identidade-cross-provider` ·
+> Alembic head `dd9e0f1a2b3c`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -156,9 +156,9 @@ por `services/api/src/db/models.py`.
 - **Tenant e acesso:** `organizations`, `users`, `organization_members`,
   `organization_secrets`, `provider_usage`, `provider_execution_metrics`,
   `org_audit_log`.
-- **Prospecção:** `campaigns`, `campaign_scoring_templates`, `jobs`, `leads`,
-  `companies`, `persons`, `company_records`, `enrichments`,
-  `prescoring_discards`.
+ - **Prospecção:** `campaigns`, `campaign_scoring_templates`, `jobs`, `leads`,
+`companies`, `persons`, `company_records`, `enrichments`,
+`prescoring_discards`, `discovery_provenance` em `leads`.
 - **Oportunidades:** `lead_opportunities` (unique por lead/oferta, com
   `offer_version`, score e evidências) e `event_opportunities` (provider,
   status, provenance, organizer, timing, lead e datas).
@@ -167,10 +167,10 @@ por `services/api/src/db/models.py`.
 - **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
   por organização; isso é distinto de métricas comerciais A/B.
 
-O head atual é `cc8d9e0f1a2b`, que adiciona classificação persistida de
-acionabilidade de contatos, além da confiança de identidade, ação comercial
-recomendada, telemetria histórica de providers, status/provenance de eventos e
-comparações A/B auditáveis.
+O head atual é `dd9e0f1a2b3c`, que adiciona provenance de discovery consolidada,
+classificação persistida de acionabilidade de contatos, confiança de identidade,
+ação comercial recomendada, telemetria histórica de providers,
+status/provenance de eventos e comparações A/B auditáveis.
 Migrations antigas não devem ser editadas.
 
 ## Tarefas e scheduler
@@ -208,8 +208,8 @@ credenciais nos campos livres.
 
 No snapshot desta documentação foram validados:
 ```text
-python -m pytest tests -q -W error       → 939 passed
+python -m pytest tests -q -W error       → 948 passed
 python -m compileall -q services/api services/workers
 apps/web: npm run lint → npx tsc --noEmit → npm run build
-scripts/verify_migrations.py             → head cc8d9e0f1a2b
+scripts/verify_migrations.py             → head dd9e0f1a2b3c
 ```

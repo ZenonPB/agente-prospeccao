@@ -2,15 +2,15 @@
 
 > **Objetivo:** registrar apenas o que ainda falta implementar, validar, integrar, persistir ou tornar operacional no sistema atual.
 >
-> **Base da revisão:** estado atual do repositório no branch `feat/sprint-identidade-decisores`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
+> **Base da revisão:** estado atual do repositório no branch `feat/identidade-cross-provider`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
 >
 > **Regra principal:** uma capacidade não deve ser chamada de concluída apenas porque existe classe, helper, registry, teste unitário ou retorno estruturado. Para ser **Operacional**, precisa existir no fluxo real, com persistência quando necessária, tenant scope, estados de erro explícitos, observabilidade e comportamento verificável.
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-07 · `939 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-07 · `944 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `cc8d9e0f1a2b`.
+> `dd9e0f1a2b3c`.
 
 ## Resumo desta revisão
 
@@ -44,7 +44,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `cc8d9e0f1a2b`. |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `dd9e0f1a2b3c`. |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | 🟠 Parcial | Métricas históricas por execução e endpoint org-scoped existem; ainda faltam custo real e correlação consolidada com quota. |
@@ -327,7 +327,7 @@ A operação consegue explicar **por que uma campanha trouxe poucos leads**.
 
 # 4. P1 — Discovery e resolução de entidades
 
-## P1.1 — Cross-provider Company Identity Resolution
+| P1.1 Cross-provider Company Identity Resolution | 🟠 Parcial | Resolver e deduplicação por CNPJ/domínio/place_id integrados; merge fuzzy continua apenas candidato. |
 
 **Status:** 🟠 Parcial
 
@@ -371,6 +371,10 @@ CNPJ exato
 
 Criar uma camada de identidade no discovery antes da promoção para Lead.
 
+A camada `CompanyIdentityResolver` agora confirma chaves fortes, marca nomes e
+localização como candidatos sem merge automático e preserva a provenance das
+fontes combinadas.
+
 Preferir reaproveitar `CompanyPersonService` / normalização existente, em vez de criar outro resolver independente.
 
 ### Critério de aceite
@@ -389,7 +393,12 @@ services/api/src/pipeline_worker.py
 ---
 
 
-**Status:** 🟠 Parcial
+**Status:** 🟠 Parcial — provenance consolidada já é persistida em `Lead`; ainda
+falta histórico por candidato rejeitado e resolução cross-provider completa.
+
+O campo `Lead.discovery_provenance` preserva providers, consultas, identificadores
+externos, plano de discovery e regra de identidade. Candidatos rejeitados pelo
+pre-scoring ainda não têm esse histórico completo.
 
 ### Problema
 

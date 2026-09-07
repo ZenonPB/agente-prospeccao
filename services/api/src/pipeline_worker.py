@@ -130,17 +130,41 @@ def _persist_prescoring_discards(db: Session):
     return _persist
 
 
-def _prepare_batch_items(results):
+def _prepare_batch_items(results, discovery_plan_id=None):
     """Anota cada resultado da coleta com seu `normalized_domain`.
 
     O domínio é a chave da dedupe por rede (constraint única por org) e precisa
     estar disponível antes de filtrar o lote — sem depender da leitura do banco
     dentro do loop (que, com `autoflush=False`, não vê os leads já adicionados).
     """
-    return [
-        {**item, "normalized_domain": normalize_domain(item.get("website"))}
-        for item in results
-    ]
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+    prepared = []
+    for item in results:
+        identity = item.get("identity_resolution") or {}
+        prepared.append({
+            **item,
+            "normalized_domain": normalize_domain(item.get("website")),
+            "discovery_provenance": {
+                "provider": item.get("provider") or "unknown",
+                "provider_query": item.get("provider_query"),
+                "provider_candidate_id": str(
+                    item.get("provider_candidate_id")
+                    or item.get("place_id_candidate")
+                    or item.get("place_id")
+                    or item.get("id")
+                    or ""
+                ) or None,
+                "retrieved_at": item.get("retrieved_at") or retrieved_at,
+                "discovery_plan_id": discovery_plan_id,
+                "matched_identity_rule": identity.get("matched_by"),
+                "identity_status": identity.get("status", "new"),
+                "identity_confidence": identity.get("confidence", 0.0),
+                "providers": (item.get("provenance") or {}).get("providers", []),
+                "provider_queries": (item.get("provenance") or {}).get("provider_queries", []),
+                "provider_candidate_ids": (item.get("provenance") or {}).get("provider_candidate_ids", []),
+            },
+        })
+    return prepared
 
 
 def filter_new_batch_items(items, known_place_ids, known_domains):
@@ -554,6 +578,32 @@ async def run_pipeline(
                 ).first()
 
                 if existing_lead:
+                    existing_provenance = existing_lead.discovery_provenance or {}
+                    incoming_provenance = item.get("discovery_provenance") or {}
+                    for key in (
+                        "providers",
+                        "provider_queries",
+                        "provider_candidate_ids",
+                    ):
+                        values = list(dict.fromkeys([
+                            *(existing_provenance.get(key) or []),
+                            *([incoming_provenance[key]] if incoming_provenance.get(key) and not isinstance(incoming_provenance.get(key), list) else incoming_provenance.get(key) or []),
+                        ]))
+                        if values:
+                            existing_provenance[key] = values
+                    for key in (
+                        "provider",
+                        "provider_query",
+                        "provider_candidate_id",
+                        "retrieved_at",
+                        "discovery_plan_id",
+                        "matched_identity_rule",
+                        "identity_status",
+                        "identity_confidence",
+                    ):
+                        if incoming_provenance.get(key) is not None:
+                            existing_provenance[key] = incoming_provenance[key]
+                    existing_lead.discovery_provenance = existing_provenance
                     continue
 
                 new_lead = Lead(
@@ -804,7 +854,14 @@ async def run_pipeline(
                 results = []
 
             batch_items = filter_new_batch_items(
-                _prepare_batch_items(results), existing_ids_set, existing_domains,
+                _prepare_batch_items(
+                    results,
+                    discovery_plan_id=discovery_plan.get("plan_id")
+                    or discovery_plan.get("profile_key")
+                    or "runtime",
+                ),
+                existing_ids_set,
+                existing_domains,
             )
 
             # Gate de promoção Candidate → Lead (docs/melhorias/01/06/07):
@@ -880,6 +937,7 @@ async def run_pipeline(
                     google_rating_count=item.get("rating_count"),
                     google_maps_uri=item.get("maps_uri"),
                     instagram_url=item.get("instagram_url"),
+                    discovery_provenance=item.get("discovery_provenance"),
                     campaign_id=campaign.id if campaign else None,
                     status=LeadStatus.NOVO,
                 )
