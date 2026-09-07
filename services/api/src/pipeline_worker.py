@@ -53,12 +53,50 @@ from services.prospecting.event_discovery import (
     EventDiscoveryExecutor,
     build_default_event_registry,
 )
+from services.provider_execution_metric_service import ProviderExecutionMetricService
 
 logger = logging.getLogger(__name__)
 
 
 def _ts() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _persist_provider_metrics(
+    db: Session,
+    organization_id,
+    job_id: str | None,
+    metrics: Dict[str, Dict[str, Any]],
+) -> None:
+    """Persiste telemetria do job sem confundir quota com observabilidade."""
+    if not organization_id or not metrics:
+        return
+    service = ProviderExecutionMetricService()
+    job_uuid = None
+    if job_id:
+        try:
+            from uuid import UUID
+            job_uuid = UUID(str(job_id))
+        except (TypeError, ValueError):
+            logger.warning("Job inválido ao persistir métricas de provider: %s", job_id)
+    for provider, metric in metrics.items():
+        try:
+            service.record(
+                db,
+                organization_id,
+                provider,
+                metric.get("status", "unknown"),
+                job_id=job_uuid,
+                result_count=metric.get("result_count", 0),
+                duration_ms=metric.get("duration_ms", 0),
+                budget_used=metric.get("budget_used", 0),
+                error_code=metric.get("error_code"),
+                retryable=metric.get("retryable", False),
+            )
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                "Métrica inválida do provider %s não persistida: %s", provider, exc,
+            )
 
 
 def _persist_prescoring_discards(db: Session):
@@ -435,10 +473,19 @@ async def run_pipeline(
             from services.prospecting.event_opportunity_service import EventOpportunityService
 
             if organization_id:
-                EventOpportunityService().replace_events(
+                event_service = EventOpportunityService()
+                event_rows = event_service.replace_events(
                     db, organization_id, event_result.get("unique_events", []),
                 )
+                event_match = event_service.match_event_opportunities(db, event_rows)
+                event_actions = event_service.prepare_event_actions(db, event_rows)
+                _persist_provider_metrics(
+                    db, organization_id, job_id, event_result.get("provider_metrics", {}),
+                )
                 db.commit()
+            else:
+                event_match = {"matched": 0, "skipped": 0, "failed": 0, "errors": []}
+                event_actions = {"ready": 0, "needs_review": 0, "not_found": 0, "errors": []}
             yield {
                 "type": "log",
                 "message": f"{event_result.get('unique_count', 0)} eventos futuros normalizados",
@@ -456,7 +503,10 @@ async def run_pipeline(
                 "events_found": event_result.get("unique_count", 0),
                 "provider_status": event_result.get("provider_status", {}),
                 "provider_errors": event_result.get("provider_errors", {}),
+                "provider_metrics": event_result.get("provider_metrics", {}),
                 "rejected_count": event_result.get("rejected_count", 0),
+                "event_opportunities": event_match,
+                "event_actions": event_actions,
             }
             if job:
                 job.status = JobStatus.COMPLETED
@@ -731,6 +781,12 @@ async def run_pipeline(
                         "porte_category": porte_category,
                     },
                 )
+                _persist_provider_metrics(
+                    db,
+                    organization_id,
+                    job_id,
+                    discovery_result.get("provider_metrics", {}),
+                )
                 results = [
                     {**item, "source_queries": search_queries}
                     for item in discovery_result.get("unique_candidates", [])
@@ -739,7 +795,8 @@ async def run_pipeline(
                     "type": "log",
                     "message": (
                         f"DiscoveryExecutor: {discovery_result.get('unique_count', 0)} candidatos únicos; "
-                        f"providers={','.join(discovery_result.get('execution_order', []))}"
+                        f"providers={','.join(discovery_result.get('execution_order', []))}; "
+                        f"status={discovery_result.get('provider_status', {})}"
                     ),
                     "timestamp": _ts(),
                 }

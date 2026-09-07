@@ -9,6 +9,7 @@ Critério da Fase D: "Alterar OfferProfile.discovery muda a estratégia de
 descoberta sem editar pipeline_worker" — providers plugados via
 registry; adicionar novo provider = criar adapter + registrar.
 """
+import time
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 
@@ -198,6 +199,9 @@ class DiscoveryExecutor:
         execution_order: List[str] = []
         skipped: List[str] = []
         budget_used: Dict[str, int] = {}
+        provider_status: Dict[str, str] = {}
+        provider_errors: Dict[str, str] = {}
+        provider_metrics: Dict[str, Dict[str, Any]] = {}
         total_budget = plan.get("max_results") or plan.get("target_candidates")
         remaining_budget = int(total_budget) if total_budget is not None else None
 
@@ -205,10 +209,14 @@ class DiscoveryExecutor:
             provider_name = step.get("type")
             if remaining_budget is not None and remaining_budget <= 0:
                 skipped.append(provider_name)
+                provider_status[provider_name] = "skipped"
+                provider_metrics[provider_name] = self._provider_metric("skipped", 0, 0, None, False)
                 continue
             provider = self.registry.get(provider_name)
             if provider is None:
                 skipped.append(provider_name)
+                provider_status[provider_name] = "skipped"
+                provider_metrics[provider_name] = self._provider_metric("skipped", 0, 0, None, False)
                 continue
             execution_order.append(provider_name)
             queries = step.get("queries") or [provider_name]
@@ -217,13 +225,16 @@ class DiscoveryExecutor:
                 max_results = min(max_results, remaining_budget)
 
             all_results: List[Dict[str, Any]] = []
+            started = time.perf_counter()
+            first_error: Optional[Exception] = None
             for q in queries:
                 try:
                     res = provider.run(q, lead_context=lead_context)
                     if inspect.isawaitable(res):
                         res = await res
                     all_results.extend(res or [])
-                except Exception:
+                except Exception as exc:  # noqa: BLE001 — contrato registra a falha
+                    first_error = first_error or exc
                     continue
 
             # Dedup intra-provider
@@ -239,6 +250,18 @@ class DiscoveryExecutor:
             budget_used[provider_name] = len(results_by_provider[provider_name])
             if remaining_budget is not None:
                 remaining_budget -= budget_used[provider_name]
+            if first_error is not None:
+                provider_status[provider_name] = "failed"
+                provider_errors[provider_name] = f"{type(first_error).__name__}: {first_error}"
+                metric_status = "failed"
+            else:
+                provider_status[provider_name] = "success" if deduped else "empty"
+                metric_status = provider_status[provider_name]
+            provider_metrics[provider_name] = self._provider_metric(
+                metric_status, len(results_by_provider[provider_name]), started,
+                type(first_error).__name__ if first_error else None,
+                self._is_retryable(first_error) if first_error else False,
+            )
 
         all_candidates = []
         for name in execution_order:
@@ -253,6 +276,37 @@ class DiscoveryExecutor:
             "unique_candidates": unique_candidates,
             "unique_count": len(unique_candidates),
             "budget_used": budget_used,
+            "provider_status": provider_status,
+            "provider_errors": provider_errors,
+            "provider_metrics": provider_metrics,
+        }
+
+    @staticmethod
+    def _is_retryable(exc: Exception) -> bool:
+        """Classifica falhas transitórias sem esconder erros do provider."""
+        message = str(exc).lower()
+        return any(token in message for token in (
+            "429", "408", "500", "502", "503", "504", "timeout",
+            "timed out", "temporar", "indisponível",
+        ))
+
+    @staticmethod
+    def _provider_metric(
+        status: str,
+        result_count: int,
+        started: float,
+        error_code: Optional[str],
+        retryable: bool,
+    ) -> Dict[str, Any]:
+        """Retorna a forma comum de telemetria por provider."""
+        elapsed = int(max(0, (time.perf_counter() - started) * 1000)) if started else 0
+        return {
+            "status": status,
+            "result_count": result_count,
+            "duration_ms": elapsed,
+            "budget_used": result_count,
+            "error_code": error_code,
+            "retryable": retryable,
         }
 
     def _identity_key(self, candidate: Dict[str, Any]) -> Optional[str]:

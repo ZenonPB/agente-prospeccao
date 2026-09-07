@@ -8,9 +8,9 @@
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-06 · `919 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-07 · `928 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `fe4f5a6b7c8d`.
+> `aa6b7c8d9e0f`.
 
 ## Resumo desta revisão
 
@@ -32,7 +32,7 @@
 
 - identidade cross-provider de empresas e provenance genérica de Candidate/Lead;
 - schema semântico e administração de `OfferProfile`;
-- evento → `OfferMatcher` → decisor → outreach;
+- evento → decisor → outreach (a etapa evento → `OfferMatcher` → oportunidade já está operacional);
 - provider real especializado de vagas e intent;
 - BI por vertical/consultor/canal/etapa/variante e Precision@K operacional;
 - entidade canônica e pipeline completo de decisores;
@@ -44,16 +44,17 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `fe4f5a6b7c8d`. |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `aa6b7c8d9e0f`. |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
-| P0.5 Observabilidade agregada | 🟠 Parcial | Status/erros de Event Discovery existem; faltam métricas agregadas por provider/custo/quota. |
+| P0.5 Observabilidade agregada | 🟠 Parcial | Métricas históricas por execução e endpoint org-scoped existem; ainda faltam custo real e correlação consolidada com quota. |
 | P1.15–P1.16 Event Discovery/provider → Lead | ✅ Feito | Provider confiável, dedup, provenance e vínculo org-scoped. |
-| P1.19 Expiração de eventos | 🟠 Parcial | `upcoming`/`expired` e job idempotente por `event_date`; TTL explícito em string ainda precisa conversão. |
+| P1.19 Expiração de eventos | ✅ Feito | `upcoming`/`expired`, TTL ISO normalizado para UTC e job idempotente. |
 | P1.22–P1.24 Atribuição comercial | ✅ Feito | Oferta, versão e oportunidade persistidas. |
 | P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
-| P1.17–P1.18 Evento → oferta/decisor/outreach | 🔵 Estrutural | Ainda não há consumidor ponta a ponta. |
+| P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
+| P1.18 Evento → decisor/outreach | 🟠 Parcial | Ação recomendada persiste contato/canal quando já há decisor; descoberta externa e outreach ainda faltam. |
 | P1.31–P1.39 Decisores canônicos | 🟠 Parcial | Contatos existem; entidade/provenance/resolução completa faltam. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
@@ -324,7 +325,7 @@ A operação consegue explicar **por que uma campanha trouxe poucos leads**.
 
 ## P1.1 — Cross-provider Company Identity Resolution
 
-**Status:** 🔵 Estrutural
+**Status:** 🟠 Parcial
 
 ### Problema
 
@@ -990,9 +991,11 @@ failed
 
 ## P1.17 — Evento → OfferMatcher → oportunidade
 
-**Status:** 🔵 Estrutural
+**Status:** ✅ Operacional para eventos futuros com lead resolvido
 
-Evento não deve parar em relatório.
+Evento não deve parar em relatório. Eventos futuros com lead resolvido agora são
+processados pelo `EventOpportunityService` e persistidos como oportunidade de
+`trophies` usando o `OfferMatcher` existente.
 
 Fluxo desejado:
 
@@ -1007,15 +1010,18 @@ EventOpportunity
 
 ### Critério de aceite
 
-Evento futuro gera oportunidade comercial rastreável para troféus.
+Evento futuro com organizador resolvido gera oportunidade comercial rastreável
+para troféus, com versão, evidências temporais e operação idempotente. Eventos
+sem lead ou expirados ficam explicitamente ignorados; decisor e outreach não são
+disparados automaticamente.
 
 ---
 
 ## P1.18 — Evento → decisor → ação comercial
 
-**Status:** 🔵 Estrutural
+**Status:** 🟠 Parcial
 
-Após resolver organizador:
+Após resolver organizador e, quando disponível, selecionar um contato persistido:
 
 ```text
 OfferProfile.trophies.decision_makers
@@ -1025,7 +1031,7 @@ OfferProfile.trophies.decision_makers
 → próxima ação
 ```
 
-UI deve mostrar:
+O backend agora persiste a recomendação quando há contato acionável. A UI deve mostrar:
 
 ```text
 Evento

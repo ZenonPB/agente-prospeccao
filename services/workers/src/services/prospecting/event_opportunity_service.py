@@ -1,12 +1,16 @@
 """Persistência das oportunidades descobertas em eventos."""
 from datetime import date, datetime, timezone
+from dataclasses import replace
 from typing import Any, Dict, Iterable, List
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from database.models import Company, EventOpportunityRow, Lead
+from database.models import Company, Contact, EventOpportunityRow, Lead
+from services.prospecting.default_profiles import get_default_registry
+from services.prospecting.lead_opportunity_service import LeadOpportunityService
+from services.prospecting.offer_matcher import OfferMatcher
 
 
 def _event_date(value: Any) -> date | None:
@@ -18,6 +22,22 @@ def _event_date(value: Any) -> date | None:
         except ValueError:
             return None
     return None
+
+
+def parse_event_datetime(value: Any) -> datetime | None:
+    """Converte timestamps de providers para datetimes UTC conscientes."""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 class EventOpportunityService:
@@ -99,6 +119,117 @@ class EventOpportunityService:
             rows.append(row)
         return rows
 
+    def match_event_opportunities(
+        self,
+        db: Session,
+        events: Iterable[EventOpportunityRow],
+    ) -> Dict[str, Any]:
+        """Conecta eventos futuros a oportunidades de troféus persistidas.
+
+        O evento fornece sinais temporais e de intenção; o ``OfferMatcher``
+        continua sendo a única regra de aderência à oferta. A operação é
+        idempotente por lead/oferta e não envia mensagens automaticamente.
+
+        Returns:
+            Contadores de eventos casados, ignorados e falhos, além dos erros
+            individuais para observabilidade do job.
+        """
+        matcher = OfferMatcher(get_default_registry())
+        opportunity_service = LeadOpportunityService()
+        result: Dict[str, Any] = {"matched": 0, "skipped": 0, "failed": 0, "errors": []}
+        for event in events:
+            if event.status != "upcoming" or not event.lead_id:
+                result["skipped"] += 1
+                continue
+            lead = db.get(Lead, event.lead_id)
+            if lead is None or lead.organization_id != event.organization_id:
+                result["skipped"] += 1
+                continue
+            try:
+                lead_data = {
+                    "company_name": lead.company_name or lead.name,
+                    "segment": lead.category,
+                    "cnae": getattr(lead, "cnae", None),
+                    "company_size": getattr(lead, "company_size", None),
+                    "has_phone": bool(lead.phone),
+                    "has_instagram": bool(getattr(lead, "instagram_url", None)),
+                    # O vínculo de um evento futuro é evidência suficiente de
+                    # que o organizador hospeda eventos, sem afirmar volume.
+                    "hosts_events": True,
+                }
+                matches = matcher.match(lead_data, min_score=1)
+                trophies = next((item for item in matches if item.offer_key == "trophies"), None)
+                if trophies is None:
+                    result["skipped"] += 1
+                    continue
+                evidence = list(dict.fromkeys([
+                    *trophies.evidence,
+                    "EVENT_SCHEDULED",
+                    "ORGANIZER_RESOLVED" if event.organizer_resolved else "ORGANIZER_UNRESOLVED",
+                ]))
+                if (event.timing or {}).get("timing_score", 0) >= 60:
+                    evidence.append("CONTACT_WINDOW_GOOD")
+                enriched = replace(
+                    trophies,
+                    evidence=list(dict.fromkeys(evidence)),
+                    signals_matched=list(dict.fromkeys([
+                        *trophies.signals_matched, "EVENT_SCHEDULED",
+                    ])),
+                )
+                opportunity_service.persist_opportunities(db, lead, [enriched])
+                result["matched"] += 1
+            except (TypeError, ValueError, AttributeError) as exc:
+                result["failed"] += 1
+                result["errors"].append({
+                    "event_id": str(event.id),
+                    "error_code": type(exc).__name__,
+                })
+        return result
+
+    def prepare_event_actions(
+        self,
+        db: Session,
+        events: Iterable[EventOpportunityRow],
+    ) -> Dict[str, Any]:
+        """Resolve contato já persistido e prepara próxima ação humana."""
+        result: Dict[str, Any] = {"ready": 0, "needs_review": 0, "not_found": 0, "errors": []}
+        channels = (get_default_registry().get("trophies").channels or {}).get("priority", [])
+        for event in events:
+            if event.status != "upcoming" or not event.lead_id:
+                result["not_found"] += 1
+                continue
+            try:
+                contacts = list(db.scalars(select(Contact).where(
+                    Contact.lead_id == event.lead_id,
+                ).order_by(Contact.is_primary.desc(), Contact.confidence.desc())).all())
+                contact = next((item for item in contacts if item.email_verified and item.email), None)
+                contact = contact or next((item for item in contacts if item.phone), None)
+                contact = contact or next((item for item in contacts if item.email), None)
+                if contact is None:
+                    event.decision_maker_id = None
+                    event.decision_maker_status = "not_found"
+                    event.action_status = "needs_review"
+                    event.next_action = "Encontrar e validar um decisor; não enviar mensagem automaticamente."
+                    result["not_found"] += 1
+                    continue
+                channel = "email" if contact.email_verified and contact.email else "phone" if contact.phone else "email"
+                if channel not in channels:
+                    channel = next((item for item in channels if item in ("email", "phone", "whatsapp", "instagram")), channel)
+                event.decision_maker_id = contact.id
+                event.decision_maker_status = "resolved"
+                event.recommended_channel = channel
+                event.action_status = "ready" if contact.email_verified or contact.phone else "needs_review"
+                event.next_action = (
+                    f"Revisar {contact.name} e preparar contato por {channel}; não enviar mensagem automaticamente."
+                )
+                result[event.action_status] += 1
+            except (TypeError, ValueError, AttributeError) as exc:
+                event.action_status = "needs_review"
+                event.decision_maker_status = "failed"
+                result["needs_review"] += 1
+                result["errors"].append({"event_id": str(event.id), "error_code": type(exc).__name__})
+        return result
+
     @staticmethod
     def _source_identifier(event: Dict[str, Any]) -> str | None:
         """Retorna o identificador estável informado pela fonte, quando houver."""
@@ -168,20 +299,13 @@ class EventOpportunityService:
 
     @staticmethod
     def _datetime(value: Any) -> datetime | None:
-        if not value:
-            return None
+        return parse_event_datetime(value)
 
     @staticmethod
     def _status_for_event(event_date: date, expires_at: datetime | None) -> str:
         if expires_at and expires_at <= datetime.now(timezone.utc):
             return "expired"
         return "expired" if event_date < datetime.now(timezone.utc).date() else "upcoming"
-        if isinstance(value, datetime):
-            return value
-        try:
-            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        except ValueError:
-            return None
 
     def list_for_organization(self, db: Session, organization_id: UUID) -> List[EventOpportunityRow]:
         return list(db.scalars(select(EventOpportunityRow).where(

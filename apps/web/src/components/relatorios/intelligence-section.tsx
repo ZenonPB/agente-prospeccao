@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDays, ExternalLink, Loader2, TrendingUp, FlaskConical } from 'lucide-react';
+import { CalendarDays, ExternalLink, Loader2, TrendingUp, FlaskConical, UserRound, Phone, Mail } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useApproveCommercialComparison, useCommercialComparison, useIntelligence } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,15 @@ export function IntelligenceSection({ period }: { period?: { from?: string; to?:
           <CardContent className="space-y-3">
             {eventItems.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum evento futuro foi encontrado.</p> : eventItems.slice(0, 6).map((event) => (
               <div key={event.id} className="flex items-start justify-between gap-3 rounded-lg border p-3">
-                <div className="min-w-0"><p className="font-medium">{event.name}</p><p className="text-xs text-muted-foreground">{formatDate(event.event_date)} · {event.location || 'Local não informado'}</p></div>
+                <div className="min-w-0 space-y-1">
+                  <p className="font-medium">{event.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatDate(event.event_date)} · {event.location || 'Local não informado'}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{event.decision_maker_status === 'resolved' ? 'Decisor resolvido' : event.decision_maker_status === 'failed' ? 'Falha ao resolver decisor' : 'Decisor pendente'}</span>
+                    {event.recommended_channel && <span className="inline-flex items-center gap-1">{event.recommended_channel === 'email' ? <Mail className="h-3 w-3" /> : <Phone className="h-3 w-3" />}Canal: {event.recommended_channel}</span>}
+                  </div>
+                  {event.next_action && <p className="text-xs text-foreground/80">{event.next_action}</p>}
+                </div>
                 <a className="shrink-0 text-primary" href={event.source_url} target="_blank" rel="noreferrer" aria-label={`Abrir fonte de ${event.name}`}><ExternalLink className="h-4 w-4" /></a>
               </div>
             ))}

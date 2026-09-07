@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from database.models import Base, EventOpportunityRow, CommercialOutcomeRow, Lead, Organization
+from database.models import Base, Contact, EventOpportunityRow, CommercialOutcomeRow, Lead, LeadOpportunityRow, Organization
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=False)
@@ -31,7 +31,9 @@ def session():
     yield db, org, lead
     db.rollback()
     db.query(EventOpportunityRow).filter(EventOpportunityRow.organization_id == org.id).delete()
+    db.query(LeadOpportunityRow).filter(LeadOpportunityRow.organization_id == org.id).delete()
     db.query(CommercialOutcomeRow).filter(CommercialOutcomeRow.organization_id == org.id).delete()
+    db.query(Contact).filter(Contact.lead_id == lead.id).delete()
     db.query(Lead).filter(Lead.id == lead.id).delete()
     db.query(Organization).filter(Organization.id == org.id).delete()
     db.commit()
@@ -61,6 +63,92 @@ def test_event_discovery_persists_idempotently(session):
     assert len(second) == 1
     assert len(rows) == 1
     assert rows[0].event_date == date(2030, 6, 15)
+
+
+def test_evento_upcoming_gera_oportunidade_de_trofeus_idempotente(session):
+    from services.prospecting.event_opportunity_service import EventOpportunityService
+
+    db, org, lead = session
+    lead.company_name = "Empresa Esportiva Alpha"
+    lead.name = lead.company_name
+    lead.category = "esportivos"
+    lead.phone = "+5511999999999"
+    event = {
+        "name": "Copa Alpha",
+        "event_type": "sport",
+        "event_date": "2030-06-15",
+        "location": "São Paulo",
+        "source_url": "https://events.example/copa-alpha-opportunity",
+        "organizer": "Empresa Esportiva Alpha",
+        "organizer_resolved": {
+            "official_name": "Empresa Esportiva Alpha",
+            "confidence": 0.95,
+        },
+        "timing": {"timing_score": 90, "urgency": "high"},
+    }
+
+    service = EventOpportunityService()
+    rows = service.replace_events(db, org.id, [event])
+    assert rows[0].status == "upcoming"
+    assert rows[0].lead_id == lead.id
+    first = service.match_event_opportunities(db, rows)
+    second = service.match_event_opportunities(db, rows)
+    db.commit()
+
+    assert first["matched"] == 1, first
+    assert second["matched"] == 1
+    opportunities = db.query(LeadOpportunityRow).filter(
+        LeadOpportunityRow.lead_id == lead.id,
+        LeadOpportunityRow.offer_key == "trophies",
+    ).all()
+    assert len(opportunities) == 1
+    assert opportunities[0].offer_version == "1.0"
+    assert "EVENT_SCHEDULED" in opportunities[0].evidence
+
+
+def test_evento_com_contato_persistido_gera_acao_comercial_sem_enviar_mensagem(session):
+    from database.models import Contact, ContactRole
+    from services.prospecting.event_opportunity_service import EventOpportunityService
+
+    db, org, lead = session
+    lead.company_name = "Empresa Esportiva Alpha"
+    lead.name = lead.company_name
+    lead.category = "esportivos"
+    contact = Contact(
+        lead_id=lead.id,
+        name="Maria Organizadora",
+        role=ContactRole.ADMINISTRADOR,
+        phone="16999998888",
+        confidence=90,
+        is_primary=True,
+        source="company_site",
+    )
+    db.add(contact)
+    db.flush()
+    event = {
+        "name": "Copa Alpha Ação",
+        "event_type": "sport",
+        "event_date": "2030-06-15",
+        "location": "São Paulo",
+        "source_url": "https://events.example/copa-alpha-action",
+        "organizer": "Empresa Esportiva Alpha",
+        "organizer_resolved": {"official_name": "Empresa Esportiva Alpha", "confidence": 0.95},
+        "timing": {"timing_score": 90, "urgency": "high"},
+    }
+
+    service = EventOpportunityService()
+    rows = service.replace_events(db, org.id, [event])
+    service.match_event_opportunities(db, rows)
+    action_result = service.prepare_event_actions(db, rows)
+    db.commit()
+    db.refresh(rows[0])
+
+    assert action_result == {"ready": 1, "needs_review": 0, "not_found": 0, "errors": []}
+    assert rows[0].decision_maker_id == contact.id
+    assert rows[0].decision_maker_status == "resolved"
+    assert rows[0].recommended_channel == "phone"
+    assert rows[0].action_status == "ready"
+    assert "não envia" in rows[0].next_action.lower()
 
 
 def test_commercial_outcome_is_idempotent_and_metrics_are_real(session):

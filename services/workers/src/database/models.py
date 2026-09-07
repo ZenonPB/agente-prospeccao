@@ -351,6 +351,30 @@ class ProviderUsage(Base):
         return f"<ProviderUsage(org='{self.organization_id}', key='{self.key_name}', date={self.usage_date}, count={self.count})>"
 
 
+class ProviderExecutionMetric(Base):
+    """Medição histórica de uma execução de provider por organização/job."""
+    __tablename__ = "provider_execution_metrics"
+    __table_args__ = (
+        Index("ix_provider_execution_metrics_org_recorded", "organization_id", "recorded_at"),
+        Index("ix_provider_execution_metrics_org_provider", "organization_id", "provider", "recorded_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
+    provider = Column(String(64), nullable=False)
+    status = Column(String(24), nullable=False)
+    result_count = Column(Integer, nullable=False, server_default="0")
+    duration_ms = Column(Integer, nullable=False, server_default="0")
+    budget_used = Column(Integer, nullable=False, server_default="0")
+    error_code = Column(String(100), nullable=True)
+    retryable = Column(Boolean, nullable=False, server_default="false")
+    cost = Column(Numeric(12, 6), nullable=True)
+    recorded_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    organization = relationship("Organization")
+    job = relationship("Job")
+
+
 class OrgAuditEvent(enum.Enum):
     """Eventos administrativos da organização registrados no audit log."""
     ORG_CREATED = "ORG_CREATED"
@@ -1014,6 +1038,7 @@ class EventOpportunityRow(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    decision_maker_id = Column(UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
     offer_key = Column(String(64), nullable=True)
     name = Column(String(255), nullable=False)
     event_type = Column(String(64), nullable=False, default="other")
@@ -1032,6 +1057,10 @@ class EventOpportunityRow(Base):
     registration_status = Column(String(32), nullable=False, server_default="unknown")
     observed_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
+    decision_maker_status = Column(String(24), nullable=False, server_default="not_found")
+    recommended_channel = Column(String(32), nullable=True)
+    action_status = Column(String(24), nullable=False, server_default="needs_review")
+    next_action = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 

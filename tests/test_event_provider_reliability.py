@@ -202,6 +202,42 @@ class TestExecutorProviderStatus:
         )
         assert result["provider_status"]["fantasma"] == "skipped"
 
+    def test_provider_metrics_expõem_contrato_operacional(self):
+        class _Ok:
+            name = "ok"
+
+            async def discover(self, lead_context=None):
+                return [{
+                    "name": "Copa",
+                    "event_date": "2099-01-01",
+                    "source_url": "https://e/copa-metrics",
+                    "organizer": "Federação X",
+                }]
+
+        metrics = self._executor_with(_Ok()).execute()["provider_metrics"]["ok"]
+
+        assert metrics["status"] == "success"
+        assert metrics["result_count"] == 1
+        assert isinstance(metrics["duration_ms"], int)
+        assert metrics["error_code"] is None
+        assert metrics["retryable"] is False
+
+    def test_falha_de_provider_preserva_error_code_e_retryable(self):
+        from services.prospecting.event_discovery import EventProviderError
+
+        class _Broken:
+            name = "broken-metrics"
+
+            async def discover(self, lead_context=None):
+                raise EventProviderError("endpoint 503")
+
+        metrics = self._executor_with(_Broken()).execute()["provider_metrics"]["broken-metrics"]
+
+        assert metrics["status"] == "failed"
+        assert metrics["result_count"] == 0
+        assert metrics["error_code"] == "EventProviderError"
+        assert metrics["retryable"] is True
+
     def test_evento_invalido_e_rejeitado_e_contado(self):
         class _Mixed:
             name = "mixed"

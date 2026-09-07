@@ -61,4 +61,5 @@ from database.models import (
     Company,
     Person,
     WebhookLog,
+    ProviderExecutionMetric,
 )

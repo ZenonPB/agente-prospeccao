@@ -175,6 +175,11 @@ export interface EventOpportunity {
   source_identifier?: string | null;
   provenance?: Record<string, unknown>;
   lead_id?: string | null;
+  decision_maker_id?: string | null;
+  decision_maker_status?: 'resolved' | 'not_found' | 'failed' | null;
+  recommended_channel?: 'email' | 'phone' | 'whatsapp' | 'instagram' | null;
+  action_status?: 'ready' | 'needs_review' | null;
+  next_action?: string | null;
 }
 
 export interface CommercialOutcome {
