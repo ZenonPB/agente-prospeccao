@@ -591,6 +591,7 @@ class Lead(Base):
     # Timestamps por fonte do enriquecimento (JSONB {"linkedin", "site",
     # "reviews"} em ISO) — alimenta o TTL e a indicação de dados antigos.
     enrichment_timestamps = Column(JSONB)
+    discovery_provenance = Column(JSONB)
     # Campos de trabalho do consultor.
     notes = Column(Text)
     next_action_at = Column(DateTime(timezone=True))

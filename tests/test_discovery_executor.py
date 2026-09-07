@@ -141,9 +141,68 @@ class TestDiscoveryExecutor:
             {"type": "cnae_discovery", "queries": ["y"]},
         ]}
         result = executor.execute(plan)
-        # Dedup por nome
+        # O mesmo nome não vence identificadores fortes conflitantes.
         unique_names = [r["name"] for r in result["unique_candidates"]]
-        assert unique_names.count("Alpha") == 1
+        assert unique_names.count("Alpha") == 2
+
+    def test_executor_funde_provenance_de_cnpj_entre_providers(self):
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor, _StubProvider,
+        )
+
+        registry = DiscoveryProviderRegistry()
+        registry.register(_StubProvider("google_places", results=[{
+            "name": "XPTO",
+            "place_id": "place-1",
+            "website": "https://xpto.com.br",
+            "provider_query": "metalúrgica São Paulo",
+        }]))
+        registry.register(_StubProvider("cnae_discovery", results=[{
+            "name": "XPTO INDUSTRIA LTDA",
+            "cnpj": "00.111.222/0001-33",
+            "website": "https://www.xpto.com.br/contato",
+            "provider_query": "25 São Paulo",
+        }]))
+
+        result = DiscoveryExecutor(registry).execute({
+            "providers": [
+                {"type": "google_places"},
+                {"type": "cnae_discovery"},
+            ],
+        })
+
+        assert result["unique_count"] == 1
+        candidate = result["unique_candidates"][0]
+        assert candidate["identity_resolution"]["status"] == "confirmed"
+        assert candidate["identity_resolution"]["matched_by"] == "normalized_domain"
+        assert candidate["provenance"]["providers"] == ["google_places", "cnae_discovery"]
+        assert candidate["provenance"]["provider_queries"] == [
+            "metalúrgica São Paulo", "25 São Paulo",
+        ]
+
+    def test_chave_forte_tem_precedencia_sobre_nome_legado(self):
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor, _StubProvider,
+        )
+
+        registry = DiscoveryProviderRegistry()
+        registry.register(_StubProvider("google_places", results=[{
+            "name": "Oficina Silva",
+            "place_id": "place-a",
+            "provider_query": "oficina São Paulo",
+        }]))
+        registry.register(_StubProvider("cnae_discovery", results=[{
+            "name": "Oficina Silva",
+            "cnpj": "00.111.222/0001-33",
+            "provider_query": "cnae 25 São Paulo",
+        }]))
+
+        result = DiscoveryExecutor(registry, dedup_keys=("name",)).execute({
+            "providers": [{"type": "google_places"}, {"type": "cnae_discovery"}],
+        })
+
+        assert result["unique_count"] == 2
+        assert all(item["identity_resolution"]["status"] == "new" for item in result["unique_candidates"])
 
     def test_executor_total_candidates_e_metricado(self):
         from services.prospecting.discovery_executor import (

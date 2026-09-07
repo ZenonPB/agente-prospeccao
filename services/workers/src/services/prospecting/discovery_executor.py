@@ -12,6 +12,8 @@ registry; adicionar novo provider = criar adapter + registrar.
 import time
 from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
+from services.company_identity_service import CompanyIdentityResolver
+
 
 @runtime_checkable
 class DiscoveryProvider(Protocol):
@@ -61,6 +63,7 @@ class DiscoveryExecutor:
     ):
         self.registry = registry
         self.dedup_keys = dedup_keys
+        self.identity_resolver = CompanyIdentityResolver()
 
     def execute(self, plan: Dict[str, Any], lead_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Executa todos os providers declarados no plano, em ordem.
@@ -104,6 +107,15 @@ class DiscoveryExecutor:
             except Exception:
                 # Provider falhou — pula mas não derruba o batch
                 candidates = []
+
+            candidates = [
+                {
+                    **candidate,
+                    "provider": candidate.get("provider") or provider_name,
+                    "provider_query": candidate.get("provider_query") or queries[0],
+                }
+                for candidate in candidates
+            ]
 
             # Dedup intra-provider por query
             seen_keys = set()
@@ -232,7 +244,14 @@ class DiscoveryExecutor:
                     res = provider.run(q, lead_context=lead_context)
                     if inspect.isawaitable(res):
                         res = await res
-                    all_results.extend(res or [])
+                    all_results.extend(
+                        {
+                            **candidate,
+                            "provider": candidate.get("provider") or provider_name,
+                            "provider_query": candidate.get("provider_query") or q,
+                        }
+                        for candidate in (res or [])
+                    )
                 except Exception as exc:  # noqa: BLE001 — contrato registra a falha
                     first_error = first_error or exc
                     continue
@@ -317,12 +336,100 @@ class DiscoveryExecutor:
         return None
 
     def _dedup(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Dedup por chave de identidade, preservando a primeira ocorrência."""
+        """Dedup por identidade confirmada e preserva provenance de fontes."""
         seen: set = set()
         out: List[Dict[str, Any]] = []
         for c in candidates:
             key = self._identity_key(c)
-            if key and key not in seen:
+            match = None
+            match_result = None
+            for existing in out:
+                identity = self.identity_resolver.resolve(existing, [c])
+                if identity.status == "confirmed":
+                    match = existing
+                    match_result = identity
+                    break
+            if match is not None:
+                self._merge_identity(match, c, match_result)
+                continue
+            if key and key in seen:
+                previous = next((item for item in out if self._identity_key(item) == key), None)
+                if previous is None or not self._conflicting_strong_identity(previous, c):
+                    continue
+            if key:
                 seen.add(key)
-                out.append(c)
+            c.setdefault("identity_resolution", {
+                "status": "new",
+                "matched_by": None,
+                "confidence": 0.0,
+                "auto_merge": False,
+            })
+            c.setdefault("provenance", self._candidate_provenance(c))
+            out.append(c)
         return out
+
+    @staticmethod
+    def _conflicting_strong_identity(
+        left: Dict[str, Any],
+        right: Dict[str, Any],
+    ) -> bool:
+        """Evita que o fallback por nome esconda chaves fortes diferentes."""
+        strong_values = []
+        for keys in (("cnpj",), ("normalized_domain",), ("place_id", "place_id_candidate")):
+            left_value = next((left.get(key) for key in keys if left.get(key)), None)
+            right_value = next((right.get(key) for key in keys if right.get(key)), None)
+            if left_value:
+                strong_values.append(("left", str(left_value).strip()))
+            if right_value:
+                strong_values.append(("right", str(right_value).strip()))
+        return bool(
+            strong_values
+            and any(
+                left_value != right_value
+                for index, (side, left_value) in enumerate(strong_values)
+                for other_side, right_value in strong_values[index + 1:]
+                if side != other_side
+            )
+        )
+
+    def _merge_identity(
+        self,
+        target: Dict[str, Any],
+        incoming: Dict[str, Any],
+        match_result: Any,
+    ) -> None:
+        """Mescla dados não vazios e provenance de candidatos confirmados."""
+        for key, value in incoming.items():
+            if value and not target.get(key):
+                target[key] = value
+        target["identity_resolution"] = match_result.to_dict()
+        target["provenance"] = self._merge_provenance(
+            target.get("provenance") or self._candidate_provenance(target),
+            self._candidate_provenance(incoming),
+        )
+        queries = list(dict.fromkeys([
+            *(target.get("source_queries") or []),
+            *(incoming.get("source_queries") or []),
+            *([incoming["provider_query"]] if incoming.get("provider_query") else []),
+        ]))
+        if queries:
+            target["source_queries"] = queries
+
+    @staticmethod
+    def _candidate_provenance(candidate: Dict[str, Any]) -> Dict[str, Any]:
+        """Extrai provenance básica sem alterar o objeto original."""
+        return {
+            "providers": [candidate["provider"]] if candidate.get("provider") else [],
+            "provider_queries": [candidate["provider_query"]] if candidate.get("provider_query") else [],
+            "provider_candidate_ids": [
+                str(candidate.get("provider_candidate_id") or candidate.get("id"))
+            ] if candidate.get("provider_candidate_id") or candidate.get("id") else [],
+        }
+
+    @staticmethod
+    def _merge_provenance(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:
+        """Une listas de provenance preservando a ordem de descoberta."""
+        return {
+            key: list(dict.fromkeys([*(left.get(key) or []), *(right.get(key) or [])]))
+            for key in ("providers", "provider_queries", "provider_candidate_ids")
+        }

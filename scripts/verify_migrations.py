@@ -58,6 +58,9 @@ REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
     "commercial_outcomes": {"uq_commercial_outcomes_org_event"},
 }
+REQUIRED_COLUMNS = {
+    "leads": {"discovery_provenance"},
+}
 
 
 def migration_head() -> str:
@@ -82,6 +85,17 @@ def verify_database(database_url: str) -> dict[str, object]:
             missing_tables = REQUIRED_TABLES - tables
             if missing_tables:
                 raise RuntimeError(f"Tabelas ausentes: {sorted(missing_tables)}")
+            get_columns = getattr(database_inspector, "get_columns", None)
+            missing_columns = set()
+            if get_columns is not None:
+                missing_columns = {
+                    f"{table}.{column}"
+                    for table, columns in REQUIRED_COLUMNS.items()
+                    for column in columns
+                    if column not in {item["name"] for item in get_columns(table)}
+                }
+            if missing_columns:
+                raise RuntimeError(f"Colunas essenciais ausentes: {sorted(missing_columns)}")
             indexes = {
                 index["name"]
                 for table in REQUIRED_TABLES & tables

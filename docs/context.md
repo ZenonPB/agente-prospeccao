@@ -3,8 +3,8 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-07 · branch `feat/sprint-identidade-decisores` ·
-> Alembic head `cc8d9e0f1a2b`.
+> **Snapshot:** 2026-09-07 · branch `feat/identidade-cross-provider` ·
+> Alembic head `dd9e0f1a2b3c`.
 
 ## Leitura obrigatória
 
@@ -48,13 +48,16 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - Contatos persistem `identity_confidence`, `contact_confidence`, confiabilidade
   da fonte, status de verificação e classificação de acionabilidade (`DIRECT`,
   `ROUTABLE`, `INSTITUTIONAL` ou `UNKNOWN`).
+- Candidatos de discovery carregam provenance consolidada no `Lead`, incluindo
+  providers, consultas, identificadores externos, plano e regra de identidade;
+  merges automáticos ocorrem apenas por chaves fortes.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **939 passed**;
+- `python -m pytest tests -q -W error`: **948 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `cc8d9e0f1a2b`;
+- `scripts/verify_migrations.py`: head único `dd9e0f1a2b3c`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato

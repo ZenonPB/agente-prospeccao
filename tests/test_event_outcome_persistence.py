@@ -206,6 +206,28 @@ def test_routability_do_contato_e_persistida_no_postgresql(session):
     assert persisted.routability_reason == "direct_line"
 
 
+def test_provenance_de_discovery_e_persistida_no_lead(session):
+    db, _org, lead = session
+    lead.discovery_provenance = {
+        "provider": "google_places",
+        "provider_query": "metalúrgica São Paulo",
+        "provider_candidate_id": "place-1",
+        "retrieved_at": "2030-01-01T12:00:00+00:00",
+        "discovery_plan_id": "mechanical_engineering",
+        "matched_identity_rule": "normalized_domain",
+        "identity_status": "confirmed",
+        "identity_confidence": 0.95,
+        "providers": ["google_places", "cnae_discovery"],
+    }
+    db.commit()
+    db.expire_all()
+
+    persisted = db.query(Lead).filter(Lead.id == lead.id).one()
+
+    assert persisted.discovery_provenance["providers"] == ["google_places", "cnae_discovery"]
+    assert persisted.discovery_provenance["matched_identity_rule"] == "normalized_domain"
+
+
 def test_commercial_outcome_is_idempotent_and_metrics_are_real(session):
     from services.prospecting.commercial_outcome_service import CommercialOutcomeService
 

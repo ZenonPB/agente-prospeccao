@@ -1,6 +1,6 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-07 · branch `feat/sprint-identidade-decisores` ·
-> Alembic head `cc8d9e0f1a2b`.
+> **Snapshot:** 2026-09-07 · branch `feat/identidade-cross-provider` ·
+> Alembic head `dd9e0f1a2b3c`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -21,7 +21,7 @@
 |---|---|---|---|---|
 | OfferProfile/Resolver | ✅ | `pipeline_worker` | contexto da campanha + versão | perfis cadastrados em código |
 | Candidate pre-scoring | ✅ | pipeline antes do enrichment | `prescoring_discards` | calibração avançada ainda pendente |
-| Discovery Places/CNAE | ✅ | `DiscoveryExecutor` + adapters | leads/provenance do job | provider sem credencial é pulado |
+| Discovery Places/CNAE | 🟠 | `DiscoveryExecutor` + adapters | leads/provenance consolidada | resolução cross-provider e revisão fuzzy ainda parciais |
 | Enrichment adaptativo | ✅ | `enrichment_orchestrator` | `enrichments`/evidence | custo e cobertura dependem dos providers |
 | Scoring vetorial contextual | ✅ | `AIScoringService` | campos/evidence do lead | re-scoring imutável ainda pendente |
 | OfferMatcher | ✅ | pós-scoring do enrichment | `lead_opportunities` | sem tela administrativa dedicada |
@@ -48,10 +48,10 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **939 passed**.
+- `python -m pytest tests -q -W error`: **948 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `cc8d9e0f1a2b`.
+- `scripts/verify_migrations.py`: head único `dd9e0f1a2b3c`.
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 

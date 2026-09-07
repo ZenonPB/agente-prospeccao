@@ -220,6 +220,7 @@ def _lead_summary(lead: Lead) -> dict:
         "primary_person_id": str(lead.primary_person_id) if lead.primary_person_id else None,
         "company_name_3e": lead.company.company_name if lead.company else lead.company_name,
         "primary_person_name": lead.primary_person.name if lead.primary_person else None,
+        "discovery_provenance": lead.discovery_provenance,
     }
 
 
