@@ -5,7 +5,8 @@
 > que skills carregar, como escrever e como entregar código. Sempre em PT-BR.
 >
 > **Fonte primeira do estado vivo:** `docs/context.md` (ler primeiro, ele aponta
-> o que ler em seguida) e `docs/roadmap-vendas.md` (mapa-norte: o que falta).
+> o que ler em seguida) e `docs/00-status-mapa.md`/`docs/pendencias-pos-consolidacao.md`.
+> `docs/roadmap-vendas.md` é roadmap comercial histórico.
 
 ---
 
@@ -163,7 +164,7 @@ migrations (upgrade head + seed smoke).
 - [ ] Verificação da camada (§6) limpa e documentada na resposta.
 - [ ] Docs vivas: `docs/context.md` (Estado atual + "Próximo passo imediato") e,
       se mudou arquitetura, `docs/architecture.md`; status do item em
-      `docs/roadmap-vendas.md` (§5 tabela + seção do item); novas decisões em
+      `docs/00-status-mapa.md` e `docs/pendencias-pos-consolidacao.md`; novas decisões em
       `docs/decisions.md`.
 - [ ] `graphify update .` após mudanças de código (AST-only, sem custo).
 - [ ] Nunca commitar `.env`/chaves; perguntar antes de instalar dependência.
@@ -198,7 +199,8 @@ migrations (upgrade head + seed smoke).
 
 - Fluxo _como rodar/verificar_ mais resumido: `AGENTS.md` (raiz).
 - Estado vivo + histórico de sessões: `docs/context.md`.
-- Mapa-norte com backlog e tabela de status: `docs/roadmap-vendas.md`.
+- Roadmap comercial e histórico de entregas: `docs/roadmap-vendas.md`.
+- Status operacional e pendências: `docs/00-status-mapa.md` e `docs/pendencias-pos-consolidacao.md`.
 - Regras do produto (funil, cadência, tracking): `docs/business-rules.md`.
 - Stack/arquitetura/modelos/endpoints: `docs/architecture.md`.
 - Decisões (ADRs): `docs/decisions.md`. Padrões de código: `docs/coding-standards.md`.

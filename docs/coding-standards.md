@@ -2,8 +2,11 @@
 
 ## Obrigatórios
 
-- Todo código Python deve ser **async** (usar `async def` + `httpx.AsyncClient`)
-- Nunca usar `requests` — usar `httpx`
+- Serviços de I/O dos workers devem ser **async** (usar `async def` +
+  `httpx.AsyncClient`); handlers/serviços da API podem ser síncronos quando o
+  acesso SQLAlchemy ou a compatibilidade do framework exigir, sem bloquear o
+  event loop com trabalho pesado.
+- Nunca usar `requests` em workers — usar `httpx`
 - Nunca usar `print` — usar `logging`
 - Funções com mais de 60 linhas devem ser quebradas
 - Todo método público deve ter docstring com Args e Returns
@@ -31,7 +34,9 @@
 - Serviços não importam outros serviços — orquestração em `enrichment_orchestrator.py`
   (que liga `technical_enrichment_service` + `scoring_service`) ou em `main.py`;
   import cruzado entre serviços é a exceção, não a regra
-- Retornar `None` em caso de falha, nunca lançar exceção para o caller
+- Providers devem distinguir erro, vazio, desabilitado e desconhecido; não
+  converter falha em lista vazia silenciosamente. Exceções devem ser tratadas no
+  limite do fluxo com log e estado observável.
 
 ## Variáveis de Ambiente
 

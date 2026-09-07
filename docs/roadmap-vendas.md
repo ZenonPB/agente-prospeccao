@@ -1,10 +1,10 @@
 # Roadmap de Evolução — Prospect.ai (uso comercial da EJ)
 
-> **Documento-norte** do sistema de prospecção B2B da EJ, construído para
+> **Documento-norte histórico** do sistema de prospecção B2B da EJ, construído para
 > substituir ferramentas pagas (ex.: Apollo) que são inviáveis financeiramente.
 >
-> Ele descreve o **estado atual**, o **modelo de organização/papéis** (diretores,
-> analistas e consultores) e o **mapa completo de melhorias** priorizadas para
+> Ele registra o modelo de organização/papéis (diretores, analistas e
+> consultores) e o mapa histórico de melhorias priorizadas para
 > transformar o software numa máquina de vendas real e profissional.
 >
 > Criado em 2026-08-04. Atualizar este arquivo conforme cada item for entregue.
@@ -13,7 +13,7 @@
 
 ## 0. Como usar este documento
 
-- **Leia antes de qualquer tarefa de evolução.** É a fonte única do *o quê* e
+- **Consulte como histórico e direção comercial.** A fonte atual do *o quê* e
   do *por quê*. O *como* continua nas docs técnicas (`architecture.md`,
   `business-rules.md`, `decisions.md`) e no `context.md` (estado vivo).
 - **Convenção de status** por item: `⬜` não iniciado · `🟡` em andamento ·

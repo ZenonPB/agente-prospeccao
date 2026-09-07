@@ -1,319 +1,210 @@
-# Arquitetura
+# Arquitetura atual
 
-## Visão Geral
+> **Fonte operacional:** este documento descreve o código presente no branch
+> atual, não o plano histórico de consolidação. Snapshot: 2026-09-06 · branch
+> `feat/onda-2-event-discovery-final` · Alembic head `fe4f5a6b7c8d`.
+>
+> Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
+> `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
+> `docs/business-rules.md`.
 
-Plataforma de **prospecção B2B** em três camadas que se comunicam via banco de
-dados (ORM/API) e HTTP/WebSocket:
+## Visão geral
 
-- **Workers (Python async)** — dono da fonte única dos modelos e migrations;
-  coleta (Places/CSV/CNAE), enriquecimento passivo, scoring contextual e contatos.
-- **FastAPI** — API REST + WebSocket, auth JWT, isolamento multi-tenant, BI/PDF,
-  scheduler de cadência e webhooks (bridge entre frontend e workers).
-- **Next.js** — frontend (dashboard, campanhas, oportunidades, kanban, relatórios).
+O Prospect.ai é uma plataforma multi-tenant de prospecção B2B. O sistema é
+dividido em três camadas, com PostgreSQL como fonte compartilhada de estado:
 
-```
-┌─────────────┐     HTTP           ┌─────────────┐      SQL       ┌─────────────┐
-│   Next.js   │ ◄───────────────►  │   FastAPI   │ ◄──────────── ► │  PostgreSQL │
-│  (frontend) │   JWT (Rest/WS)    │  (API REST) │                 │   (banco)   │
-└─────────────┘                    └─────────────┘                 └─────────────┘
-                                        │
-                                        │ jobs/trilha (envio de coleta/scoring)
-                                        ▼
-                                 ┌─────────────┐
-                                 │   Workers   │  (fonte única dos modelos)
-                                 │  (serviços) │
-                                 └─────────────┘
+```text
+Next.js/React
+     │ REST (JWT) + WebSocket autenticado
+     ▼
+FastAPI ───────────────► PostgreSQL ◄────────────── Workers Python
+     │                         ▲                         │
+     └──── jobs em background ─┘                         │
+                  coleta, enrichment e scoring           │
 ```
 
-## Stack
+- **Web (`apps/web`)**: autenticação NextAuth, campanhas, leads, oportunidades,
+  vendas, relatórios e configurações.
+- **API (`services/api`)**: autenticação/autorização, isolamento por
+  organização, REST, WebSocket, consumidor de jobs, scheduler de cadência,
+  eventos, outcomes e BI.
+- **Workers (`services/workers`)**: serviços assíncronos de coleta,
+  enriquecimento, scoring, matching de ofertas, discovery e contatos. Define
+  os modelos SQLAlchemy e as migrations; a API apenas os reexporta.
+
+Nenhuma análise técnica de site faz sondagem ativa: o enrichment é passivo e
+usa apenas conteúdo publicamente acessível.
+
+## Stack e configuração
 
 | Camada | Tecnologia |
 |---|---|
-| Workers | Python 3.12+ · httpx (async) · SQLAlchemy 2 · Alembic |
-| API | FastAPI + uvicorn · slowapi (rate limit) · pydantic-settings |
+| Web | Next.js 16, React 19, TypeScript, TanStack Query, Zustand, shadcn/ui sobre `@base-ui/react` |
+| API | FastAPI, uvicorn, SQLAlchemy, pydantic-settings, slowapi |
+| Workers | Python async, `httpx.AsyncClient`, SQLAlchemy 2, Alembic |
 | Banco | PostgreSQL |
-| Auth | JWT (Credentials: email/senha, bcrypt) |
-| IA | Groq — modelos centralizados no `.env`: `GROQ_MODEL_CLASSIFY` (scoring/router) · `GROQ_MODEL_GENERATION` (outreach/segmentos/brief/templates) |
-| Coleta | Google Places API (New) · CSV · CNAE/Receita (BrasilAPI/Minha Receita/CNPJá) |
-| Enriquecimento | Hunter.io (opcional) · Receita/CNPJ · busca passiva (LinkedIn) |
-| BI/PDF | WeasyPrint (HTML→PDF) · Leaflet (mapa) · Recharts |
-| Frontend | Next.js 16 · React 19 · TypeScript · shadcn/ui (`@base-ui/react`) |
-| Estado frontend | TanStack Query + Zustand |
+| Auth | JWT compartilhado entre NextAuth e FastAPI, bcrypt |
+| IA | Groq; modelos configuráveis por `GROQ_MODEL_CLASSIFY` e `GROQ_MODEL_GENERATION` |
+| Provedores | Google Places, Receita/CNPJ/CNAE, Hunter opcional, provider HTTP de eventos opt-in |
+| BI | Agregações FastAPI, Recharts/Leaflet no Web e PDF via WeasyPrint |
 
-## Estrutura de Pastas
+As configurações são carregadas pelos respectivos `settings.py`. A API exige
+`DATABASE_URL` e `JWT_SECRET`; o worker exige `DATABASE_URL`, `GROQ_API_KEY` e
+`GOOGLE_API_KEY`. Secrets por organização ficam criptografados em
+`organization_secrets` e nunca são devolvidos pela API.
 
-```
-agente-prospeccao/
-├── apps/web/                          ← Frontend Next.js
-│   └── src/
-│       ├── app/
-│       │   ├── (auth)/                ← login, register, esqueci/resetar-senha, aceitar-convite
-│       │   └── (protected)/           ← dashboard, campanhas(+nova,+[id]), oportunidades([id]),
-│       │                                vendas(kanban), relatorios, configuracoes(+membros)
-│       ├── components/                ← ui/(shadcn), layout/, dashboard, campanhas, oportunidades, ...
-│       └── lib/ (api, utils), hooks/ (use-api), stores/, types/
-├── services/
-│   ├── api/                           ← FastAPI (REST + WS)
-│   │   ├── main.py                    ← app, CORS, rate limit, scheduler de cadência, /health
-│   │   └── src/
-│   │       ├── config/settings.py     ← pydantic-settings (JWT_SECRET, DATABASE_URL, CORS, ...)
-│   │       ├── auth/                  ← security (jwt+bcrypt), dependencies (roles/org)
-│   │       ├── db/                    ← session, models (re-export workers), dependencies
-│   │       ├── middleware/rate_limit.py
-│   │       ├── routes/                ← auth, invites, leads, campaigns, metrics, pipeline,
-│   │       │                            scoring_templates, orgs, analytics, webhooks
-│   │       ├── services/              ← csv_import, cadence, analytics, pitch, pdf_report,
-│   │       │                            org, lead_activity, invite, inbound_email, email
-│   │       └── pipeline_worker.py     ← dispara coleta/scoring (org + BYOK)
-│   └── workers/                       ← Python workers (fonte única de modelos/migrations)
-│       └── src/
-│           ├── config/settings.py
-│           ├── database/{models.py, session.py}
-│           ├── seeds/scoring_templates.py
-│           ├── services/
-│           │   ├── places_service.py
-│           │   ├── technical_enrichment_service.py
-│           │   ├── scoring_service.py
-│           │   ├── enrichment_orchestrator.py   ← orquestração (step adaptativo)
-│           │   ├── contact_enrichment_service.py
-│           │   ├── cnpj_service.py / cnae_discovery_service.py
-│           │   ├── outreach_service.py
-│           │   ├── campaign_brief_service.py / segment_suggestion_service.py
-│           │   ├── template_router.py / template_generation_service.py
-│           │   ├── prospecting_profile_service.py  ← perfil da vertical por config
-│           │   ├── candidate_pre_scoring_service.py ← pré-ranking determinístico
-│           │   ├── secret_service.py (BYOK) / provider_client.py / domain_utils.py
-│           │   └── main.py
-├── scripts/                           ← setup.sh / setup.ps1 / setup.cmd / dev.sh / dev.ps1 / dev.cmd / backup.sh / backup.ps1
-├── tests/                             ← pytest (134 testes)
-└── docs/
-```
+## Fluxos operacionais
 
-Os modelos são definidos **uma única vez** em `services/workers/src/database/models.py`;
-a API os re-exporta em `services/api/src/db/models.py` — não há modelos duplicados.
+### Pipeline de empresas
 
-## API REST — Endpoints (prefixo `/api`)
-
-### Auth
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/auth/register` | Cadastro (email/senha, bcrypt) → org pessoal + membership + JWT |
-| POST | `/auth/login` | Login → JWT |
-| POST | `/auth/forgot-password` · `/auth/reset-password` | Reset de senha |
-| POST | `/auth/change-password` · PATCH `/auth/profile` | Conta autenticada |
-
-### Organizações / Membros / Convites
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/orgs/my-organizations` | Orgs do usuário (switcher) |
-| GET | `/orgs/me` | Org ativa + papel |
-| POST | `/orgs` | Cria organização (3.3.1): usuário vira OWNER + MANAGER |
-| PATCH | `/orgs/{org_id}/name` | Renomeia org (owner/admin) |
-| GET | `/orgs/{id}/members` · PATCH `/orgs/{id}/members/{user_id}` | Membros e `sales_role` (owner/admin) |
-| DELETE | `/orgs/{id}/members/{user_id}` | Remove membro da org e reatribui leads para a fila livre (3.3.3) |
-| POST | `/orgs/{id}/transfer-owner` | Transfere a propriedade (OWNER) para outro membro (3.3.3) |
-| POST | `/orgs/{id}/leave` | Membro sai da org e desatribui seus leads (3.3.3) |
-| GET/POST | `/orgs/{id}/invites` · `DELETE /orgs/{id}/invites/{id}` | Convites (owner/admin) |
-| POST | `/invites/accept` | Aceita convite por token (autenticado) |
-| GET | `/invites/check` | Resolve convite por token (público): email, org, se há conta (3.3.2) |
-| POST | `/invites/accept-register` | Cadastra conta e aceita convite em 1 passo (3.3.2) |
-| GET/PUT/DELETE | `/orgs/{org_id}/secrets/{key_name}` | BYOK (org admin) — só expõe `configured` |
-| GET/PUT | `/orgs/{org_id}/sales-targets` · `DELETE /orgs/{org_id}/sales-targets/{id}` | Metas mensais por consultor (4.9): listar (MANAGER+), upsert/remover (owner/admin) |
-| PATCH | `/orgs/{org_id}` | `auto_send_email`, `email_from`, `daily_email_limit`, `send_window_start/end`, `sla_*` (prazos SLA p/ alerts — 4.10) |
-| GET | `/orgs/{org_id}/audit-log` | Auditoria de eventos administrativos (3.3.4): convites, papéis, membros, secrets, metas — MANAGER/owner/admin, filtro por `event` |
-
-### Campanhas
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET/POST | `/campaigns` | Lista (lead_count/avg_score) e criação |
-| GET/PATCH | `/campaigns/{id}` | Detalhe + vínculo de template e `offer_profile_key` |
-| POST | `/pipeline/start` com `source=events` | Descoberta de eventos futuros (provider externo opt-in) |
-| POST | `/campaigns/{id}/reanalyze` | Reanalisa leads (reescreve scoring legado) |
-| POST | `/campaigns/{id}/import` | Import CSV (multipart; dedupe, relatório) |
-| POST | `/campaigns/{id}/collect-cnae` | Coleta por CNAE em background |
-| POST | `/campaigns/from-brief` · `/campaigns/suggest-segment` | Criação por linguagem natural + sugestão de segmento |
-
-### Leads
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/leads` | Lista (filtros: status, campaign, search, min_score, assigned, next_action_before) |
-| GET | `/leads/{id}/oportunidades` | Ofertas relacionadas persistidas pelo OfferMatcher |
-| GET | `/leads/sla-alerts` · `GET /leads/stats` · `GET /leads/{id}` | Alertas SLA (4.10), agregados e detalhe (contatos, atividades, assigned_to) |
-| PATCH | `/leads/{id}` | `whatsapp`, `notes`, `next_action_at` |
-| PATCH | `/leads/{id}/status` · PATCH `/leads/{id}/assign` | Status (trilha) e atribuição |
-| PATCH | `/leads/{id}/negotiation` | Funil interno de negociação (`RD/ORÇAMENTO/RP`) + resultado de contrato (`APROVADO/REPROVADO/EM_ANALISE`) — gate em RESPONDIDO→PROPOSTA_ENVIADA |
-| POST | `/leads/{id}/post-sale` | Pós-venda: canal + data do 1º contato pós-cliente e lembrete `FollowUp.POST_SALE` (motor da cadência) |
-| POST | `/leads/{id}/whatsapp-click` | WhatsApp 1 clique (Item 4.5): valida número BR, atualiza `last_contacted_at` e registra `WHATSAPP_SENT` na trilha |
-| POST | `/leads/{id}/generate-messages` | Sequência de outreach (Groq 70B) |
-| POST | `/leads/{id}/conversion` | Registra conversão (serviço/valor/notas) |
-| POST | `/leads/{id}/enrich-contacts` | Enriquece decisores (Receita→email/LinkedIn) |
-| GET | `/leads/{id}/linkedin-query` · PATCH `/leads/{id}/contacts/{contact_id}/linkedin` | LinkedIn assistido (Item 4.22): consultas sugeridas + associação manual de perfil com validação passiva |
-| GET | `/leads/{id}/pitch` | Pitch one-pager + site audit |
-| GET/POST | `/leads/{id}/cadence` · `/leads/{id}/cadence/start` · `/leads/{id}/cadence/send/{step}` | Cadência dia 0/3/7/14 |
-| POST | `/leads/{id}/opt-out` · `DELETE /leads/{id}` | Opt-out do lead e exclusão |
-
-### Métricas / BI
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| GET | `/metrics` | Métricas do dashboard + funnel |
-| GET | `/analytics/overview` · `/analytics/consultants` · `/analytics/leads-ranking` | KPIs, funil (+ negociação RD/ORÇ/RP e resultado de contrato), desempenho por consultor (com atingimento de meta 4.9), ranking |
-| GET | `/analytics/consultants/{user_id}` · `/analytics/consultants/{user_id}/activity` | Perfil de um consultor (KPIs da planilha Alphamec + funil ponta-a-ponta) e trilha recente de atividades |
-| GET | `/analytics/geo` · `/analytics/campaigns` · `/analytics/timeline` | Geo, campanhas, evolução temporal |
-| GET | `/analytics/forecast` | Forecast ponderado por estágio (5% a 90%), pipeline total e motivos de perda (Item 4.8) |
-| GET | `/intelligence/events` · `/intelligence/outcomes` | Eventos descobertos e outcomes por oferta/versão (org-scoped) |
-| GET | `/analytics/export/pdf` | PDF executivo (WeasyPrint) |
-| GET/POST/PATCH | `/scoring-templates` | CRUD de templates (globais + da org) |
-
-### Pipeline (tempo real)
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/pipeline/start` | Inicia coleta em background → `{job_id}` |
-| WS | `/ws/pipeline/{job_id}` | Stream (log, progress, lead, done, error); **auth na 1ª mensagem** (token não vai na URL) |
-
-### Webhooks
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| POST | `/webhooks/email/inbound` | Resposta → `RESPONDIDO` · STOP → `opt_out` (valida `EMAIL_WEBHOOK_SECRET`) |
-
-All routes são filtradas pela org do usuário autenticado (dependency
-`get_user_organization`); acesso cross-tenant → 404/403. Endpoints de BI e PDF
-exigem `ANALYST`/`MANAGER`/owner/admin.
-
-## Pipeline Completo
-
-```
-[1. Coleta]  Places (query, excludes, max_pages) · CSV · CNAE
-             → Lead com status=NOVO (organization_id)
-
-[2. Enriquecimento adaptativo]  enrichment_orchestrator
-             · site (technical) se requires_technical_report
-             · cadastral CNPJ se requires_business_data
-             · leads sem site próprio são pontuados "business" (não descartados)
-             → status=ANALISADO
-
-[3. Scoring contextual]  scoring_service (Groq 8B)
-             · template via router (exact→fuzzy→LLM→GENERATE_NEW→Genérico)
-             → qualification_score, evidence[], priority HOT/WARM/COLD,
-               pitch_angle, executive_summary
-             → QUALIFICADO (score >= 60) ou DESQUALIFICADO
-
-[Pré-coleta]  candidate_pre_scoring_service (sem LLM, docs/melhorias/01)
-             · gate de promoção Candidate→Lead configurado no template
-               (`prescoring_config`); descartados não consomem enriquecimento
-
-[4. Contatos]  contact_enrichment_service
-             → email (Hunter→CNPJ→heurística) + LinkedIn (busca passiva)
-             → confidence ≥ 50 p/ cadência automática
-
-[5. Outreach]  outreach_service (Groq 70B) · cadence_service (dia 0/3/7/14)
-             → humano no loop (default); envio automático só com org opt-in
-             → inbound webhook: RESPONDIDO / opt_out
-
-[6. Resultado]  atribuição/trilha → conversão → feedback no score
-             → BI (analytics) + PDF executivo
-```
-
-## Modelo de Dados (fonte: `services/workers/src/database/models.py`)
-
-- **leads** — `id`, `organization_id`, `place_id`, `company_name`, `name`, `cnpj`,
-  `website`, `normalized_domain`, `phone`, `email`, `category`, `city`, `state`,
-  `status`, `qualification_score/reason`, `primary_need`, `pitch_angle`,
-  `suggested_subject`, `priority`, `priority_reasoning`, `executive_summary`,
-  `score_factors`, `evidence`, `evidence_score` (outputs estruturados da
-  consolidação), `assigned_to_id/assigned_at`, `opt_out`,
-  `whatsapp`, `notes`, `next_action_at`, `last_contacted_at`, campaign FK,
-  `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
-  (APROVADO/REPROVADO/EM_ANALISE) + `outcome_date` (funil interno C.3),
-  `post_sale_contacted_at` + `post_sale_channel` (WHATSAPP/EMAIL — pós-venda C.3),
-  `value` + `expected_close_date` + `lost_reason` (forecast e oportunidade 4.8),
-  timestamps. Uniques por org: `(organization_id, place_id)`,
-  `(organization_id, cnpj)`, `(organization_id, normalized_domain)`.
-- **campaigns** — `organization_id`, `name`, `target_service/segment/city/state/country`,
-  `places_query`, `scoring_template_id`, `analysis_profile`.
-- **campaign_scoring_templates** — sinais (positive/negative/context JSONB),
-  flags `requires_technical_report`/`requires_business_data`,
-  `enrichment_steps` (fontes de informação) e `cadence_schedule` (dias das
-  4 mensagens) — ver `business-rules.md`; `extra_instructions`, `playbook`,
-  `is_generated`, `organization_id`.
-- **organizations** — `name`, `slug`, `auto_send_email`, `email_from`,
-  `daily_email_limit` e `send_window_start/end` (item 4.3: teto diário e janela
-  de espalhamento do envio automático); `organization_members` ganha
-  `email_from` (remetente dedicado por consultor).
-- **SLAs (item 4.10)** — `organizations.sla_qualified_no_contact_days` (default 5),
-  `sla_responded_no_next_action_days` (default 2) e `sla_opened_no_response_days`
-  (default 2); `GET /leads/sla-alerts` computa os alertas por org.
-- **organization_secrets** — BYOK, `encrypted_value` (Fernet).
-- **contacts / company_record** — decisores, e-mails, LinkedIn, confidence; cadastro.
-  Item 4.7: proveniência do e-mail/telefone em `raw_data.email_source` /
-  `phone_source` (Hunter · site/página de contato · busca DuckDuckGo/Bing ·
-  CNPJ/Receita · heurística).
-- **enrichments** — dados técnicos do site (SSL, CMS, load_time_ms, `raw_technical_data`).
-- **jobs** — coleta/processamento (organization_id nullable).
-- **lead_activities / conversions** — trilha de atribuição/status; conversões e feedback.
-- **follow_ups / email_suppressions** — cadência dia 0/3/7/14; bounce/opt-out.
-  `follow_ups.variant` (A/B) + `variant` espelhado na `Message` enviada
-  (item 4.19); inbound cria `Message.is_response` para medir resposta por
-  variante no `/analytics/message-variants`.
-- **messages / analysis_profiles** — registros de envio (tracking `opened_at`/
-  `clicked_at`, `variant`, `is_response`) e perfis de análise.
-- **sales_targets** — metas mensais por consultor (4.9): `month` "YYYY-MM",
-  `meetings_target`, `revenue_target`; unique `(organization_id, user_id, month)`.
-- **org_audit_log** (3.3.4) — trilha de eventos administrativos da org
-  (convites, papéis, membros, secrets, metas) com actor denormalizado;
-  `event` enum `org_audit_event`; nunca grava valor de secret.
-- **notifications** — notificações in-app por usuário e organização
-  (`LEAD_RESPONDED`, `LEAD_ASSIGNED`, `SLA_ALERT`, `CADENCE_DUE`), com vínculo
-  opcional ao lead, estado `is_read` e índices para polling do cabeçalho. A
-  tabela é criada pela migration `e8f9a0b1c2d3`.
-
-## Scheduler & Tarefas Assíncronas
-
-- **Scheduler de cadência** (lifespan do FastAPI): loop asyncio
-  (`CADENCE_POLL_SECONDS`, default 60s) que roda `run_due` (regra no evento loop,
-  `asyncio.to_thread` para SMTP) — envia follow-ups vencidos **somente** de orgs
-  com `auto_send_email`, respeitando `scheduled_at`, `opt_out` e o **throttling**
-  (item 4.3: `daily_email_limit`, `send_window_start/end`, teto por hora).
-  Etapas que não couberem no orçamento do dia/hora **ficam `PENDING`** (postergadas).
-- **Pipeline em background**: endpoints `POST /pipeline/start`, `collect-cnae`
-  criam um `Job` e disparam `pipeline_worker` com streaming via WebSocket.
-- Trabalho síncrono (SMTP, import CSV) roda fora do event loop (`asyncio.to_thread`).
-
-## Estado operacional da consolidação
-
-O fluxo real atual é:
+`POST /api/pipeline/start` apenas cria um `Job`. O `jobs_consumer` reivindica o
+job e executa `pipeline_worker` fora da request; o progresso é publicado no
+WebSocket `/api/pipeline/ws/{job_id}`.
 
 ```text
-Campaign → CampaignScoringTemplate/prospecting_profile_service
-  → pipeline_worker (Places/CNAE diretos)
-  → pre-scoring → enrichment_orchestrator
-  → scoring + OfferMatcher (leads.evidence_score)
-  → ContactEnrichmentService + Decision Maker Resolution
-  → outreach/cadência
+Campaign (opcional)
+  → OfferProfileResolver (oferta explícita ou fallback legado)
+  → DiscoveryPlanner / DiscoveryExecutor
+  → Google Places, CNAE/Receita ou PNCP
+  → deduplicação por place_id/CNPJ/domínio
+  → Candidate pre-scoring determinístico
+  → Lead
+  → enrichment adaptativo passivo
+  → scoring contextual Groq + evidências
+  → OfferMatcher (múltiplas LeadOpportunity)
+  → ContactEnrichment/Decision Maker best-effort
+  → outreach e cadência
 ```
 
-Os módulos de consolidação possuem testes, mas não substituem automaticamente
-esse fluxo:
+O `OfferProfile` orienta providers, orçamento, sinais e versão. Campanhas
+legadas continuam funcionando por `target_service`/`target_segment`; o
+resolver registra `resolved_from` para tornar o fallback observável. O
+`DiscoveryExecutor` usa adapters reais de Places/CNAE e pula explicitamente um
+provider sem credencial ou registro.
 
-| Módulo | Estado | Limitação |
-|---|---|---|
-| `prospecting/offer_profile.py` | PARTIAL | pipeline ainda resolve template legado; sem tabela própria. |
-| `prospecting/discovery_executor.py` | PARTIAL | adapters existem, mas pipeline chama Places/CNAE diretamente. |
-| `prospecting/intent_provider.py` | SCAFFOLDING | não há job que colete e alimente o IntentEngine. |
-| `prospecting/event_discovery.py` | SCAFFOLDING | provider padrão é injetado/testável, sem fonte externa configurada. |
-| `prospecting/learning_metrics.py` | SCAFFOLDING | in-memory, sem endpoint/BI/outcomes reais. |
+### Event Discovery
 
-O status operacional completo fica em `docs/00-status-mapa.md`. A auditoria
-também confirmou que a migration `e8f9a0b1c2d3` é o head do código e está
-aplicada no banco de desenvolvimento.
+O pipeline aceita `source=events` em `POST /api/pipeline/start`. Esse é um fluxo
+separado do scoring de leads:
 
-## Configuração & Secret
+```text
+EventDiscoveryProvider
+  → validação e normalização do evento
+  → status do provider (ok/empty/failed/skipped)
+  → deduplicação por URL ou provider + identificador
+  → OrganizerResolver + EventTimingScorer
+  → EventOpportunityService
+  → event_opportunities
+  → vínculo seguro com Company/Lead quando há nome oficial e confiança suficiente
+```
 
-- Toda config via `settings.py` (pydantic-settings), lendo `../../.env` da raiz
-  (compartilhado entre workers e API). Variáveis principais: `DATABASE_URL`,
-  `JWT_SECRET`, `CORS_ORIGINS`, `GROQ_API_KEY`, `GOOGLE_API_KEY`,
-  `HUNTER_API_KEY`, `SECRETS_ENCRYPTION_KEY`, `EMAIL_WEBHOOK_SECRET`,
-  `TRACKING_BASE_URL` (4.2), `DAILY_EMAIL_LIMIT` (4.3),
-  `CADENCE_POLL_SECONDS`, `ENVIRONMENT`.
-- Chaves por org (BYOK) em `organization_secrets`, cifradas com Fernet
-  (`secret_service`); serviço resolvem `BYOK → pool global`. Valores nunca expostos
-  pela API (só `configured`).
+`EVENT_DISCOVERY_URL` habilita o `HttpEventDiscoveryProvider` explicitamente;
+`EVENT_DISCOVERY_TOKEN` é Bearer opcional e as retentativas são controladas por
+`EVENT_DISCOVERY_MAX_RETRIES`. Sem URL, o provider externo permanece desligado.
+O provider HTTP aceita uma lista JSON ou `{ "events": [...] }` e distingue erro
+de rede/HTTP/JSON de lista vazia.
+
+O job de eventos **não** cria automaticamente scoring, oferta, decisor ou
+outreach para o evento. A associação padrão é `offer_key=trophies` na camada de
+persistência, mas o encadeamento evento → OfferMatcher → outreach ainda é
+pendência (`docs/pendencias-pos-consolidacao.md`).
+
+### Outcomes e comparação A/B
+
+Conversões e resultados comerciais são atribuídos a uma oferta, versão e, quando
+disponível, `lead_opportunity_id`. `commercial_outcomes` é a fonte persistida
+para métricas por organização, oferta, versão e período.
+
+`GET /api/intelligence/outcomes` lista outcomes e métricas. `GET
+/api/intelligence/comparisons` calcula e persiste uma comparação de versões com
+intervalos de Wilson e amostra mínima. Uma versão só pode ser aprovada por
+manager/owner quando a comparação for conclusiva; a aprovação grava actor,
+data, evidência e `AB_COMPARISON_APPROVED` em `org_audit_log`.
+
+O módulo `services/prospecting/learning_metrics.py` continua contendo o
+comparador e registry in-memory usados pelo serviço da API e por testes; ele não
+é a fonte de persistência. A persistência operacional está em
+`commercial_outcomes` e `commercial_comparisons`.
+
+## API pública principal
+
+Todos os endpoints abaixo usam o prefixo `/api`, salvo o WebSocket e tracking
+público. A autenticação/organização é aplicada por dependências FastAPI.
+
+| Grupo | Rotas representativas |
+|---|---|
+| Auth | `/auth/register`, `/auth/login`, reset/change password, `/auth/profile` |
+| Org | `/orgs/me`, `/orgs/my-organizations`, membros, convites, secrets, auditoria, metas e usage |
+| Campanhas | `/campaigns`, importação CSV/Sheets, brief, templates e learning de score |
+| Leads | `/leads`, detalhe, enrichment, mensagens, cadência, score feedback, oportunidades, conversão e pós-venda |
+| Pipeline | `POST /pipeline/start`, `GET /pipeline/jobs`, `/api/pipeline/ws/{job_id}` |
+| Intelligence | `GET /intelligence/events`, `/outcomes`, `/comparisons` e aprovação A/B |
+| BI | `/metrics` e `/analytics/*`, incluindo funnel, consultores, deliverability, variantes e PDF |
+| Integrações | webhooks inbound/outbound, tracking, CRM paste e playbooks |
+
+O WebSocket exige a primeira mensagem `{"type":"auth","token":"..."}` e
+valida que o job pertence à organização do usuário. O token não vai na query
+string.
+
+## Modelo de dados relevante
+
+Os modelos vivem em `services/workers/src/database/models.py`. A API importa-os
+por `services/api/src/db/models.py`.
+
+- **Tenant e acesso:** `organizations`, `users`, `organization_members`,
+  `organization_secrets`, `provider_usage`, `org_audit_log`.
+- **Prospecção:** `campaigns`, `campaign_scoring_templates`, `jobs`, `leads`,
+  `companies`, `persons`, `company_records`, `enrichments`,
+  `prescoring_discards`.
+- **Oportunidades:** `lead_opportunities` (unique por lead/oferta, com
+  `offer_version`, score e evidências) e `event_opportunities` (provider,
+  status, provenance, organizer, timing, lead e datas).
+- **Vendas/outreach:** `contacts`, `messages`, `follow_ups`, `conversions`,
+  `commercial_outcomes`, `commercial_comparisons`, atividades e notificações.
+- **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
+  por organização; isso é distinto de métricas comerciais A/B.
+
+O head atual é `fe4f5a6b7c8d`, que adiciona status/provenance de eventos e
+comparações A/B auditáveis. Migrations antigas não devem ser editadas.
+
+## Tarefas e scheduler
+
+O `lifespan` da API inicia:
+
+- scheduler de cadência (`CADENCE_POLL_SECONDS`, default 60s);
+- requeue de `PERDIDO` (`LOST_REQUEUE_DAYS`, default 90d);
+- encerramento de cadências sem resposta;
+- monitor de entregabilidade, que pode pausar `auto_send_email`;
+- expiração de eventos (`EVENT_EXPIRATION_POLL_SECONDS`, default 1h);
+- consumidor de Jobs (`JOB_POLL_SECONDS`, default 5s).
+
+SMTP síncrono é executado em thread; chamadas externas dos workers são async.
+Os jobs registram início, fim, falha, recuperação, duração e não devem expor
+credenciais nos campos livres.
+
+## Limitações atuais
+
+- Providers externos de eventos e vagas são opt-in; não são habilitados por
+  padrão nem constituem garantia de cobertura externa.
+- Event Discovery persiste evento e organizador/lead, mas ainda não percorre o
+  funil completo de oferta, decisor e outreach.
+- `OfferProfile` e suas versões são cadastrados em código; não há CRUD
+  administrativo nem rollback de publicação.
+- A resolução de decisores é best-effort e mantém snapshot JSONB compatível;
+  `Person` ainda não substituiu todos os snapshots legados.
+- BI comercial expõe oferta, versão, período e amostra, mas ainda não oferece
+  todos os cortes por vertical, consultor, canal, campanha e Precision@K.
+- `EventOpportunityService` calcula expiração por `event_date`; valores
+  explícitos de `expires_at`/`observed_at` fornecidos como string ainda precisam
+  de correção de conversão antes de serem tratados como TTL confiável.
+
+## Verificação do snapshot
+
+No snapshot desta documentação foram validados:
+
+```text
+python -m pytest tests -q -W error       → 919 passed
+python -m compileall -q services/api services/workers
+apps/web: npm run lint → npx tsc --noEmit → npm run build
+scripts/verify_migrations.py             → head fe4f5a6b7c8d
+```

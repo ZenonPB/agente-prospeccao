@@ -195,14 +195,13 @@ Toda análise se restringe a informações publicamente acessíveis.
 
 ## Limites de Uso (API Keys)
 
-As chaves de API compartilham um pool de créditos limitados.
-
-- Google Search: 100 consultas/mês por chave
-- Hunter.io: 1.000 créditos/mês por chave
-- WHOIS: 50 consultas/mês por chave
-- CNPJ: 20 consultas/mês por chave
-
-Se uma chave exceder seu limite, todas as operações usarão fallback (cache local ou skipping) até o próximo ciclo.
+O uso de providers externos é contabilizado por organização e chave em
+`provider_usage`, com limite diário configurável em `organizations.api_quota` e
+fallback global `PROVIDER_DAILY_QUOTA` (`GOOGLE_API_KEY=100`,
+`GROQ_API_KEY=2000`). O gate é fail-closed: quando não há quota restante, o
+provider não é chamado. Hunter e providers de CNPJ obedecem às cotas do próprio
+serviço e ao comportamento de fallback/skip implementado pelo worker; não há
+valores mensais fixos nesta aplicação.
 
 ## Sequência de Follow-up
 

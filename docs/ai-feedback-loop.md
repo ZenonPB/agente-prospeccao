@@ -1,7 +1,9 @@
 # Feedback loop de scoring — "IA que aprende com o time"
 
-> Plano vivo da feature de feedback humano sobre o score da IA. Atualizar este
-> documento a cada fase concluída. Status geral: **Fases 1–3 concluídas**.
+> Documento operacional da feature de feedback humano sobre o score da IA.
+> Status geral: **Fases 1–3 concluídas**. Este fluxo (`ScoringFeedback` e
+> `TemplateLearning`) é diferente do Learning/Metrics comercial de outcomes e
+> comparação A/B descrito em `docs/architecture.md`.
 
 ## Objetivo
 
@@ -103,6 +105,8 @@ fluxo de reanálise existente.
 ## Como acompanhar
 
 - Este documento: marcar itens ao concluir.
-- Código: branch `feat/ia-aprende-feedback-loop` → PR para `main`.
+- O nome da branch da implementação original é histórico; a feature está
+  incorporada ao código atual. Não use o nome da branch histórica como instrução
+  de deploy.
 - Testes: `python -m pytest tests -q` (raiz) — arquivos `test_score_feedback*`,
   `test_learning_compilation*`.

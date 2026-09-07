@@ -49,7 +49,7 @@
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | 🟠 Parcial | Status/erros de Event Discovery existem; faltam métricas agregadas por provider/custo/quota. |
 | P1.15–P1.16 Event Discovery/provider → Lead | ✅ Feito | Provider confiável, dedup, provenance e vínculo org-scoped. |
-| P1.19 Expiração de eventos | ✅ Feito | `upcoming`/`expired` e job idempotente. |
+| P1.19 Expiração de eventos | 🟠 Parcial | `upcoming`/`expired` e job idempotente por `event_date`; TTL explícito em string ainda precisa conversão. |
 | P1.22–P1.24 Atribuição comercial | ✅ Feito | Oferta, versão e oportunidade persistidas. |
 | P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
@@ -233,38 +233,17 @@ passa no ambiente oficialmente suportado.
 
 **Status:** ✅ Operacional
 
-### Problema
+### Estado atual
 
-Há documentação antiga que ainda descreve componentes como parciais mesmo após integração real.
+**✅ Fechado nesta revisão documental.** `context.md`, `architecture.md`,
+`offer-profile.md` e `00-status-mapa.md` agora descrevem o fluxo real; este
+arquivo permanece como backlog; `consolidacao.md` e `roadmap-vendas.md` estão
+marcados como histórico/roadmap. O critério de manutenção é que documentos
+históricos não sejam usados como fonte do status atual.
 
-Exemplos de inconsistência histórica:
+### Critério de manutenção
 
-- `docs/architecture.md` ainda pode mencionar pipeline chamando Places/CNAE diretamente;
-- `docs/offer-profile.md` possui seções antigas dizendo que não existia tabela `LeadOpportunity`;
-- textos intermediários das fases C–H ficaram misturados com o estado atual.
-
-Isso é especialmente perigoso porque agentes de IA usam os `.md` como mapa da arquitetura.
-
-### O que fazer
-
-Revisar:
-
-```text
-docs/architecture.md
-docs/context.md
-docs/offer-profile.md
-docs/00-status-mapa.md
-docs/consolidacao.md
-docs/pendencias-pos-consolidacao.md
-```
-
-### Regra
-
-Documentação histórica pode permanecer, mas deve estar claramente identificada como **histórico**, não como estado atual.
-
-### Critério de aceite
-
-Um agente novo consegue responder corretamente:
+Um agente novo deve conseguir responder corretamente:
 
 ```text
 quem resolve OfferProfile?
@@ -275,7 +254,7 @@ como outcomes são atribuídos?
 qual parte de decisores ainda é parcial?
 ```
 
-sem encontrar respostas contraditórias.
+sem encontrar respostas contraditórias nas fontes operacionais.
 
 ---
 
