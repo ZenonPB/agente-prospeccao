@@ -1,6 +1,6 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-07 · branch `feat/onda-2-event-discovery-final` ·
-> Alembic head `bb7c8d9e0f1a`.
+> **Snapshot:** 2026-09-07 · branch `feat/sprint-identidade-decisores` ·
+> Alembic head `cc8d9e0f1a2b`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -30,7 +30,7 @@
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + ações de eventos | contatos/snapshot + ação recomendada | pipeline canônico de `Person` e descoberta externa ainda faltam |
+| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + ações de eventos | contatos/snapshot + confiança + ação recomendada | pipeline canônico de `Person` e descoberta externa ainda faltam |
 | Outcomes comerciais | ✅ | conversão/outcome service | `commercial_outcomes` | BI ainda não tem todos os cortes |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
@@ -48,19 +48,17 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **928 passed**.
+- `python -m pytest tests -q -W error`: **939 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `bb7c8d9e0f1a`.
+- `scripts/verify_migrations.py`: head único `cc8d9e0f1a2b`.
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 
 ## Próximas prioridades
 
-1. P0.5 — métricas agregadas de provider, duração, erros, empty rate, quota e
-   custo.
-2. P1.17 — evento → `OfferMatcher` → `LeadOpportunity` (integrado; ampliar cobertura e operação).
-3. P1.18 — evento → decisor resolvido → outreach acionável.
-4. Snapshot imutável e política explícita de re-scoring.
-5. BI por vertical, consultor, canal, campanha, variante e Precision@K.
-6. Entidade canônica de decisores e administração/versionamento de ofertas.
+1. P1.1/P1.2 — identidade cross-provider e provenance genérica.
+2. P1.18 — descoberta de decisor → ação comercial → outreach humano.
+3. Snapshot imutável e política explícita de re-scoring.
+4. BI por vertical, consultor, canal, campanha, variante e Precision@K.
+5. Entidade canônica de decisores e administração/versionamento de ofertas.

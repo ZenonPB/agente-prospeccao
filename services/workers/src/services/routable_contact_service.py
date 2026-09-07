@@ -26,6 +26,18 @@ def classify_routability(phone: Optional[str], pabx_extension: Optional[str] = N
     return {"type": "DIRECT_CONTACT", "routable": True, "reason": "direct_line"}
 
 
+def routability_metadata(
+    phone: Optional[str],
+    pabx_extension: Optional[str] = None,
+    target_person: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Retorna contrato persistível da acionabilidade de um contato."""
+    result = classify_routability(phone, pabx_extension, target_person)
+    if result["type"] == "ROUTABLE_CONTACT":
+        result["reason"] = "pabx_with_target_person"
+    return result
+
+
 def actionable_contact_rate(contacts: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Métrica consolidada (#47) — % de contatos acionáveis (direct + routable)."""
     if not contacts:

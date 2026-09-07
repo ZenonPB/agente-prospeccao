@@ -217,3 +217,17 @@ def test_update_contact_confidence_fonte_desconhecida_fica_em_revisao():
     assert contact.identity_confidence < 70
     assert contact.verification_status == "needs_review"
     assert contact.source_reliability == 0.3
+
+
+def test_update_contact_confidence_persiste_routability_do_contato():
+    contact = _make_contact(name="Maria Silva")
+    contact.source = "company_site"
+    contact.phone = "1633334000"
+
+    metadata = ContactEnrichmentService().update_contact_confidence(contact)
+
+    assert metadata["routability"]["type"] == "DIRECT_CONTACT"
+    assert metadata["routability"]["routable"] is True
+    assert contact.routability_type == "DIRECT_CONTACT"
+    assert contact.routable is True
+    assert contact.routability_reason == "direct_line"

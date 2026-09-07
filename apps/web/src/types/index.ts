@@ -65,6 +65,9 @@ export interface ContactItem {
   source_reliability?: number;
   verification_status?: string;
   last_verified_at?: string | null;
+  routability_type?: 'DIRECT_CONTACT' | 'ROUTABLE_CONTACT' | 'INSTITUTIONAL' | 'UNKNOWN';
+  routable?: boolean;
+  routability_reason?: string | null;
   linkedin_match_status?: 'NOT_FOUND' | 'CANDIDATE' | 'NEEDS_REVIEW' | 'VERIFIED';
   is_primary?: boolean;
   source?: string;

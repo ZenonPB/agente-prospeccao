@@ -124,6 +124,9 @@ def _contact_to_dict(c: Contact) -> dict:
         "source_reliability": getattr(c, "source_reliability", 0),
         "verification_status": getattr(c, "verification_status", "needs_review"),
         "last_verified_at": c.last_verified_at.isoformat() if getattr(c, "last_verified_at", None) else None,
+        "routability_type": getattr(c, "routability_type", "UNKNOWN"),
+        "routable": getattr(c, "routable", False),
+        "routability_reason": getattr(c, "routability_reason", None),
         "linkedin_match_status": linkedin_match_status(
             c.linkedin_url,
             (c.raw_data or {}).get("linkedin_source") if isinstance(c.raw_data, dict) else None,

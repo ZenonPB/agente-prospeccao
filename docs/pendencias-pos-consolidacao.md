@@ -2,15 +2,15 @@
 
 > **Objetivo:** registrar apenas o que ainda falta implementar, validar, integrar, persistir ou tornar operacional no sistema atual.
 >
-> **Base da revisão:** estado atual do repositório no branch `feat/onda-2-event-discovery-final`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
+> **Base da revisão:** estado atual do repositório no branch `feat/sprint-identidade-decisores`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
 >
 > **Regra principal:** uma capacidade não deve ser chamada de concluída apenas porque existe classe, helper, registry, teste unitário ou retorno estruturado. Para ser **Operacional**, precisa existir no fluxo real, com persistência quando necessária, tenant scope, estados de erro explícitos, observabilidade e comportamento verificável.
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-07 · `928 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-07 · `939 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `bb7c8d9e0f1a`.
+> `cc8d9e0f1a2b`.
 
 ## Resumo desta revisão
 
@@ -44,7 +44,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `bb7c8d9e0f1a`. |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `cc8d9e0f1a2b`. |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | 🟠 Parcial | Métricas históricas por execução e endpoint org-scoped existem; ainda faltam custo real e correlação consolidada com quota. |
@@ -55,10 +55,11 @@
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
 | P1.18 Evento → decisor/outreach | 🟠 Parcial | Ação recomendada persiste contato/canal quando já há decisor; descoberta externa e outreach ainda faltam. |
-| P1.31 Entidade canônica de pessoa | 🟠 Parcial | Metadados de confiança persistidos em `Contact`; entidade canônica independente ainda falta. |
+| P1.31 Entidade canônica de pessoa | 🟠 Parcial | Metadados de confiança e acionabilidade persistidos em `Contact`; entidade canônica independente ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.39 People Discovery/decisores | 🟠 Parcial | Contatos e ação recomendada existem; discovery externo, cascade completa e cadência ainda faltam. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | Contatos e ação recomendada existem; discovery externo e cascade completa ainda faltam. |
+| P1.39 Routable contact | 🟠 Parcial | Classificação persistida e exposta; integração efetiva à cadência ainda falta. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
 
@@ -387,7 +388,6 @@ services/api/src/pipeline_worker.py
 
 ---
 
-## P1.2 — Persistir provenance por provider no Candidate/Lead
 
 **Status:** 🟠 Parcial
 
@@ -1625,6 +1625,10 @@ em serviços antigos.
 **Status:** 🟠 Parcial
 
 Nome + departamento + telefone geral pode ser suficiente para ação humana.
+
+A classificação agora é persistida em `Contact` (`routability_type`, `routable`
+e `routability_reason`) e exposta na API. A integração da classificação com a
+cadência continua pendente.
 
 Cadência/next action deve distinguir:
 

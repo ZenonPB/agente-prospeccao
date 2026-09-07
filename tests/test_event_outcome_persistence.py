@@ -183,6 +183,29 @@ def test_confianças_do_contato_sao_persistidas_no_postgresql(session):
     assert persisted.last_verified_at is not None
 
 
+def test_routability_do_contato_e_persistida_no_postgresql(session):
+    from services.contact_enrichment_service import ContactEnrichmentService
+
+    db, _org, lead = session
+    contact = Contact(
+        lead_id=lead.id,
+        name="Maria Silva",
+        phone="1633334000",
+        source="company_site",
+    )
+    db.add(contact)
+    db.flush()
+    ContactEnrichmentService().update_contact_confidence(contact)
+    db.commit()
+    db.expire_all()
+
+    persisted = db.query(Contact).filter(Contact.id == contact.id).one()
+
+    assert persisted.routability_type == "DIRECT_CONTACT"
+    assert persisted.routable is True
+    assert persisted.routability_reason == "direct_line"
+
+
 def test_commercial_outcome_is_idempotent_and_metrics_are_real(session):
     from services.prospecting.commercial_outcome_service import CommercialOutcomeService
 

@@ -1294,6 +1294,7 @@ class ContactEnrichmentService:
             ContactConfidence,
             PersonContact,
         )
+        from services.routable_contact_service import routability_metadata
 
         raw_data = contact.raw_data if isinstance(contact.raw_data, dict) else {}
         sources = [contact.source]
@@ -1316,6 +1317,14 @@ class ContactEnrichmentService:
             email_verified=bool(contact.email_verified),
             phone_verified=False,
         )
+        routability = routability_metadata(
+            contact.phone,
+            pabx_extension=raw_data.get("pabx_extension"),
+            target_person=contact.name,
+        )
+        contact.routability_type = routability["type"]
+        contact.routable = routability["routable"]
+        contact.routability_reason = routability.get("reason")
         contact.identity_confidence = confidence["identity"]["confidence"]
         contact.contact_confidence = confidence["confidence"]
         contact.source_reliability = confidence["source_reliability"]
@@ -1328,7 +1337,7 @@ class ContactEnrichmentService:
             contact.verification_status = "email_verified_needs_identity"
         else:
             contact.verification_status = "needs_review"
-        return confidence
+        return {**confidence, "routability": routability}
 
     def _recalc_confidence(self, contact: Contact) -> int:
         """Confiança agregada: base do contato + bônus de canais confirmados.
@@ -1363,6 +1372,9 @@ class ContactEnrichmentService:
             "source_reliability": getattr(c, "source_reliability", 0),
             "verification_status": getattr(c, "verification_status", "needs_review"),
             "last_verified_at": c.last_verified_at.isoformat() if getattr(c, "last_verified_at", None) else None,
+            "routability_type": getattr(c, "routability_type", "UNKNOWN"),
+            "routable": getattr(c, "routable", False),
+            "routability_reason": getattr(c, "routability_reason", None),
             "email_verified": c.email_verified if hasattr(c, "email_verified") else False,
             "email_verified_at": c.email_verified_at.isoformat() if hasattr(c, "email_verified_at") and c.email_verified_at else None,
             "linkedin_url": c.linkedin_url,

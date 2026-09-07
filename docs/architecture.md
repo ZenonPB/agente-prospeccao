@@ -2,7 +2,8 @@
 
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-07 · branch
-> `feat/onda-2-event-discovery-final` · Alembic head `bb7c8d9e0f1a`.
+> `feat/sprint-identidade-decisores` ·
+> Alembic head `cc8d9e0f1a2b`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -166,10 +167,10 @@ por `services/api/src/db/models.py`.
 - **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
   por organização; isso é distinto de métricas comerciais A/B.
 
-O head atual é `bb7c8d9e0f1a`, que adiciona confiança de identidade e contato
-persistida, além da ação comercial recomendada para
-eventos além da telemetria histórica de providers, status/provenance de eventos
-e comparações A/B auditáveis.
+O head atual é `cc8d9e0f1a2b`, que adiciona classificação persistida de
+acionabilidade de contatos, além da confiança de identidade, ação comercial
+recomendada, telemetria histórica de providers, status/provenance de eventos e
+comparações A/B auditáveis.
 Migrations antigas não devem ser editadas.
 
 ## Tarefas e scheduler
@@ -207,8 +208,8 @@ credenciais nos campos livres.
 
 No snapshot desta documentação foram validados:
 ```text
-python -m pytest tests -q -W error       → 928 passed
+python -m pytest tests -q -W error       → 939 passed
 python -m compileall -q services/api services/workers
 apps/web: npm run lint → npx tsc --noEmit → npm run build
-scripts/verify_migrations.py             → head bb7c8d9e0f1a
+scripts/verify_migrations.py             → head cc8d9e0f1a2b
 ```

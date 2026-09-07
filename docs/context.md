@@ -3,8 +3,8 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-07 · branch `feat/onda-2-event-discovery-final` ·
-> Alembic head `bb7c8d9e0f1a`.
+> **Snapshot:** 2026-09-07 · branch `feat/sprint-identidade-decisores` ·
+> Alembic head `cc8d9e0f1a2b`.
 
 ## Leitura obrigatória
 
@@ -45,17 +45,20 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   (`status`, quantidade, duração, erro e retryability) e em
   `provider_execution_metrics`; custo real ainda é opcional e a quota continua
   sendo medida separadamente em `provider_usage`.
+- Contatos persistem `identity_confidence`, `contact_confidence`, confiabilidade
+  da fonte, status de verificação e classificação de acionabilidade (`DIRECT`,
+  `ROUTABLE`, `INSTITUTIONAL` ou `UNKNOWN`).
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **928 passed**;
+- `python -m pytest tests -q -W error`: **939 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `bb7c8d9e0f1a`;
+- `scripts/verify_migrations.py`: head único `cc8d9e0f1a2b`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato
 
-Não habilitar provider externo por padrão. Priorizar observabilidade agregada
-por provider e, depois, o encadeamento evento → oferta → decisor → outreach.
+Não habilitar provider externo por padrão. Priorizar identidade cross-provider
+de empresas e People Discovery real para completar evento → decisor → outreach.
 As demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.
