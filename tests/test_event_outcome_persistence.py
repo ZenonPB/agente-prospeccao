@@ -1,7 +1,6 @@
 """Testes dos serviços persistentes de eventos e outcomes."""
-import os
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -9,12 +8,16 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from db_reachable import database_url, is_database_reachable
 from database.models import Base, Contact, EventOpportunityRow, CommercialOutcomeRow, Lead, LeadOpportunityRow, Organization
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=False)
-DB_URL = os.environ.get("E2E_DATABASE_URL") or os.environ.get("DATABASE_URL")
-pytestmark = pytest.mark.skipif(not DB_URL, reason="Banco não configurado")
+DB_URL = database_url()
+pytestmark = pytest.mark.skipif(
+    not is_database_reachable(DB_URL),
+    reason="Postgres indisponivel - testes de persistencia requerem banco real",
+)
 
 
 @pytest.fixture()

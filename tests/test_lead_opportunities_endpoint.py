@@ -37,11 +37,13 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from database.models import Base, Lead, LeadOpportunityRow, Organization  # noqa: E402
 
-# Mesma regra de skip do test_lead_opportunity_service: precisa de Postgres.
-DB_URL = os.environ.get("E2E_DATABASE_URL") or os.environ.get("DATABASE_URL")
+from db_reachable import database_url, is_database_reachable  # noqa: E402
+
+# Mesma regra de skip do test_lead_opportunity_service: precisa de Postgres real.
+DB_URL = database_url()
 pytestmark = pytest.mark.skipif(
-    not DB_URL,
-    reason="E2E_DATABASE_URL/DATABASE_URL nao definido",
+    not is_database_reachable(DB_URL),
+    reason="Postgres indisponivel - testes de persistencia requerem banco real",
 )
 
 
