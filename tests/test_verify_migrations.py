@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "dd9e0f1a2b3c"
+    assert verify_migrations.migration_head() == "ee5f6b7c8d0a"
 
 
 def test_verify_database_rejeita_banco_fora_do_head(monkeypatch):
@@ -71,7 +71,7 @@ def test_verify_database_rejeita_fk_essencial_ausente(monkeypatch):
 
     class _Context:
         def get_current_revision(self):
-            return "dd9e0f1a2b3c"
+            return verify_migrations.migration_head()
 
     class _Inspector:
         def get_table_names(self):

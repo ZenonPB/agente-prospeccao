@@ -184,3 +184,50 @@ def test_429_usa_maior_valor_entre_retry_after_e_reset(monkeypatch):
     )
     asyncio.run(groq_json_chat("k", "m", "s", "u", "http://x", db=None))
     assert sleeps == [15.0]
+
+
+def test_on_usage_callback_recebe_tokens(monkeypatch):
+    """O callback `on_usage` recebe os tokens da resposta 200 da Groq."""
+    import asyncio
+    from services import provider_client
+
+    captured = {}
+
+    def _on_usage(usage, model):
+        captured["usage"] = usage
+        captured["model"] = model
+
+    body = '{"ok": true}'
+    response = FakeResponse(200, {
+        "choices": [{"message": {"content": body}}],
+        "usage": {"prompt_tokens": 12, "completion_tokens": 5, "total_tokens": 17},
+    })
+    _patch(monkeypatch, [response], retries=2)
+    result = asyncio.run(
+        provider_client.groq_json_chat("k", "m", "s", "u", "http://x", db=None, on_usage=_on_usage)
+    )
+    assert result == {"ok": True}
+    assert captured["usage"] == {
+        "prompt_tokens": 12,
+        "completion_tokens": 5,
+        "total_tokens": 17,
+    }
+    assert captured["model"] == "m"
+
+
+def test_on_usage_nao_quebra_sem_usage(monkeypatch):
+    """Resposta sem bloco `usage` não invoca o callback nem quebra."""
+    import asyncio
+    from services import provider_client
+
+    called = []
+
+    def _on_usage(usage, model):
+        called.append((usage, model))
+
+    _patch(monkeypatch, [_ok()], retries=2)
+    result = asyncio.run(
+        provider_client.groq_json_chat("k", "m", "s", "u", "http://x", db=None, on_usage=_on_usage)
+    )
+    assert result == {"ok": True}
+    assert called == []
