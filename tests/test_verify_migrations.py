@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "ee5f6b7c8d0a"
+    assert verify_migrations.migration_head() == "ff8a9b0c1d2e"
 
 
 def test_verify_database_rejeita_banco_fora_do_head(monkeypatch):
