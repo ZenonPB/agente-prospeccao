@@ -16,8 +16,9 @@
 
 ### Fechado nesta branch
 
-- P0.1–P0.4: E2E/persistência PostgreSQL controlada, migrations verificadas,
-  política de warnings e documentação sincronizada.
+- P0.1–P0.5: E2E/persistência PostgreSQL controlada, migrations verificadas,
+  política de warnings, documentação sincronizada e observabilidade de
+  providers completa (correlation IDs + tokens/custo Groq + endpoint de trace).
 - P1.15: provider HTTP opt-in de eventos com retry, Bearer opcional, validação
   de payload e distinção entre `ok`, `empty`, `failed` e `skipped`.
 - P1.16: evento → organizador → `Company`/`Lead`, com deduplicação e provenance.
@@ -47,7 +48,7 @@
 | P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `dd9e0f1a2b3c`. |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
-| P0.5 Observabilidade agregada | 🟠 Parcial | Métricas históricas por execução e endpoint org-scoped existem; ainda faltam custo real e correlação consolidada com quota. |
+| P0.5 Observabilidade agregada | ✅ Feito | `correlation_id`/`campaign_id`/`usage`/`cost` persistidos; telemetria de tokens Groq; endpoint `provider-trace` org-scoped explica "poucos leads". |
 | P1.15–P1.16 Event Discovery/provider → Lead | ✅ Feito | Provider confiável, dedup, provenance e vínculo org-scoped. |
 | P1.19 Expiração de eventos | ✅ Feito | `upcoming`/`expired`, TTL ISO normalizado para UTC e job idempotente. |
 | P1.22–P1.24 Atribuição comercial | ✅ Feito | Oferta, versão e oportunidade persistidas. |
@@ -265,7 +266,7 @@ sem encontrar respostas contraditórias nas fontes operacionais.
 
 ## P0.5 — Observabilidade mínima de providers e jobs
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional (onda 0)
 
 ### Problema
 
@@ -322,6 +323,23 @@ services/workers/src/services/provider_client.py
 ### Critério de aceite
 
 A operação consegue explicar **por que uma campanha trouxe poucos leads**.
+
+### O que foi entregue
+
+- `provider_execution_metrics` persiste `correlation_id`, `campaign_id` e
+  `usage` (JSONB), preenchendo também `cost` (estimativa USD por modelo).
+- Discovery (Places/CNAE), Event Discovery e scoring Groq emitem métricas por
+  execução, correlacionadas por `correlation_id` e `campaign_id`.
+- `groq_json_chat` expõe `on_usage` (tokens prompt/completion) via callback,
+  sem alterar os chamadores existentes.
+- `run_pipeline` gera um `correlation_id` por execução, loga na abertura do
+  job, propaga para toda telemetria e devolve `correlation_id` +
+  `provider_metrics` agregadas no payload final do WebSocket/job.
+- Endpoint `GET /analytics/provider-trace/{correlation_id}` (org-scoped)
+  devolve todas as medições de uma execução — incluindo status, latência,
+  erro, custo e tokens — respondendo ao critério de aceite.
+- Nova migration `ee5f6b7c8d0a` (head) adiciona `correlation_id`,
+  `campaign_id` e `usage`. Índice por `correlation_id`.
 
 ---
 

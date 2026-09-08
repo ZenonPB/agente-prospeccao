@@ -254,6 +254,56 @@ def provider_usage(
     }
 
 
+@router.get("/provider-trace/{correlation_id}")
+def provider_trace(
+    correlation_id: str,
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+    db: Session = Depends(get_db),
+):
+    """Devolve o trace de um job: todas as medições com o mesmo `correlation_id`.
+
+    Permite explicar "por que esta campanha trouxe poucos leads" olhando
+    status/latência/erro de cada provider daquela execução.
+    """
+    from uuid import UUID
+    from services.provider_execution_metric_service import ProviderExecutionMetricService
+
+    try:
+        corr_uuid = UUID(str(correlation_id))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="correlation_id inválido") from None
+
+    service = ProviderExecutionMetricService()
+    metrics = service.list_by_correlation_id(db, corr_uuid)
+    # Garante tenant scope: só devolve métricas da própria organização.
+    metrics = [m for m in metrics if m.organization_id == org.id]
+    if not metrics:
+        return {"correlation_id": str(corr_uuid), "metrics": [], "sample_size": 0}
+
+    def _serialize(m) -> dict:
+        return {
+            "provider": m.provider,
+            "status": m.status,
+            "result_count": m.result_count,
+            "duration_ms": m.duration_ms,
+            "budget_used": m.budget_used,
+            "error_code": m.error_code,
+            "retryable": m.retryable,
+            "cost": float(m.cost) if m.cost is not None else None,
+            "usage": m.usage,
+            "job_id": str(m.job_id) if m.job_id else None,
+            "campaign_id": str(m.campaign_id) if m.campaign_id else None,
+            "recorded_at": m.recorded_at.isoformat() if m.recorded_at else None,
+        }
+
+    return {
+        "correlation_id": str(corr_uuid),
+        "metrics": [_serialize(m) for m in metrics],
+        "sample_size": len(metrics),
+    }
+
+
 @router.get("/message-variants")
 def message_variants(
     from_date: Optional[str] = Query(None, alias="from"),

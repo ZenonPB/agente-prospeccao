@@ -42,6 +42,7 @@ REQUIRED_INDEXES = {
     "ix_commercial_comparisons_org_offer",
     "ix_provider_execution_metrics_org_recorded",
     "ix_provider_execution_metrics_org_provider",
+    "ix_provider_execution_metrics_correlation",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -51,7 +52,7 @@ REQUIRED_FKS = {
     "event_opportunities": {"organizations.id", "leads.id", "contacts.id"},
     "commercial_outcomes": {"organizations.id", "leads.id"},
     "commercial_comparisons": {"organizations.id", "users.id"},
-    "provider_execution_metrics": {"organizations.id", "jobs.id"},
+    "provider_execution_metrics": {"organizations.id", "jobs.id", "campaigns.id"},
     "conversions": {"leads.id", "lead_opportunities.id"},
 }
 REQUIRED_UNIQUES = {
@@ -60,6 +61,7 @@ REQUIRED_UNIQUES = {
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
+    "provider_execution_metrics": {"correlation_id", "campaign_id", "usage"},
 }
 
 

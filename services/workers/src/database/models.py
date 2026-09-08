@@ -357,10 +357,13 @@ class ProviderExecutionMetric(Base):
     __table_args__ = (
         Index("ix_provider_execution_metrics_org_recorded", "organization_id", "recorded_at"),
         Index("ix_provider_execution_metrics_org_provider", "organization_id", "provider", "recorded_at"),
+        Index("ix_provider_execution_metrics_correlation", "correlation_id"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True)
+    correlation_id = Column(UUID(as_uuid=True), nullable=True)
     provider = Column(String(64), nullable=False)
     status = Column(String(24), nullable=False)
     result_count = Column(Integer, nullable=False, server_default="0")
@@ -369,10 +372,12 @@ class ProviderExecutionMetric(Base):
     error_code = Column(String(100), nullable=True)
     retryable = Column(Boolean, nullable=False, server_default="false")
     cost = Column(Numeric(12, 6), nullable=True)
+    usage = Column(JSONB, nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     organization = relationship("Organization")
     job = relationship("Job")
+    campaign = relationship("Campaign")
 
 
 class OrgAuditEvent(enum.Enum):
