@@ -345,9 +345,15 @@ A operação consegue explicar **por que uma campanha trouxe poucos leads**.
 
 # 4. P1 — Discovery e resolução de entidades
 
-| P1.1 Cross-provider Company Identity Resolution | 🟠 Parcial | Resolver e deduplicação por CNPJ/domínio/place_id integrados; merge fuzzy continua apenas candidato. |
+| P1.1 Cross-provider Company Identity Resolution | ✅ Operacional | Resolve por CNPJ → domínio → aliases (`company_aliases`) na Company antes de criar Lead (Places, CNAE, PNCP); merge fuzzy continua apenas candidato. |
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional
+
+Entregue no PR 03: `company_aliases` registra chaves externas (place_id,
+domínio, maps_uri) por Company; `CompanyPersonService` resolve por
+CNPJ → domínio → aliases e faz backfill; o pipeline consulta a Company antes de
+criar Lead nas rotas Places, CNAE e PNCP, mesclando provenance das fontes. O
+match fuzzy (nome + cidade/UF) permanece apenas candidato para revisão humana.
 
 ### Problema
 

@@ -4,7 +4,7 @@
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
 > **Snapshot:** 2026-09-08 · branch `feat/onda0-confiabilidade` ·
-> Alembic head `ee5f6b7c8d0a`.
+> Alembic head `ff8a9b0c1d2e`.
 
 ## Leitura obrigatória
 
@@ -24,6 +24,12 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Capacidades entregues nesta consolidação (onda 0 — confiabilidade)
 
+- **Identidade cross-provider de empresas**: tabela `company_aliases`
+  registra chaves externas (place_id, domínio, maps_uri, id sintético
+  CNAE/PNCP) por Company; `CompanyPersonService` resolve por CNPJ → domínio →
+  aliases e faz backfill de campos vazios. O pipeline (Places, CNAE e PNCP)
+  consulta a Company antes de criar Lead, mesclando provenance e aliases em vez
+  de duplicar. Merge fuzzy (nome+cidade/UF) continua apenas candidato.
 - **Observabilidade de providers completa**: `provider_execution_metrics`
   persiste `correlation_id`, `campaign_id` e `usage` (tokens Groq em JSONB),
   preenchendo também `cost` (estimativa USD por modelo). Discovery
@@ -37,7 +43,9 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - **Endpoint `GET /analytics/provider-trace/{correlation_id}`** (org-scoped):
   devolve todas as medições de uma execução (status, latência, erro, custo,
   tokens) — responde "por que esta campanha trouxe poucos leads".
-- Nova migration `ee5f6b7c8d0a` (head) + índice por `correlation_id`.
+- Nova migration `ff8a9b0c1d2e` (head): `company_aliases` + origem da Onda 0
+  (`ee5f6b7c8d0a`: `correlation_id`/`campaign_id`/`usage`) e índice por
+  `correlation_id`.
 
 ### Legado da consolidação anterior (preservado)
 
@@ -72,17 +80,16 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **940 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **953 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `ee5f6b7c8d0a`;
+- `scripts/verify_migrations.py`: head único `ff8a9b0c1d2e`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato
 
-Não habilitar provider externo por padrão. Com a onda 0 de confiabilidade
-fechada (observabilidade + correlation IDs), priorizar identidade
-cross-provider de empresas e People Discovery real para completar
-evento → decisor → outreach. As demais prioridades estão em
+Não habilitar provider externo por padrão. Com a identidade cross-provider de
+empresas e a onda 0 de confiabilidade fechadas, priorizar People Discovery real
+para completar evento → decisor → outreach. As demais prioridades estão em
 `docs/pendencias-pos-consolidacao.md`.
