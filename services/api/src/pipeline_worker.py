@@ -4,8 +4,10 @@ via asyncio para streaming WebSocket em tempo real.
 """
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Dict, Any
+from uuid import uuid4, UUID
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sqlfunc
@@ -67,6 +69,9 @@ def _persist_provider_metrics(
     organization_id,
     job_id: str | None,
     metrics: Dict[str, Dict[str, Any]],
+    *,
+    campaign_id: str | None = None,
+    correlation_id: str | None = None,
 ) -> None:
     """Persiste telemetria do job sem confundir quota com observabilidade."""
     if not organization_id or not metrics:
@@ -75,10 +80,21 @@ def _persist_provider_metrics(
     job_uuid = None
     if job_id:
         try:
-            from uuid import UUID
             job_uuid = UUID(str(job_id))
         except (TypeError, ValueError):
             logger.warning("Job inválido ao persistir métricas de provider: %s", job_id)
+    campaign_uuid = None
+    if campaign_id:
+        try:
+            campaign_uuid = UUID(str(campaign_id))
+        except (TypeError, ValueError):
+            logger.warning("Campaign inválida ao persistir métricas de provider: %s", campaign_id)
+    corr_uuid = None
+    if correlation_id:
+        try:
+            corr_uuid = UUID(str(correlation_id))
+        except (TypeError, ValueError):
+            logger.warning("Correlation inválida ao persistir métricas de provider: %s", correlation_id)
     for provider, metric in metrics.items():
         try:
             service.record(
@@ -87,11 +103,15 @@ def _persist_provider_metrics(
                 provider,
                 metric.get("status", "unknown"),
                 job_id=job_uuid,
+                campaign_id=campaign_uuid,
+                correlation_id=corr_uuid,
                 result_count=metric.get("result_count", 0),
                 duration_ms=metric.get("duration_ms", 0),
                 budget_used=metric.get("budget_used", 0),
                 error_code=metric.get("error_code"),
                 retryable=metric.get("retryable", False),
+                cost=metric.get("cost"),
+                usage=metric.get("usage"),
             )
         except (TypeError, ValueError) as exc:
             logger.warning(
@@ -281,6 +301,14 @@ async def run_pipeline(
         # --- Resolve campanha e query ---
         campaign = None
         analysis_profile = AnalysisProfile.WEB_PRESENCE
+        correlation_id = str(uuid4())
+        job_provider_metrics: Dict[str, Dict[str, Any]] = {}
+
+        yield {
+            "type": "log",
+            "message": f"Correlation ID: {correlation_id}",
+            "timestamp": _ts(),
+        }
 
         if campaign_id:
             campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
@@ -505,6 +533,8 @@ async def run_pipeline(
                 event_actions = event_service.prepare_event_actions(db, event_rows)
                 _persist_provider_metrics(
                     db, organization_id, job_id, event_result.get("provider_metrics", {}),
+                    campaign_id=str(campaign.id) if campaign else None,
+                    correlation_id=correlation_id,
                 )
                 db.commit()
             else:
@@ -836,7 +866,10 @@ async def run_pipeline(
                     organization_id,
                     job_id,
                     discovery_result.get("provider_metrics", {}),
+                    campaign_id=str(campaign.id) if campaign else None,
+                    correlation_id=correlation_id,
                 )
+                job_provider_metrics.update(discovery_result.get("provider_metrics", {}))
                 results = [
                     {**item, "source_queries": search_queries}
                     for item in discovery_result.get("unique_candidates", [])
@@ -984,6 +1017,41 @@ async def run_pipeline(
         enrichment_service = TechnicalEnrichmentService()
         scoring_service = AIScoringService(api_key=groq_key)
 
+        # Telemetria de tokens Groq por execução (Onda 0 — observabilidade).
+        # Acumula no dict `_score_provider_metrics` e persiste após o lote via
+        # `_persist_provider_metrics`; o rastreio permanece correlacionado por
+        # `correlation_id` e `campaign_id`. `cost` é estimativa em USD a partir
+        # do preço declarado por 1M tokens do modelo (fallback conservador).
+        _groq_tokens: Dict[str, int] = {"prompt_tokens": 0, "completion_tokens": 0}
+        _groq_cost: float = 0.0
+        _groq_calls = 0
+        _groq_model: str = ""
+        _scoring_latency_ms: int = 0
+        _scoring_start = time.perf_counter()
+
+        _GROQ_PRICE_PER_1M: Dict[str, Dict[str, float]] = {
+            "openai/gpt-oss-20b": {"input": 0.20, "output": 0.40},
+        }
+        _GROQ_DEFAULT_PRICE = {"input": 0.30, "output": 0.60}
+
+        def _groq_price(model: str) -> Dict[str, float]:
+            return _GROQ_PRICE_PER_1M.get(model, _GROQ_DEFAULT_PRICE)
+
+        def _on_groq_usage(usage: Dict[str, Any], model: str) -> None:
+            nonlocal _groq_calls, _groq_model, _scoring_latency_ms, _groq_cost
+            _groq_calls += 1
+            _groq_model = model or _groq_model
+            prompt = int(usage.get("prompt_tokens") or 0)
+            completion = int(usage.get("completion_tokens") or 0)
+            _groq_tokens["prompt_tokens"] += prompt
+            _groq_tokens["completion_tokens"] += completion
+            price = _groq_price(_groq_model)
+            _groq_cost += (prompt / 1_000_000) * price["input"]
+            _groq_cost += (completion / 1_000_000) * price["output"]
+            _scoring_latency_ms = int((time.perf_counter() - _scoring_start) * 1000)
+
+        scoring_service.on_usage = _on_groq_usage
+
         # Template e perfil da vertical já resolvidos ANTES da coleta (o gate
         # de pre-scoring precisa deles) — ver bloco após a resolução de chaves.
         # Regras de calibração aprendidas com o time (docs/ai-feedback-loop.md):
@@ -1057,6 +1125,7 @@ async def run_pipeline(
 
         scored_count = 0
         failed_count = 0
+        score_metrics: Dict[str, Dict[str, Any]] = {}
         if not leads_to_process:
             yield {"type": "log", "message": "Nenhum lead novo para analisar", "timestamp": _ts()}
         else:
@@ -1066,6 +1135,7 @@ async def run_pipeline(
             use_cnpj_receita = "cnpj_receita" in steps
 
             for i, lead in enumerate(leads_to_process):
+                lead_started = time.perf_counter()
                 yield {
                     "type": "log",
                     "message": f"Analisando: {lead.company_name}",
@@ -1151,6 +1221,27 @@ async def run_pipeline(
 
             db.commit()
 
+            # Telemetria consolidada do scoring (Groq) deste lote — persiste
+            # como métrica de provider para rastreio de custo/uso por job.
+            if _groq_calls > 0:
+                score_metrics["groq_scoring"] = {
+                    "status": "success",
+                    "result_count": _groq_calls,
+                    "duration_ms": _scoring_latency_ms,
+                    "budget_used": _groq_calls,
+                    "error_code": None,
+                    "retryable": False,
+                    "cost": round(_groq_cost, 6),
+                    "usage": {**_groq_tokens, "model": _groq_model},
+                }
+            _persist_provider_metrics(
+                db, organization_id, job_id, score_metrics,
+                campaign_id=str(campaign.id) if campaign else None,
+                correlation_id=correlation_id,
+            )
+            job_provider_metrics.update(score_metrics)
+            db.commit()
+
         # --- Enriquecimento automático de decisores (email + LinkedIn) ---
         # Apenas leads QUALIFICADOS (score >= threshold da org) entram na fila
         # de outreach; enriquecer contatos melhora a taxa de contato. Busca
@@ -1231,6 +1322,8 @@ async def run_pipeline(
                 "queue_remaining": queue_remaining,
                 "prescoring_discarded": prescoring_discarded,
                 "prescoring_breakdown": prescoring_breakdown,
+                "correlation_id": correlation_id,
+                "provider_metrics": job_provider_metrics,
             },
             "timestamp": _ts(),
         }
@@ -1250,6 +1343,8 @@ async def run_pipeline(
                 "queue_remaining": queue_remaining,
                 "prescoring_discarded": prescoring_discarded,
                 "prescoring_breakdown": prescoring_breakdown,
+                "correlation_id": correlation_id,
+                "provider_metrics": job_provider_metrics,
             }
             db.commit()
 
