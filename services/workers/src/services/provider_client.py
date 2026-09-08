@@ -101,6 +101,7 @@ async def groq_json_chat(
     organization_id: Optional[str] = None,
     quota_key: str = "GROQ_API_KEY",
     reasoning_effort: Optional[str] = None,
+    on_usage: Optional[Any] = None,
 ) -> Optional[Dict[str, Any]]:
     """Chama a Groq pedindo JSON e devolve o dict parseado (ou None em falha).
 
@@ -115,6 +116,9 @@ async def groq_json_chat(
     - Cotas: se `db` + `organization_id` forem informados, verifica
       a cota diária ANTES de chamar (fail-closed: estourada → None) e contabiliza
       uma chamada após cada resposta 200.
+    - `on_usage`: callback opcional `on_usage(usage, model, latency_ms)` invocado
+      após resposta 200 com o objeto `usage` da Groq (tokens) — telemetria sem
+      mudar o retorno dos chamadores existentes.
     """
     if db is not None and organization_id is not None:
         from services.quota_service import QuotaService
@@ -211,6 +215,19 @@ async def groq_json_chat(
     except json.JSONDecodeError as e:
         logger.error("Resposta do Groq não é JSON: %s", e)
         return None
+
+    if on_usage is not None:
+        raw_usage = data.get("usage") or {}
+        if raw_usage:
+            usage_info = {
+                "prompt_tokens": raw_usage.get("prompt_tokens", 0),
+                "completion_tokens": raw_usage.get("completion_tokens", 0),
+                "total_tokens": raw_usage.get("total_tokens", 0),
+            }
+            try:
+                on_usage(usage_info, model)
+            except Exception:  # noqa: BLE001
+                logger.warning("Falha no callback on_usage do Groq.", exc_info=True)
 
     choices = data.get("choices") or []
     if not choices:

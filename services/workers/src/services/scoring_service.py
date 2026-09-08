@@ -784,8 +784,9 @@ def extract_business_facts(
 class AIScoringService:
     """Serviço de scoring contextual e explicável via Groq (modelo de classificação)."""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, on_usage: Optional[Any] = None):
         self.api_key = api_key or settings.GROQ_API_KEY
+        self.on_usage = on_usage
 
     # ---------- normalização da resposta ----------
 
@@ -959,6 +960,7 @@ class AIScoringService:
             temperature=0.2,
             db=db,
             organization_id=organization_id,
+            on_usage=self.on_usage,
         )
         if parsed is None:
             return None

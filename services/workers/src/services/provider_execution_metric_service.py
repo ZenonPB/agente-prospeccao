@@ -21,17 +21,22 @@ class ProviderExecutionMetricService:
         status: str,
         *,
         job_id: Optional[UUID] = None,
+        campaign_id: Optional[UUID] = None,
+        correlation_id: Optional[UUID] = None,
         result_count: int = 0,
         duration_ms: int = 0,
         budget_used: int = 0,
         error_code: Optional[str] = None,
         retryable: bool = False,
         cost: Optional[float] = None,
+        usage: Optional[Dict[str, Any]] = None,
     ) -> ProviderExecutionMetric:
         """Persiste uma medição de execução e devolve a entidade criada."""
         row = ProviderExecutionMetric(
             organization_id=organization_id,
             job_id=job_id,
+            campaign_id=campaign_id,
+            correlation_id=correlation_id,
             provider=provider,
             status=status,
             result_count=max(0, int(result_count)),
@@ -40,6 +45,7 @@ class ProviderExecutionMetricService:
             error_code=error_code,
             retryable=bool(retryable),
             cost=cost,
+            usage=usage,
             recorded_at=datetime.now(timezone.utc),
         )
         db.add(row)
@@ -64,6 +70,17 @@ class ProviderExecutionMetricService:
             query = query.where(ProviderExecutionMetric.recorded_at <= date_to)
         if provider:
             query = query.where(ProviderExecutionMetric.provider == provider)
+        return list(db.scalars(query.order_by(ProviderExecutionMetric.recorded_at.asc())).all())
+
+    def list_by_correlation_id(
+        self,
+        db: Session,
+        correlation_id: UUID,
+    ) -> List[ProviderExecutionMetric]:
+        """Lista todas as medições de uma mesma execução (trace)."""
+        query = select(ProviderExecutionMetric).where(
+            ProviderExecutionMetric.correlation_id == correlation_id,
+        )
         return list(db.scalars(query.order_by(ProviderExecutionMetric.recorded_at.asc())).all())
 
     @staticmethod
