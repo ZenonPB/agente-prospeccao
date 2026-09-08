@@ -8,7 +8,6 @@ em uma tabela propria (lead_opportunities), com upsert idempotente por
 (lead_id, offer_key), preservando historico de score/evidencia. Endpoint
 GET /api/leads/{id}/oportunidades expoe o resultado ao frontend.
 """
-import os
 import sys
 import uuid
 from pathlib import Path
@@ -20,6 +19,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from db_reachable import database_url, is_database_reachable
 from database.models import Base, Lead, Organization
 from services.prospecting.offer_matcher import (
     LeadOpportunity,
@@ -28,9 +28,7 @@ from services.prospecting.offer_matcher import (
 from services.prospecting.default_profiles import get_default_registry
 
 # Requer banco Postgres real (mesmo padrao do e2e_outreach_cycle.py).
-# CI pula sem `E2E_DATABASE_URL`; se ausente mas `.env` define `DATABASE_URL`,
-# usa esse (mesmo valor - ambiente local de dev).
-import os
+# CI pula sem banco; se `.env` define `DATABASE_URL`, usa esse (valor local de dev).
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -40,16 +38,16 @@ if _DOTENV.exists():
 
     load_dotenv(_DOTENV, override=False)
 
-E2E_DB_URL = os.environ.get("E2E_DATABASE_URL") or os.environ.get("DATABASE_URL")
+DB_URL = database_url()
 pytestmark = pytest.mark.skipif(
-    not E2E_DB_URL,
-    reason="E2E_DATABASE_URL/DATABASE_URL nao definido - testes de persistencia requerem Postgres",
+    not is_database_reachable(DB_URL),
+    reason="Postgres indisponivel - testes de persistencia requerem banco real",
 )
 
 
 @pytest.fixture()
 def db_session():
-    engine = create_engine(E2E_DB_URL)
+    engine = create_engine(DB_URL)
     Base.metadata.create_all(engine)
     SessionLocal = sessionmaker(bind=engine)
     session = SessionLocal()

@@ -187,6 +187,112 @@ def _prepare_batch_items(results, discovery_plan_id=None):
     return prepared
 
 
+def _candidate_identity_data(item):
+    """Extrai do candidato as chaves usadas na resolução cross-provider."""
+    return {
+        "cnpj": item.get("cnpj"),
+        "website": item.get("website"),
+        "normalized_domain": item.get("normalized_domain"),
+        "place_id": item.get("place_id_candidate") or item.get("place_id"),
+        "place_id_candidate": item.get("place_id_candidate"),
+        "provider_candidate_id": item.get("provider_candidate_id"),
+        "google_maps_uri": item.get("maps_uri") or item.get("google_maps_uri"),
+        "provider": item.get("provider"),
+    }
+
+
+def resolve_cross_provider_lead(db, organization_id, item):
+    """Devolve um lead existente da mesma empresa descoberta por outro provider.
+
+    A resolução usa a tabela `Company` como identidade canônica:
+    CNPJ → domínio normalizado → aliases (place_id / maps_uri) registrados por
+    provider distintos. Quando um lead já existe na organização para a mesma
+    Company, o candidato deve mesclar-se a ele em vez de criar uma duplicata.
+    """
+    company = CompanyPersonService.find_company_by_aliases(
+        db, organization_id, _candidate_identity_data(item)
+    )
+    if not company:
+        return None
+    return (
+        db.query(Lead)
+        .filter(
+            (Lead.organization_id == organization_id)
+            & (Lead.company_id == company.id)
+        )
+        .order_by(Lead.created_at.asc())
+        .first()
+    )
+
+
+def _merge_discovery_provenance(existing_lead, item):
+    """Mescla a provenance de um candidato no lead existente (unificação de fontes)."""
+    existing_provenance = existing_lead.discovery_provenance or {}
+    incoming_provenance = item.get("discovery_provenance") or {}
+    for key in ("providers", "provider_queries", "provider_candidate_ids"):
+        values = list(dict.fromkeys([
+            *(existing_provenance.get(key) or []),
+            *([incoming_provenance[key]]
+              if incoming_provenance.get(key) and not isinstance(incoming_provenance.get(key), list)
+              else incoming_provenance.get(key) or []),
+        ]))
+        if values:
+            existing_provenance[key] = values
+    for key in (
+        "provider",
+        "provider_query",
+        "provider_candidate_id",
+        "retrieved_at",
+        "discovery_plan_id",
+        "matched_identity_rule",
+        "identity_status",
+        "identity_confidence",
+    ):
+        if incoming_provenance.get(key) is not None:
+            existing_provenance[key] = incoming_provenance[key]
+    existing_lead.discovery_provenance = existing_provenance
+
+
+def _backfill_candidate_fields(existing_lead, item):
+    """Preenche campos vazios do lead com dados novos vindos de outro provider."""
+    updated = False
+    if item.get("cnpj") and not existing_lead.cnpj:
+        existing_lead.cnpj = item.get("cnpj")
+        updated = True
+    if item.get("website") and not existing_lead.website:
+        existing_lead.website = item.get("website")
+        existing_lead.normalized_domain = normalize_domain(item.get("website"))
+        updated = True
+    if item.get("phone") and not existing_lead.phone:
+        existing_lead.phone = item.get("phone")
+        updated = True
+    if item.get("address") and not existing_lead.address:
+        existing_lead.address = item.get("address")
+        updated = True
+    if item.get("city") and not existing_lead.city:
+        existing_lead.city = item.get("city")
+        updated = True
+    if item.get("state") and not existing_lead.state:
+        existing_lead.state = item.get("state")
+        updated = True
+    if item.get("instagram_url") and not existing_lead.instagram_url:
+        existing_lead.instagram_url = item.get("instagram_url")
+        updated = True
+    return updated
+
+
+def _register_lead_company_aliases(db, lead, item):
+    """Registra as chaves externas do candidato como aliases da Company do lead."""
+    if not lead or not lead.company_id:
+        return
+    CompanyPersonService.register_company_aliases(
+        db,
+        lead.organization_id,
+        lead.company_id,
+        _candidate_identity_data(item),
+    )
+
+
 def filter_new_batch_items(items, known_place_ids, known_domains):
     """Remove do lote os resultados que já existem na organização.
 
@@ -607,33 +713,13 @@ async def run_pipeline(
                      ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
                 ).first()
 
+                if not existing_lead:
+                    existing_lead = resolve_cross_provider_lead(db, organization_id, item)
+
                 if existing_lead:
-                    existing_provenance = existing_lead.discovery_provenance or {}
-                    incoming_provenance = item.get("discovery_provenance") or {}
-                    for key in (
-                        "providers",
-                        "provider_queries",
-                        "provider_candidate_ids",
-                    ):
-                        values = list(dict.fromkeys([
-                            *(existing_provenance.get(key) or []),
-                            *([incoming_provenance[key]] if incoming_provenance.get(key) and not isinstance(incoming_provenance.get(key), list) else incoming_provenance.get(key) or []),
-                        ]))
-                        if values:
-                            existing_provenance[key] = values
-                    for key in (
-                        "provider",
-                        "provider_query",
-                        "provider_candidate_id",
-                        "retrieved_at",
-                        "discovery_plan_id",
-                        "matched_identity_rule",
-                        "identity_status",
-                        "identity_confidence",
-                    ):
-                        if incoming_provenance.get(key) is not None:
-                            existing_provenance[key] = incoming_provenance[key]
-                    existing_lead.discovery_provenance = existing_provenance
+                    _merge_discovery_provenance(existing_lead, item)
+                    _backfill_candidate_fields(existing_lead, item)
+                    _register_lead_company_aliases(db, existing_lead, item)
                     continue
 
                 new_lead = Lead(
@@ -662,6 +748,7 @@ async def run_pipeline(
 
                 yield {"type": "log", "message": f"{collected_count} novos leads por CNAE salvos", "timestamp": _ts()}
 
+            db.commit()
             org_id = organization_id
             _dispatch_lead_created_webhooks(db, org_id, cnae_created_ids)
         elif source == "pncp":
@@ -715,6 +802,43 @@ async def run_pipeline(
                 if place_id_val in existing_ids or cnpj_val in existing_cnpjs:
                     continue
                 if normalized_domain and normalized_domain in existing_domains:
+                    continue
+
+                existing_lead = resolve_cross_provider_lead(db, org_id, {
+                    "cnpj": cnpj_val,
+                    "website": website_val,
+                    "normalized_domain": normalized_domain,
+                    "place_id_candidate": place_id_val,
+                    "provider": "pncp",
+                    "discovery_provenance": {
+                        "provider": "pncp",
+                        "provider_query": f"{start}..{end} {uf_label or ''}".strip(),
+                        "provider_candidate_id": str(cnpj_val or place_id_val or ""),
+                    },
+                })
+                if existing_lead:
+                    _merge_discovery_provenance(existing_lead, {
+                        "discovery_provenance": {
+                            "provider": "pncp",
+                            "provider_query": f"{start}..{end} {uf_label or ''}".strip(),
+                            "provider_candidate_id": str(cnpj_val or place_id_val or ""),
+                        },
+                    })
+                    _backfill_candidate_fields(existing_lead, {
+                        "cnpj": cnpj_val,
+                        "website": website_val,
+                        "address": details.get("address"),
+                        "city": details.get("city"),
+                        "state": details.get("state"),
+                        "phone": details.get("phone"),
+                    })
+                    _register_lead_company_aliases(db, existing_lead, {
+                        "cnpj": cnpj_val,
+                        "website": website_val,
+                        "normalized_domain": normalized_domain,
+                        "place_id_candidate": place_id_val,
+                        "provider": "pncp",
+                    })
                     continue
 
                 target_state = campaign.target_state if campaign else None
@@ -949,7 +1073,13 @@ async def run_pipeline(
                      ((Lead.normalized_domain.isnot(None)) & (Lead.normalized_domain == normalized_domain)))
                 ).first()
 
+                if not existing_lead:
+                    existing_lead = resolve_cross_provider_lead(db, organization_id, item)
+
                 if existing_lead:
+                    _merge_discovery_provenance(existing_lead, item)
+                    _backfill_candidate_fields(existing_lead, item)
+                    _register_lead_company_aliases(db, existing_lead, item)
                     continue
 
                 new_lead = Lead(

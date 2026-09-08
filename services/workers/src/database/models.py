@@ -942,9 +942,52 @@ class Company(Base):
     organization = relationship("Organization")
     leads = relationship("Lead", back_populates="company")
     persons = relationship("Person", back_populates="company")
+    aliases = relationship(
+        "CompanyAlias",
+        back_populates="company",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return f"<Company(id='{self.id}', name='{self.company_name}')>"
+
+
+class CompanyAlias(Base):
+    """Alias de identidade de uma empresa por provider externo.
+
+    Permite que uma mesma `Company` seja reconhecida por chaves diferentes
+    (place_id do Google, id sintético CNAE/PNCP, domínio alternativo) vindas de
+    provider distintos — realizado pela resolução cross-provider de identidade.
+    """
+    __tablename__ = "company_aliases"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "alias_kind",
+            "alias_value",
+            name="uq_company_aliases_org_kind_value",
+        ),
+        Index("ix_company_aliases_company", "company_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+    company_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    alias_kind = Column(String(50), nullable=False)
+    alias_value = Column(String(255), nullable=False)
+    source = Column(String(50))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    organization = relationship("Organization")
+    company = relationship("Company", back_populates="aliases")
+
+    def __repr__(self):
+        return f"<CompanyAlias(kind='{self.alias_kind}', value='{self.alias_value}')>"
 
 
 class Person(Base):

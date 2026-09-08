@@ -59,6 +59,7 @@ from database.models import (
     OrgAuditEvent,
     ConsultantPlaybook,
     Company,
+    CompanyAlias,
     Person,
     WebhookLog,
     ProviderExecutionMetric,

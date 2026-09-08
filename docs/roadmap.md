@@ -163,6 +163,11 @@ CNPJ exato
 
 Persistir aliases e IDs por fonte.
 
+**Status:** ✅ entregue. `company_aliases` registra place_id/domínio/maps_uri por
+Company; a resolução (CNPJ → domínio → aliases) é usada pelo pipeline nas rotas
+Places, CNAE e PNCP para mesclar provenance em vez de duplicar lead. O match
+fuzzy (nome + cidade + UF) permanece apenas candidato para revisão.
+
 ## 3.3 Provenance
 
 Cada dado enriquecido deve saber de onde veio. Criar `DataPoint` ou estrutura equivalente com:
@@ -788,7 +793,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 ```text
 PR 01 — E2E PostgreSQL + migration QA                            ✅ entregue
 PR 02 — provider observability (trace, tokens, custo)            ✅ entregue
-PR 03 — cross-provider company identity
+PR 03 — cross-provider company identity                          ✅ entregue
 PR 04 — canonical Person/Employment/ContactPoint
 PR 05 — People Provider Registry + waterfall
 PR 06 — advanced People Search

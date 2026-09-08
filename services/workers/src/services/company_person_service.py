@@ -2,18 +2,200 @@
 
 Garante que empresas e pessoas sejam unificadas por organização, reutilizando
 registros entre campanhas e oportunidades sem duplicação.
+
+A resolução cross-provider de identidade usa `CompanyAlias`: chaves externas
+(place_id do Google, id sintético CNAE/PNCP, domínios alternativos) são
+registradas por Company, permitindo que providers distintos reconheçam a mesma
+empresa e sejam unificados em uma única entidade.
 """
 import logging
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from database.models import Company, Person, Lead, Contact
+from database.models import Company, CompanyAlias, Person, Lead, Contact
 from services.domain_utils import normalize_domain
 
 logger = logging.getLogger(__name__)
 
 
 class CompanyPersonService:
+    @staticmethod
+    def _register_alias(
+        db: Session,
+        organization_id: Any,
+        company_id: Any,
+        kind: str,
+        value: Optional[str],
+        source: Optional[str] = None,
+    ) -> None:
+        """Registra um alias de identidade para a Company, se ainda não existir."""
+        if not value:
+            return
+        existing = (
+            db.query(CompanyAlias)
+            .filter(
+                (CompanyAlias.organization_id == organization_id)
+                & (CompanyAlias.alias_kind == kind)
+                & (CompanyAlias.alias_value == value)
+            )
+            .first()
+        )
+        if existing:
+            return
+        db.add(
+            CompanyAlias(
+                organization_id=organization_id,
+                company_id=company_id,
+                alias_kind=kind,
+                alias_value=value,
+                source=source,
+            )
+        )
+
+    @staticmethod
+    def register_company_aliases(
+        db: Session,
+        organization_id: Any,
+        company_id: Any,
+        data: Dict[str, Any],
+    ) -> None:
+        """Registra as chaves externas do candidato como aliases da Company."""
+        place_id = (
+            data.get("place_id")
+            or data.get("place_id_candidate")
+            or data.get("provider_candidate_id")
+        )
+        if place_id:
+            CompanyPersonService._register_alias(
+                db, organization_id, company_id, "place_id", str(place_id)
+            )
+        if data.get("normalized_domain"):
+            CompanyPersonService._register_alias(
+                db,
+                organization_id,
+                company_id,
+                "normalized_domain",
+                data.get("normalized_domain"),
+                source=data.get("provider"),
+            )
+        if data.get("google_maps_uri"):
+            CompanyPersonService._register_alias(
+                db,
+                organization_id,
+                company_id,
+                "google_maps_uri",
+                data.get("google_maps_uri"),
+                source=data.get("provider"),
+            )
+
+    @staticmethod
+    def find_company_by_aliases(
+        db: Session,
+        organization_id: Any,
+        data: Dict[str, Any],
+    ) -> Optional[Company]:
+        """Resolve uma Company existente por chaves cross-provider.
+
+        Ordem de prioridade: CNPJ exato → domínio normalizado → aliases
+        (place_id / google_maps_uri / domínio alternativo registrados).
+        """
+        if not organization_id:
+            return None
+
+        cnpj = data.get("cnpj")
+        website = data.get("website")
+        domain = (
+            normalize_domain(website)
+            if website
+            else data.get("normalized_domain")
+        )
+        place_id = (
+            data.get("place_id")
+            or data.get("place_id_candidate")
+            or data.get("provider_candidate_id")
+        )
+
+        query = db.query(Company).filter(Company.organization_id == organization_id)
+
+        if cnpj:
+            company = query.filter(Company.cnpj == cnpj).first()
+            if company:
+                return company
+        if domain:
+            company = query.filter(Company.normalized_domain == domain).first()
+            if company:
+                return company
+        if place_id:
+            company = (
+                db.query(Company)
+                .join(CompanyAlias, CompanyAlias.company_id == Company.id)
+                .filter(
+                    (Company.organization_id == organization_id)
+                    & (CompanyAlias.alias_kind == "place_id")
+                    & (CompanyAlias.alias_value == str(place_id))
+                )
+                .first()
+            )
+            if company:
+                return company
+        maps_uri = data.get("google_maps_uri") or data.get("maps_uri")
+        if maps_uri:
+            company = (
+                db.query(Company)
+                .join(CompanyAlias, CompanyAlias.company_id == Company.id)
+                .filter(
+                    (Company.organization_id == organization_id)
+                    & (CompanyAlias.alias_kind == "google_maps_uri")
+                    & (CompanyAlias.alias_value == str(maps_uri))
+                )
+                .first()
+            )
+            if company:
+                return company
+        return None
+
+    @staticmethod
+    def _backfill_company_fields(
+        db: Session,
+        company: Company,
+        data: Dict[str, Any],
+    ) -> None:
+        """Preenche campos vazios da Company com novidades do candidato."""
+        cnpj = data.get("cnpj")
+        website = data.get("website")
+        domain = (
+            normalize_domain(website)
+            if website
+            else data.get("normalized_domain")
+        )
+        updated = False
+        if cnpj and not company.cnpj:
+            company.cnpj = cnpj
+            updated = True
+        if website and not company.website:
+            company.website = website
+            company.normalized_domain = domain
+            updated = True
+        if data.get("phone") and not company.phone:
+            company.phone = data.get("phone")
+            updated = True
+        if data.get("address") and not company.address:
+            company.address = data.get("address")
+            updated = True
+        if data.get("company_linkedin_url") and not company.company_linkedin_url:
+            company.company_linkedin_url = data.get("company_linkedin_url")
+            updated = True
+        if data.get("instagram_url") and not company.instagram_url:
+            company.instagram_url = data.get("instagram_url")
+            updated = True
+        if data.get("google_rating") and not company.google_rating:
+            company.google_rating = data.get("google_rating")
+            company.google_rating_count = data.get("google_rating_count")
+            company.google_maps_uri = data.get("google_maps_uri")
+            updated = True
+        if updated:
+            db.flush()
+
     @staticmethod
     def get_or_create_company(
         db: Session,
@@ -22,7 +204,8 @@ class CompanyPersonService:
     ) -> Optional[Company]:
         """Busca ou cria uma empresa (Company) dentro da organização.
 
-        Match via CNPJ ou domínio normalizado ou nome da empresa.
+        Match via CNPJ → domínio normalizado → aliases cross-provider → nome da
+        empresa. Novas chaves externas do candidato são registradas como aliases.
         """
         if not organization_id:
             return None
@@ -35,46 +218,23 @@ class CompanyPersonService:
         if not company_name and not cnpj and not domain:
             return None
 
-        query = db.query(Company).filter(Company.organization_id == organization_id)
-        existing: Optional[Company] = None
+        existing: Optional[Company] = CompanyPersonService.find_company_by_aliases(
+            db, organization_id, data
+        )
 
-        if cnpj:
-            existing = query.filter(Company.cnpj == cnpj).first()
-        if not existing and domain:
-            existing = query.filter(Company.normalized_domain == domain).first()
         if not existing and company_name:
-            existing = query.filter(Company.company_name == company_name).first()
+            existing = (
+                db.query(Company)
+                .filter(
+                    (Company.organization_id == organization_id)
+                    & (Company.company_name == company_name)
+                )
+                .first()
+            )
 
         if existing:
-            # Atualiza campos que vieram com novidades
-            updated = False
-            if cnpj and not existing.cnpj:
-                existing.cnpj = cnpj
-                updated = True
-            if website and not existing.website:
-                existing.website = website
-                existing.normalized_domain = domain
-                updated = True
-            if data.get("phone") and not existing.phone:
-                existing.phone = data.get("phone")
-                updated = True
-            if data.get("address") and not existing.address:
-                existing.address = data.get("address")
-                updated = True
-            if data.get("company_linkedin_url") and not existing.company_linkedin_url:
-                existing.company_linkedin_url = data.get("company_linkedin_url")
-                updated = True
-            if data.get("instagram_url") and not existing.instagram_url:
-                existing.instagram_url = data.get("instagram_url")
-                updated = True
-            if data.get("google_rating") and not existing.google_rating:
-                existing.google_rating = data.get("google_rating")
-                existing.google_rating_count = data.get("google_rating_count")
-                existing.google_maps_uri = data.get("google_maps_uri")
-                updated = True
-
-            if updated:
-                db.flush()
+            CompanyPersonService._backfill_company_fields(db, existing, data)
+            CompanyPersonService.register_company_aliases(db, organization_id, existing.id, data)
             return existing
 
         # Cria nova empresa
@@ -100,6 +260,7 @@ class CompanyPersonService:
         )
         db.add(company)
         db.flush()
+        CompanyPersonService.register_company_aliases(db, organization_id, company.id, data)
         logger.info("Nova Company criada no modelo 3 Entidades: %s (org=%s)", company.company_name, organization_id)
         return company
 
@@ -189,6 +350,7 @@ class CompanyPersonService:
             "cnpj": lead.cnpj,
             "website": lead.website,
             "normalized_domain": lead.normalized_domain,
+            "place_id": lead.place_id,
             "phone": lead.phone,
             "address": lead.address,
             "city": lead.city,
