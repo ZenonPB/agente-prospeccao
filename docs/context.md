@@ -3,8 +3,8 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-07 · branch `feat/identidade-cross-provider` ·
-> Alembic head `dd9e0f1a2b3c`.
+> **Snapshot:** 2026-09-08 · branch `feat/onda0-confiabilidade` ·
+> Alembic head `ee5f6b7c8d0a`.
 
 ## Leitura obrigatória
 
@@ -22,7 +22,24 @@ workers Python async e PostgreSQL. O pipeline de empresas é orientado por
 enrichment passivo, scoring contextual, `OfferMatcher`, decisores best-effort e
 outreach/cadência. Campanhas legadas continuam compatíveis.
 
-### Capacidades entregues nesta consolidação
+### Capacidades entregues nesta consolidação (onda 0 — confiabilidade)
+
+- **Observabilidade de providers completa**: `provider_execution_metrics`
+  persiste `correlation_id`, `campaign_id` e `usage` (tokens Groq em JSONB),
+  preenchendo também `cost` (estimativa USD por modelo). Discovery
+  (Places/CNAE), Event Discovery e scoring emitem métricas por execução.
+- **Correlation IDs**: cada `run_pipeline` gera um UUID logado na abertura do
+  job, propagado a toda telemetria e devolvido no payload final do
+  WebSocket/job com `provider_metrics` agregadas.
+- **Telemetria de tokens Groq**: `groq_json_chat` ganhou callback `on_usage`
+  (sem mudar o retorno dos chamadores); o `AIScoringService` repassa o
+  callback e o pipeline acumula tokens + custo estimado por lote.
+- **Endpoint `GET /analytics/provider-trace/{correlation_id}`** (org-scoped):
+  devolve todas as medições de uma execução (status, latência, erro, custo,
+  tokens) — responde "por que esta campanha trouxe poucos leads".
+- Nova migration `ee5f6b7c8d0a` (head) + índice por `correlation_id`.
+
+### Legado da consolidação anterior (preservado)
 
 - `lead_opportunities` persiste múltiplas oportunidades por lead, oferta,
   versão e evidências; o endpoint é org-scoped.
@@ -43,8 +60,9 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   revisável.
 - Execuções de providers registram métricas estruturadas no resumo do job
   (`status`, quantidade, duração, erro e retryability) e em
-  `provider_execution_metrics`; custo real ainda é opcional e a quota continua
-  sendo medida separadamente em `provider_usage`.
+  `provider_execution_metrics`, com `correlation_id`, `campaign_id`, `usage`
+  (tokens) e `cost` (estimativa USD); a quota continua sendo medida
+  separadamente em `provider_usage`.
 - Contatos persistem `identity_confidence`, `contact_confidence`, confiabilidade
   da fonte, status de verificação e classificação de acionabilidade (`DIRECT`,
   `ROUTABLE`, `INSTITUTIONAL` ou `UNKNOWN`).
@@ -54,14 +72,17 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **948 passed**;
+- `python -m pytest tests -q -W error`: **940 passed** (unit; testes com
+  Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `dd9e0f1a2b3c`;
+- `scripts/verify_migrations.py`: head único `ee5f6b7c8d0a`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato
 
-Não habilitar provider externo por padrão. Priorizar identidade cross-provider
-de empresas e People Discovery real para completar evento → decisor → outreach.
-As demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.
+Não habilitar provider externo por padrão. Com a onda 0 de confiabilidade
+fechada (observabilidade + correlation IDs), priorizar identidade
+cross-provider de empresas e People Discovery real para completar
+evento → decisor → outreach. As demais prioridades estão em
+`docs/pendencias-pos-consolidacao.md`.
