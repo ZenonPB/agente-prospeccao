@@ -305,7 +305,8 @@ class OrganizationSecret(Base):
     (settings), evitando consumir a quota compartilhada. O valor é criptografado
     em repouso (Fernet) usando a `SECRETS_ENCRYPTION_KEY` do settings.
 
-    `key_name` identifica o provedor: `GOOGLE_API_KEY` ou `GROQ_API_KEY`.
+    `key_name` identifica o provedor: `GOOGLE_API_KEY`, `GROQ_API_KEY` ou
+    `HUNTER_API_KEY`.
     """
     __tablename__ = "organization_secrets"
     __table_args__ = (
@@ -328,7 +329,7 @@ class OrganizationSecret(Base):
 class ProviderUsage(Base):
     """Medidor diário de uso de provedores externos por org/key.
 
-    Contabiliza chamadas (Google Places e Groq) por organização e por dia,
+    Contabiliza chamadas (Google Places, Groq e Hunter) por organização e por dia,
     contra um limite configurável (`organizations.api_quota` ou o default do
     settings `PROVIDER_DAILY_QUOTA`). Alimenta o painel de cotas da org e trava
     chamadas excedentes (fail-closed: `remaining <= 0` → o provider não chama).

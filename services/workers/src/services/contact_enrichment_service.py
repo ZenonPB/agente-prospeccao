@@ -34,7 +34,7 @@ import httpx
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
-from database.models import Contact, ContactRole, Lead, LeadStatus  # noqa: E402
+from database.models import Contact, ContactRole, Lead, LeadStatus, Organization  # noqa: E402
 from services import enrichment_ts  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -184,6 +184,7 @@ def parse_hunter_domain_emails(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
             "role_label": position or "Decisor",
             "confidence": int(e.get("confidence") or 70),
             "is_primary": False,
+            "raw_sources": e.get("sources") or [],
         })
     # A pessoa de maior confiança/cargo é a primária (placeholder do lead).
     if people:
@@ -420,15 +421,61 @@ def _build_linkedin_candidates(name: str) -> List[str]:
 
 
 class ContactEnrichmentService:
-    """Enriquece decisores com e-mail e LinkedIn (busca passiva, sem custo)."""
+    """Enriquece decisores com e-mail e LinkedIn por fontes passivas."""
 
-    def __init__(self):
-        self.hunter_key: Optional[str] = getattr(settings, "HUNTER_API_KEY", None) or None
+    def __init__(
+        self,
+        *,
+        people_registry: Optional[Any] = None,
+        contact_verifier: Optional[Any] = None,
+        hunter_key: Optional[str] = None,
+        hunter_enabled: bool = False,
+    ):
+        self.hunter_key: Optional[str] = (hunter_key or "").strip() or None
+        self.hunter_enabled = bool(hunter_enabled and self.hunter_key)
+        self.people_registry = people_registry
+        if contact_verifier is None:
+            from services.email_verification_service import EmailVerificationService
+            from services.prospecting.contact_verifier import ContactVerifier
+            contact_verifier = ContactVerifier(EmailVerificationService())
+        self.contact_verifier = contact_verifier
         self._http_cache: Dict[str, Optional[str]] = {}
         self._linkedin_validated: Dict[str, bool] = {}
         # Cache das páginas do site (home + contato) p/ não refetch
         # na mesma rodada (até 3 paths por lead por enriquecimento).
         self._site_cache: Dict[str, Optional[str]] = {}
+
+    @classmethod
+    async def for_organization(cls, db, organization_id: Any) -> "ContactEnrichmentService":
+        """Cria o enriquecedor com Hunter apenas quando há quota explícita."""
+        from services.quota_service import QuotaService
+        from services.secret_service import SecretService
+        from services.prospecting.hunter_people_provider import HunterPeopleProvider
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        organization = db.query(Organization).filter(Organization.id == organization_id).first()
+        explicit_limit = (organization.api_quota or {}).get("HUNTER_API_KEY") if organization else None
+        limit = int(explicit_limit or 0)
+        key = await SecretService.resolve_key(db, str(organization_id), "HUNTER_API_KEY")
+        # A chave global sozinha não habilita consumo pago: a organização
+        # precisa declarar HUNTER_API_KEY em api_quota para fazer opt-in.
+        enabled = bool(key and explicit_limit is not None and limit > 0)
+        registry = PeopleProviderRegistry()
+        if enabled:
+            registry.register(HunterPeopleProvider(
+                key,
+                can_consume=lambda: QuotaService.can_consume(
+                    db, organization_id, "HUNTER_API_KEY",
+                ),
+                consume=lambda: QuotaService.consume(
+                    db, organization_id, "HUNTER_API_KEY",
+                ),
+            ))
+        return cls(
+            people_registry=registry,
+            hunter_key=key,
+            hunter_enabled=enabled,
+        )
 
     def _create_client(self) -> httpx.AsyncClient:
         headers = {
@@ -531,29 +578,19 @@ class ContactEnrichmentService:
 
             # Hunter domain-search: quando o placeholder da Receita não trouxe
             # ninguém real (sem QSA), tentamos nomes/emails nomeados do domínio.
-            if self.hunter_key and lead.website:
+            waterfall: Optional[Dict[str, Any]] = None
+            if self.hunter_enabled and self.people_registry and lead.website:
                 domain = _domain_from_website(lead.website)
                 if domain and len(existing) <= 1 and not any(
                     c.email for c in existing if c.name != "Decisor"
                 ):
-                    people = await self._people_from_hunter_domain(client, lead, domain)
-                    for person in people[:max_contacts]:
-                        if not any(
-                            c.email and c.email == person["email"] for c in existing
-                        ):
-                            contact = Contact(
-                                lead_id=lead.id,
-                                name=person["name"],
-                                role=person["role"],
-                                role_label=person["role_label"],
-                                email=person["email"],
-                                confidence=person["confidence"],
-                                is_primary=not any(c.is_primary for c in existing),
-                                source="hunter_domain",
-                                raw_data={"email_source": "hunter"},
-                            )
-                            db.add(contact)
-                            existing.append(contact)
+                    target_titles = await self._target_titles(lead)
+                    waterfall = await self.people_registry.waterfall_search(
+                        domain,
+                        target_titles,
+                        max_steps=1,
+                    )
+                    self._persist_waterfall_people(db, lead, existing, waterfall, max_contacts)
                     db.flush()
 
             for contact in existing[:max_contacts]:
@@ -614,21 +651,19 @@ class ContactEnrichmentService:
             # REAIS criados pela Receita/Hunter (não roles). Critério:
             # "pessoa(s) reais ou estado explícito de falha".
             from services.prospecting.decision_maker_resolution import (
-                DecisionMakerResolver, IdentityResolver, ContactVerification,
-                PersonContact,
+                DecisionMakerResolver, IdentityResolver, PersonContact,
             )
-            sources = {
-                "receita_federal": [
-                    {
-                        "name": c.get("name"),
-                        "role": c.get("role_label") or c.get("role"),
-                        "document_cpf": c.get("document_cpf"),
-                        "email": c.get("email"),
-                    }
-                    for c in results
-                    if c.get("name")
-                ]
-            } if results else {}
+            sources: Dict[str, List[Dict[str, Any]]] = {}
+            for contact in results:
+                if not contact.get("name"):
+                    continue
+                source = str(contact.get("source") or "unknown")
+                sources.setdefault(source, []).append({
+                    "name": contact.get("name"),
+                    "role": contact.get("role_label") or contact.get("role"),
+                    "document_cpf": contact.get("document_cpf"),
+                    "email": contact.get("email"),
+                })
             resolver = DecisionMakerResolver()
             resolution = resolver.resolve(
                 company_data={"cnpj": getattr(lead, "cnpj", None), "domain": domain},
@@ -642,9 +677,8 @@ class ContactEnrichmentService:
             if resolution.people:
                 identity = IdentityResolver()
                 merged_people = identity.merge(resolution.people)
-                verifier = ContactVerification()
                 for p in merged_people:
-                    v = verifier.verify(p, mock_mx_check=None) if _accepts_mock_check(verifier) else verifier.verify(p)
+                    v = await self.contact_verifier.verify_email(p)
                     people_verified.append({
                         "name": p.name,
                         "source": p.source,
@@ -670,11 +704,56 @@ class ContactEnrichmentService:
                     "audit": resolution.audit,
                 },
             }
+            if waterfall is not None:
+                existing_evidence["phase3_contact"]["people_discovery"] = {
+                    "status": waterfall.get("status"),
+                    "early_stopped": waterfall.get("early_stopped", False),
+                    "providers_attempted": waterfall.get("providers_attempted", []),
+                    "attempts": waterfall.get("attempts", []),
+                }
             lead.evidence_score = existing_evidence
         except Exception as e:  # noqa: BLE001
             logger.debug("Fase3: falha em decision_maker/cascade/routable: %s", e)
 
         return results
+
+    async def _target_titles(self, lead: Lead) -> List[str]:
+        """Obtém cargos-alvo do perfil legado da campanha."""
+        profile_key = (lead.analysis_profile.value if getattr(lead, "analysis_profile", None) else "generic").lower()
+        from services.decision_maker_pipeline_service import resolve_target_roles
+        return [item["role"] for item in resolve_target_roles(profile_key)]
+
+    @staticmethod
+    def _persist_waterfall_people(
+        db,
+        lead: Lead,
+        existing: List[Contact],
+        waterfall: Dict[str, Any],
+        max_contacts: int,
+    ) -> None:
+        """Persiste candidatos do waterfall sem duplicar contatos do lead."""
+        for person in (waterfall.get("people") or [])[:max_contacts]:
+            email = person.get("email")
+            if email and any(c.email and c.email.lower() == email.lower() for c in existing):
+                continue
+            contact = Contact(
+                lead_id=lead.id,
+                name=person.get("name") or "Decisor",
+                role=person.get("role"),
+                role_label=person.get("role_label") or person.get("title") or "Decisor",
+                email=email,
+                phone=person.get("phone"),
+                confidence=int(person.get("confidence") or person.get("contact_confidence") or 0),
+                is_primary=not any(c.is_primary for c in existing),
+                source=person.get("source") or "people_provider",
+                raw_data={
+                    "email_source": person.get("source", "people_provider"),
+                    "provider_status": waterfall.get("status"),
+                    "provider_sources": person.get("sources") or [],
+                },
+            )
+            db.add(contact)
+            existing.append(contact)
 
     # ------------------------------------------------------------------ #
     # Fonte primária de decisores: Receita Federal
@@ -936,8 +1015,6 @@ class ContactEnrichmentService:
           o domínio tiver MX e não for descartável (fail-closed).
         - Guarda `email_mx`/`email_verify_reason` em `raw_data` para auditoria.
         """
-        from services.email_verification_service import EmailVerificationService
-
         contact.raw_data = contact.raw_data or {}
         is_heuristic = contact.raw_data.get("email_source") == "heuristic"
         if is_heuristic:
@@ -949,13 +1026,14 @@ class ContactEnrichmentService:
 
         if not hasattr(contact, "email_verified"):
             return
-        result = await EmailVerificationService().verify_email(contact.email, client=client)
+        result = await self.contact_verifier.verify_email(contact)
         contact.raw_data = {
             **contact.raw_data,
             "email_mx": result.get("mx"),
             "email_verify_reason": result.get("reason"),
+            "verification_status": result.get("verification_status"),
         }
-        if result.get("verified"):
+        if result.get("email_verified", result.get("verified")):
             contact.email_verified = True
             contact.email_verified_at = datetime.now(timezone.utc)
 
@@ -963,7 +1041,10 @@ class ContactEnrichmentService:
         self, client: httpx.AsyncClient, contact: Contact, lead: Lead,
         domain: str,
     ) -> Tuple[Optional[str], str, int]:
-        if not self.hunter_key or not contact.name:
+        # O fluxo de produção usa o PeopleProviderRegistry, que aplica quota e
+        # telemetria. Este caminho legado permanece apenas para callers que
+        # constroem o serviço manualmente com uma chave explícita.
+        if self.people_registry is not None or not self.hunter_key or not contact.name:
             return None, "", 0
         try:
             resp = await client.get(

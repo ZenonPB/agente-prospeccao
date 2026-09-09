@@ -7,8 +7,8 @@ Responsabilidades:
   do DATABASE_URL (adequado apenas para desenvolvimento).
 - Resolver a chave de um provedor para uma organização:
   1. Se a org tem `organization_secrets` com a chave → usa (BYOK).
-  2. Senão → fallback para o pool global (`settings.GROQ_API_KEY` /
-     `settings.GOOGLE_API_KEY`).
+  2. Senão → fallback para o pool global (`settings.GROQ_API_KEY`,
+     `settings.GOOGLE_API_KEY` ou `settings.HUNTER_API_KEY`).
 
 Sempre async (padrão do projeto). Nunca loga valores de chave.
 """
@@ -27,7 +27,7 @@ from database.models import OrganizationSecret  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-KEY_NAMES = ("GOOGLE_API_KEY", "GROQ_API_KEY")
+KEY_NAMES = ("GOOGLE_API_KEY", "GROQ_API_KEY", "HUNTER_API_KEY")
 
 
 def _derive_fernet_key() -> bytes:

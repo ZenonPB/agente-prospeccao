@@ -1395,7 +1395,7 @@ async def run_pipeline(
 
             from services.contact_enrichment_service import ContactEnrichmentService
 
-            enrich_svc = ContactEnrichmentService()
+            enrich_svc = await ContactEnrichmentService.for_organization(db, organization_id)
             enriched_count = 0
             for lead in to_enrich:
                 try:

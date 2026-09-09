@@ -5,7 +5,11 @@ abrigava adaptação com thread para o `EmailVerificationService` assíncrono.
 Este módulo é o seam de I/O: recebe o serviço de e-mail por injeção e nunca
 abre thread nem toca em rede por conta própria.
 """
+import logging
 from typing import Any, Dict, Optional
+
+
+logger = logging.getLogger(__name__)
 
 
 class ContactVerifier:
@@ -40,14 +44,24 @@ class ContactVerifier:
         source = getattr(person, "source", None)
         if not email or self._is_heuristic_source(source):
             return {"email_verified": False, "verification_status": "skipped_heuristic"}
+        raw_data = getattr(person, "raw_data", None)
+        if isinstance(raw_data, dict) and self._is_heuristic_source(raw_data.get("email_source")):
+            return {"email_verified": False, "verification_status": "skipped_heuristic"}
         if self._email_service is None:
             return {"email_verified": False, "verification_status": "pending_real_check"}
         try:
             result = await self._email_service.verify_email(email)
-        except Exception:
-            return {"email_verified": False, "verification_status": "pending_real_check"}
+        except Exception as exc:
+            logger.warning("Falha na verificação assíncrona do e-mail: %s", exc)
+            return {
+                "email_verified": False,
+                "verification_status": "pending_real_check",
+                "reason": "verification_error",
+            }
         verified = bool(result.get("verified")) if isinstance(result, dict) else False
         return {
             "email_verified": verified,
             "verification_status": "verified" if verified else "pending_real_check",
+            "reason": result.get("reason") if isinstance(result, dict) else "invalid_verifier_response",
+            "mx": result.get("mx") if isinstance(result, dict) else None,
         }

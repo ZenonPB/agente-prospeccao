@@ -327,6 +327,26 @@ class TestContactVerifierAsyncSeam:
         assert calls == ["m@alpha.com"]
         assert result["email_verified"] is True
 
+    def test_contact_enrichment_considera_email_verified_do_seam_async(self):
+        """O enriquecimento consome a chave oficial `email_verified`."""
+        import asyncio
+        from services.contact_enrichment_service import ContactEnrichmentService
+        from database.models import Contact
+
+        class FakeVerifier:
+            async def verify_email(self, person):
+                return {
+                    "email_verified": True,
+                    "verification_status": "verified",
+                    "reason": "ok",
+                }
+
+        contact = Contact(name="Maria Silva", email="maria@alpha.com", email_verified=False)
+        service = ContactEnrichmentService(contact_verifier=FakeVerifier())
+        asyncio.run(service._verify_email(None, contact))
+
+        assert contact.email_verified is True
+
 
 class TestContactVerification:
     def test_email_verificado_via_mx(self):

@@ -27,6 +27,7 @@ from services.outreach_service import OutreachService  # noqa: E402
 from src.services.pitch_service import build_pitch_one_pager, build_site_audit  # noqa: E402
 from src.services.linkedin_assist_service import linkedin_match_status  # noqa: E402
 from services.enrichment_ts import freshness_snapshot, read_stamps  # noqa: E402
+from services.prospecting.next_best_action_service import NextBestActionService  # noqa: E402
 
 
 def _suggest_next_action_at(status: LeadStatus) -> Optional[datetime]:
@@ -224,9 +225,32 @@ def _lead_summary(lead: Lead) -> dict:
     }
 
 
-def _lead_detail(lead: Lead, enrichment: Optional[Enrichment], include_raw: bool = False) -> dict:
+def _lead_detail(
+    lead: Lead,
+    enrichment: Optional[Enrichment],
+    include_raw: bool = False,
+    opportunities: Optional[list] = None,
+) -> dict:
     """Detalhe do lead com evidence/score_factors estruturados."""
     summary = _lead_summary(lead)
+    contacts = list(lead.contacts or [])
+    verified_email = any(
+        bool(getattr(contact, "email", None) and getattr(contact, "email_verified", False))
+        for contact in contacts
+    )
+    routable_contact = next(
+        (contact for contact in contacts if getattr(contact, "routable", False) and getattr(contact, "phone", None)),
+        None,
+    )
+    summary["next_best_action"] = NextBestActionService().recommend({
+        "status": lead.status.value if lead.status else None,
+        "opt_out": lead.opt_out,
+        "has_verified_email": verified_email,
+        "has_primary_contact": any(bool(getattr(contact, "is_primary", False)) for contact in contacts),
+        "routable": bool(routable_contact),
+        "phone": getattr(routable_contact, "phone", None),
+        "opportunities": opportunities or [],
+    })
     detail = {
         "notes": lead.notes,
         "next_action_at": lead.next_action_at.isoformat() if lead.next_action_at else None,
@@ -234,9 +258,7 @@ def _lead_detail(lead: Lead, enrichment: Optional[Enrichment], include_raw: bool
         "address": lead.address,
         "assigned_to_id": str(lead.assigned_to_id) if lead.assigned_to_id else None,
         "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
-        "contacts": [
-            _contact_to_dict(c) for c in (lead.contacts or [])
-        ],
+        "contacts": [_contact_to_dict(c) for c in contacts],
         "activities": [
             {
                 "id": str(a.id),
@@ -826,7 +848,21 @@ def get_lead(
     enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
     include_raw = include and "raw_data" in include.split(",")
 
-    return _lead_detail(lead, enrichment, include_raw=include_raw)
+    opportunities = (
+        db.query(LeadOpportunityRow)
+        .filter(
+            LeadOpportunityRow.lead_id == lead.id,
+            LeadOpportunityRow.organization_id == _org.id,
+        )
+        .order_by(LeadOpportunityRow.score.desc(), LeadOpportunityRow.offer_key.asc())
+        .all()
+    )
+    return _lead_detail(
+        lead,
+        enrichment,
+        include_raw=include_raw,
+        opportunities=[_opportunity_to_dict(item) for item in opportunities],
+    )
 
 
 @router.get("/{lead_id}/pitch")
@@ -963,7 +999,7 @@ async def enrich_lead_contacts(
 
     from services.contact_enrichment_service import ContactEnrichmentService  # noqa: E402
 
-    service = ContactEnrichmentService()
+    service = await ContactEnrichmentService.for_organization(db, _org.id)
     try:
         contacts = await service.enrich_contacts(lead, db, cnpj=body.cnpj or None)
     except Exception as e:
