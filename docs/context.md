@@ -4,7 +4,7 @@
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
 > **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
-> Alembic head `1a2b3c4d5e6f` (Person canônica).
+> Alembic head `2b4d6f8a0c2e` (Person canônica + provenance de descarte).
 >
 > **Nota de ambiente:** o banco local desta máquina está em `c9d0e1f2a3b4`
 > (pendente de `alembic upgrade head`); rode
@@ -26,6 +26,31 @@ workers Python async e PostgreSQL. O pipeline de empresas é orientado por
 `OfferProfile` quando configurado, usa `DiscoveryExecutor` para Places/CNAE,
 enrichment passivo, scoring contextual, `OfferMatcher`, decisores best-effort e
 outreach/cadência. Campanhas legadas continuam compatíveis.
+
+### Capacidades entregues nesta consolidação (onda 2 — fechamento de fluxos)
+
+- **Verificação de contato sem rede oculta (P1.37)**: o bloco com thread e o
+  hack de `sys.modules` foram removidos do `ContactVerification` legado em
+  `decision_maker_resolution.py`; a verificação real de e-mail é
+  responsabilidade exclusiva do seam async `ContactVerifier`, executada pelo
+  orquestrador, e o teste de integração cobre a ausência de rede oculta.
+- **Early stopping por orçamento no waterfall (P1.36)**:
+  `PeopleProviderRegistry.waterfall_search` aceita `max_cost`; providers fora
+  do orçamento restante ficam com status `budget_exceeded` (nunca consultados)
+  e o resultado reporta `cost_spent`, cobrado apenas em chamadas com
+  resposta. O evidence `people_discovery` do lead persiste o custo gasto.
+- **Roteabilidade na próxima ação (P1.39)**: `NextBestActionService`
+  distingue `DIRECT_CONTACT`/`ROUTABLE_CONTACT` (CALL),
+  `INSTITUTIONAL` (RESEARCH via recepção) e `UNKNOWN`/`UNREACHABLE`
+  (RE_ENRICH); a API repassa `routability_type` do contato e
+  `prepare_event_actions` usa o mesmo critério.
+- **Provenance no descarte do pre-scoring (P1.2)**: coluna `provenance` em
+  `prescoring_discards` (migration `2b4d6f8a0c2e`) com providers, consultas e
+  ids do candidato rejeitado; upsert e endpoint de auditoria expõem o campo.
+- **Ação de evento persistida (P1.18)**: `prepare_event_actions` grava
+  `decision_maker_id`/`decision_maker_status`, canal recomendado,
+  `action_status` e `next_action` no row do evento, expostos em
+  `/api/intelligence` e na UI de relatórios.
 
 ### Capacidades entregues nesta consolidação (onda 0 — confiabilidade)
 
@@ -105,16 +130,16 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **987 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **1001 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `1a2b3c4d5e6f`;
+- `scripts/verify_migrations.py`: head único `2b4d6f8a0c2e`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato
 
-Não habilitar provider externo por padrão. Com a identidade cross-provider de
-empresas e a onda 0 de confiabilidade fechadas, priorizar People Discovery real
-para completar evento → decisor → outreach. As demais prioridades estão em
-`docs/pendencias-pos-consolidacao.md`.
+Waterfall multi-provider de pessoas (P1.34/35): registrar um segundo provider
+real além do Hunter (opt-in por organização) e aplicar role fit do
+OfferProfile no early stopping, mantendo quota, telemetria e orçamento. As
+demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.

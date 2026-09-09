@@ -8,9 +8,9 @@
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-09 · `987 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-09 · `1001 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `1a2b3c4d5e6f`.
+> `2b4d6f8a0c2e`.
 
 ## Resumo desta revisão
 
@@ -28,12 +28,20 @@
   conversões, com fallback `unknown` revisável.
 - P1.30: comparação A/B com Wilson, amostra mínima, persistência, endpoint,
   aprovação humana e auditoria.
+- P1.2: provenance consolidada no descarte do pre-scoring — coluna
+  `provenance` em `prescoring_discards` (migration `2b4d6f8a0c2e`), upsert e
+  endpoint de auditoria expondo o campo.
+- P1.36/P1.37: early stopping por orçamento no waterfall (`max_cost` +
+  `cost_spent` observável, status `budget_exceeded`) e verificação de contato
+  sem thread/rede oculta no resolver síncrono (I/O só no `ContactVerifier`).
+- P1.39: `NextBestActionService` distingue DIRECT/ROUTABLE/INSTITUTIONAL/
+  UNREACHABLE e a ação de evento usa a roteabilidade do contato.
 
 ### Ainda falta
 
-- identidade cross-provider de empresas e provenance genérica de Candidate/Lead;
 - schema semântico e administração de `OfferProfile`;
-- evento → decisor → outreach (a etapa evento → `OfferMatcher` → oportunidade já está operacional);
+- decisor → outreach automático (waterfall multi-provider e role fit seguem
+  na P1.34/35; a ação recomendada já é persistida e exposta);
 - provider real especializado de vagas e intent;
 - BI por vertical/consultor/canal/etapa/variante e Precision@K operacional;
 - entidade canônica e pipeline completo de decisores;
@@ -45,7 +53,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `1a2b3c4d5e6f` (`persons` canônica). |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `2b4d6f8a0c2e` (`persons` canônica + provenance em `prescoring_discards`). |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | ✅ Feito | `correlation_id`/`campaign_id`/`usage`/`cost` persistidos; telemetria de tokens Groq; endpoint `provider-trace` org-scoped explica "poucos leads". |
@@ -55,12 +63,12 @@
 | P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
-| P1.18 Evento → decisor/outreach | 🟠 Parcial | `NextBestActionService` e recomendação no detalhe do lead entregues; descoberta externa, persistência da ação de evento e outreach ainda faltam. |
+| P1.18 Evento → decisor/outreach | 🟠 Parcial | Recomendação + persistência da ação de evento (`decision_maker_id/status`, canal, `next_action`) entregues e expostas em `/api/intelligence`; descoberta externa de decisor e outreach automático seguem na P1.34/35. |
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup e early stopping; `HunterPeopleProvider` opt-in por chave+quota; estados `needs_review/failed` + `ContactVerifier` async; waterfall multi-provider, role fit e cascade completa ainda faltam. |
-| P1.39 Routable contact | 🟠 Parcial | Classificação persistida e exposta; integração efetiva à cadência ainda falta. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança **e orçamento** (`max_cost` + `cost_spent`); `HunterPeopleProvider` opt-in por chave+quota; `ContactVerifier` async sem thread no resolver; waterfall multi-provider, role fit e cascade completa ainda faltam. |
+| P1.39 Routable contact | ✅ Operacional | Classificação persistida, exposta na API e usada pelo `NextBestActionService` (DIRECT/ROUTABLE → CALL, INSTITUTIONAL → pesquisa humana, UNREACHABLE → re-enriquecer); cadência de e-mail continua condicionada a e-mail verificado. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
 
@@ -417,12 +425,14 @@ services/api/src/pipeline_worker.py
 ---
 
 
-**Status:** 🟠 Parcial — provenance consolidada já é persistida em `Lead`; ainda
-falta histórico por candidato rejeitado e resolução cross-provider completa.
+**Status:** ✅ Operacional — provenance consolidada persistida em `Lead` **e**
+em `prescoring_discards` (coluna `provenance`, migration `2b4d6f8a0c2e`);
+resolução cross-provider completa via `company_aliases`.
 
 O campo `Lead.discovery_provenance` preserva providers, consultas, identificadores
 externos, plano de discovery e regra de identidade. Candidatos rejeitados pelo
-pre-scoring ainda não têm esse histórico completo.
+pre-scoring carregam `provenance` própria (providers, consultas e ids),
+exposta no endpoint de auditoria de descartes.
 
 ### Problema
 
@@ -1564,7 +1574,8 @@ failed
 
 Entregue nesta branch: `needs_review` (identidade ambígua sem CPF) e `failed`
 (exceção de provider, retryable) explícitos em `ResolutionResult`, com testes
-em `tests/test_decision_maker_resolution.py`.
+em `tests/test_decision_maker_resolution.py`; waterfall com early stopping por
+confiança **e orçamento** (`max_cost`), dedup por chave forte e provenance.
 
 Nunca transformar cargo configurado em pessoa encontrada.
 
@@ -1612,6 +1623,12 @@ Cascata recomendada:
 8. verification
 ```
 
+Entregue nesta branch: early stopping por orçamento no waterfall —
+`waterfall_search(max_cost=...)` bloqueia providers fora do orçamento restante
+(status `budget_exceeded`, nunca consultados), reporta `cost_spent` (cobrado
+apenas em chamadas com resposta) e o evidence `people_discovery` do lead
+persiste o custo gasto.
+
 Early stopping deve usar:
 
 ```text
@@ -1622,11 +1639,15 @@ max_cost
 max_steps
 ```
 
+`required_buyer_role` e `min_identity_confidence` no nível do waterfall
+continuam pendentes (hoje o corte usa confiança de contato e e-mail
+verificado).
+
 ---
 
 ## P1.37 — Simplificar verificação async de contato
 
-**Status:** 🟠 Parcial (seam novo; legado ainda ativo)
+**Status:** ✅ Operacional
 
 ### O que mudou
 
@@ -1635,10 +1656,11 @@ max_steps
 rede própria. O `ContactEnrichmentService` aceita o seam com/sem mock explícito
 via `_accepts_mock_check`.
 
-### Ainda falta
-
-Migrar os callers para o `ContactVerifier` async e remover o bloco com thread
-dentro do `ContactVerification` legado em `decision_maker_resolution.py`.
+Entregue nesta branch: o bloco com thread e o hack de `sys.modules` foram
+removidos do `ContactVerification` legado — o resolver síncrono usa apenas
+verificação explicitamente injetada e marca `pending_real_check`; a
+verificação real é responsabilidade exclusiva do seam async, e o teste de
+integração cobre a ausência de rede oculta.
 
 ### Problema
 
@@ -1683,15 +1705,19 @@ em serviços antigos.
 
 ## P1.39 — Routable contact deve entrar de verdade na cadência
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional
 
 Nome + departamento + telefone geral pode ser suficiente para ação humana.
 
-A classificação agora é persistida em `Contact` (`routability_type`, `routable`
-e `routability_reason`) e exposta na API. A integração da classificação com a
-cadência continua pendente.
+A classificação é persistida em `Contact` (`routability_type`, `routable` e
+`routability_reason`), exposta na API e **consumida pelo
+`NextBestActionService`**: `DIRECT_CONTACT`/`ROUTABLE_CONTACT` recomendam
+CALL, `INSTITUTIONAL` vira ação humana via recepção (RESEARCH) e
+`UNKNOWN`/`UNREACHABLE` recomendam re-enriquecer. A recomendação de evento
+(`prepare_event_actions`) usa o mesmo critério. A cadência de e-mail
+permanece condicionada a e-mail verificado.
 
-Cadência/next action deve distinguir:
+Cadência/next action distingue:
 
 ```text
 DIRECT
