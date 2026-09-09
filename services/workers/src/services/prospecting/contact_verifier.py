@@ -1,8 +1,8 @@
 """Verificação assíncrona de contato (I/O) separada da resolução de identidade.
 
-O `ContactVerification` legado em `decision_maker_resolution.py` é síncrono e
-abrigava adaptação com thread para o `EmailVerificationService` assíncrono.
-Este módulo é o seam de I/O: recebe o serviço de e-mail por injeção e nunca
+O `ContactVerification` legado em `decision_maker_resolution.py` foi migrado
+(onda 2): o resolver síncrono não abre mais thread nem toca em rede. Este
+módulo é o seam de I/O: recebe o serviço de e-mail por injeção e nunca
 abre thread nem toca em rede por conta própria.
 """
 import logging
