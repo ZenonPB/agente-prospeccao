@@ -41,6 +41,11 @@ def _fernet() -> Fernet:
     if settings.SECRETS_ENCRYPTION_KEY:
         key = settings.SECRETS_ENCRYPTION_KEY.encode("utf-8")
     else:
+        if settings.ENVIRONMENT.strip().lower() == "production":
+            raise RuntimeError(
+                "SECRETS_ENCRYPTION_KEY é obrigatória em produção; "
+                "a derivação pelo DATABASE_URL não é permitida"
+            )
         key = _derive_fernet_key()
     return Fernet(key)
 

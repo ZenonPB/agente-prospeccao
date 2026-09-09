@@ -35,6 +35,10 @@ REQUIRED_TABLES = {
     "provider_execution_metrics",
     "company_aliases",
     "conversions",
+    "follow_up_versions",
+    "enrichments",
+    "notifications",
+    "persons",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",
@@ -45,6 +49,17 @@ REQUIRED_INDEXES = {
     "ix_provider_execution_metrics_org_provider",
     "ix_provider_execution_metrics_correlation",
     "ix_company_aliases_company",
+    "ix_enrichments_lead_id",
+    "ix_jobs_campaign_id",
+    "ix_jobs_organization_id",
+    "ix_jobs_pending_claim",
+    "ix_leads_company_id",
+    "ix_persons_organization_id",
+    "ix_persons_company_id",
+    "ix_event_opportunities_lead_id",
+    "ix_commercial_outcomes_lead_id",
+    "ix_notifications_lead_id",
+    "ix_follow_up_versions_follow_up_id",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -62,6 +77,7 @@ REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
     "commercial_outcomes": {"uq_commercial_outcomes_org_event"},
     "company_aliases": {"uq_company_aliases_org_kind_value"},
+    "follow_up_versions": {"uq_follow_up_versions_follow_up_version"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},

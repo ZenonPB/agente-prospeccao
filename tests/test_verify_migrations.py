@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "2b4d6f8a0c2e"
+    assert verify_migrations.migration_head() == "2e6f8a0c2d4e"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -32,6 +32,15 @@ def test_person_canonica_tem_colunas_obrigatorias():
         "routability_type",
         "routable",
         "routability_reason",
+    }
+
+
+def test_versions_de_follow_up_tem_unicidade_por_etapa():
+    """Uma etapa não pode ter duas versões com o mesmo número."""
+    verify_migrations = _module()
+
+    assert verify_migrations.REQUIRED_UNIQUES["follow_up_versions"] == {
+        "uq_follow_up_versions_follow_up_version",
     }
 
 

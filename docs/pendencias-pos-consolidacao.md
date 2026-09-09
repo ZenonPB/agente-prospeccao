@@ -8,9 +8,9 @@
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-09 · `1001 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-09 · `1006 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `2b4d6f8a0c2e`.
+> `2e6f8a0c2d4e`.
 
 ## Resumo desta revisão
 
@@ -53,7 +53,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `2b4d6f8a0c2e` (`persons` canônica + provenance em `prescoring_discards`). |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `2e6f8a0c2d4e` (`persons` canônica + provenance em `prescoring_discards` + `follow_up_versions` + índices de performance + integridade de versões). |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | ✅ Feito | `correlation_id`/`campaign_id`/`usage`/`cost` persistidos; telemetria de tokens Groq; endpoint `provider-trace` org-scoped explica "poucos leads". |

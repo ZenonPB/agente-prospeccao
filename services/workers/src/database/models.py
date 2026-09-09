@@ -785,6 +785,11 @@ class FollowUpVersion(Base):
     __tablename__ = "follow_up_versions"
     __table_args__ = (
         Index("ix_follow_up_versions_follow_up_id", "follow_up_id"),
+        UniqueConstraint(
+            "follow_up_id",
+            "version_number",
+            name="uq_follow_up_versions_follow_up_version",
+        ),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     follow_up_id = Column(UUID(as_uuid=True), ForeignKey("follow_ups.id"), nullable=False)

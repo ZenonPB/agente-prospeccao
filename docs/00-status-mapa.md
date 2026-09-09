@@ -1,6 +1,6 @@
 # Mapa de status operacional
 > **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
-> Alembic head `2b4d6f8a0c2e`.
+> Alembic head `2e6f8a0c2d4e`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -48,10 +48,11 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **1001 passed**.
+- `python -m pytest tests -q -W error`: **1006 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `2b4d6f8a0c2e`.
+- `scripts/verify_migrations.py`: head único `2e6f8a0c2d4e` (36 tabelas, 19 índices,
+  19 FKs e 4 constraints únicas).
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 

@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = Field(..., description='URL de conexão com o banco de dados PostgreSQL')
 
+    # Ambiente de execução. Em produção, secrets BYOK exigem uma chave Fernet
+    # explícita; a derivação pelo DATABASE_URL fica restrita a desenvolvimento.
+    ENVIRONMENT: str = Field("development", description="development | test | production")
+
     PGADMIN_EMAIL: str = Field("", description='Email de login do pgAdmin')
     PGADMIN_PASSWORD: str = Field("", description='Senha de login do pgAdmin')
 
