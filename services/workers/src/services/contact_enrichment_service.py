@@ -39,6 +39,16 @@ from services import enrichment_ts  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
+
+def _accepts_mock_check(verifier: Any) -> bool:
+    """Compatibilidade com o seam de verificação com/sem mock explícito."""
+    import inspect
+
+    try:
+        return "mock_mx_check" in inspect.signature(verifier.verify).parameters
+    except (TypeError, ValueError):
+        return False
+
 # Validação de sintaxe de e-mail — simples e sem dependência nova.
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$")
 
@@ -634,7 +644,7 @@ class ContactEnrichmentService:
                 merged_people = identity.merge(resolution.people)
                 verifier = ContactVerification()
                 for p in merged_people:
-                    v = verifier.verify(p)
+                    v = verifier.verify(p, mock_mx_check=None) if _accepts_mock_check(verifier) else verifier.verify(p)
                     people_verified.append({
                         "name": p.name,
                         "source": p.source,

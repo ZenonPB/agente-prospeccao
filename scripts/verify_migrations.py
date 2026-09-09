@@ -67,6 +67,16 @@ REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
     "provider_execution_metrics": {"correlation_id", "campaign_id", "usage"},
     "company_aliases": {"alias_kind", "alias_value"},
+    "persons": {
+        "identity_confidence",
+        "contact_confidence",
+        "source_reliability",
+        "verification_status",
+        "last_verified_at",
+        "routability_type",
+        "routable",
+        "routability_reason",
+    },
 }
 
 

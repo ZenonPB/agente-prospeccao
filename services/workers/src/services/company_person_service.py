@@ -293,6 +293,21 @@ class CompanyPersonService:
             existing = query.filter(Person.email == email).first()
         if not existing and name:
             existing = query.filter(Person.name == name).first()
+        # Campos canônicos de confiança/acionabilidade vindos de Contact.
+        canonical = {
+            key: contact_data.get(key)
+            for key in (
+                "identity_confidence",
+                "contact_confidence",
+                "source_reliability",
+                "verification_status",
+                "last_verified_at",
+                "routability_type",
+                "routable",
+                "routability_reason",
+            )
+            if contact_data.get(key) is not None
+        }
 
         if existing:
             # Atualiza dados novos
@@ -311,6 +326,10 @@ class CompanyPersonService:
                 existing.email_verified = True
                 existing.email_verified_at = contact_data.get("email_verified_at")
                 updated = True
+            for key, value in canonical.items():
+                if getattr(existing, key, None) in (None, 0, "", False) or key == "last_verified_at":
+                    setattr(existing, key, value)
+                    updated = True
             if updated:
                 db.flush()
             return existing
@@ -329,6 +348,14 @@ class CompanyPersonService:
             email_verified_at=contact_data.get("email_verified_at"),
             linkedin_url=contact_data.get("linkedin_url"),
             linkedin_confidence=contact_data.get("linkedin_confidence", 0),
+            identity_confidence=contact_data.get("identity_confidence", 0),
+            contact_confidence=contact_data.get("contact_confidence", 0),
+            source_reliability=contact_data.get("source_reliability", 0),
+            verification_status=contact_data.get("verification_status", "needs_review"),
+            last_verified_at=contact_data.get("last_verified_at"),
+            routability_type=contact_data.get("routability_type", "UNKNOWN"),
+            routable=contact_data.get("routable", False),
+            routability_reason=contact_data.get("routability_reason"),
             source=contact_data.get("source", "contact_enrichment"),
             raw_data=contact_data.get("raw_data"),
         )
@@ -382,6 +409,14 @@ class CompanyPersonService:
                 "email_verified_at": contact.email_verified_at,
                 "linkedin_url": contact.linkedin_url,
                 "linkedin_confidence": contact.linkedin_confidence,
+                "identity_confidence": contact.identity_confidence,
+                "contact_confidence": contact.contact_confidence,
+                "source_reliability": contact.source_reliability,
+                "verification_status": contact.verification_status,
+                "last_verified_at": contact.last_verified_at,
+                "routability_type": contact.routability_type,
+                "routable": contact.routable,
+                "routability_reason": contact.routability_reason,
                 "source": contact.source,
                 "raw_data": contact.raw_data,
             }

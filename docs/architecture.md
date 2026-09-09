@@ -1,9 +1,9 @@
 # Arquitetura atual
 
 > **Fonte operacional:** este documento descreve o código presente no branch
-> atual, não o plano histórico de consolidação. Snapshot: 2026-09-07 · branch
-> `feat/identidade-cross-provider` ·
-> Alembic head `dd9e0f1a2b3c`.
+> atual, não o plano histórico de consolidação. Snapshot: 2026-09-09 · branch
+> `feat/onda1-people-decisor` ·
+> Alembic head `1a2b3c4d5e6f`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -67,14 +67,14 @@ Campaign (opcional)
   → OfferProfileResolver (oferta explícita ou fallback legado)
   → DiscoveryPlanner / DiscoveryExecutor
   → Google Places, CNAE/Receita ou PNCP
-  → deduplicação por place_id/CNPJ/domínio
+  → identidade cross-provider por Company/aliases
   → Candidate pre-scoring determinístico
   → Lead
   → enrichment adaptativo passivo
   → scoring contextual Groq + evidências
   → OfferMatcher (múltiplas LeadOpportunity)
-  → ContactEnrichment/Decision Maker best-effort
-  → outreach e cadência
+  → ContactEnrichment/Decision Maker (resolved/partial/needs_review/not_found/failed)
+  → Company/Person canônicas + outreach e cadência
 ```
 
 O `OfferProfile` orienta providers, orçamento, sinais e versão. Campanhas
@@ -157,7 +157,8 @@ por `services/api/src/db/models.py`.
   `organization_secrets`, `provider_usage`, `provider_execution_metrics`,
   `org_audit_log`.
  - **Prospecção:** `campaigns`, `campaign_scoring_templates`, `jobs`, `leads`,
-`companies`, `persons`, `company_records`, `enrichments`,
+`companies`, `company_aliases`, `persons` (canônica com confiança/verificação/
+acionabilidade), `company_records`, `enrichments`,
 `prescoring_discards`, `discovery_provenance` em `leads`.
 - **Oportunidades:** `lead_opportunities` (unique por lead/oferta, com
   `offer_version`, score e evidências) e `event_opportunities` (provider,
@@ -167,10 +168,12 @@ por `services/api/src/db/models.py`.
 - **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
   por organização; isso é distinto de métricas comerciais A/B.
 
-O head atual é `dd9e0f1a2b3c`, que adiciona provenance de discovery consolidada,
-classificação persistida de acionabilidade de contatos, confiança de identidade,
-ação comercial recomendada, telemetria histórica de providers,
-status/provenance de eventos e comparações A/B auditáveis.
+O head atual é `1a2b3c4d5e6f`, que adiciona a `persons` canônica
+(identidade/contato/verificação e acionabilidade) sobre a base `ff8a9b0c1d2e`
+(`company_aliases` cross-provider + `correlation_id`/`campaign_id`/`usage` em
+telemetria de providers). A resolução de decisores distingue
+`resolved/partial/needs_review/not_found/failed`; verificação de e-mail roda
+em `ContactVerifier` async com serviço injetado, sem thread no resolver.
 Migrations antigas não devem ser editadas.
 
 ## Tarefas e scheduler
@@ -196,8 +199,10 @@ credenciais nos campos livres.
   mas ainda não percorre o funil completo de decisor e outreach.
 - `OfferProfile` e suas versões são cadastrados em código; não há CRUD
   administrativo nem rollback de publicação.
-- A resolução de decisores é best-effort e mantém snapshot JSONB compatível;
-  `Person` ainda não substituiu todos os snapshots legados.
+- A resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
+  e mantém snapshot JSONB compatível; `Person` canônica recebe os campos de
+  `Contact` via `sync_lead_entities`, mas a descoberta externa de pessoas e a
+  remoção do legado `ContactVerification` com thread ainda estão pendentes.
 - BI comercial expõe oferta, versão, período e amostra, mas ainda não oferece
   todos os cortes por vertical, consultor, canal, campanha e Precision@K.
 - `EventOpportunityService` calcula expiração por `event_date` ou `expires_at`,
@@ -208,8 +213,8 @@ credenciais nos campos livres.
 
 No snapshot desta documentação foram validados:
 ```text
-python -m pytest tests -q -W error       → 948 passed
+python -m pytest tests -q -W error       → 972 passed
 python -m compileall -q services/api services/workers
 apps/web: npm run lint → npx tsc --noEmit → npm run build
-scripts/verify_migrations.py             → head dd9e0f1a2b3c
+scripts/verify_migrations.py             → head 1a2b3c4d5e6f
 ```
