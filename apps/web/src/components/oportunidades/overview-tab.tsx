@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import { FollowUpCard, formatPrimaryNeed } from '@/components/oportunidades/follow-up-card';
+import { NextActionCard } from '@/components/oportunidades/next-action-card';
 import type { Lead } from '@/types/index';
 
 const statusLabels: Record<string, string> = {
@@ -127,6 +128,8 @@ export function OverviewTab({ lead }: { lead: Lead }) {
           </CardContent>
         </Card>
       </div>
+
+      <NextActionCard nextAction={lead.next_best_action} />
 
       {(lead.pitch_angle || lead.suggested_subject) && (
         <Card>
