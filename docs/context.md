@@ -3,8 +3,13 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-08 · branch `feat/onda0-confiabilidade` ·
+> **Snapshot:** 2026-09-08 · branch `main` ·
 > Alembic head `ff8a9b0c1d2e`.
+>
+> **Nota de ambiente:** o banco local desta máquina está em `c9d0e1f2a3b4`
+> (pendente de `alembic upgrade head`); rode
+> `python scripts/verify_migrations.py --upgrade --database-url <URL>` em
+> ambiente com Postgres antes de validar E2E.
 
 ## Leitura obrigatória
 
@@ -74,13 +79,16 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - Contatos persistem `identity_confidence`, `contact_confidence`, confiabilidade
   da fonte, status de verificação e classificação de acionabilidade (`DIRECT`,
   `ROUTABLE`, `INSTITUTIONAL` ou `UNKNOWN`).
+- `DecisionMakerResolver` distingue `resolved/partial/needs_review/not_found/failed`:
+  identidade ambígua sem CPF (mesmo nome, e-mails distintos, confiança < 70)
+  retorna `needs_review` em vez de `partial` silencioso.
 - Candidatos de discovery carregam provenance consolidada no `Lead`, incluindo
   providers, consultas, identificadores externos, plano e regra de identidade;
   merges automáticos ocorrem apenas por chaves fortes.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **953 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **967 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;

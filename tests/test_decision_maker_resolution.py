@@ -100,6 +100,26 @@ class TestDecisionMakerResolver:
         assert result.audit["identity_confidence"] >= 70
 
 
+    def test_resolver_marca_needs_review_quando_identidade_ambigua_sem_cpf(self):
+        """needs_review: mesmo nome com e-mails distintos, sem CPF e confiança baixa."""
+        from services.prospecting.decision_maker_resolution import DecisionMakerResolver
+
+        result = DecisionMakerResolver().resolve(
+            company_data={"domain": "empresa.com.br"},
+            profile={"decision_makers": {"roles": ["founder"]}},
+            sources={
+                "site_oficial": [
+                    {"name": "Ana Souza", "email": "ana@empresa.com.br"},
+                ],
+                "busca_passiva": [
+                    {"name": "Ana Souza", "email": "ana.souza@outra.com"},
+                ],
+            },
+        )
+        assert result.status == "needs_review"
+        assert "reason" in result.audit
+
+
 class TestIdentityResolver:
     def test_merge_contatos_duplicados_por_cpf(self):
         from services.prospecting.decision_maker_resolution import (

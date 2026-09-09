@@ -127,6 +127,25 @@ class DecisionMakerResolver:
             (item["confidence"] for item in people_confidence),
             default=0,
         )
+        ambiguous_without_cpf = (
+            not has_cpf
+            and len(all_contacts) > 1
+            and len({(p.name or "").strip().lower() for p in all_contacts}) == 1
+        )
+        if ambiguous_without_cpf and identity_confidence < 70:
+            return ResolutionResult(
+                status="needs_review",
+                people=all_contacts,
+                audit={
+                    "reason": "ambiguous_identity_without_cpf",
+                    "profile_roles_searched": profile_roles,
+                    "buyer_types": buyer_types,
+                    "sources_used": sources_used,
+                    "sources_attempted": sources_attempted,
+                    "has_cpf": has_cpf,
+                    "identity_confidence": identity_confidence,
+                },
+            )
         status = "resolved" if (
             identity_confidence >= 70
             or (has_cpf and identity_confidence >= 50)
