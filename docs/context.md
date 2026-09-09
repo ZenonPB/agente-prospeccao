@@ -42,8 +42,9 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - **Roteabilidade na próxima ação (P1.39)**: `NextBestActionService`
   distingue `DIRECT_CONTACT`/`ROUTABLE_CONTACT` (CALL),
   `INSTITUTIONAL` (RESEARCH via recepção) e `UNKNOWN`/`UNREACHABLE`
-  (RE_ENRICH); a API repassa `routability_type` do contato e
-  `prepare_event_actions` usa o mesmo critério.
+  (RE_ENRICH); a API repassa `routability_type` do contato,
+  `prepare_event_actions` usa o mesmo critério e a UI exibe a recomendação
+  no detalhe do lead (`NextActionCard` no `OverviewTab`).
 - **Provenance no descarte do pre-scoring (P1.2)**: coluna `provenance` em
   `prescoring_discards` (migration `2b4d6f8a0c2e`) com providers, consultas e
   ids do candidato rejeitado; upsert e endpoint de auditoria expõem o campo.

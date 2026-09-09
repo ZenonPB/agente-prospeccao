@@ -1714,7 +1714,8 @@ A classificação é persistida em `Contact` (`routability_type`, `routable` e
 `NextBestActionService`**: `DIRECT_CONTACT`/`ROUTABLE_CONTACT` recomendam
 CALL, `INSTITUTIONAL` vira ação humana via recepção (RESEARCH) e
 `UNKNOWN`/`UNREACHABLE` recomendam re-enriquecer. A recomendação de evento
-(`prepare_event_actions`) usa o mesmo critério. A cadência de e-mail
+(`prepare_event_actions`) usa o mesmo critério e a recomendação do detalhe do
+lead aparece na UI (`NextActionCard` no `OverviewTab`). A cadência de e-mail
 permanece condicionada a e-mail verificado.
 
 Cadência/next action distingue:
