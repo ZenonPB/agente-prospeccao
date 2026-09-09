@@ -242,6 +242,14 @@ def _lead_detail(
         (contact for contact in contacts if getattr(contact, "routable", False) and getattr(contact, "phone", None)),
         None,
     )
+    classified_contact = next(
+        (
+            contact for contact in contacts
+            if (getattr(contact, "routability_type", None) or "UNKNOWN") != "UNKNOWN"
+        ),
+        None,
+    )
+    action_contact = routable_contact or classified_contact
     summary["next_best_action"] = NextBestActionService().recommend({
         "status": lead.status.value if lead.status else None,
         "opt_out": lead.opt_out,
@@ -249,6 +257,7 @@ def _lead_detail(
         "has_primary_contact": any(bool(getattr(contact, "is_primary", False)) for contact in contacts),
         "routable": bool(routable_contact),
         "phone": getattr(routable_contact, "phone", None),
+        "routability_type": getattr(action_contact, "routability_type", None),
         "opportunities": opportunities or [],
     })
     detail = {

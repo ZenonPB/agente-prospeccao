@@ -53,6 +53,66 @@ class TestNextBestActionService:
         assert action["priority"] == "HIGH"
 
 
+class TestNextBestActionRoutability:
+    """A ação distingue a roteabilidade persistida (P1.39)."""
+
+    def test_direct_contact_liga_com_confianca_maior(self):
+        from services.prospecting.next_best_action_service import NextBestActionService
+
+        action = NextBestActionService().recommend({
+            "status": "QUALIFICADO",
+            "routability_type": "DIRECT_CONTACT",
+            "phone": "+5511987654321",
+        })
+        assert action["action"] == "CALL"
+        assert action["why"] == "direct_phone_contact"
+
+    def test_routable_contact_pabx_liga_com_target_person(self):
+        from services.prospecting.next_best_action_service import NextBestActionService
+
+        action = NextBestActionService().recommend({
+            "status": "ANALISADO",
+            "routability_type": "ROUTABLE_CONTACT",
+            "phone": "+551130001000",
+        })
+        assert action["action"] == "CALL"
+        assert action["why"] == "pabx_with_target_person"
+
+    def test_institutional_sugere_acao_humana_pela_recepcao(self):
+        """Telefone genérico não bloqueia ação humana: vira RESEARCH."""
+        from services.prospecting.next_best_action_service import NextBestActionService
+
+        action = NextBestActionService().recommend({
+            "status": "ANALISADO",
+            "routability_type": "INSTITUTIONAL",
+            "phone": "3456",
+        })
+        assert action["action"] == "RESEARCH"
+        assert action["why"] == "institutional_phone_requires_reception"
+
+    def test_unknown_unreachable_enriquece_novamente(self):
+        from services.prospecting.next_best_action_service import NextBestActionService
+
+        for routability in ("UNKNOWN", "UNREACHABLE"):
+            action = NextBestActionService().recommend({
+                "status": "ANALISADO",
+                "routability_type": routability,
+            })
+            assert action["action"] == "RE_ENRICH"
+            assert action["why"] == "contact_unreachable"
+
+    def test_legado_sem_classificacao_mantem_comportamento(self):
+        from services.prospecting.next_best_action_service import NextBestActionService
+
+        action = NextBestActionService().recommend({
+            "status": "ANALISADO",
+            "routable": True,
+            "phone": "+5511999998888",
+        })
+        assert action["action"] == "CALL"
+        assert action["why"] == "routable_phone_contact"
+
+
 class TestPeopleProviderRegistryWaterfall:
     def test_waterfall_para_no_early_stopping(self):
         from services.prospecting.people_provider_registry import PeopleProviderRegistry
