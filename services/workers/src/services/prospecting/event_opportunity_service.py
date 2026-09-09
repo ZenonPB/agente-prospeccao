@@ -226,6 +226,7 @@ class EventOpportunityService:
                     "has_verified_email": bool(contact.email_verified and contact.email),
                     "routable": bool(contact.phone),
                     "phone": contact.phone,
+                    "routability_type": getattr(contact, "routability_type", None),
                     "has_primary_contact": bool(contact.is_primary),
                     "opportunities": [{"offer_key": event.offer_key or "trophies", "score": 1}],
                 })
