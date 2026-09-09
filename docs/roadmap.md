@@ -251,6 +251,11 @@ Evitar CRM gigante; manter modelo mínimo necessário.
 
 `OfferProfile roles → domain → providers → identity merge → role fit → contacts → verification`.
 
+**Status atual:** 🟠 parcial. `HunterPeopleProvider` implementa o primeiro
+adapter real via Domain Search oficial, com retry, quota e estados observáveis;
+ele só é ativado por chave e quota explícitas da organização. Ainda faltam
+providers complementares e role fit completo por OfferProfile.
+
 ## 4.7 ActionableContactScore
 
 Dimensões:
@@ -507,6 +512,12 @@ Ações:
 `SEND_EMAIL`, `CALL`, `SEND_LINKEDIN`, `WAIT`, `RESEARCH`, `RE_ENRICH`, `SEND_CASE_STUDY`, `STOP`.
 
 Cada decisão retorna `why`, `confidence`, `evidence`, `deadline`.
+
+**Status atual:** 🟠 parcial. `NextBestActionService` já calcula uma
+recomendação determinística, respeita opt-out/identidade ambígua e o gate de
+email verificado, e é exposto no detalhe do lead. Ainda faltam timing de evento,
+cadência completa, persistência da decisão e integração com todas as ações da
+sequência.
 
 ## 9.5 Reply/bounce automation
 

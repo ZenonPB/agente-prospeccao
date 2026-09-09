@@ -20,6 +20,7 @@ import type { ProviderUsageItem } from "@/types";
 const KEY_LABELS: Record<string, string> = {
   GOOGLE_API_KEY: "Busca de Empresas (Google)",
   GROQ_API_KEY: "Processamento por IA (Groq)",
+  HUNTER_API_KEY: "Busca de decisores (Hunter)",
 };
 
 function barColor(pct: number): string {

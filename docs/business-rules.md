@@ -198,7 +198,9 @@ Toda análise se restringe a informações publicamente acessíveis.
 O uso de providers externos é contabilizado por organização e chave em
 `provider_usage`, com limite diário configurável em `organizations.api_quota` e
 fallback global `PROVIDER_DAILY_QUOTA` (`GOOGLE_API_KEY=100`,
-`GROQ_API_KEY=2000`). O gate é fail-closed: quando não há quota restante, o
+`GROQ_API_KEY=2000`, `HUNTER_API_KEY=50`). Hunter exige chave e quota positiva
+explicitamente configuradas pela organização para fazer opt-in. O gate é
+fail-closed: quando não há quota restante, o
 provider não é chamado. Hunter e providers de CNPJ obedecem às cotas do próprio
 serviço e ao comportamento de fallback/skip implementado pelo worker; não há
 valores mensais fixos nesta aplicação.

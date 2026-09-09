@@ -2,7 +2,7 @@
 
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-09 · branch
-> `feat/onda1-people-decisor` ·
+> `feat/onda-avanco-maximo` ·
 > Alembic head `1a2b3c4d5e6f`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
@@ -197,6 +197,13 @@ credenciais nos campos livres.
   padrão nem constituem garantia de cobertura externa.
 - Event Discovery já persiste evento, organizador/lead e a oportunidade `trophies`,
   mas ainda não percorre o funil completo de decisor e outreach.
+- `NextBestActionService` calcula uma recomendação determinística a partir do
+  snapshot do lead e é consumido pelo detalhe `GET /api/leads/{id}`. Ele não
+  envia mensagens nem altera estado; providers de pessoas continuam opt-in.
+- `HunterPeopleProvider` implementa o Domain Search oficial via `httpx`, com
+  retry, estados de erro e provenance. A fábrica de `ContactEnrichmentService`
+  só o registra quando a organização configurou a chave e a quota
+  `HUNTER_API_KEY`; a quota é consumida após resposta HTTP bem-sucedida.
 - `OfferProfile` e suas versões são cadastrados em código; não há CRUD
   administrativo nem rollback de publicação.
 - A resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
@@ -213,7 +220,7 @@ credenciais nos campos livres.
 
 No snapshot desta documentação foram validados:
 ```text
-python -m pytest tests -q -W error       → 972 passed
+python -m pytest tests -q -W error       → 987 passed
 python -m compileall -q services/api services/workers
 apps/web: npm run lint → npx tsc --noEmit → npm run build
 scripts/verify_migrations.py             → head 1a2b3c4d5e6f

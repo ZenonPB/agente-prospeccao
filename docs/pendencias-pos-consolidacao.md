@@ -2,13 +2,13 @@
 
 > **Objetivo:** registrar apenas o que ainda falta implementar, validar, integrar, persistir ou tornar operacional no sistema atual.
 >
-> **Base da revisão:** estado atual do repositório no branch `feat/onda1-people-decisor`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
+> **Base da revisão:** estado atual do repositório no branch `feat/onda-avanco-maximo`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
 >
 > **Regra principal:** uma capacidade não deve ser chamada de concluída apenas porque existe classe, helper, registry, teste unitário ou retorno estruturado. Para ser **Operacional**, precisa existir no fluxo real, com persistência quando necessária, tenant scope, estados de erro explícitos, observabilidade e comportamento verificável.
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-09 · `972 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-09 · `987 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
 > `1a2b3c4d5e6f`.
 
@@ -55,11 +55,11 @@
 | P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
-| P1.18 Evento → decisor/outreach | 🟠 Parcial | Ação recomendada persiste contato/canal quando já há decisor; descoberta externa e outreach ainda faltam. |
+| P1.18 Evento → decisor/outreach | 🟠 Parcial | `NextBestActionService` e recomendação no detalhe do lead entregues; descoberta externa, persistência da ação de evento e outreach ainda faltam. |
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | Estados `needs_review/failed` explícitos + `ContactVerifier` async injetável (sem thread no resolver); discovery externo e cascade completa ainda faltam. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup e early stopping; `HunterPeopleProvider` opt-in por chave+quota; estados `needs_review/failed` + `ContactVerifier` async; waterfall multi-provider, role fit e cascade completa ainda faltam. |
 | P1.39 Routable contact | 🟠 Parcial | Classificação persistida e exposta; integração efetiva à cadência ainda falta. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |

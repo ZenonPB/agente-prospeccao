@@ -1,5 +1,5 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-09 · branch `feat/onda1-people-decisor` ·
+> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
 > Alembic head `1a2b3c4d5e6f`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
@@ -30,7 +30,7 @@
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + ações de eventos | `contacts` + `persons` canônica + snapshot + ação recomendada | `needs_review/failed` explícitos; descoberta externa de pessoas ainda pendente |
+| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + ações de eventos | `contacts` + `persons` canônica + snapshot + `next_best_action` | provider Hunter integrado; faltam waterfall multi-provider, role fit avançado e persistência da ação de evento |
 | Outcomes comerciais | ✅ | conversão/outcome service | `commercial_outcomes` | BI ainda não tem todos os cortes |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
@@ -48,7 +48,7 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **972 passed**.
+- `python -m pytest tests -q -W error`: **987 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
 - `scripts/verify_migrations.py`: head único `1a2b3c4d5e6f`.

@@ -3,7 +3,7 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-09 · branch `feat/onda1-people-decisor` ·
+> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
 > Alembic head `1a2b3c4d5e6f` (Person canônica).
 >
 > **Nota de ambiente:** o banco local desta máquina está em `c9d0e1f2a3b4`
@@ -91,13 +91,21 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   `Contact` no `sync_lead_entities` sem sobrescrever dado existente.
 - `ContactEnrichmentService` aceita o seam de verificação com/sem mock
   explícito (`_accepts_mock_check`), sem mudar o fluxo de `evidence_score`.
+- `PeopleProviderRegistry` define o seam assíncrono de waterfall de pessoas,
+  com deduplicação, early stopping e estados explícitos, mas permanece sem
+  provider externo habilitado por padrão. `HunterPeopleProvider` é o primeiro
+  adapter real; só é registrado quando a organização tem `HUNTER_API_KEY` e
+  uma quota positiva explícita em `api_quota`.
+- `NextBestActionService` recomenda uma ação explicável sem efeitos colaterais
+  e a API a expõe em `GET /api/leads/{id}` como `next_best_action`; o envio
+  continua humano no loop.
 - Candidatos de discovery carregam provenance consolidada no `Lead`, incluindo
   providers, consultas, identificadores externos, plano e regra de identidade;
   merges automáticos ocorrem apenas por chaves fortes.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **972 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **987 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
