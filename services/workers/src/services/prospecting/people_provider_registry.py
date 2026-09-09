@@ -73,6 +73,7 @@ class PeopleProviderRegistry:
         min_contact_confidence: float = 70,
         require_verified_email: bool = False,
         max_steps: Optional[int] = None,
+        max_cost: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Busca pessoas em cascata sem tratar falha como lista vazia.
 
@@ -82,18 +83,30 @@ class PeopleProviderRegistry:
             min_contact_confidence: Confiança mínima para early stopping.
             require_verified_email: Exige email explicitamente verificado.
             max_steps: Quantidade máxima de providers a consultar.
+            max_cost: Custo máximo acumulado; providers que excederem o
+                orçamento restante ficam bloqueados com status
+                ``budget_exceeded`` (nunca consultados).
 
         Returns:
-            Dicionário com ``people``, tentativas, status agregado e indicação
-            de early stopping. O resultado é seguro para serialização JSON.
+            Dicionário com ``people``, tentativas, status agregado, indicação
+            de early stopping e ``cost_spent`` (custo acumulado dos providers
+            efetivamente consultados). O resultado é seguro para serialização
+            JSON.
         """
         people: List[Dict[str, Any]] = []
         attempts: List[ProviderAttempt] = []
+        cost_spent = 0.0
         providers = self._providers[: max_steps if max_steps is not None else None]
         if not providers:
-            return self._result(people, attempts, "disabled", False)
+            return self._result(people, attempts, "disabled", False, cost_spent)
 
         for provider in providers:
+            provider_cost = float(getattr(provider, "cost", 0))
+            if max_cost is not None and cost_spent + provider_cost > max_cost:
+                attempts.append(ProviderAttempt(
+                    provider.name, "budget_exceeded", error="max_cost_reached",
+                ))
+                continue
             try:
                 raw_people = await provider.search(domain, list(titles))
             except Exception as exc:  # provider boundary: preserve failure state
@@ -104,7 +117,9 @@ class PeopleProviderRegistry:
                     error=str(exc),
                 ))
                 continue
-
+            # Custo é cobrado só quando a chamada produziu resposta (success
+            # ou empty), coerente com a cobrança de quota dos providers.
+            cost_spent += provider_cost
             if raw_people is None:
                 attempts.append(ProviderAttempt(provider.name, "failed", error="provider_returned_none"))
                 continue
@@ -120,10 +135,10 @@ class PeopleProviderRegistry:
             people = _merge_people(people, normalized, provider.name)
             attempts.append(ProviderAttempt(provider.name, "success", len(people) - before))
             if _has_sufficient_contact(people, min_contact_confidence, require_verified_email):
-                return self._result(people, attempts, "success", True)
+                return self._result(people, attempts, "success", True, cost_spent)
 
         status = _aggregate_status(people, attempts)
-        return self._result(people, attempts, status, False)
+        return self._result(people, attempts, status, False, cost_spent)
 
     @staticmethod
     def _result(
@@ -131,6 +146,7 @@ class PeopleProviderRegistry:
         attempts: List[ProviderAttempt],
         status: str,
         early_stopped: bool,
+        cost_spent: float = 0.0,
     ) -> Dict[str, Any]:
         """Monta um payload consistente para todos os estados do waterfall."""
         return {
@@ -139,6 +155,7 @@ class PeopleProviderRegistry:
             "early_stopped": early_stopped,
             "providers_attempted": [attempt.provider for attempt in attempts],
             "attempts": [attempt.as_dict() for attempt in attempts],
+            "cost_spent": cost_spent,
         }
 
 
@@ -167,6 +184,8 @@ def _aggregate_status(people: Sequence[Dict[str, Any]], attempts: Sequence[Provi
         return "disabled"
     if "quota_exceeded" in statuses:
         return "quota_exceeded"
+    if statuses == {"budget_exceeded"} or statuses.issubset({"budget_exceeded", "empty"}):
+        return "budget_exceeded"
     if statuses == {"failed"} or statuses.issubset({"failed", "configuration_error"}):
         return "failed"
     return "empty"

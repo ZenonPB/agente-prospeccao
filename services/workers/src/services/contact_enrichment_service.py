@@ -710,6 +710,7 @@ class ContactEnrichmentService:
                     "early_stopped": waterfall.get("early_stopped", False),
                     "providers_attempted": waterfall.get("providers_attempted", []),
                     "attempts": waterfall.get("attempts", []),
+                    "cost_spent": waterfall.get("cost_spent", 0),
                 }
             lead.evidence_score = existing_evidence
         except Exception as e:  # noqa: BLE001

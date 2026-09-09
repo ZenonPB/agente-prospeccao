@@ -245,3 +245,86 @@ class TestPeopleProviderRegistryWaterfall:
 
         assert result["status"] == "quota_exceeded"
         assert result["attempts"][0]["status"] == "quota_exceeded"
+
+
+class TestPeopleProviderRegistryMaxCost:
+    """Early stopping por orçamento (P1.36) com custo observável."""
+
+    def test_max_cost_bloqueia_provider_fora_do_orcamento(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        calls = []
+
+        class CheapProvider:
+            name = "cheap"
+            cost = 1
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return []
+
+        class ExpensiveProvider:
+            name = "expensive"
+            cost = 10
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return [{"name": "Caro", "confidence": 90}]
+
+        result = asyncio.run(PeopleProviderRegistry([CheapProvider(), ExpensiveProvider()]).waterfall_search(
+            "empresa.com", ["CEO"], max_cost=2,
+        ))
+
+        assert calls == ["cheap"]  # caro nunca foi consultado
+        assert result["status"] == "budget_exceeded"
+        assert result["cost_spent"] == 1
+        assert result["attempts"][1]["status"] == "budget_exceeded"
+        assert result["attempts"][1]["error"] == "max_cost_reached"
+
+    def test_max_cost_interrompe_cascata_com_orcamento_gasto(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class MidProvider:
+            name = "mid"
+            cost = 2
+
+            async def search(self, domain, titles):
+                return []
+
+        class NextProvider:
+            name = "next"
+            cost = 3
+
+            async def search(self, domain, titles):
+                return [{"name": "X", "confidence": 90}]
+
+        result = asyncio.run(PeopleProviderRegistry([MidProvider(), NextProvider()]).waterfall_search(
+            "empresa.com", ["CEO"], max_cost=4,
+        ))
+
+        assert result["status"] == "budget_exceeded"
+        assert result["cost_spent"] == 2
+        assert result["providers_attempted"] == ["mid", "next"]  # next bloqueado na tentativa
+
+    def test_sem_max_cost_comportamento_inalterado(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "p"
+            cost = 5
+
+            async def search(self, domain, titles):
+                return [{"name": "Maria", "confidence": 90}]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search("empresa.com", ["CEO"]))
+
+        assert result["status"] == "success"
+        assert result["cost_spent"] == 5
+
+    def test_disabled_tem_custo_zero(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        result = asyncio.run(PeopleProviderRegistry().waterfall_search("empresa.com", ["CEO"]))
+
+        assert result["status"] == "disabled"
+        assert result["cost_spent"] == 0
