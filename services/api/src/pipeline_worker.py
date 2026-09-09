@@ -137,6 +137,7 @@ def _persist_prescoring_discards(db: Session):
             set_={
                 "job_id": stmt.excluded.job_id,
                 "candidate_data": stmt.excluded.candidate_data,
+                "provenance": stmt.excluded.provenance,
                 "signals": stmt.excluded.signals,
                 "discovery_score": stmt.excluded.discovery_score,
                 "threshold": stmt.excluded.threshold,

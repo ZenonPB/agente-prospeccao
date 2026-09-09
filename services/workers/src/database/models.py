@@ -1226,6 +1226,9 @@ class PrescoringDiscard(Base):
     # Item bruto de coleta + sinais FACT usados no score — reprocesse sem
     # tocar a API do Places.
     candidate_data = Column(JSONB)
+    # Provenance consolidada (providers, consultas, ids) — rastreia de onde
+    # veio o descarte sem abrir candidate_data (P1.2).
+    provenance = Column(JSONB)
     signals = Column(JSONB)
     discovery_score = Column(Integer)
     threshold = Column(Integer)
