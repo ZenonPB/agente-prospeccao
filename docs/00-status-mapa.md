@@ -1,6 +1,6 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-07 · branch `feat/identidade-cross-provider` ·
-> Alembic head `dd9e0f1a2b3c`.
+> **Snapshot:** 2026-09-09 · branch `feat/onda1-people-decisor` ·
+> Alembic head `1a2b3c4d5e6f`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -30,7 +30,7 @@
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + ações de eventos | contatos/snapshot + confiança + ação recomendada | pipeline canônico de `Person` e descoberta externa ainda faltam |
+| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + ações de eventos | `contacts` + `persons` canônica + snapshot + ação recomendada | `needs_review/failed` explícitos; descoberta externa de pessoas ainda pendente |
 | Outcomes comerciais | ✅ | conversão/outcome service | `commercial_outcomes` | BI ainda não tem todos os cortes |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
@@ -48,17 +48,19 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **948 passed**.
+- `python -m pytest tests -q -W error`: **972 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `dd9e0f1a2b3c`.
+- `scripts/verify_migrations.py`: head único `1a2b3c4d5e6f`.
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 
 ## Próximas prioridades
 
-1. P1.1/P1.2 — identidade cross-provider e provenance genérica.
-2. P1.18 — descoberta de decisor → ação comercial → outreach humano.
+1. P1.1/P1.2 — identidade cross-provider e provenance genérica (PR03 entregue:
+   `company_aliases`; falta provenance de candidato rejeitado).
+2. P1.18 — evento → decisor → ação comercial → outreach humano.
+3. People Discovery externa: providers reais de pessoas + waterfall (PR05).
 3. Snapshot imutável e política explícita de re-scoring.
 4. BI por vertical, consultor, canal, campanha, variante e Precision@K.
 5. Entidade canônica de decisores e administração/versionamento de ofertas.

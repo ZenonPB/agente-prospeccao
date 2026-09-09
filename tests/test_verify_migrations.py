@@ -17,7 +17,22 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "ff8a9b0c1d2e"
+    assert verify_migrations.migration_head() == "1a2b3c4d5e6f"
+
+
+def test_person_canonica_tem_colunas_obrigatorias():
+    verify_migrations = _module()
+
+    assert verify_migrations.REQUIRED_COLUMNS["persons"] == {
+        "identity_confidence",
+        "contact_confidence",
+        "source_reliability",
+        "verification_status",
+        "last_verified_at",
+        "routability_type",
+        "routable",
+        "routability_reason",
+    }
 
 
 def test_verify_database_rejeita_banco_fora_do_head(monkeypatch):

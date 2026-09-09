@@ -274,6 +274,60 @@ class TestContactConfidence:
         assert result["confidence"] == 0
 
 
+    def test_resolver_distinguido_de_falha_de_provider(self):
+        """failed: exceção de fonte é falha, não ausência de pessoa."""
+        from services.prospecting.decision_maker_resolution import (
+            DecisionMakerResolver, ResolutionResult,
+        )
+
+        result = ResolutionResult.failed(
+            reason="provider_receita_timeout",
+            profile_roles=["ceo"],
+            sources_attempted=["receita_federal"],
+            retryable=True,
+        )
+        assert result.status == "failed"
+        assert result.people == []
+        assert result.audit["retryable"] is True
+
+        resolved = DecisionMakerResolver().resolve(
+            company_data={"cnpj": "123"},
+            profile={"decision_makers": {"roles": ["ceo"]}},
+            sources={"receita_federal": [{"name": "Ana", "document_cpf": "1"}]},
+        )
+        assert resolved.status in ("resolved", "partial", "needs_review")
+        assert resolved.audit.get("reason") != "provider_receita_timeout"
+
+
+class TestContactVerifierAsyncSeam:
+    def test_verify_email_async_nao_abre_thread_no_resolver(self):
+        """ContactVerifier async é o seam de I/O; resolver sync não faz rede."""
+        import inspect
+        from services.prospecting import contact_verifier
+
+        assert inspect.iscoroutinefunction(contact_verifier.ContactVerifier.verify_email)
+        assert "threading" not in inspect.getsource(contact_verifier)
+
+    def test_verify_email_async_confirma_mx_via_servico_injetado(self):
+        """Verificação real passa por EmailVerificationService injetado."""
+        import asyncio
+        from services.prospecting.contact_verifier import ContactVerifier
+        from services.prospecting.decision_maker_resolution import PersonContact
+
+        calls = []
+
+        class FakeEmailService:
+            async def verify_email(self, email):
+                calls.append(email)
+                return {"verified": True, "reason": "ok"}
+
+        result = asyncio.run(ContactVerifier(FakeEmailService()).verify_email(
+            PersonContact(name="Maria", source="receita", email="m@alpha.com")
+        ))
+        assert calls == ["m@alpha.com"]
+        assert result["email_verified"] is True
+
+
 class TestContactVerification:
     def test_email_verificado_via_mx(self):
         from services.prospecting.decision_maker_resolution import (

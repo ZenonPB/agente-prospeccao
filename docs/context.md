@@ -3,8 +3,8 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-08 · branch `main` ·
-> Alembic head `ff8a9b0c1d2e`.
+> **Snapshot:** 2026-09-09 · branch `feat/onda1-people-decisor` ·
+> Alembic head `1a2b3c4d5e6f` (Person canônica).
 >
 > **Nota de ambiente:** o banco local desta máquina está em `c9d0e1f2a3b4`
 > (pendente de `alembic upgrade head`); rode
@@ -48,9 +48,10 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - **Endpoint `GET /analytics/provider-trace/{correlation_id}`** (org-scoped):
   devolve todas as medições de uma execução (status, latência, erro, custo,
   tokens) — responde "por que esta campanha trouxe poucos leads".
-- Nova migration `ff8a9b0c1d2e` (head): `company_aliases` + origem da Onda 0
-  (`ee5f6b7c8d0a`: `correlation_id`/`campaign_id`/`usage`) e índice por
-  `correlation_id`.
+- Nova migration `1a2b3c4d5e6f` (head): `persons` canônica com
+  identidade/contato/verificação e acionabilidade, propagada de `Contact` via
+  `CompanyPersonService.sync_lead_entities`, sobre a base `ff8a9b0c1d2e`
+  (`company_aliases` + Onda 0).
 
 ### Legado da consolidação anterior (preservado)
 
@@ -81,18 +82,26 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   `ROUTABLE`, `INSTITUTIONAL` ou `UNKNOWN`).
 - `DecisionMakerResolver` distingue `resolved/partial/needs_review/not_found/failed`:
   identidade ambígua sem CPF (mesmo nome, e-mails distintos, confiança < 70)
-  retorna `needs_review` em vez de `partial` silencioso.
+  retorna `needs_review` em vez de `partial` silencioso; `failed` indica
+  exceção de provider (retryable), nunca ausência de pessoa.
+- `ContactVerifier` async separado do resolver sync: verificação de e-mail por
+  serviço injetado, sem thread nem DNS oculto no resolver.
+- `Person` canônica carrega identidade/contato/verificação/acionabilidade
+  (migration `1a2b3c4d5e6f`); `CompanyPersonService` propaga os campos de
+  `Contact` no `sync_lead_entities` sem sobrescrever dado existente.
+- `ContactEnrichmentService` aceita o seam de verificação com/sem mock
+  explícito (`_accepts_mock_check`), sem mudar o fluxo de `evidence_score`.
 - Candidatos de discovery carregam provenance consolidada no `Lead`, incluindo
   providers, consultas, identificadores externos, plano e regra de identidade;
   merges automáticos ocorrem apenas por chaves fortes.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **967 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **972 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `ff8a9b0c1d2e`;
+- `scripts/verify_migrations.py`: head único `1a2b3c4d5e6f`;
 - persistência controlada validada em PostgreSQL.
 
 ## Próximo passo imediato

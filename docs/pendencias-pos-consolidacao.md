@@ -2,15 +2,15 @@
 
 > **Objetivo:** registrar apenas o que ainda falta implementar, validar, integrar, persistir ou tornar operacional no sistema atual.
 >
-> **Base da revisão:** estado atual do repositório no branch `feat/identidade-cross-provider`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
+> **Base da revisão:** estado atual do repositório no branch `feat/onda1-people-decisor`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
 >
 > **Regra principal:** uma capacidade não deve ser chamada de concluída apenas porque existe classe, helper, registry, teste unitário ou retorno estruturado. Para ser **Operacional**, precisa existir no fluxo real, com persistência quando necessária, tenant scope, estados de erro explícitos, observabilidade e comportamento verificável.
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-07 · `944 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-09 · `972 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `dd9e0f1a2b3c`.
+> `1a2b3c4d5e6f`.
 
 ## Resumo desta revisão
 
@@ -45,7 +45,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `dd9e0f1a2b3c`. |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `1a2b3c4d5e6f` (`persons` canônica). |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | ✅ Feito | `correlation_id`/`campaign_id`/`usage`/`cost` persistidos; telemetria de tokens Groq; endpoint `provider-trace` org-scoped explica "poucos leads". |
@@ -56,10 +56,10 @@
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
 | P1.18 Evento → decisor/outreach | 🟠 Parcial | Ação recomendada persiste contato/canal quando já há decisor; descoberta externa e outreach ainda faltam. |
-| P1.31 Entidade canônica de pessoa | 🟠 Parcial | Metadados de confiança e acionabilidade persistidos em `Contact`; entidade canônica independente ainda falta. |
+| P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | Contatos e ação recomendada existem; discovery externo e cascade completa ainda faltam. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | Estados `needs_review/failed` explícitos + `ContactVerifier` async injetável (sem thread no resolver); discovery externo e cascade completa ainda faltam. |
 | P1.39 Routable contact | 🟠 Parcial | Classificação persistida e exposta; integração efetiva à cadência ainda falta. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
@@ -1421,7 +1421,19 @@ Implementado:
 
 ## P1.31 — Entidade canônica de pessoa
 
-**Status:** 🟠 Parcial
+**Status:** 🟠 Parcial (base entregue nesta branch)
+
+### O que mudou
+
+`persons` agora carrega os campos canônicos de confiança/verificação e
+acionabilidade (migration `1a2b3c4d5e6f`), e `CompanyPersonService`
+propaga os valores de `Contact` em `sync_lead_entities` (criação e atualização
+sem sobrescrever dado existente). Cobertura: `tests/test_person_canonical.py`.
+
+### Ainda falta
+
+Pipeline de descoberta externa de pessoas (providers reais + waterfall) e a
+migração dos snapshots legados para a entidade canônica.
 
 ### Problema
 
@@ -1545,10 +1557,14 @@ OfferProfile roles
 ```text
 resolved
 partial
+needs_review
 not_found
 failed
-needs_review
 ```
+
+Entregue nesta branch: `needs_review` (identidade ambígua sem CPF) e `failed`
+(exceção de provider, retryable) explícitos em `ResolutionResult`, com testes
+em `tests/test_decision_maker_resolution.py`.
 
 Nunca transformar cargo configurado em pessoa encontrada.
 
@@ -1610,7 +1626,19 @@ max_steps
 
 ## P1.37 — Simplificar verificação async de contato
 
-**Status:** 🟠 Parcial
+**Status:** 🟠 Parcial (seam novo; legado ainda ativo)
+
+### O que mudou
+
+`services/prospecting/contact_verifier.py` separa o seam de I/O:
+`ContactVerifier.verify_email` async, com serviço injetado, sem thread e sem
+rede própria. O `ContactEnrichmentService` aceita o seam com/sem mock explícito
+via `_accepts_mock_check`.
+
+### Ainda falta
+
+Migrar os callers para o `ContactVerifier` async e remover o bloco com thread
+dentro do `ContactVerification` legado em `decision_maker_resolution.py`.
 
 ### Problema
 
