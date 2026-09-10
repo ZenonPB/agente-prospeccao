@@ -41,6 +41,9 @@ class Settings(BaseSettings):
             "GOOGLE_API_KEY": 100,
             "GROQ_API_KEY": 2000,
             "HUNTER_API_KEY": 50,
+            # Provider gratuito, mas opt-in por organização para limitar I/O
+            # passivo em sites oficiais.
+            "WEBSITE_PEOPLE_PROVIDER": 0,
         },
         description='Teto diário de chamadas por provedor (key_name → limite)',
     )

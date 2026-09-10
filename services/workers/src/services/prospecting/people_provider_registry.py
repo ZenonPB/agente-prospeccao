@@ -74,6 +74,7 @@ class PeopleProviderRegistry:
         require_verified_email: bool = False,
         max_steps: Optional[int] = None,
         max_cost: Optional[float] = None,
+        min_role_fit: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Busca pessoas em cascata sem tratar falha como lista vazia.
 
@@ -86,6 +87,9 @@ class PeopleProviderRegistry:
             max_cost: Custo máximo acumulado; providers que excederem o
                 orçamento restante ficam bloqueados com status
                 ``budget_exceeded`` (nunca consultados).
+            min_role_fit: Pontuação mínima de aderência ao cargo-alvo para
+                early stopping. Quando ausente, o comportamento legado é
+                mantido e o fit é apenas anotado nos candidatos.
 
         Returns:
             Dicionário com ``people``, tentativas, status agregado, indicação
@@ -130,14 +134,28 @@ class PeopleProviderRegistry:
                 attempts.append(ProviderAttempt(provider.name, "empty"))
                 continue
 
-            normalized = [item for item in raw_people if isinstance(item, dict)]
+            normalized = [
+                _with_role_fit(item, titles)
+                for item in raw_people
+                if isinstance(item, dict)
+            ]
             before = len(people)
             people = _merge_people(people, normalized, provider.name)
             attempts.append(ProviderAttempt(provider.name, "success", len(people) - before))
-            if _has_sufficient_contact(people, min_contact_confidence, require_verified_email):
+            if _has_sufficient_contact(
+                people,
+                min_contact_confidence,
+                require_verified_email,
+                min_role_fit,
+            ):
                 return self._result(people, attempts, "success", True, cost_spent)
 
         status = _aggregate_status(people, attempts)
+        if min_role_fit is not None and people and not any(
+            _number(person.get("role_fit_score", 0)) >= min_role_fit
+            for person in people
+        ):
+            status = "role_not_matched"
         return self._result(people, attempts, status, False, cost_spent)
 
     @staticmethod
@@ -156,6 +174,17 @@ class PeopleProviderRegistry:
             "providers_attempted": [attempt.provider for attempt in attempts],
             "attempts": [attempt.as_dict() for attempt in attempts],
             "cost_spent": cost_spent,
+            "role_fit": {
+                "matched": sum(
+                    1 for person in people if person.get("role_fit_status") == "matched"
+                ),
+                "not_matched": sum(
+                    1 for person in people if person.get("role_fit_status") == "not_matched"
+                ),
+                "unknown": sum(
+                    1 for person in people if person.get("role_fit_status") == "unknown"
+                ),
+            },
         }
 
 
@@ -163,14 +192,68 @@ def _has_sufficient_contact(
     people: Sequence[Dict[str, Any]],
     minimum: float,
     require_verified_email: bool,
+    min_role_fit: Optional[float] = None,
 ) -> bool:
     """Verifica se ao menos uma pessoa atende ao critério de parada."""
     for person in people:
         confidence = _number(person.get("contact_confidence", person.get("confidence", 0)))
         verified = bool(person.get("email_verified", person.get("verified", False)))
-        if confidence >= minimum and (not require_verified_email or verified):
+        role_fit = _number(person.get("role_fit_score", 0))
+        role_ok = min_role_fit is None or role_fit >= min_role_fit
+        if confidence >= minimum and (not require_verified_email or verified) and role_ok:
             return True
     return False
+
+
+def _with_role_fit(person: Dict[str, Any], titles: Sequence[str]) -> Dict[str, Any]:
+    """Anota aderência do cargo sem substituir o dado original do provider."""
+    result = dict(person)
+    candidate_role = (
+        person.get("role")
+        or person.get("role_label")
+        or person.get("title")
+        or person.get("job_title")
+    )
+    score, matched_titles = _role_fit(candidate_role, titles)
+    result["role_fit_score"] = score
+    result["role_fit_status"] = (
+        "matched" if score >= 70 else "not_matched" if candidate_role else "unknown"
+    )
+    result["matched_titles"] = matched_titles
+    return result
+
+
+def _role_fit(role: Any, titles: Sequence[str]) -> tuple[float, List[str]]:
+    """Calcula fit determinístico por igualdade e sobreposição de tokens."""
+    candidate = _normalize_role(role)
+    targets = [str(title) for title in titles if _normalize_role(title)]
+    if not candidate or not targets:
+        return 0.0, []
+    candidate_tokens = set(candidate.split())
+    best_score = 0.0
+    matched: List[str] = []
+    for title in targets:
+        normalized_title = _normalize_role(title)
+        title_tokens = set(normalized_title.split())
+        if candidate == normalized_title:
+            score = 100.0
+        else:
+            overlap = len(candidate_tokens & title_tokens)
+            score = round(100 * overlap / len(title_tokens), 1) if title_tokens else 0.0
+        if score > best_score:
+            best_score = score
+            matched = [title] if score >= 70 else []
+        elif score >= 70 and score == best_score and title not in matched:
+            matched.append(title)
+    return best_score, matched
+
+
+def _normalize_role(value: Any) -> str:
+    """Normaliza cargo para comparação semântica conservadora."""
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(char for char in text if not unicodedata.combining(char))
+    text = re.sub(r"[^a-zA-Z0-9]+", " ", text).strip().lower()
+    return re.sub(r"\s+", " ", text)
 
 
 def _aggregate_status(people: Sequence[Dict[str, Any]], attempts: Sequence[ProviderAttempt]) -> str:
@@ -225,6 +308,15 @@ def _combine(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, An
         _number(existing.get("confidence", existing.get("contact_confidence", 0))),
         _number(incoming.get("confidence", incoming.get("contact_confidence", 0))),
     )
+    existing_fit = _number(existing.get("role_fit_score", 0))
+    incoming_fit = _number(incoming.get("role_fit_score", 0))
+    if incoming_fit > existing_fit:
+        result["role_fit_score"] = incoming_fit
+        result["role_fit_status"] = incoming.get("role_fit_status", "unknown")
+    result["matched_titles"] = list(dict.fromkeys([
+        *(existing.get("matched_titles") or []),
+        *(incoming.get("matched_titles") or []),
+    ]))
     return result
 
 

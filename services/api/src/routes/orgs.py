@@ -29,7 +29,7 @@ from src.auth.dependencies import (
 _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
 if _workers_path not in sys.path:
     sys.path.insert(0, _workers_path)
-from services.secret_service import SecretService, KEY_NAMES  # noqa: E402
+from services.secret_service import SecretService, KEY_NAMES, QUOTA_KEY_NAMES  # noqa: E402
 from src.services.cadence_service import sends_today  # noqa: E402
 from src.services.org_service import create_organization, unassign_user_leads_in_org  # noqa: E402
 from src.services.org_audit_service import log_org_event, list_org_audit  # noqa: E402
@@ -556,8 +556,7 @@ def patch_org_settings(
             raise HTTPException(status_code=400, detail="scheduling_url deve começar com http:// ou https://")
         org.scheduling_url = value or None
     if body.api_quota is not None:
-        from services.secret_service import KEY_NAMES
-        valid_keys = set(KEY_NAMES)
+        valid_keys = set(QUOTA_KEY_NAMES)
         for key, value in body.api_quota.items():
             if key not in valid_keys:
                 raise HTTPException(status_code=400, detail=f"key de cota inválida: {key}")

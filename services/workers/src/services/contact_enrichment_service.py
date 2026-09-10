@@ -423,6 +423,44 @@ def _build_linkedin_candidates(name: str) -> List[str]:
 class ContactEnrichmentService:
     """Enriquece decisores com e-mail e LinkedIn por fontes passivas."""
 
+    @staticmethod
+    def discovery_limits(profile: Optional[Dict[str, Any]]) -> Dict[str, Optional[float]]:
+        """Extrai limites seguros de People Discovery de um OfferProfile.
+
+        O perfil pode declarar os limites diretamente em ``enrichment`` ou em
+        ``enrichment.people_discovery``. Valores inválidos são ignorados para
+        preservar compatibilidade com campanhas legadas.
+        """
+        enrichment = profile.get("enrichment", {}) if isinstance(profile, dict) else {}
+        if not isinstance(enrichment, dict):
+            enrichment = {}
+        people_config = enrichment.get("people_discovery")
+        config = (
+            people_config
+            if isinstance(people_config, dict) and people_config
+            else enrichment
+        )
+
+        def _bounded_float(name: str, minimum: float, maximum: float) -> Optional[float]:
+            try:
+                value = float(config[name])
+            except (KeyError, TypeError, ValueError):
+                return None
+            return value if minimum <= value <= maximum else None
+
+        max_cost = _bounded_float("max_cost", 0, 1000)
+        min_role_fit = _bounded_float("min_role_fit", 0, 100)
+        raw_steps = config.get("max_steps")
+        try:
+            max_steps = int(raw_steps)
+        except (TypeError, ValueError):
+            max_steps = 0
+        return {
+            "max_cost": max_cost,
+            "max_steps": max_steps if 1 <= max_steps <= 20 else None,
+            "min_role_fit": min_role_fit,
+        }
+
     def __init__(
         self,
         *,
@@ -452,10 +490,14 @@ class ContactEnrichmentService:
         from services.secret_service import SecretService
         from services.prospecting.hunter_people_provider import HunterPeopleProvider
         from services.prospecting.people_provider_registry import PeopleProviderRegistry
+        from services.prospecting.website_people_provider import WebsitePeopleProvider
 
         organization = db.query(Organization).filter(Organization.id == organization_id).first()
-        explicit_limit = (organization.api_quota or {}).get("HUNTER_API_KEY") if organization else None
+        api_quota = organization.api_quota or {} if organization else {}
+        explicit_limit = api_quota.get("HUNTER_API_KEY")
+        website_limit = api_quota.get("WEBSITE_PEOPLE_PROVIDER")
         limit = int(explicit_limit or 0)
+        website_limit_value = int(website_limit or 0)
         key = await SecretService.resolve_key(db, str(organization_id), "HUNTER_API_KEY")
         # A chave global sozinha não habilita consumo pago: a organização
         # precisa declarar HUNTER_API_KEY em api_quota para fazer opt-in.
@@ -469,6 +511,16 @@ class ContactEnrichmentService:
                 ),
                 consume=lambda: QuotaService.consume(
                     db, organization_id, "HUNTER_API_KEY",
+                ),
+            ))
+        website_enabled = website_limit is not None and website_limit_value > 0
+        if website_enabled:
+            registry.register(WebsitePeopleProvider(
+                can_consume=lambda: QuotaService.can_consume(
+                    db, organization_id, "WEBSITE_PEOPLE_PROVIDER",
+                ),
+                consume=lambda: QuotaService.consume(
+                    db, organization_id, "WEBSITE_PEOPLE_PROVIDER",
                 ),
             ))
         return cls(
@@ -579,16 +631,19 @@ class ContactEnrichmentService:
             # Hunter domain-search: quando o placeholder da Receita não trouxe
             # ninguém real (sem QSA), tentamos nomes/emails nomeados do domínio.
             waterfall: Optional[Dict[str, Any]] = None
-            if self.hunter_enabled and self.people_registry and lead.website:
+            if self.people_registry and lead.website:
                 domain = _domain_from_website(lead.website)
                 if domain and len(existing) <= 1 and not any(
                     c.email for c in existing if c.name != "Decisor"
                 ):
                     target_titles = await self._target_titles(lead)
+                    discovery_config = self._discovery_config(lead)
                     waterfall = await self.people_registry.waterfall_search(
                         domain,
                         target_titles,
-                        max_steps=1,
+                        max_steps=discovery_config["max_steps"] or 1,
+                        max_cost=discovery_config["max_cost"],
+                        min_role_fit=discovery_config["min_role_fit"],
                     )
                     self._persist_waterfall_people(db, lead, existing, waterfall, max_contacts)
                     db.flush()
@@ -711,6 +766,8 @@ class ContactEnrichmentService:
                     "providers_attempted": waterfall.get("providers_attempted", []),
                     "attempts": waterfall.get("attempts", []),
                     "cost_spent": waterfall.get("cost_spent", 0),
+                    "role_fit": waterfall.get("role_fit", {}),
+                    "limits": discovery_config,
                 }
             lead.evidence_score = existing_evidence
         except Exception as e:  # noqa: BLE001
@@ -719,10 +776,49 @@ class ContactEnrichmentService:
         return results
 
     async def _target_titles(self, lead: Lead) -> List[str]:
-        """Obtém cargos-alvo do perfil legado da campanha."""
-        profile_key = (lead.analysis_profile.value if getattr(lead, "analysis_profile", None) else "generic").lower()
+        """Obtém cargos-alvo do OfferProfile efetivo da campanha."""
+        profile = self._resolved_offer_profile(lead)
+        roles = profile.get("decision_makers", {}).get("roles", [])
+        if roles:
+            return [str(role) for role in roles if role]
+        profile_key = (
+            lead.analysis_profile.value
+            if getattr(lead, "analysis_profile", None)
+            else "generic"
+        ).lower()
         from services.decision_maker_pipeline_service import resolve_target_roles
         return [item["role"] for item in resolve_target_roles(profile_key)]
+
+    @classmethod
+    def _discovery_config(cls, lead: Lead) -> Dict[str, Optional[float]]:
+        """Resolve a configuração de People Discovery do perfil da campanha."""
+        return cls.discovery_limits(cls._resolved_offer_profile(lead))
+
+    @staticmethod
+    def _resolved_offer_profile(lead: Lead) -> Dict[str, Any]:
+        """Retorna o OfferProfile efetivo, com fallback seguro para o legado."""
+        profile_key = (
+            getattr(getattr(lead, "campaign", None), "offer_profile_key", None)
+            or (
+                lead.analysis_profile.value
+                if getattr(lead, "analysis_profile", None)
+                else "generic"
+            )
+        )
+        try:
+            from services.prospecting.default_profiles import get_default_registry
+            from services.prospecting.offer_profile import OfferProfileResolver
+
+            resolved = OfferProfileResolver(get_default_registry()).resolve_campaign(
+                offer_profile_key=profile_key if profile_key != "generic" else None,
+                target_service=getattr(getattr(lead, "campaign", None), "target_service", None),
+                target_segment=getattr(getattr(lead, "campaign", None), "target_segment", None),
+                archetype_key=profile_key,
+            )
+            return resolved.profile.to_dict()
+        except Exception as exc:  # perfil legado: mantém o waterfall compatível
+            logger.debug("Não foi possível resolver limites do OfferProfile: %s", exc)
+            return {}
 
     @staticmethod
     def _persist_waterfall_people(
@@ -751,6 +847,9 @@ class ContactEnrichmentService:
                     "email_source": person.get("source", "people_provider"),
                     "provider_status": waterfall.get("status"),
                     "provider_sources": person.get("sources") or [],
+                    "role_fit_score": person.get("role_fit_score", 0),
+                    "role_fit_status": person.get("role_fit_status", "unknown"),
+                    "matched_titles": person.get("matched_titles") or [],
                 },
             )
             db.add(contact)
