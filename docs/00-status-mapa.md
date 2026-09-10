@@ -1,6 +1,6 @@
 # Mapa de status operacional
 > **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` ·
-> Alembic head `2e6f8a0c2d4e`.
+> Alembic head `2f7a9b1c3d5e`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -23,18 +23,18 @@
 | Candidate pre-scoring | ✅ | pipeline antes do enrichment | `prescoring_discards` | calibração avançada ainda pendente |
 | Discovery Places/CNAE | 🟠 | `DiscoveryExecutor` + adapters | leads/provenance consolidada + `prescoring_discards.provenance` | revisão fuzzy de merge ainda parcial |
 | Enrichment adaptativo | ✅ | `enrichment_orchestrator` | `enrichments`/evidence | custo e cobertura dependem dos providers |
-| Scoring vetorial contextual | ✅ | `AIScoringService` | campos/evidence do lead | re-scoring imutável ainda pendente |
+| Scoring vetorial contextual | ✅ | `AIScoringService` | campos/evidence do lead + snapshots de resolução | política de re-score do score de oferta ainda pendente |
 | OfferMatcher | ✅ | pós-scoring do enrichment | `lead_opportunities` | sem tela administrativa dedicada |
 | Oportunidades do lead | ✅ | `GET /api/leads/{id}/oportunidades` | score, evidências, versão | resolução de oferta customizada em código |
 | Event Discovery | ✅ opt-in | `source=events` no pipeline | `event_opportunities` | decisor/outreach ainda dependem de ação comercial humana |
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + ações de eventos | `contacts` + `persons` canônica + snapshot + `next_best_action` + ação de evento persistida + role fit por título | faltam provider especializado, role fit por senioridade/departamento e snapshots imutáveis |
+| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + ações de eventos | `contacts` + `persons` canônica + snapshots imutáveis + `next_best_action` + ação de evento persistida + role fit por título/senioridade/departamento | falta provider especializado adicional |
 | Outcomes comerciais | ✅ | conversão/outcome service | `commercial_outcomes` | BI ainda não tem todos os cortes |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
-| Learning/Metrics comercial | ✅ | outcomes + comparação | PostgreSQL; registry in-memory é adaptador/teste | Precision@K e controlled learning pendentes |
+| Learning/Metrics comercial | ✅ | outcomes + comparação + `/api/analytics/executive-metrics` | PostgreSQL + métricas derivadas org-scoped | controlled learning pendente |
 | Observabilidade agregada | 🟠 | logs/jobs e status de providers | `provider_execution_metrics` + endpoint | faltam custo real e correlação consolidada com quota |
 | OfferProfile administrativo | ⬜ | — | — | falta CRUD, publicação, versionamento e rollback |
 
@@ -48,18 +48,18 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **1030 passed**.
+- `python -m pytest tests -q -W error`: **1039 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `2e6f8a0c2d4e` (36 tabelas, 19 índices,
-  19 FKs e 4 constraints únicas).
+- `scripts/verify_migrations.py`: head único `2f7a9b1c3d5e` (37 tabelas, 20 índices,
+  21 FKs e 5 constraints únicas).
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 
 ## Próximas prioridades
 
-1. P1.18/P1.35 — decisor → outreach automático: role fit por senioridade/
-   departamento, provider especializado adicional e snapshots de resolução.
-2. Snapshot imutável e política explícita de re-scoring.
-3. BI por vertical, consultor, canal, campanha, variante e Precision@K.
+1. P1.18/P1.35 — decisor → outreach automático: provider especializado
+   adicional e integração futura de envio humano assistido.
+2. Política explícita de re-scoring do score de oferta.
+3. BI por vertical, consultor, canal, campanha, variante e controlled learning.
 4. Entidade canônica de decisores e administração/versionamento de ofertas.

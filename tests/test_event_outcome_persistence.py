@@ -154,6 +154,81 @@ def test_evento_com_contato_persistido_gera_acao_comercial_sem_enviar_mensagem(s
     assert "não envia" in rows[0].next_action.lower()
 
 
+def test_timing_do_evento_entra_na_acao_persistida_sem_enviar_mensagem(session):
+    from services.prospecting.event_opportunity_service import EventOpportunityService
+
+    db, org, lead = session
+    contact = Contact(
+        lead_id=lead.id,
+        name="Carlos Timing",
+        phone="16999998888",
+        confidence=90,
+        is_primary=True,
+        source="company_site",
+    )
+    db.add(contact)
+    db.flush()
+    event = {
+        "name": "Copa Timing",
+        "event_type": "sport",
+        "event_date": "2030-08-10",
+        "location": "São Paulo",
+        "source_url": "https://events.example/copa-timing",
+        "organizer": lead.company_name,
+        "organizer_resolved": {"official_name": lead.company_name, "confidence": 0.95},
+        "timing": {"timing_score": 90, "urgency": "high", "days_until": 18},
+    }
+
+    service = EventOpportunityService()
+    rows = service.replace_events(db, org.id, [event])
+    service.match_event_opportunities(db, rows)
+    service.prepare_event_actions(db, rows)
+    db.commit()
+    db.refresh(rows[0])
+
+    assert rows[0].action_status == "ready"
+    assert "90" in (rows[0].next_action or "")
+    assert "18" in (rows[0].next_action or "")
+
+
+def test_snapshot_de_resolucao_e_append_only_e_idempotente(session):
+    from database.models import DecisionResolutionSnapshot
+    from services.prospecting.resolution_snapshot_service import ResolutionSnapshotService
+
+    db, org, lead = session
+    service = ResolutionSnapshotService()
+    first = service.persist(
+        db,
+        org.id,
+        lead.id,
+        "resolved",
+        {"people": [{"name": "Ana", "email": "ana@example.com"}]},
+    )
+    same = service.persist(
+        db,
+        org.id,
+        lead.id,
+        "resolved",
+        {"people": [{"email": "ana@example.com", "name": "Ana"}]},
+    )
+    changed = service.persist(
+        db,
+        org.id,
+        lead.id,
+        "partial",
+        {"people": [{"name": "Ana"}]},
+    )
+    db.commit()
+
+    rows = db.query(DecisionResolutionSnapshot).filter(
+        DecisionResolutionSnapshot.lead_id == lead.id,
+    ).all()
+    assert same.id == first.id
+    assert changed.id != first.id
+    assert len(rows) == 2
+    assert {row.status for row in rows} == {"resolved", "partial"}
+
+
 def test_confianças_do_contato_sao_persistidas_no_postgresql(session):
     from services.contact_enrichment_service import ContactEnrichmentService
 

@@ -10,6 +10,7 @@ from database.models import (
     Lead,
     LeadOpportunityRow,
     EventOpportunityRow,
+    DecisionResolutionSnapshot,
     CommercialOutcomeRow,
     CommercialComparison,
     Campaign,

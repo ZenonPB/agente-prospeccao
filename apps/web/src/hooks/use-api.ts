@@ -604,6 +604,13 @@ export function useAnalyticsFunnel(period?: AnalyticsPeriod) {
   });
 }
 
+export function useAnalyticsExecutiveMetrics(period?: AnalyticsPeriod, k = 10) {
+  return useQuery({
+    queryKey: ["analytics", "executive-metrics", period, k],
+    queryFn: () => analyticsApi.executiveMetrics({ ...(period || {}), k }),
+  });
+}
+
 export function useAnalyticsConsultants(period?: AnalyticsPeriod) {
   return useQuery({
     queryKey: ["analytics", "consultants", period],

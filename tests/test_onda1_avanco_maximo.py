@@ -484,6 +484,103 @@ class TestPeopleProviderRegistryRoleFit:
         assert result["early_stopped"] is True
         assert result["people"][0]["role_fit_status"] == "matched"
 
+    def test_role_fit_clasifica_senioridade_e_departamento(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "people"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [
+                    {"name": "Ana", "title": "Senior Engineering Manager", "confidence": 90},
+                    {"name": "Bruno", "title": "Finance Director", "confidence": 90},
+                    {"name": "Carla", "title": "Junior Developer", "confidence": 90},
+                ]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["engineering_manager"],
+        ))
+        people = {item["name"]: item for item in result["people"]}
+
+        assert people["Ana"]["role_seniority"] == "senior"
+        assert people["Ana"]["role_department"] == "engineering"
+        assert people["Bruno"]["role_seniority"] == "executive"
+        assert people["Bruno"]["role_department"] == "finance"
+        assert people["Carla"]["role_seniority"] == "junior"
+        assert people["Carla"]["role_department"] == "engineering"
+        assert result["role_filters"]["requested"] is False
+        assert all(item["role_filter_status"] == "not_requested" for item in people.values())
+
+    def test_filtro_de_senioridade_continua_cascata(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        calls = []
+
+        class JuniorProvider:
+            name = "junior"
+            cost = 1
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return [{"name": "Ana", "title": "Junior Engineer", "confidence": 90}]
+
+        class MiddleProvider:
+            name = "middle"
+            cost = 2
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return [{"name": "Beatriz", "title": "Lead Engineer", "confidence": 90}]
+
+        class SeniorProvider:
+            name = "senior"
+            cost = 3
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return [{"name": "Bruno", "title": "Senior Engineer", "confidence": 80}]
+
+        result = asyncio.run(PeopleProviderRegistry(
+            [JuniorProvider(), MiddleProvider(), SeniorProvider()],
+        ).waterfall_search(
+            "empresa.com", ["engineer"], seniority="senior",
+        ))
+
+        assert calls == ["junior", "middle", "senior"]
+        assert result["status"] == "success"
+        assert result["early_stopped"] is True
+        assert result["people"][-1]["role_seniority"] == "senior"
+
+    def test_filtros_de_role_fit_sao_expostos_no_resultado(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "people"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [
+                    {"name": "Ana", "title": "Senior Engineer", "confidence": 90},
+                    {"name": "Bruno", "title": "Finance Director", "confidence": 90},
+                ]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["engineer"],
+            seniority=["senior"], department=["engineering"],
+        ))
+
+        assert result["role_filters"] == {
+            "seniority": ["senior"],
+            "department": ["engineering"],
+            "requested": True,
+            "matched": 1,
+            "not_matched": 1,
+        }
+        assert result["people"][0]["role_filter_status"] == "matched"
+        assert result["people"][1]["role_filter_status"] == "not_matched"
+
+
 
 class TestPeopleDiscoveryProfileConfig:
     """Configuração de descoberta vem do OfferProfile sem habilitar provider."""
@@ -496,10 +593,18 @@ class TestPeopleDiscoveryProfileConfig:
                 "max_cost": 4,
                 "max_steps": 2,
                 "min_role_fit": 75,
+                "seniority": ["Senior", "Executive"],
+                "department": "Engineering",
             },
         })
 
-        assert config == {"max_cost": 4.0, "max_steps": 2, "min_role_fit": 75.0}
+        assert config == {
+            "max_cost": 4.0,
+            "max_steps": 2,
+            "min_role_fit": 75.0,
+            "seniority": ["senior", "executive"],
+            "department": ["engineering"],
+        }
 
     def test_configuracao_invalida_usa_none_sem_quebrar_legado(self):
         from services.contact_enrichment_service import ContactEnrichmentService
@@ -508,7 +613,13 @@ class TestPeopleDiscoveryProfileConfig:
             "enrichment": {"max_cost": "x", "max_steps": 0, "min_role_fit": 101},
         })
 
-        assert config == {"max_cost": None, "max_steps": None, "min_role_fit": None}
+        assert config == {
+            "max_cost": None,
+            "max_steps": None,
+            "min_role_fit": None,
+            "seniority": [],
+            "department": [],
+        }
 
     def test_profile_vazio_nao_habilita_limites_externos(self):
         from services.contact_enrichment_service import ContactEnrichmentService
@@ -517,6 +628,8 @@ class TestPeopleDiscoveryProfileConfig:
             "max_cost": None,
             "max_steps": None,
             "min_role_fit": None,
+            "seniority": [],
+            "department": [],
         }
 
     def test_perfis_padrao_declaram_role_fit_e_limites(self):
@@ -539,6 +652,8 @@ class TestPeopleDiscoveryProfileConfig:
             "max_cost": 2.0,
             "max_steps": 2,
             "min_role_fit": 70.0,
+            "seniority": [],
+            "department": [],
         }
 
     def test_sem_min_role_fit_mantem_contrato_legado(self):

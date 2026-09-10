@@ -22,6 +22,7 @@ from src.db.models import (
     LeadStatus,
     Campaign,
     Conversion,
+    Contact,
     FollowUp,
     FollowUpStep,
     LeadActivity,
@@ -131,6 +132,50 @@ def _parse_period(value: Optional[str], end_of_day: bool = False) -> Optional[da
     return parsed
 
 
+def build_executive_metrics(
+    ranked_leads: list,
+    contacts: list,
+    k: int = 10,
+) -> dict:
+    """Calcula métricas executivas a partir de projeções já org-scoped.
+
+    Args:
+        ranked_leads: Leads ordenados por score, com ``converted`` booleano.
+        contacts: Contatos com ``routability_type``/``routable`` persistidos.
+        k: Tamanho da janela de Precision@K.
+
+    Returns:
+        Contrato com acionabilidade, Precision@K e estado da amostra. ``None``
+        representa ausência de amostra; não é convertido artificialmente em
+        zero.
+    """
+    safe_k = max(1, int(k))
+    total_contacts = len(contacts)
+    actionable_contacts = sum(
+        1
+        for contact in contacts
+        if contact.get("routable") is True
+        or contact.get("routability_type") in {"DIRECT_CONTACT", "ROUTABLE_CONTACT"}
+    )
+    window = ranked_leads[:safe_k]
+    precision = (
+        sum(1 for lead in window if lead.get("converted") is True) / len(window)
+        if window else None
+    )
+    sample_size = len(ranked_leads)
+    return {
+        "status": "empty" if sample_size == 0 else "partial" if sample_size < safe_k else "ok",
+        "sample_size": sample_size,
+        "actionable_contacts": actionable_contacts,
+        "actionable_contact_total": total_contacts,
+        "actionable_contact_rate": actionable_contacts / total_contacts if total_contacts else None,
+        "precision_at_k": precision,
+        "precision_at_k_window": len(window),
+        "k": safe_k,
+        "source": "analytics_service.build_executive_metrics",
+    }
+
+
 class AnalyticsService:
     """Agregações de BI para uma organização. Nenhuma query vaza para outra org."""
 
@@ -153,6 +198,59 @@ class AnalyticsService:
 
     def _count_status(self, base, *statuses):
         return base.filter(Lead.status.in_(statuses)).count()
+
+    def executive_metrics(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        campaign_id: Optional[str] = None,
+        k: int = 10,
+    ) -> dict:
+        """Retorna acionabilidade e Precision@K da coorte org-scoped.
+
+        Args:
+            from_date: Início da coorte por ``Lead.created_at``.
+            to_date: Fim da coorte por ``Lead.created_at``.
+            campaign_id: Restringe a coorte a uma campanha.
+            k: Janela de Precision@K.
+
+        Returns:
+            Métricas executivas com amostra e origem dos dados.
+        """
+        base = self._leads(from_date, to_date)
+        if campaign_id:
+            base = base.filter(Lead.campaign_id == campaign_id)
+        leads = base.order_by(Lead.qualification_score.desc(), Lead.created_at.asc()).all()
+        lead_ids = [lead.id for lead in leads]
+        converted_ids = set()
+        contacts = []
+        if lead_ids:
+            converted_ids = {
+                row[0]
+                for row in self.db.query(Conversion.lead_id)
+                .filter(Conversion.lead_id.in_(lead_ids))
+                .all()
+            }
+            contacts = [
+                {
+                    "routability_type": contact.routability_type,
+                    "routable": contact.routable,
+                }
+                for contact in self.db.query(Contact)
+                .filter(Contact.lead_id.in_(lead_ids))
+                .all()
+            ]
+        ranked = [
+            {"id": lead.id, "converted": lead.id in converted_ids}
+            for lead in leads
+        ]
+        metrics = build_executive_metrics(ranked, contacts, k=k)
+        metrics.update({
+            "from": from_date,
+            "to": to_date,
+            "campaign_id": campaign_id,
+        })
+        return metrics
 
     # ---------------------------------------------------------------- overview
     def overview(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:

@@ -789,6 +789,20 @@ export interface AnalyticsFunnel {
   funnel: AnalyticsFunnelStage[];
 }
 
+export interface ExecutiveMetrics {
+  status: 'empty' | 'partial' | 'ok';
+  sample_size: number;
+  actionable_contacts: number;
+  actionable_contact_total: number;
+  actionable_contact_rate: number | null;
+  precision_at_k: number | null;
+  precision_at_k_window: number;
+  k: number;
+  from?: string | null;
+  to?: string | null;
+  campaign_id?: string | null;
+}
+
 export const analyticsApi = {
   overview: (params?: { from?: string; to?: string }) =>
     request<AnalyticsOverview>("/api/analytics/overview", {
@@ -797,6 +811,11 @@ export const analyticsApi = {
 
   funnel: (params?: { from?: string; to?: string; campaign_id?: string; consultant_id?: string }) =>
     request<AnalyticsFunnel>("/api/analytics/funnel", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  executiveMetrics: (params?: { from?: string; to?: string; campaign_id?: string; k?: number }) =>
+    request<ExecutiveMetrics>("/api/analytics/executive-metrics", {
       params: params as Record<string, string | number | boolean | undefined>,
     }),
 
