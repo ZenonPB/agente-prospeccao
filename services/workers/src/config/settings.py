@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # Opcional — Hunter.io para descoberta de pessoas (opt-in por quota da org).
     HUNTER_API_KEY: str = Field("", description='Chave opcional da API Hunter.io')
 
+    # Coletor HTTP especializado de pessoas (federado, opt-in por quota da
+    # org via `PEOPLE_DISCOVERY_HTTP`). Endpoint JSON próprio da fonte
+    # (Apollo/Clay/Snov/base interna); vazio mantém o provider desabilitado.
+    PEOPLE_DISCOVERY_URL: str = Field("", description='Endpoint JSON externo de pessoas (opt-in)')
+    PEOPLE_DISCOVERY_TOKEN: str = Field("", description='Token opcional Bearer do provider de pessoas')
+    PEOPLE_DISCOVERY_MAX_RETRIES: int = Field(1, ge=0, le=5, description='Retentativas do provider de pessoas')
+
     # Chave mestre para criptografia dos secrets BYOK.
     # Deve ser um token Fernet (base64 de 32 bytes). Se vazio, deriva-se uma
     # chave determinística do DATABASE_URL (adequado só para desenvolvimento).
@@ -44,6 +51,8 @@ class Settings(BaseSettings):
             # Provider gratuito, mas opt-in por organização para limitar I/O
             # passivo em sites oficiais.
             "WEBSITE_PEOPLE_PROVIDER": 0,
+            # Fonte especializada via endpoint próprio; opt-in por org.
+            "PEOPLE_DISCOVERY_HTTP": 0,
         },
         description='Teto diário de chamadas por provedor (key_name → limite)',
     )

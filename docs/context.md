@@ -3,9 +3,9 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-10 · branch `feat/waterfall-buyer-gates-persona` ·
-> Alembic head `3a5b7c9d1e2f` (sem migration nesta branch: gates de buyer no
-> waterfall + entidade `BuyerPersona`).
+> **Snapshot:** 2026-09-10 · branch `feat/people-provider-especializado-optin` ·
+> Alembic head `3a5b7c9d1e2f` (sem migration nesta branch: provider HTTP
+> especializado federado opt-in).
 >
 > **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
 > (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
@@ -31,6 +31,14 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Capacidades entregues nesta consolidação (onda 3 — People Discovery)
 
+- **Fonte especializada federada opt-in (P1.35 ✅)**: `HttpPeopleProvider`
+  pluga qualquer fonte especializada (Apollo/Clay/Snov/base interna) via
+  endpoint JSON próprio (`PEOPLE_DISCOVERY_URL` + Bearer opcional), com retry
+  de transitórios, distinção `failed`/`empty`/`disabled`/`quota_exceeded`/
+  `invalid_request`/`configuration_error`, rejeição de domínio inválido e
+  proteção SSRF, provenance e `email_verified` nunca inventado. Opt-in duplo
+  fail-closed (endpoint global + quota `PEOPLE_DISCOVERY_HTTP` da org);
+  registrado entre site (0.25) e Hunter (1) por custo (0.5).
 - **Gates de buyer no waterfall (P1.36 ✅)**: `waterfall_search` exige
   `min_identity_confidence` e `required_buyer_role` para early stopping
   (buyer role explícito prevalece; sem ele, inferência determinística;
@@ -207,8 +215,8 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Provider especializado opt-in além do Hunter/site oficial e controlled
-learning. Gates de buyer, `BuyerPersona`, validação semântica de OfferProfile
-(P1.4) e cortes de BI por vertical/consultor/campanha/provider/versão já
-estão operacionais; as demais prioridades estão em
+Outreach humano assistido sobre a base federada e controlled learning. Gates
+de buyer, `BuyerPersona`, validação semântica de OfferProfile (P1.4), cortes
+de BI por vertical/consultor/campanha/provider/versão e provider especializado
+federado (P1.35) já estão operacionais; as demais prioridades estão em
 `docs/pendencias-pos-consolidacao.md`.
