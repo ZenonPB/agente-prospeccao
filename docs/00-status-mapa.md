@@ -1,6 +1,7 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-10 · branch `feat/oportunidade-historico-rescoring` ·
-> Alembic head `3a5b7c9d1e2f`.
+> **Snapshot:** 2026-09-10 · branch `feat/people-provider-especializado-optin` ·
+> Alembic head `3a5b7c9d1e2f` (sem migration nesta branch: provider HTTP
+> especializado federado opt-in).
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -30,7 +31,7 @@
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + `BuyerPersona` + ações de eventos | `contacts` + `persons` canônica + snapshots imutáveis + `next_best_action` + ação de evento persistida + role fit por título/senioridade/departamento + gates de identidade/buyer role | falta provider especializado adicional |
+| Decision Maker Resolution | ✅ | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + `HttpPeopleProvider` federado + `BuyerPersona` + ações de eventos | `contacts` + `persons` canônica + snapshots imutáveis + `next_best_action` + ação de evento persistida + role fit por título/senioridade/departamento + gates de identidade/buyer role | outreach automático segue humano assistido |
 | Outcomes comerciais | ✅ | conversão/outcome service + `GET /api/analytics/outcomes-breakdown` | `commercial_outcomes` | cortes por vertical/consultor/campanha/provider/versão prontos; canal/variante/etapa sem coluna |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
@@ -58,8 +59,8 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Próximas prioridades
 
-1. P1.18/P1.35 — decisor → outreach automático: provider especializado
-   adicional e integração futura de envio humano assistido.
+1. P1.18 — decisor → outreach humano assistido: envio com aprovação humana
+   sobre a base federada (providers, filtros, snapshots e timing prontos).
 2. Política explícita de re-scoring do score de oferta.
 3. BI por vertical, consultor, canal, campanha, variante e controlled learning.
 4. Entidade canônica de decisores e administração/versionamento de ofertas.

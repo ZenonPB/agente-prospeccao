@@ -43,9 +43,9 @@
 ### Ainda falta
 
 - administração de `OfferProfile` (schema semântico validado em P1.4);
-- decisor → outreach automático (provider especializado e envio automático
-  continuam fora do escopo; filtros de role fit, snapshots e timing já estão
-  persistidos, e a ação recomendada segue humana);
+- decisor → outreach automático (provider especializado federado e envio
+  automático continuam fora do escopo; filtros de role fit, snapshots e timing
+  já estão persistidos, e a ação recomendada segue humana);
 - provider real especializado de vagas e intent;
 - BI por vertical/consultor/canal/etapa/variante e controlled learning;
 - entidade canônica e pipeline completo de decisores;
@@ -71,7 +71,7 @@
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança de contato e identidade, role fit por título/senioridade/departamento, gate de buyer role (explícito > inferido, fallback para `buyer_types` do perfil) e orçamento (`max_cost` + `cost_spent`); entidade `BuyerPersona` com 8 personas; `HunterPeopleProvider` e `WebsitePeopleProvider` opt-in por quota; `ContactVerifier` async sem thread; snapshots imutáveis persistidos; falta provider especializado. |
+| P1.34–P1.38 People Discovery/decisores | ✅ Operacional | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança de contato e identidade, role fit por título/senioridade/departamento, gate de buyer role (explícito > inferido, fallback para `buyer_types` do perfil) e orçamento (`max_cost` + `cost_spent`); entidade `BuyerPersona` com 8 personas; `HunterPeopleProvider`, `WebsitePeopleProvider` e `HttpPeopleProvider` (fonte especializada federada via endpoint próprio) opt-in por quota; `ContactVerifier` async sem thread; snapshots imutáveis persistidos. |
 | P1.39 Routable contact | ✅ Operacional | Classificação persistida, exposta na API e usada pelo `NextBestActionService` (DIRECT/ROUTABLE → CALL, INSTITUTIONAL → pesquisa humana, UNREACHABLE → re-enriquecer); cadência de e-mail continua condicionada a e-mail verificado. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
@@ -1568,7 +1568,12 @@ em `tests/test_decision_maker_resolution.py`; waterfall com early stopping por
 confiança, role fit por título **e orçamento** (`max_cost`), dedup por chave
 forte e provenance. O `WebsitePeopleProvider` coleta apenas JSON-LD `Person`
 de páginas públicas do domínio oficial, com quota opt-in e proteção contra
-redirecionamento externo/IP privado.
+redirecionamento externo/IP privado. O `HttpPeopleProvider` federa qualquer
+fonte especializada via endpoint JSON próprio (`PEOPLE_DISCOVERY_URL` +
+Bearer opcional, retry de transitórios, `failed` ≠ `empty`, quota
+`PEOPLE_DISCOVERY_HTTP` por org, `email_verified` nunca inventado), com
+cobertura em `tests/test_http_people_provider.py` (contrato, opt-in e
+integração com gates de buyer/identidade no waterfall).
 
 Nunca transformar cargo configurado em pessoa encontrada.
 
@@ -1576,11 +1581,14 @@ Nunca transformar cargo configurado em pessoa encontrada.
 
 ## P1.35 — Domain-first person search efetivo
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional
 
-A estratégia agora usa providers reais no registry: Hunter (chave + quota) e
-site oficial (quota opt-in, sem chave), ordenados por custo e com estados
-observáveis. Ainda falta um provider especializado de pessoas.
+A estratégia usa três providers reais no registry, ordenados por custo e com
+estados observáveis: Hunter (chave + quota, custo 1), fonte especializada via
+endpoint próprio (`HttpPeopleProvider`, quota `PEOPLE_DISCOVERY_HTTP` +
+`PEOPLE_DISCOVERY_URL` global, custo 0.5) e site oficial (quota opt-in sem
+chave, custo 0.25). O opt-in do HTTP é duplo e fail-closed: sem endpoint
+configurado ou sem quota explícita da org, o provider nem é registrado.
 
 Fluxo:
 

@@ -2,7 +2,7 @@
 
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-10 · branch
-> `feat/oportunidade-historico-rescoring` ·
+> `feat/people-provider-especializado-optin` ·
 > Alembic head `3a5b7c9d1e2f`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
@@ -46,7 +46,7 @@ usa apenas conteúdo publicamente acessível.
 | Banco | PostgreSQL |
 | Auth | JWT compartilhado entre NextAuth e FastAPI, bcrypt |
 | IA | Groq; modelos configuráveis por `GROQ_MODEL_CLASSIFY` e `GROQ_MODEL_GENERATION` |
-| Provedores | Google Places, Receita/CNPJ/CNAE, Hunter opcional, provider HTTP de eventos opt-in |
+| Provedores | Google Places, Receita/CNPJ/CNAE, Hunter opcional, fonte especializada de pessoas via endpoint próprio (opt-in), provider HTTP de eventos opt-in |
 | BI | Agregações FastAPI, Recharts/Leaflet no Web e PDF via WeasyPrint |
 
 As configurações são carregadas pelos respectivos `settings.py`. A API exige
@@ -204,6 +204,13 @@ credenciais nos campos livres.
   retry, estados de erro e provenance. A fábrica de `ContactEnrichmentService`
   só o registra quando a organização configurou a chave e a quota
   `HUNTER_API_KEY`; a quota é consumida após resposta HTTP bem-sucedida.
+- `HttpPeopleProvider` federa qualquer fonte especializada de pessoas via
+  endpoint JSON próprio (`PEOPLE_DISCOVERY_URL` + Bearer opcional), com retry
+  de transitórios, distinção `failed`/`empty`, rejeição de domínio inválido e
+  proteção SSRF, provenance (`people_http` + endpoint) e `email_verified`
+  nunca inventado. Opt-in duplo fail-closed: exige endpoint global
+  configurado e quota explícita `PEOPLE_DISCOVERY_HTTP` da organização; a
+  quota é consumida após resposta HTTP 200.
 - `OfferProfile` e suas versões são cadastrados em código; não há CRUD
   administrativo nem rollback de publicação.
 - A resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
