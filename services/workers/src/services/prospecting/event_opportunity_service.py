@@ -177,7 +177,7 @@ class EventOpportunityService:
                         *trophies.signals_matched, "EVENT_SCHEDULED",
                     ])),
                 )
-                opportunity_service.persist_opportunities(db, lead, [enriched])
+                opportunity_service.persist_opportunities(db, lead, [enriched], reason="event")
                 result["matched"] += 1
             except (TypeError, ValueError, AttributeError) as exc:
                 result["failed"] += 1

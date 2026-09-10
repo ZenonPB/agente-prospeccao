@@ -40,6 +40,7 @@ REQUIRED_TABLES = {
     "notifications",
     "persons",
     "decision_resolution_snapshots",
+    "lead_opportunity_snapshots",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",
@@ -62,12 +63,14 @@ REQUIRED_INDEXES = {
     "ix_notifications_lead_id",
     "ix_follow_up_versions_follow_up_id",
     "ix_decision_resolution_snapshots_org_lead",
+    "ix_lead_opportunity_snapshots_org_lead",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
     "leads": {"organizations.id"},
     "jobs": {"organizations.id"},
     "lead_opportunities": {"organizations.id", "leads.id"},
+    "lead_opportunity_snapshots": {"organizations.id", "leads.id", "lead_opportunities.id"},
     "event_opportunities": {"organizations.id", "leads.id", "contacts.id"},
     "commercial_outcomes": {"organizations.id", "leads.id"},
     "commercial_comparisons": {"organizations.id", "users.id"},
@@ -82,6 +85,7 @@ REQUIRED_UNIQUES = {
     "company_aliases": {"uq_company_aliases_org_kind_value"},
     "follow_up_versions": {"uq_follow_up_versions_follow_up_version"},
     "decision_resolution_snapshots": {"uq_decision_resolution_snapshot_hash"},
+    "lead_opportunity_snapshots": {"uq_lead_opportunity_snapshot_hash"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -101,6 +105,15 @@ REQUIRED_COLUMNS = {
         "status",
         "snapshot_hash",
         "payload",
+        "reason",
+        "created_at",
+    },
+    "lead_opportunity_snapshots": {
+        "offer_key",
+        "offer_version",
+        "formula_version",
+        "score",
+        "snapshot_hash",
         "reason",
         "created_at",
     },
