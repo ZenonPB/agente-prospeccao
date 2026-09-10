@@ -115,6 +115,20 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
   (`POST /campaigns/{id}/reanalyze`).
 - Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead.
 
+## Re-scoring de oportunidades e histórico
+
+- Cada avaliação do `OfferMatcher` gera um snapshot imutável em
+  `lead_opportunity_snapshots` (versão do perfil, versão da fórmula
+  `matcher-v1`, score, sinais e evidências do momento).
+- Publicar uma nova versão de `OfferProfile` **não** atualiza oportunidades
+  existentes automaticamente; novas coletas usam a versão nova.
+- Campanha ativa só migra de versão via reavaliação explícita
+  (`POST /campaigns/{id}/reanalyze`, `reanalyze_only=True`).
+- Conversões e outcomes gravam `lead_opportunity_snapshot_id`, preservando o
+  contexto original da venda mesmo após re-scorings posteriores.
+- Histórico consultável em `GET /api/leads/{id}/oportunidades/historico`
+  (filtro opcional `offer_key`).
+
 ## Cadência de follow-up e envio (3.7/4.3)
 
 - Etapas `FollowUpStep`: `OPENING` (1ª mensagem) → `FOLLOWUP_1` (2ª mensagem) →

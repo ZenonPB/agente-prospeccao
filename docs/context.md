@@ -3,9 +3,9 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` ·
-> Alembic head `2f7a9b1c3d5e` (Person canônica + provenance de descarte +
-> tabela `follow_up_versions` + snapshots de resolução + índices de performance).
+> **Snapshot:** 2026-09-10 · branch `feat/oportunidade-historico-rescoring` ·
+> Alembic head `3a5b7c9d1e2f` (histórico append-only de oportunidades +
+> vínculo de venda ao snapshot + política de re-scoring).
 >
 > **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
 > (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
@@ -158,8 +158,8 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   local reconstruido: **1 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `2f7a9b1c3d5e` (37 tabelas, 20 índices,
-  21 FKs e 5 constraints únicas);
+- `scripts/verify_migrations.py`: head único `3a5b7c9d1e2f` (38 tabelas, 21 índices,
+  24 FKs e 6 constraints únicas);
 - persistência controlada validada em PostgreSQL.
 
 ## Auditoria do banco (onda 3)
@@ -192,8 +192,7 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Adicionar provider especializado opt-in além do Hunter/site oficial e evoluir
-o BI derivado para cortes por vertical, consultor, canal e controlled learning.
-Filtros de role fit, snapshots de resolução, timing de eventos e métricas
-executivas básicas já estão integrados; as demais prioridades estão em
-`docs/pendencias-pos-consolidacao.md`.
+Evoluir o BI derivado para cortes por vertical, consultor, canal e controlled
+learning, e adicionar provider especializado opt-in além do Hunter/site
+oficial. Oportunidade histórica e re-scoring explícito já estão integrados;
+as demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.

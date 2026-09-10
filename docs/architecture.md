@@ -1,9 +1,9 @@
 # Arquitetura atual
 
 > **Fonte operacional:** este documento descreve o código presente no branch
-> atual, não o plano histórico de consolidação. Snapshot: 2026-09-09 · branch
-> `feat/people-discovery-completo` ·
-> Alembic head `2f7a9b1c3d5e`.
+> atual, não o plano histórico de consolidação. Snapshot: 2026-09-10 · branch
+> `feat/oportunidade-historico-rescoring` ·
+> Alembic head `3a5b7c9d1e2f`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
