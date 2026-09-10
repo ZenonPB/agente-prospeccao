@@ -41,6 +41,7 @@ REQUIRED_TABLES = {
     "persons",
     "decision_resolution_snapshots",
     "lead_opportunity_snapshots",
+    "controlled_learning_proposals",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",
@@ -64,6 +65,7 @@ REQUIRED_INDEXES = {
     "ix_follow_up_versions_follow_up_id",
     "ix_decision_resolution_snapshots_org_lead",
     "ix_lead_opportunity_snapshots_org_lead",
+    "ix_controlled_learning_org_offer_status",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -74,6 +76,11 @@ REQUIRED_FKS = {
     "event_opportunities": {"organizations.id", "leads.id", "contacts.id"},
     "commercial_outcomes": {"organizations.id", "leads.id"},
     "commercial_comparisons": {"organizations.id", "users.id"},
+    "controlled_learning_proposals": {
+        "organizations.id",
+        "commercial_comparisons.id",
+        "users.id",
+    },
     "decision_resolution_snapshots": {"organizations.id", "leads.id"},
     "provider_execution_metrics": {"organizations.id", "jobs.id", "campaigns.id"},
     "company_aliases": {"organizations.id", "companies.id"},
@@ -86,6 +93,10 @@ REQUIRED_UNIQUES = {
     "follow_up_versions": {"uq_follow_up_versions_follow_up_version"},
     "decision_resolution_snapshots": {"uq_decision_resolution_snapshot_hash"},
     "lead_opportunity_snapshots": {"uq_lead_opportunity_snapshot_hash"},
+    "controlled_learning_proposals": {
+        "uq_controlled_learning_org_comparison",
+        "uq_controlled_learning_org_offer_version",
+    },
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -115,6 +126,14 @@ REQUIRED_COLUMNS = {
         "score",
         "snapshot_hash",
         "reason",
+        "created_at",
+    },
+    "lead_opportunities": {"score_breakdown"},
+    "controlled_learning_proposals": {
+        "proposal_version",
+        "status",
+        "evidence_snapshot",
+        "published_at",
         "created_at",
     },
 }

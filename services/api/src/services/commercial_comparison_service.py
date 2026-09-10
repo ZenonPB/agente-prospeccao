@@ -79,6 +79,13 @@ class CommercialComparisonService:
         if comparison is None:
             raise ValueError("Comparação não encontrada nesta organização")
         result = comparison.result or {}
+        if comparison.approved_version is not None:
+            if comparison.approved_version != approved_version:
+                raise ValueError("A comparação já foi aprovada com outra versão")
+            return comparison
+        normalized_evidence = evidence.strip()
+        if not normalized_evidence:
+            raise ValueError("A evidência da aprovação não pode ser vazia")
         if approved_version not in (comparison.version_a, comparison.version_b):
             raise ValueError("A versão aprovada precisa pertencer à comparação")
         if result.get("recommendation") is None or result.get("verdict") != (
@@ -88,7 +95,7 @@ class CommercialComparisonService:
         comparison.approved_version = approved_version
         comparison.approved_by_id = actor.id
         comparison.approved_at = datetime.now(timezone.utc)
-        comparison.approval_evidence = evidence.strip()
+        comparison.approval_evidence = normalized_evidence
         log_org_event(
             db,
             organization_id,
@@ -96,6 +103,6 @@ class CommercialComparisonService:
             actor=actor,
             target_type="commercial_comparison",
             target_id=str(comparison.id),
-            detail=f"versao={approved_version}; evidencia={evidence.strip()[:500]}",
+            detail=f"versao={approved_version}; evidencia={normalized_evidence[:500]}",
         )
         return comparison

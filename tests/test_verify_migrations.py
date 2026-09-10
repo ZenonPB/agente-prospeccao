@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "3a5b7c9d1e2f"
+    assert verify_migrations.migration_head() == "3d8e0f2a3b4c"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -53,6 +53,19 @@ def test_snapshot_de_resolucao_tem_schema_e_integridade_obrigatorios():
     }
     assert verify_migrations.REQUIRED_UNIQUES["decision_resolution_snapshots"] == {
         "uq_decision_resolution_snapshot_hash",
+    }
+
+
+def test_controlled_learning_tem_schema_e_integridade_obrigatorios():
+    verify_migrations = _module()
+
+    assert "controlled_learning_proposals" in verify_migrations.REQUIRED_TABLES
+    assert verify_migrations.REQUIRED_COLUMNS["controlled_learning_proposals"] == {
+        "proposal_version", "status", "evidence_snapshot", "published_at", "created_at",
+    }
+    assert verify_migrations.REQUIRED_UNIQUES["controlled_learning_proposals"] == {
+        "uq_controlled_learning_org_comparison",
+        "uq_controlled_learning_org_offer_version",
     }
 
 

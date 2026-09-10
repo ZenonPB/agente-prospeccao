@@ -9,8 +9,10 @@
 
 ## Estado atual verificado
 
-> **Snapshot:** 2026-09-10 · branch `feat/oportunidade-historico-rescoring` · Alembic
-> `3a5b7c9d1e2f` · histórico de oportunidades e política de re-scoring entregues.
+> **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·
+> Alembic `3d8e0f2a3b4c` · propostas de learning controlado pendentes de
+> publicação manual, matcher ponderado (`matcher-v2`), narrativa de oportunidade
+> e golden patterns por oferta entregues.
 
 As estimativas percentuais antigas foram removidas: não havia uma métrica
 reprodutível que justificasse os números. Use a matriz abaixo e
@@ -62,7 +64,11 @@ contínua.
 | P1.18 | 🟠 Parcial | Ação recomendada, persistência da ação de evento e UI entregues; descoberta multi-provider, timing e outreach completo ainda pendentes. |
 | P1.22–P1.24 | ✅ Encerradas | Atribuição de oferta/versão/oportunidade em conversões e outcomes. |
 | P1.30 | ✅ Encerrada | Comparação A/B com Wilson, amostra mínima, aprovação humana e auditoria. |
+| P1.29 | 🟠 Parcial | Comparações aprovadas geram propostas versionadas, auditáveis e `PROPOSED`; publicação e aplicação ao registry de perfis ainda exigem operação explícita. |
 | P1.36 | ✅ Encerrada | Gates de cascata completos: `max_cost`/`cost_spent`, `min_role_fit` + senioridade/departamento, `min_identity_confidence` e `required_buyer_role` (explícito > inferido, fallback para `buyer_types`), entidade `BuyerPersona` com 8 personas, status `buyer_role_not_matched` distinto. |
+| P1.7 | ✅ Encerrada | Matcher ponderado por `signals.weights` (fórmula `matcher-v2`, `score_breakdown`); três ofertas industriais com pesos diferentes para os mesmos sinais; legado igualitário preservado sem pesos. |
+| P1.10 | ✅ Encerrada | Narrativa fato/hipótese/validação derivada na leitura e exposta em `GET /api/leads/{id}/oportunidades`. |
+| P1.28 | ✅ Encerrada | Golden patterns por oferta + fallback por arquétipo, com wiring no matcher (`golden:<id>` só de sinais observados). |
 | P1.37 | ✅ Encerrada | Verificação assíncrona sem thread/rede oculta no resolver síncrono. |
 | P1.39 | ✅ Encerrada | Roteabilidade integrada à próxima ação, à ação de evento e à UI. |
 | Auditoria do banco (onda 3) | ✅ Encerrada | Tabela ausente, índices, integridade de versões, proteção de secrets em produção e verificador fortalecidos. |
@@ -853,7 +859,9 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 ## Próximo marco — People Discovery federado completo
 - outreach humano assistido sobre a base federada (decisor → ação → envio
   com aprovação humana);
-- BI por vertical, consultor, canal, campanha e controlled learning.
+- BI por vertical, consultor, canal, campanha e controlled learning;
+- calibração de intent/golden por outcomes reais (P1.14) e sinais semânticos
+  industriais (P1.40–P1.43).
 
 ## Marcos posteriores
 - saved searches, alerts e monitoramento contínuo;

@@ -3,12 +3,18 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_user_organization, require_analyst
 from src.db.dependencies import get_db
-from src.db.models import Organization, OrganizationMember, User, CommercialComparison
+from src.db.models import (
+    Organization,
+    OrganizationMember,
+    User,
+    CommercialComparison,
+    ControlledLearningProposal,
+)
 from src.auth.dependencies import get_current_user, require_manager
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
@@ -17,6 +23,15 @@ router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 class ComparisonApprovalRequest(BaseModel):
     approved_version: str = Field(..., min_length=1, max_length=32)
     evidence: str = Field(..., min_length=3, max_length=1000)
+
+    @field_validator("approved_version", "evidence", mode="before")
+    @classmethod
+    def _strip_required_text(cls, value: str) -> str:
+        """Impede aprovação com texto vazio após remover espaços."""
+        value = value.strip()
+        if not value:
+            raise ValueError("o texto da aprovação não pode ser vazio")
+        return value
 
 
 @router.get("/events")
@@ -100,10 +115,29 @@ def approve_comparison(
         comparison = CommercialComparisonService().approve(
             db, org.id, UUID(comparison_id), body.approved_version, actor, body.evidence,
         )
+        from src.services.controlled_learning_service import ControlledLearningService
+        proposal = ControlledLearningService().create_from_comparison(
+            db, org.id, comparison.id, actor,
+        )
     except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
-    return _comparison_dict(comparison)
+    response = _comparison_dict(comparison)
+    response["learning_proposal"] = _learning_proposal_dict(proposal)
+    return response
+
+
+@router.get("/learning-proposals")
+def list_learning_proposals(
+    offer_key: Optional[str] = Query(None, min_length=1, max_length=64),
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    """Lista recomendações de learning; nenhuma delas altera configuração ativa."""
+    from src.services.controlled_learning_service import ControlledLearningService
+    proposals = ControlledLearningService().list_for_organization(db, org.id, offer_key)
+    return {"proposals": [_learning_proposal_dict(proposal) for proposal in proposals]}
 
 
 def _comparison_dict(comparison: CommercialComparison) -> dict:
@@ -118,6 +152,24 @@ def _comparison_dict(comparison: CommercialComparison) -> dict:
         "approved_by_id": str(comparison.approved_by_id) if comparison.approved_by_id else None,
         "approved_at": comparison.approved_at.isoformat() if comparison.approved_at else None,
         "approval_evidence": comparison.approval_evidence,
+    }
+
+
+def _learning_proposal_dict(proposal: ControlledLearningProposal) -> dict:
+    return {
+        "id": str(proposal.id),
+        "organization_id": str(proposal.organization_id),
+        "source_comparison_id": str(proposal.source_comparison_id),
+        "offer_key": proposal.offer_key,
+        "proposal_version": proposal.proposal_version,
+        "approved_version": proposal.approved_version,
+        "approved_by_id": str(proposal.approved_by_id) if proposal.approved_by_id else None,
+        "status": proposal.status,
+        "evidence_snapshot": proposal.evidence_snapshot,
+        "requires_manual_publication": True,
+        "published_by_id": str(proposal.published_by_id) if proposal.published_by_id else None,
+        "published_at": proposal.published_at.isoformat() if proposal.published_at else None,
+        "created_at": proposal.created_at.isoformat() if proposal.created_at else None,
     }
 
 

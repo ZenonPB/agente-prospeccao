@@ -3,9 +3,10 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-10 · branch `feat/people-provider-especializado-optin` ·
-> Alembic head `3a5b7c9d1e2f` (sem migration nesta branch: provider HTTP
-> especializado federado opt-in).
+> **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·
+> Alembic head `3d8e0f2a3b4c` (propostas de learning controlado pendentes de
+> publicação manual; matcher ponderado `matcher-v2`, narrativa de oportunidade
+> e golden patterns por oferta).
 >
 > **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
 > (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
@@ -28,6 +29,24 @@ workers Python async e PostgreSQL. O pipeline de empresas é orientado por
 `OfferProfile` quando configurado, usa `DiscoveryExecutor` para Places/CNAE,
 enrichment passivo, scoring contextual, `OfferMatcher`, decisores best-effort e
 outreach/cadência. Campanhas legadas continuam compatíveis.
+
+### Capacidades entregues nesta consolidação (onda 4 — oportunidade explicável)
+
+- **Matcher ponderado por oferta (P1.7 ✅)**: fórmula `matcher-v2` pondera
+  sinais por `signals.weights` (`matched_weight/total_weight × 70`, peso
+  ausente = 1; sem pesos, igualitário legado bit a bit). As três ofertas
+  industriais declaram os mesmos positivos com pesos diferentes (formalidade
+  × contato direto × visita técnica). `score_breakdown` expõe signal/icp,
+  pesos e motivo de desqualificação; validador P1.4 estendido para
+  `signals.weights`.
+- **Narrativa "why this offer" (P1.10 ✅)**: `build_opportunity_narrative`
+  separa FATOS, HIPÓTESE e VALIDAÇÃO, derivada na leitura (sem coluna nova,
+  histórico nunca reescrito) e exposta como `narrative` em
+  `GET /api/leads/{id}/oportunidades`.
+- **Golden patterns por oferta (P1.28 ✅)**: cinco padrões (landing_page,
+  mechanical_project, technical_drawing, machine_manual, trophies) +
+  fallback por arquétipo + legados preservados; wiring no matcher
+  (`golden:<id>` só de sinais observados, parcial nunca reportado).
 
 ### Capacidades entregues nesta consolidação (onda 3 — People Discovery)
 
@@ -175,14 +194,14 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **1039 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **1097 passed, 19 skipped** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - E2E de ciclo completo (`tests/e2e_outreach_cycle.py`) contra o Postgres
   local reconstruido: **1 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `3a5b7c9d1e2f` (38 tabelas, 21 índices,
-  24 FKs e 6 constraints únicas);
+- `scripts/verify_migrations.py`: head único `3d8e0f2a3b4c`, incluindo propostas
+  controladas e breakdown persistido do matcher;
 - persistência controlada validada em PostgreSQL.
 
 ## Auditoria do banco (onda 3)
@@ -217,6 +236,7 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 Outreach humano assistido sobre a base federada e controlled learning. Gates
 de buyer, `BuyerPersona`, validação semântica de OfferProfile (P1.4), cortes
-de BI por vertical/consultor/campanha/provider/versão e provider especializado
-federado (P1.35) já estão operacionais; as demais prioridades estão em
-`docs/pendencias-pos-consolidacao.md`.
+de BI por vertical/consultor/campanha/provider/versão, provider especializado
+federado (P1.35), matcher ponderado (P1.7), narrativa de oportunidade (P1.10)
+e golden patterns por oferta (P1.28) já estão operacionais; as demais
+prioridades estão em `docs/pendencias-pos-consolidacao.md`.

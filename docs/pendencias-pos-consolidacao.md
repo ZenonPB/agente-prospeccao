@@ -9,7 +9,8 @@
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
 > **Snapshot:** 2026-09-10 · `compileall` verde · Alembic head
-> `3a5b7c9d1e2f`.
+> `3d8e0f2a3b4c` (propostas de learning controlado pendentes de publicação
+> manual, matcher ponderado, narrativa de oportunidade e golden patterns por oferta).
 
 ## Resumo desta revisão
 
@@ -39,6 +40,19 @@
   no `ContactVerifier`).
 - P1.39: `NextBestActionService` distingue DIRECT/ROUTABLE/INSTITUTIONAL/
   UNREACHABLE e a ação de evento usa a roteabilidade do contato.
+- P1.7: matcher ponderado por `signals.weights` (fórmula `matcher-v2`,
+  `score_breakdown` com signal/icp e pesos matched/total); as três ofertas
+  industriais declaram os mesmos positivos com pesos diferentes; sem pesos,
+  peso igualitário legado bit a bit.
+- P1.10: narrativa fato/hipótese/validação derivada na leitura
+  (`build_opportunity_narrative`, sem coluna nova), exposta em
+  `GET /api/leads/{id}/oportunidades` como `narrative`.
+- P1.28: golden patterns por oferta (landing_page, mechanical_project,
+  technical_drawing, machine_manual, trophies) + fallback por arquétipo,
+  com wiring no matcher (`evidence` `golden:<id>` só de sinais observados).
+- P1.29: propostas de learning comercial criadas após aprovação A/B conclusiva,
+  versionadas, org-scoped, auditáveis e mantidas em `PROPOSED`; aplicação ativa
+  continua bloqueada até publicação manual explícita.
 
 ### Ainda falta
 
@@ -588,7 +602,17 @@ A UI administrativa deve permanecer P2.
 
 ## P1.7 — Melhorar score do OfferMatcher
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional (fórmula `matcher-v2`)
+
+O matcher pondera sinais por `signals.weights` do perfil: `signal_score =
+matched_weight/total_weight × 70` (peso ausente vale 1; sem pesos, peso
+igualitário legado). `mechanical_project`, `technical_drawing` e
+`machine_manual` declaram os mesmos positivos (`HAS_CNPJ`,
+`HAS_BUSINESS_EMAIL`, `HAS_PHONE`) com pesos diferentes por lógica comercial
+(formalidade × contato direto × visita técnica). `LeadOpportunity` carrega
+`score_breakdown` (signal/icp, pesos, flag `weighted`, motivo de
+desqualificação). Intent, source reliability e calibração por outcomes
+seguem como evolução posterior — não bloqueiam o uso.
 
 ### Problema
 
@@ -708,7 +732,13 @@ docs/business-rules.md
 
 ## P1.10 — “Why this offer?” na API/UI
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional (narrativa derivada na leitura)
+
+`build_opportunity_narrative` separa FATOS (sinais presentes + hits de ICP),
+HIPÓTESE (ângulo de outreach + o que cada sinal ausente mudaria) e VALIDAÇÃO
+(perguntas de qualificação do perfil + confirmações pendentes). Exposta em
+`GET /api/leads/{id}/oportunidades` como `narrative`, derivada sem coluna
+nova — o histórico persistido nunca é reescrito. Sem perfil, genérico honesto.
 
 O sistema já tem evidências, mas precisa apresentar uma justificativa comercial por oportunidade.
 
@@ -1335,7 +1365,15 @@ Não ajustar ranking automaticamente com amostra pequena.
 
 ## P1.28 — Golden Lead Patterns operacionais
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional (por oferta, com wiring no matcher)
+
+`match_golden_patterns(profile_key, signals, archetype=None)` aplica padrões
+por `profiles`, por `archetypes`, pelo prefixo legado ou `generic_`. Cinco
+padrões por oferta (landing_page, mechanical_project, technical_drawing,
+machine_manual, trophies) + dois legados preservados. O matcher anexa
+`golden:<id>` à evidência somente de sinais observados (nunca de ausência);
+padrão parcial nunca é reportado. Calibração dos lifts por outcomes reais
+segue como evolução (P1.14).
 
 Ligar `match_golden_patterns` ao pipeline/UI.
 
@@ -1374,29 +1412,44 @@ EVENT_SCHEDULED
 
 ## P1.29 — Learning controlado, sem autoedição prematura
 
-**Status:** 🔵 Estrutural
+**Status:** 🟠 Parcial (propostas persistidas, publicação pendente)
 
-Pipeline de aprendizado:
+### O que foi implementado
+
+- Aprovação A/B gera automaticamente proposta versionada em `PROPOSED`.
+- Migration `3b6c8d0e1f2a_controlled_learning_proposals` cria tabela
+  `controlled_learning_proposals` com versionamento sequencial por oferta.
+- `ControlledLearningService` cria propostas idempotentes por
+  `(organization_id, source_comparison_id)`.
+- Endpoint `POST /api/intelligence/comparisons/{id}/approval` aprova e cria
+  proposta na mesma transação.
+- Endpoint `GET /api/intelligence/learning-proposals` lista propostas
+  org-scoped, com filtro opcional por `offer_key`.
+- `evidence_snapshot` captura apenas auditoria (veredicto, recomendação, delta,
+  intervalos), nunca contém comandos de edição.
+- Cobertura: `tests/test_controlled_learning.py`,
+  `tests/test_commercial_comparison_approval.py`.
+- Documentação: `docs/controlled-learning.md`.
+
+Pipeline de aprendizado operacional:
 
 ```text
 observe
-→ recommend
-→ human approve
-→ publish new OfferProfile version
+→ recommend (A/B com Wilson)
+→ human approve (transação atômica)
+→ proposta PROPOSED (versionada, auditável)
+→ [publicação manual futura]
 ```
+
+### Ainda falta
+
+- Endpoint de publicação que aplica a proposta ao `OfferProfile` ativo.
+- Versionamento dinâmico de `OfferProfile` com rollback.
+- Aplicação de pesos/thresholds da proposta ao registry de perfis.
 
 ### Não fazer ainda
 
 LLM editar weights/thresholds automaticamente em produção.
-
-### Requisitos futuros
-
-- amostra mínima;
-- intervalo de confiança;
-- aprovação humana;
-- versionamento;
-- rollback;
-- auditoria.
 
 ---
 

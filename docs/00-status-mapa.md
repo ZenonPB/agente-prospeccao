@@ -1,7 +1,8 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-10 · branch `feat/people-provider-especializado-optin` ·
-> Alembic head `3a5b7c9d1e2f` (sem migration nesta branch: provider HTTP
-> especializado federado opt-in).
+> **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·
+> Alembic head `3d8e0f2a3b4c` (propostas de learning controlado pendentes de
+> publicação manual; matcher ponderado `matcher-v2`, narrativa de oportunidade
+> e golden patterns por oferta).
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -25,8 +26,9 @@
 | Discovery Places/CNAE | 🟠 | `DiscoveryExecutor` + adapters | leads/provenance consolidada + `prescoring_discards.provenance` | revisão fuzzy de merge ainda parcial |
 | Enrichment adaptativo | ✅ | `enrichment_orchestrator` | `enrichments`/evidence | custo e cobertura dependem dos providers |
 | Scoring vetorial contextual | ✅ | `AIScoringService` | campos/evidence do lead + snapshots de oportunidade | calibração avançada ainda pendente |
-| OfferMatcher | ✅ | pós-scoring do enrichment | `lead_opportunities` + histórico append-only | sem tela administrativa dedicada |
-| Oportunidades do lead | ✅ | `GET /api/leads/{id}/oportunidades` + `/historico` | score, evidências, versão, snapshots | resolução de oferta customizada em código |
+| OfferMatcher | ✅ | pós-scoring do enrichment | `lead_opportunities` + histórico append-only | ponderado por `signals.weights` (`matcher-v2` + `score_breakdown`); sem tela administrativa dedicada |
+| Oportunidades do lead | ✅ | `GET /api/leads/{id}/oportunidades` + `/historico` | score, evidências, versão, snapshots | narrativa fato/hipótese/validação derivada na leitura; resolução de oferta customizada em código |
+| Golden patterns | ✅ | matcher (evidence `golden:<id>`) | — (derivado de sinais observados) | lifts ainda heurísticos; calibração por outcomes pendente |
 | Event Discovery | ✅ opt-in | `source=events` no pipeline | `event_opportunities` | decisor/outreach ainda dependem de ação comercial humana |
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
@@ -35,7 +37,7 @@
 | Outcomes comerciais | ✅ | conversão/outcome service + `GET /api/analytics/outcomes-breakdown` | `commercial_outcomes` | cortes por vertical/consultor/campanha/provider/versão prontos; canal/variante/etapa sem coluna |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
-| Learning/Metrics comercial | ✅ | outcomes + comparação + `/api/analytics/executive-metrics` | PostgreSQL + métricas derivadas org-scoped | controlled learning pendente |
+| Learning/Metrics comercial | 🟠 | outcomes + comparação + propostas + `/api/analytics/executive-metrics` | PostgreSQL + métricas derivadas org-scoped | publicação e aplicação controladas pendentes |
 | Observabilidade agregada | 🟠 | logs/jobs e status de providers | `provider_execution_metrics` + endpoint | faltam custo real e correlação consolidada com quota |
 | OfferProfile administrativo | ⬜ | — | — | falta CRUD, publicação, versionamento e rollback |
 
@@ -49,11 +51,11 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **1039 passed**.
+- `python -m pytest tests -q -W error`: **1097 passed, 19 skipped**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `3a5b7c9d1e2f` (38 tabelas, 21 índices,
-  24 FKs e 6 constraints únicas).
+- `scripts/verify_migrations.py`: head único `3d8e0f2a3b4c`, incluindo a tabela
+  de propostas controladas e o breakdown persistido do matcher.
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 
