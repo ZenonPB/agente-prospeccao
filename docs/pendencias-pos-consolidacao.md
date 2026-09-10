@@ -61,7 +61,7 @@
 | P1.15–P1.16 Event Discovery/provider → Lead | ✅ Feito | Provider confiável, dedup, provenance e vínculo org-scoped. |
 | P1.19 Expiração de eventos | ✅ Feito | `upcoming`/`expired`, TTL ISO normalizado para UTC e job idempotente. |
 | P1.22–P1.24 Atribuição comercial | ✅ Feito | Oferta, versão e oportunidade persistidas. |
-| P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
+| P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra + cortes vertical/consultor/campanha/provider/versão prontos; canal/variante/etapa sem coluna. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
 | P1.18 Evento → decisor/outreach | 🟠 Parcial | Recomendação + persistência da ação de evento (`decision_maker_id/status`, canal, `next_action`) entregues e expostas em `/api/intelligence`; timing é incluído na ação, mas outreach permanece humano. |
@@ -1303,29 +1303,27 @@ Mantendo `service_sold` como descrição humana.
 
 ## P1.25 — BI por oferta/versão/período
 
-**Status:** 🟠 Parcial — oferta/versão/período/amostra operacionais
+**Status:** 🟠 Parcial — oferta/versão/período/amostra e cortes por dimensão operacionais
 
 ### Hoje
 
 Existem métricas por oferta/versão com filtros inclusivos de período e amostra
-mínima explícita.
+mínima explícita. `GET /api/analytics/outcomes-breakdown` (ANALYST/MANAGER,
+org-scoped) agrupa outcomes reais por `vertical` (Lead.category),
+`consultor`, `campanha`, `provider` e `offer_version`, com ticket médio sobre
+WON, taxa de conversão e `sample_sufficient` sempre visíveis; grupo vazio vira
+bucket `(sem <dimensão>)`.
 
 ### Falta
 
-Filtros por:
+Cortes sem coluna de atribuição no outcome (retornam 400 honesto em vez de
+agrupamento enganoso):
 
 ```text
-período
-vertical
-consultor
 canal
-provider
-campaign
 variant
-offer_version
+etapa
 ```
-
-Exibir tamanho de amostra sempre.
 
 ---
 
