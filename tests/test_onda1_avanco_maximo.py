@@ -9,6 +9,8 @@ import sys
 import asyncio
 from pathlib import Path
 
+import httpx
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKERS_SRC = REPO_ROOT / "services" / "workers" / "src"
 API_PARENT = REPO_ROOT / "services" / "api"
@@ -328,3 +330,310 @@ class TestPeopleProviderRegistryMaxCost:
 
         assert result["status"] == "disabled"
         assert result["cost_spent"] == 0
+
+
+class TestPeopleProviderRegistryRoleFit:
+    """Role fit configurável sem transformar cargo desejado em pessoa."""
+
+    def test_role_fit_exato_permite_early_stopping(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        calls = []
+
+        class Provider:
+            name = "people"
+            cost = 1
+
+            async def search(self, domain, titles):
+                calls.append(list(titles))
+                return [{
+                    "name": "Ana",
+                    "title": "Engineering Manager",
+                    "confidence": 85,
+                    "verified": True,
+                }]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["engineering_manager"],
+            min_contact_confidence=80,
+            require_verified_email=True,
+            min_role_fit=70,
+        ))
+
+        assert calls == [["engineering_manager"]]
+        assert result["early_stopped"] is True
+        assert result["people"][0]["role_fit_score"] >= 70
+        assert result["people"][0]["role_fit_status"] == "matched"
+        assert result["people"][0]["matched_titles"] == ["engineering_manager"]
+
+    def test_role_fit_incompativel_continua_cascata(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        calls = []
+
+        class FirstProvider:
+            name = "first"
+            cost = 1
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return [{"name": "Ana", "title": "Finance Manager", "confidence": 95}]
+
+        class FallbackProvider:
+            name = "fallback"
+            cost = 2
+
+            async def search(self, domain, titles):
+                calls.append(self.name)
+                return [{"name": "Bruno", "role": "plant engineer", "confidence": 80}]
+
+        result = asyncio.run(PeopleProviderRegistry([FirstProvider(), FallbackProvider()]).waterfall_search(
+            "empresa.com", ["plant_engineer"],
+            min_contact_confidence=70,
+            min_role_fit=70,
+        ))
+
+        assert calls == ["first", "fallback"]
+        assert result["status"] == "success"
+        assert result["early_stopped"] is True
+        assert result["people"][0]["role_fit_status"] == "not_matched"
+
+    def test_somente_cargos_incompativeis_retorna_status_explicito(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "people"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [{"name": "Ana", "title": "Finance Manager", "confidence": 95}]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["plant_engineer"], min_role_fit=70,
+        ))
+
+        assert result["status"] == "role_not_matched"
+        assert result["role_fit"] == {"matched": 0, "not_matched": 1, "unknown": 0}
+
+    def test_dedup_preserva_melhor_role_fit_entre_providers(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class FirstProvider:
+            name = "first"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [{"name": "Ana", "email": "ana@empresa.com", "title": "Manager", "confidence": 80}]
+
+        class SecondProvider:
+            name = "second"
+            cost = 2
+
+            async def search(self, domain, titles):
+                return [{"name": "Ana", "email": "ana@empresa.com", "title": "Engineering Manager", "confidence": 70}]
+
+        result = asyncio.run(PeopleProviderRegistry([FirstProvider(), SecondProvider()]).waterfall_search(
+            "empresa.com", ["engineering_manager"], min_role_fit=70,
+        ))
+
+        assert len(result["people"]) == 1
+        assert result["people"][0]["role_fit_score"] == 100
+        assert result["people"][0]["role_fit_status"] == "matched"
+        assert result["role_fit"]["matched"] == 1
+
+    def test_sem_cargo_fica_unknown_e_nao_e_promovido(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "people"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [{"name": "Sem cargo", "confidence": 95}]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["ceo"], min_role_fit=70,
+        ))
+
+        assert result["early_stopped"] is False
+        assert result["people"][0]["role_fit_score"] == 0
+        assert result["people"][0]["role_fit_status"] == "unknown"
+
+    def test_role_label_do_hunter_e_considerado_no_fit(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "hunter"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [{
+                    "name": "João",
+                    "role_label": "Engineering Manager",
+                    "confidence": 90,
+                    "verified": True,
+                }]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["engineering_manager"],
+            min_contact_confidence=80,
+            require_verified_email=True,
+            min_role_fit=70,
+        ))
+
+        assert result["early_stopped"] is True
+        assert result["people"][0]["role_fit_status"] == "matched"
+
+
+class TestPeopleDiscoveryProfileConfig:
+    """Configuração de descoberta vem do OfferProfile sem habilitar provider."""
+
+    def test_configura_limites_de_discovery_do_profile(self):
+        from services.contact_enrichment_service import ContactEnrichmentService
+
+        config = ContactEnrichmentService.discovery_limits({
+            "enrichment": {
+                "max_cost": 4,
+                "max_steps": 2,
+                "min_role_fit": 75,
+            },
+        })
+
+        assert config == {"max_cost": 4.0, "max_steps": 2, "min_role_fit": 75.0}
+
+    def test_configuracao_invalida_usa_none_sem_quebrar_legado(self):
+        from services.contact_enrichment_service import ContactEnrichmentService
+
+        config = ContactEnrichmentService.discovery_limits({
+            "enrichment": {"max_cost": "x", "max_steps": 0, "min_role_fit": 101},
+        })
+
+        assert config == {"max_cost": None, "max_steps": None, "min_role_fit": None}
+
+    def test_profile_vazio_nao_habilita_limites_externos(self):
+        from services.contact_enrichment_service import ContactEnrichmentService
+
+        assert ContactEnrichmentService.discovery_limits({}) == {
+            "max_cost": None,
+            "max_steps": None,
+            "min_role_fit": None,
+        }
+
+    def test_perfis_padrao_declaram_role_fit_e_limites(self):
+        from services.contact_enrichment_service import ContactEnrichmentService
+        from services.prospecting.default_profiles import get_default_registry
+
+        for profile in get_default_registry().list():
+            config = ContactEnrichmentService.discovery_limits(profile.to_dict())
+            if profile.decision_makers.get("roles"):
+                assert config["min_role_fit"] == 70.0
+                assert config["max_steps"] == 2
+
+    def test_landing_page_reserva_orcamento_para_fallback_de_site(self):
+        from services.contact_enrichment_service import ContactEnrichmentService
+        from services.prospecting.default_profiles import get_default_registry
+
+        profile = get_default_registry().get("landing_page")
+
+        assert ContactEnrichmentService.discovery_limits(profile.to_dict()) == {
+            "max_cost": 2.0,
+            "max_steps": 2,
+            "min_role_fit": 70.0,
+        }
+
+    def test_sem_min_role_fit_mantem_contrato_legado(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+
+        class Provider:
+            name = "people"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [{"name": "Pessoa", "confidence": 90}]
+
+        result = asyncio.run(PeopleProviderRegistry([Provider()]).waterfall_search(
+            "empresa.com", ["ceo"], min_contact_confidence=80,
+        ))
+
+        assert result["early_stopped"] is True
+        assert result["people"][0]["role_fit_status"] == "unknown"
+
+    def test_waterfall_prioriza_site_barato_e_para_com_role_fit(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+        from services.prospecting.website_people_provider import WebsitePeopleProvider
+
+        class HunterEmpty:
+            name = "hunter"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return []
+
+        html = """
+        <script type="application/ld+json">
+        {"@type":"Person","name":"Carla","jobTitle":"Marketing Manager",
+         "email":"carla@empresa.com.br"}
+        </script>
+        """
+
+        async def request(**kwargs):
+            return httpx.Response(
+                200,
+                text=html,
+                request=httpx.Request("GET", kwargs["url"]),
+            )
+
+        registry = PeopleProviderRegistry([
+            HunterEmpty(),
+            WebsitePeopleProvider(request=request, max_pages=1),
+        ])
+        result = asyncio.run(registry.waterfall_search(
+            "empresa.com.br", ["marketing_manager"],
+            min_contact_confidence=70,
+            min_role_fit=70,
+            max_cost=2,
+        ))
+
+        assert result["providers_attempted"] == ["website_people"]
+        assert result["early_stopped"] is True
+        assert result["people"][0]["role_fit_status"] == "matched"
+
+    def test_waterfall_faz_fallback_para_hunter_quando_site_vazio(self):
+        from services.prospecting.people_provider_registry import PeopleProviderRegistry
+        from services.prospecting.website_people_provider import WebsitePeopleProvider
+
+        class HunterProvider:
+            name = "hunter"
+            cost = 1
+
+            async def search(self, domain, titles):
+                return [{
+                    "name": "Diego",
+                    "title": "CEO",
+                    "email": "diego@empresa.com.br",
+                    "confidence": 85,
+                    "verified": True,
+                }]
+
+        async def empty_site(**kwargs):
+            return httpx.Response(
+                200,
+                text="<html><body>Sem pessoas</body></html>",
+                request=httpx.Request("GET", kwargs["url"]),
+            )
+
+        registry = PeopleProviderRegistry([
+            HunterProvider(),
+            WebsitePeopleProvider(request=empty_site, max_pages=1),
+        ])
+        result = asyncio.run(registry.waterfall_search(
+            "empresa.com.br", ["ceo"],
+            min_contact_confidence=80,
+            require_verified_email=True,
+            min_role_fit=70,
+            max_cost=2,
+        ))
+
+        assert result["providers_attempted"] == ["website_people", "hunter"]
+        assert result["early_stopped"] is True
+        assert result["people"][0]["source"] == "hunter"

@@ -28,6 +28,9 @@ from database.models import OrganizationSecret  # noqa: E402
 logger = logging.getLogger(__name__)
 
 KEY_NAMES = ("GOOGLE_API_KEY", "GROQ_API_KEY", "HUNTER_API_KEY")
+# Chaves aceitas em `organizations.api_quota`. O provider de site não é
+# segredo, mas precisa de uma quota explícita para habilitar I/O passivo.
+QUOTA_KEY_NAMES = KEY_NAMES + ("WEBSITE_PEOPLE_PROVIDER",)
 
 
 def _derive_fernet_key() -> bytes:

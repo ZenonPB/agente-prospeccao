@@ -51,6 +51,12 @@ def build_default_registry() -> OfferProfileRegistry:
             "steps": ["cnpj_receita", "technical_site"],
             "stop_conditions": {"if_qualifies_after": "technical_site"},
             "max_cost": 5,
+            "people_discovery": {
+                # Permite tentar Hunter e, se vazio, consultar o site oficial.
+                "max_cost": 2,
+                "max_steps": 2,
+                "min_role_fit": 70,
+            },
         },
         signals={
             "positive": ["NO_OWN_WEBSITE", "HAS_INSTAGRAM"],
@@ -111,6 +117,11 @@ def build_default_registry() -> OfferProfileRegistry:
             "steps": ["cnpj_receita", "business_social", "cnpj_qsa"],
             "stop_conditions": {},
             "max_cost": 3,
+            "people_discovery": {
+                "max_cost": 2,
+                "max_steps": 2,
+                "min_role_fit": 70,
+            },
         },
         signals={
             "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL"],
@@ -157,6 +168,13 @@ def build_default_registry() -> OfferProfileRegistry:
             "target_candidates": 150,
             "query_strategy": "cnae+city",
         },
+        enrichment={
+            "people_discovery": {
+                "max_cost": 2,
+                "max_steps": 2,
+                "min_role_fit": 70,
+            },
+        },
         prescoring={
             "weights": {"HAS_PHONE": 15, "HAS_CNPJ": 20},
             "threshold": 35, "top_k": 20,
@@ -183,6 +201,13 @@ def build_default_registry() -> OfferProfileRegistry:
         discovery={
             "providers": ["cnae_discovery"],
             "target_candidates": 100,
+        },
+        enrichment={
+            "people_discovery": {
+                "max_cost": 2,
+                "max_steps": 2,
+                "min_role_fit": 70,
+            },
         },
         decision_makers={
             "roles": ["plant_engineer", "safety_manager", "operations_director"],
@@ -217,6 +242,13 @@ def build_default_registry() -> OfferProfileRegistry:
                 "google_places": 100, "instagram_search": 50, "event_search": 80,
             },
             "query_strategy": "evento+cidade OR empresa+segmento",
+        },
+        enrichment={
+            "people_discovery": {
+                "max_cost": 2,
+                "max_steps": 2,
+                "min_role_fit": 70,
+            },
         },
         prescoring={
             "weights": {

@@ -2,13 +2,13 @@
 
 > **Objetivo:** registrar apenas o que ainda falta implementar, validar, integrar, persistir ou tornar operacional no sistema atual.
 >
-> **Base da revisão:** estado atual do repositório no branch `feat/onda-avanco-maximo`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
+> **Base da revisão:** estado atual do repositório no branch `feat/people-discovery-completo`, incluindo código, migrations, rotas, persistência, UI e testes existentes.
 >
 > **Regra principal:** uma capacidade não deve ser chamada de concluída apenas porque existe classe, helper, registry, teste unitário ou retorno estruturado. Para ser **Operacional**, precisa existir no fluxo real, com persistência quando necessária, tenant scope, estados de erro explícitos, observabilidade e comportamento verificável.
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-09 · `1006 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-09 · `1030 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
 > `2e6f8a0c2d4e`.
 
@@ -32,16 +32,18 @@
   `provenance` em `prescoring_discards` (migration `2b4d6f8a0c2e`), upsert e
   endpoint de auditoria expondo o campo.
 - P1.36/P1.37: early stopping por orçamento no waterfall (`max_cost` +
-  `cost_spent` observável, status `budget_exceeded`) e verificação de contato
-  sem thread/rede oculta no resolver síncrono (I/O só no `ContactVerifier`).
+  `cost_spent` observável, status `budget_exceeded`), role fit por título,
+  provider de site oficial opt-in e verificação de contato sem thread/rede
+  oculta no resolver síncrono (I/O só no `ContactVerifier`).
 - P1.39: `NextBestActionService` distingue DIRECT/ROUTABLE/INSTITUTIONAL/
   UNREACHABLE e a ação de evento usa a roteabilidade do contato.
 
 ### Ainda falta
 
 - schema semântico e administração de `OfferProfile`;
-- decisor → outreach automático (waterfall multi-provider e role fit seguem
-  na P1.34/35; a ação recomendada já é persistida e exposta);
+- decisor → outreach automático (role fit por senioridade/departamento,
+  provider especializado, snapshots e timing seguem na P1.34/35; a ação
+  recomendada já é persistida e exposta);
 - provider real especializado de vagas e intent;
 - BI por vertical/consultor/canal/etapa/variante e Precision@K operacional;
 - entidade canônica e pipeline completo de decisores;
@@ -67,7 +69,7 @@
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança **e orçamento** (`max_cost` + `cost_spent`); `HunterPeopleProvider` opt-in por chave+quota; `ContactVerifier` async sem thread no resolver; waterfall multi-provider, role fit e cascade completa ainda faltam. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança, role fit por título e orçamento (`max_cost` + `cost_spent`); `HunterPeopleProvider` e `WebsitePeopleProvider` opt-in por quota; `ContactVerifier` async sem thread no resolver; provider especializado, role fit por senioridade/departamento e snapshots imutáveis ainda faltam. |
 | P1.39 Routable contact | ✅ Operacional | Classificação persistida, exposta na API e usada pelo `NextBestActionService` (DIRECT/ROUTABLE → CALL, INSTITUTIONAL → pesquisa humana, UNREACHABLE → re-enriquecer); cadência de e-mail continua condicionada a e-mail verificado. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
@@ -1575,7 +1577,10 @@ failed
 Entregue nesta branch: `needs_review` (identidade ambígua sem CPF) e `failed`
 (exceção de provider, retryable) explícitos em `ResolutionResult`, com testes
 em `tests/test_decision_maker_resolution.py`; waterfall com early stopping por
-confiança **e orçamento** (`max_cost`), dedup por chave forte e provenance.
+confiança, role fit por título **e orçamento** (`max_cost`), dedup por chave
+forte e provenance. O `WebsitePeopleProvider` coleta apenas JSON-LD `Person`
+de páginas públicas do domínio oficial, com quota opt-in e proteção contra
+redirecionamento externo/IP privado.
 
 Nunca transformar cargo configurado em pessoa encontrada.
 
@@ -1585,7 +1590,9 @@ Nunca transformar cargo configurado em pessoa encontrada.
 
 **Status:** 🟠 Parcial
 
-A estratégia existe, mas precisa garantir provider real de pessoas.
+A estratégia agora usa providers reais no registry: Hunter (chave + quota) e
+site oficial (quota opt-in, sem chave), ordenados por custo e com estados
+observáveis. Ainda falta um provider especializado de pessoas.
 
 Fluxo:
 
@@ -1623,11 +1630,11 @@ Cascata recomendada:
 8. verification
 ```
 
-Entregue nesta branch: early stopping por orçamento no waterfall —
+Entregue nesta branch: early stopping por orçamento e role fit no waterfall —
 `waterfall_search(max_cost=...)` bloqueia providers fora do orçamento restante
 (status `budget_exceeded`, nunca consultados), reporta `cost_spent` (cobrado
 apenas em chamadas com resposta) e o evidence `people_discovery` do lead
-persiste o custo gasto.
+persiste o custo gasto, tentativas, limites e contagem de matches de cargo.
 
 Early stopping deve usar:
 

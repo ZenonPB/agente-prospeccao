@@ -2,8 +2,8 @@
 
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-09 · branch
-> `feat/onda-avanco-maximo` ·
-> Alembic head `1a2b3c4d5e6f`.
+> `feat/people-discovery-completo` ·
+> Alembic head `2e6f8a0c2d4e`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
