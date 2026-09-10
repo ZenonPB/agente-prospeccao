@@ -104,7 +104,7 @@ def precision_at_k(ranked_leads: List[Dict[str, Any]], k: int = 10, positive_out
     }
 
 
-# --- #15 Golden Lead Patterns ---
+# --- #15 Golden Lead Patterns (P1.28: associados a OfferProfile) ---
 _GOLDEN_PATTERNS: Dict[str, Dict[str, Any]] = {
     "web_presence_no_site": {
         "description": "Lead web sem site próprio + alta demanda local",
@@ -118,19 +118,80 @@ _GOLDEN_PATTERNS: Dict[str, Dict[str, Any]] = {
         "estimated_lift": 0.30,
         "evidence_required": True,
     },
+    # P1.28 — patterns por oferta (condições = sinais booleanos observados).
+    "landing_page_no_site_social": {
+        "description": "Sem site próprio + Instagram ativo: público-alvo de landing page",
+        "profiles": ["landing_page"],
+        "conditions": {"NO_OWN_WEBSITE": True, "HAS_INSTAGRAM": True},
+        "estimated_lift": 0.35,
+        "evidence_required": True,
+    },
+    "mechanical_project_formalizada": {
+        "description": "Indústria formalizada (CNPJ + e-mail corporativo): base para projeto mecânico",
+        "profiles": ["mechanical_project"],
+        "conditions": {"HAS_CNPJ": True, "HAS_BUSINESS_EMAIL": True},
+        "estimated_lift": 0.25,
+        "evidence_required": True,
+    },
+    "technical_drawing_contato_direto": {
+        "description": "Contato direto (telefone + e-mail corporativo): desenho técnico vende para quem atende",
+        "profiles": ["technical_drawing"],
+        "archetypes": ["industrial"],
+        "conditions": {"HAS_PHONE": True, "HAS_BUSINESS_EMAIL": True},
+        "estimated_lift": 0.25,
+        "evidence_required": True,
+    },
+    "machine_manual_fabricante_contatavel": {
+        "description": "Fabricante formalizado e contatável: base para manual/NR-12",
+        "profiles": ["machine_manual"],
+        "archetypes": ["industrial"],
+        "conditions": {"HAS_CNPJ": True, "HAS_PHONE": True},
+        "estimated_lift": 0.25,
+        "evidence_required": True,
+    },
+    "trophies_evento_ativo": {
+        "description": "Promove eventos + Instagram ativo: janela aberta para troféus",
+        "profiles": ["trophies"],
+        "conditions": {"HOSTS_EVENTS": True, "HAS_INSTAGRAM": True},
+        "estimated_lift": 0.40,
+        "evidence_required": True,
+    },
 }
 
 
-def match_golden_patterns(profile_key: str, signals: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Matcher de padrões compostos de golden lead (#15)."""
+def match_golden_patterns(profile_key: str, signals: Dict[str, Any],
+                           archetype: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Matcher de padrões compostos de golden lead (#15, P1.28).
+
+    Um padrão aplica-se quando casa com a oferta (`profiles`), com o
+    arquétipo (`archetypes`), pelo prefixo legado (`<profile_key>_...`) ou
+    por prefixo `generic_`. Todas as condições precisam ser atendidas —
+    padrão parcial nunca é reportado como match.
+    """
     matches = []
     for pattern_id, pattern in _GOLDEN_PATTERNS.items():
-        # Só aplica padrões do perfil ou genéricos
-        if not pattern_id.startswith(profile_key) and not pattern_id.startswith("generic"):
+        profiles = pattern.get("profiles") or []
+        archetypes = pattern.get("archetypes") or []
+        scoped = bool(profiles or archetypes)
+        applies = (
+            profile_key in profiles
+            or (archetype is not None and archetype in archetypes)
+            or (not scoped and (pattern_id.startswith(profile_key)
+                                or pattern_id.startswith("generic")))
+        )
+        if not applies:
             continue
         conds = pattern.get("conditions", {})
         # Avaliação simples (evidência = condição verdadeira)
-        met = sum(1 for k, v in conds.items() if signals.get(k) == v or (isinstance(v, bool) and v and signals.get(k)))
+        met = sum(
+            1
+            for k, expected in conds.items()
+            if (
+                signals.get(k) is expected
+                if isinstance(expected, bool)
+                else signals.get(k) == expected
+            )
+        )
         if met == len(conds):
             matches.append({
                 "pattern_id": pattern_id,

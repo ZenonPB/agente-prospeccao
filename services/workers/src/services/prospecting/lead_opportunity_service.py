@@ -26,7 +26,7 @@ from services.prospecting.offer_matcher import LeadOpportunity
 
 logger = logging.getLogger(__name__)
 
-FORMULA_VERSION = "matcher-v1"
+FORMULA_VERSION = "matcher-v2"
 
 
 def build_snapshot_hash(
@@ -36,6 +36,7 @@ def build_snapshot_hash(
     evidence: list,
     signals_matched: list,
     signals_missing: list,
+    score_breakdown: Optional[dict] = None,
 ) -> str:
     """Hash canônico de uma avaliação para idempotência do histórico.
 
@@ -58,6 +59,7 @@ def build_snapshot_hash(
         "evidence": sorted(evidence or []),
         "signals_matched": sorted(signals_matched or []),
         "signals_missing": sorted(signals_missing or []),
+        "score_breakdown": score_breakdown or {},
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -150,6 +152,7 @@ class LeadOpportunityService:
             row.evidence = list(opp.evidence)
             row.signals_matched = list(opp.signals_matched)
             row.signals_missing = list(opp.signals_missing)
+            row.score_breakdown = dict(getattr(opp, "score_breakdown", {}) or {})
             row.updated_at = datetime.now(timezone.utc)
             db.flush()
             self._snapshot_row(db, row, reason=reason)
@@ -192,6 +195,7 @@ class LeadOpportunityService:
             row.offer_key, row.offer_version, row.score or 0,
             list(row.evidence or []), list(row.signals_matched or []),
             list(row.signals_missing or []),
+            dict(row.score_breakdown or {}),
         )
         profile_snapshot_hash = hashlib.sha256(
             json.dumps(
@@ -219,6 +223,7 @@ class LeadOpportunityService:
             signals_snapshot={
                 "matched": list(row.signals_matched or []),
                 "missing": list(row.signals_missing or []),
+                "score_breakdown": dict(row.score_breakdown or {}),
             },
             evidence_snapshot=list(row.evidence or []),
             snapshot_hash=snapshot_hash,

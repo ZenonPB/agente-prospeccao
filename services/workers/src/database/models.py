@@ -398,6 +398,7 @@ class OrgAuditEvent(enum.Enum):
     SALES_TARGET_UPSERTED = "SALES_TARGET_UPSERTED"
     SALES_TARGET_DELETED = "SALES_TARGET_DELETED"
     AB_COMPARISON_APPROVED = "AB_COMPARISON_APPROVED"
+    CONTROLLED_LEARNING_PROPOSED = "CONTROLLED_LEARNING_PROPOSED"
 
 
 class OrgAuditLog(Base):
@@ -1086,6 +1087,7 @@ class LeadOpportunityRow(Base):
     evidence = Column(JSONB, nullable=True)
     signals_matched = Column(JSONB, nullable=True)
     signals_missing = Column(JSONB, nullable=True)
+    score_breakdown = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -1238,6 +1240,40 @@ class CommercialComparison(Base):
     approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     approval_evidence = Column(Text, nullable=True)
+
+
+class ControlledLearningProposal(Base):
+    """Proposta de learning comercial aguardando publicação manual."""
+    __tablename__ = "controlled_learning_proposals"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "source_comparison_id",
+            name="uq_controlled_learning_org_comparison",
+        ),
+        Index(
+            "ix_controlled_learning_org_offer_status",
+            "organization_id", "offer_key", "status",
+        ),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_comparison_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("commercial_comparisons.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    offer_key = Column(String(64), nullable=False)
+    proposal_version = Column(Integer, nullable=False)
+    approved_version = Column(String(32), nullable=False)
+    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    status = Column(String(16), nullable=False, server_default="PROPOSED")
+    evidence_snapshot = Column(JSONB, nullable=False)
+    published_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class Conversion(Base):

@@ -3,7 +3,7 @@
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-10 · branch
 > `feat/people-provider-especializado-optin` ·
-> Alembic head `3a5b7c9d1e2f`.
+> Alembic head `3d8e0f2a3b4c`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -121,7 +121,8 @@ para métricas por organização, oferta, versão e período.
 /api/intelligence/comparisons` calcula e persiste uma comparação de versões com
 intervalos de Wilson e amostra mínima. Uma versão só pode ser aprovada por
 manager/owner quando a comparação for conclusiva; a aprovação grava actor,
-data, evidência e `AB_COMPARISON_APPROVED` em `org_audit_log`.
+data, evidência e `AB_COMPARISON_APPROVED` em `org_audit_log`, além de criar
+uma proposta `PROPOSED` de learning controlado, sem publicação automática.
 
 O módulo `services/prospecting/learning_metrics.py` continua contendo o
 comparador e registry in-memory usados pelo serviço da API e por testes; ele não
@@ -140,7 +141,7 @@ público. A autenticação/organização é aplicada por dependências FastAPI.
 | Campanhas | `/campaigns`, importação CSV/Sheets, brief, templates e learning de score |
 | Leads | `/leads`, detalhe, enrichment, mensagens, cadência, score feedback, oportunidades, conversão e pós-venda |
 | Pipeline | `POST /pipeline/start`, `GET /pipeline/jobs`, `/api/pipeline/ws/{job_id}` |
-| Intelligence | `GET /intelligence/events`, `/outcomes`, `/comparisons` e aprovação A/B |
+| Intelligence | `GET /intelligence/events`, `/outcomes`, `/comparisons`, aprovação A/B e propostas de learning controlado |
 | BI | `/metrics` e `/analytics/*`, incluindo funnel, consultores, deliverability, variantes e PDF |
 | Integrações | webhooks inbound/outbound, tracking, CRM paste e playbooks |
 

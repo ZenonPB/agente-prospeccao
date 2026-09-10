@@ -14,6 +14,7 @@ from database.models import (
     DecisionResolutionSnapshot,
     CommercialOutcomeRow,
     CommercialComparison,
+    ControlledLearningProposal,
     Campaign,
     PrescoringDiscard,
     Enrichment,

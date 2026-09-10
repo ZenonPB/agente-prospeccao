@@ -96,7 +96,8 @@ quando conhecido, `lead_opportunity_id`. `commercial_outcomes` alimenta
 Comparações A/B são calculadas por `CommercialComparisonService` usando o
 registry/comparador existente, intervalo de Wilson e amostra mínima. O
 resultado é persistido em `commercial_comparisons`; aprovação conclusiva por
-manager/owner registra versão, ator, evidência e auditoria. O módulo
+manager/owner registra versão, ator, evidência e auditoria e cria uma proposta
+`PROPOSED` de learning controlado sem publicar alterações. O módulo
 `learning_metrics.py` ainda é in-memory por desenho do adaptador, mas o caminho
 operacional lê e grava no PostgreSQL.
 

@@ -50,7 +50,29 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 
 
 def _opportunity_to_dict(opportunity: LeadOpportunityRow) -> dict:
-    """Serializa uma oportunidade persistida para o contrato da API."""
+    """Serializa uma oportunidade persistida para o contrato da API.
+
+    A `narrative` (P1.10 — fatos/hipótese/validação) é derivada na leitura,
+    sem coluna nova: nunca reescreve o histórico persistido.
+    """
+    narrative: dict = {}
+    try:
+        from services.prospecting.opportunity_narrative import build_opportunity_narrative
+        from services.prospecting.default_profiles import get_default_registry
+    except ImportError:
+        logger.warning("Narrativa de oportunidade indisponível para %s", opportunity.id)
+    else:
+        profile = get_default_registry().get(opportunity.offer_key)
+        narrative = build_opportunity_narrative(
+            {
+                "offer_key": opportunity.offer_key,
+                "score": opportunity.score,
+                "signals_matched": opportunity.signals_matched or [],
+                "signals_missing": opportunity.signals_missing or [],
+                "evidence": opportunity.evidence or [],
+            },
+            profile,
+        )
     return {
         "id": str(opportunity.id),
         "lead_id": str(opportunity.lead_id),
@@ -62,6 +84,8 @@ def _opportunity_to_dict(opportunity: LeadOpportunityRow) -> dict:
         "evidence": opportunity.evidence or [],
         "signals_matched": opportunity.signals_matched or [],
         "signals_missing": opportunity.signals_missing or [],
+        "score_breakdown": opportunity.score_breakdown or {},
+        "narrative": narrative,
         "created_at": opportunity.created_at.isoformat() if opportunity.created_at else None,
         "updated_at": opportunity.updated_at.isoformat() if opportunity.updated_at else None,
     }

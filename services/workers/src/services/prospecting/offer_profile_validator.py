@@ -276,6 +276,9 @@ def _signal_refs(get) -> List[str]:
             values = signals.get(section)
             if isinstance(values, list):
                 refs.extend(s for s in values if isinstance(s, str))
+        weights = signals.get("weights")
+        if isinstance(weights, dict):
+            refs.extend(s for s in weights if isinstance(s, str))
     outreach = get("outreach") or {}
     if isinstance(outreach, dict):
         evidence = outreach.get("evidence_requirements")

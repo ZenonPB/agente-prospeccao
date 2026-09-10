@@ -131,7 +131,10 @@ def build_default_registry() -> OfferProfileRegistry:
             },
         },
         signals={
-            "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL"],
+            "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+            # P1.7: formalidade (CNPJ) pesa mais que contato direto —
+            # capacidade industrial instalada importa antes do telefone.
+            "weights": {"HAS_CNPJ": 20, "HAS_BUSINESS_EMAIL": 15, "HAS_PHONE": 5},
             "negative": ["RETAIL_FOCUSED"],
             "disqualifiers": ["SERVICE_ONLY"],
         },
@@ -186,6 +189,13 @@ def build_default_registry() -> OfferProfileRegistry:
             "weights": {"HAS_PHONE": 15, "HAS_CNPJ": 20},
             "threshold": 35, "top_k": 20,
         },
+        signals={
+            "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+            # P1.7: contato direto pesa mais que formalidade — desenho
+            # técnico vende para quem atende e manda referência por e-mail.
+            "weights": {"HAS_CNPJ": 5, "HAS_BUSINESS_EMAIL": 15, "HAS_PHONE": 10},
+            "negative": ["RETAIL_FOCUSED"],
+        },
         decision_makers={
             "roles": ["designer", "engineering_manager", "procurement"],
             "buyer_types": ["TECHNICAL_BUYER"],
@@ -219,6 +229,13 @@ def build_default_registry() -> OfferProfileRegistry:
         decision_makers={
             "roles": ["plant_engineer", "safety_manager", "operations_director"],
             "buyer_types": ["TECHNICAL_BUYER", "ECONOMIC_BUYER"],
+        },
+        signals={
+            "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+            # P1.7: telefone pesa mais — manual/NR-12 exige visita técnica
+            # e levantamento presencial antes da proposta.
+            "weights": {"HAS_CNPJ": 10, "HAS_BUSINESS_EMAIL": 5, "HAS_PHONE": 15},
+            "negative": ["RETAIL_FOCUSED"],
         },
         qualification={
             "questions": [
