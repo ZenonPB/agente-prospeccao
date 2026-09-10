@@ -510,10 +510,12 @@ class ContactEnrichmentService:
 
     @classmethod
     async def for_organization(cls, db, organization_id: Any) -> "ContactEnrichmentService":
-        """Cria o enriquecedor com Hunter apenas quando há quota explícita."""
+        """Cria o enriquecedor com providers opt-in por quota explícita."""
+        from config.settings import settings
         from services.quota_service import QuotaService
         from services.secret_service import SecretService
         from services.prospecting.hunter_people_provider import HunterPeopleProvider
+        from services.prospecting.http_people_provider import HttpPeopleProvider
         from services.prospecting.people_provider_registry import PeopleProviderRegistry
         from services.prospecting.website_people_provider import WebsitePeopleProvider
 
@@ -521,8 +523,10 @@ class ContactEnrichmentService:
         api_quota = organization.api_quota or {} if organization else {}
         explicit_limit = api_quota.get("HUNTER_API_KEY")
         website_limit = api_quota.get("WEBSITE_PEOPLE_PROVIDER")
+        http_limit = api_quota.get("PEOPLE_DISCOVERY_HTTP")
         limit = int(explicit_limit or 0)
         website_limit_value = int(website_limit or 0)
+        http_limit_value = int(http_limit or 0)
         key = await SecretService.resolve_key(db, str(organization_id), "HUNTER_API_KEY")
         # A chave global sozinha não habilita consumo pago: a organização
         # precisa declarar HUNTER_API_KEY em api_quota para fazer opt-in.
@@ -546,6 +550,22 @@ class ContactEnrichmentService:
                 ),
                 consume=lambda: QuotaService.consume(
                     db, organization_id, "WEBSITE_PEOPLE_PROVIDER",
+                ),
+            ))
+        # Fonte especializada via endpoint próprio: exige endpoint global
+        # configurado E quota explícita da org (opt-in duplo, fail-closed).
+        http_endpoint = (settings.PEOPLE_DISCOVERY_URL or "").strip()
+        http_enabled = bool(http_endpoint) and http_limit is not None and http_limit_value > 0
+        if http_enabled:
+            registry.register(HttpPeopleProvider(
+                http_endpoint,
+                token=settings.PEOPLE_DISCOVERY_TOKEN or None,
+                max_retries=settings.PEOPLE_DISCOVERY_MAX_RETRIES,
+                can_consume=lambda: QuotaService.can_consume(
+                    db, organization_id, "PEOPLE_DISCOVERY_HTTP",
+                ),
+                consume=lambda: QuotaService.consume(
+                    db, organization_id, "PEOPLE_DISCOVERY_HTTP",
                 ),
             ))
         return cls(
