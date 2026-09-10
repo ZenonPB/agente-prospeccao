@@ -602,6 +602,8 @@ class TestPeopleDiscoveryProfileConfig:
             "max_cost": 4.0,
             "max_steps": 2,
             "min_role_fit": 75.0,
+            "min_identity_confidence": None,
+            "required_buyer_role": [],
             "seniority": ["senior", "executive"],
             "department": ["engineering"],
         }
@@ -617,6 +619,8 @@ class TestPeopleDiscoveryProfileConfig:
             "max_cost": None,
             "max_steps": None,
             "min_role_fit": None,
+            "min_identity_confidence": None,
+            "required_buyer_role": [],
             "seniority": [],
             "department": [],
         }
@@ -628,6 +632,8 @@ class TestPeopleDiscoveryProfileConfig:
             "max_cost": None,
             "max_steps": None,
             "min_role_fit": None,
+            "min_identity_confidence": None,
+            "required_buyer_role": [],
             "seniority": [],
             "department": [],
         }
@@ -652,6 +658,8 @@ class TestPeopleDiscoveryProfileConfig:
             "max_cost": 2.0,
             "max_steps": 2,
             "min_role_fit": 70.0,
+            "min_identity_confidence": None,
+            "required_buyer_role": ["ECONOMIC_BUYER", "CHAMPION"],
             "seniority": [],
             "department": [],
         }

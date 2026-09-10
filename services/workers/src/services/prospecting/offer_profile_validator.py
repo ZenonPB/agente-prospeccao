@@ -215,6 +215,31 @@ def _validate_enrichment(enrichment: Any) -> List[str]:
                 problems.append(
                     f"enrichment.people_discovery.min_role_fit fora de "
                     f"[0,100]: {min_role_fit!r}")
+            min_identity = people.get("min_identity_confidence")
+            if min_identity is not None and (
+                    not isinstance(min_identity, (int, float))
+                    or not 0 <= min_identity <= 100):
+                problems.append(
+                    f"enrichment.people_discovery.min_identity_confidence fora de "
+                    f"[0,100]: {min_identity!r}")
+            required_buyer = people.get("required_buyer_role")
+            if required_buyer is not None:
+                candidates = (
+                    [required_buyer] if isinstance(required_buyer, str)
+                    else required_buyer if isinstance(required_buyer, list)
+                    else None
+                )
+                if candidates is None or not all(
+                        isinstance(item, str) and item.strip() for item in candidates):
+                    problems.append(
+                        "enrichment.people_discovery.required_buyer_role deve ser "
+                        f"string ou lista de strings: {required_buyer!r}")
+                else:
+                    for item in candidates:
+                        if item.strip().upper() not in KNOWN_BUYER_TYPES:
+                            problems.append(
+                                "enrichment.people_discovery.required_buyer_role "
+                                f"desconhecido: {item!r}")
     return problems
 
 

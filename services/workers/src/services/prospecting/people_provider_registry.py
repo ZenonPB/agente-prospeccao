@@ -10,6 +10,11 @@ import logging
 import re
 import unicodedata
 
+from services.prospecting.buyer_persona import (
+    normalize_buyer_roles,
+    resolve_buyer_role,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +80,8 @@ class PeopleProviderRegistry:
         max_steps: Optional[int] = None,
         max_cost: Optional[float] = None,
         min_role_fit: Optional[float] = None,
+        min_identity_confidence: Optional[float] = None,
+        required_buyer_role: Optional[Any] = None,
         seniority: Optional[Sequence[str]] = None,
         department: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
@@ -92,6 +99,13 @@ class PeopleProviderRegistry:
             min_role_fit: Pontuação mínima de aderência ao cargo-alvo para
                 early stopping. Quando ausente, o comportamento legado é
                 mantido e o fit é apenas anotado nos candidatos.
+            min_identity_confidence: Confiança mínima de identidade para
+                early stopping. Quando ausente, o comportamento legado é
+                mantido (só contato/role param a cascata). Providers que
+                não informam ``identity_confidence`` contam como zero.
+            required_buyer_role: Papel de compra exigido para early
+                stopping (ex.: ``"TECHNICAL_BUYER"`` ou lista). Quando
+                ausente, o buyer role é só anotado nos candidatos.
             seniority: Senioridades aceitas para early stopping
                 (ex.: ``["senior"]``). Quando ausente, não filtra.
             department: Departamentos aceitos para early stopping
@@ -108,11 +122,12 @@ class PeopleProviderRegistry:
         cost_spent = 0.0
         seniorities = _normalize_filter_values(seniority)
         departments = _normalize_filter_values(department)
+        buyer_roles = normalize_buyer_roles(required_buyer_role)
         providers = self._providers[: max_steps if max_steps is not None else None]
         if not providers:
             return self._result(
                 people, attempts, "disabled", False, cost_spent,
-                seniorities, departments,
+                seniorities, departments, buyer_roles,
             )
 
         for provider in providers:
@@ -146,7 +161,10 @@ class PeopleProviderRegistry:
                 continue
 
             normalized = [
-                _with_role_filters(_with_role_fit(item, titles), seniorities, departments)
+                _with_buyer_role(
+                    _with_role_filters(_with_role_fit(item, titles), seniorities, departments),
+                    buyer_roles,
+                )
                 for item in raw_people
                 if isinstance(item, dict)
             ]
@@ -160,10 +178,12 @@ class PeopleProviderRegistry:
                 min_role_fit,
                 seniorities,
                 departments,
+                min_identity_confidence,
+                buyer_roles,
             ):
                 return self._result(
                     people, attempts, "success", True, cost_spent,
-                    seniorities, departments,
+                    seniorities, departments, buyer_roles,
                 )
 
         status = _aggregate_status(people, attempts)
@@ -176,9 +196,15 @@ class PeopleProviderRegistry:
             )
         ):
             status = "role_not_matched"
+        if (
+            buyer_roles
+            and people
+            and not any(_matches_buyer_role(person, buyer_roles) for person in people)
+        ):
+            status = "buyer_role_not_matched"
         return self._result(
             people, attempts, status, False, cost_spent,
-            seniorities, departments,
+            seniorities, departments, buyer_roles,
         )
 
     @staticmethod
@@ -190,6 +216,7 @@ class PeopleProviderRegistry:
         cost_spent: float = 0.0,
         seniorities: Sequence[str] = (),
         departments: Sequence[str] = (),
+        buyer_roles: Sequence[str] = (),
     ) -> Dict[str, Any]:
         """Monta um payload consistente para todos os estados do waterfall."""
         return {
@@ -223,6 +250,18 @@ class PeopleProviderRegistry:
                     if person.get("role_filter_status") == "not_matched"
                 ),
             },
+            "buyer_role": {
+                "required": list(buyer_roles),
+                "requested": bool(buyer_roles),
+                "matched": sum(
+                    1 for person in people
+                    if person.get("buyer_role_status") == "matched"
+                ),
+                "not_matched": sum(
+                    1 for person in people
+                    if person.get("buyer_role_status") == "not_matched"
+                ),
+            },
         }
 
 
@@ -233,13 +272,20 @@ def _has_sufficient_contact(
     min_role_fit: Optional[float] = None,
     seniorities: Sequence[str] = (),
     departments: Sequence[str] = (),
+    min_identity_confidence: Optional[float] = None,
+    buyer_roles: Sequence[str] = (),
 ) -> bool:
     """Verifica se ao menos uma pessoa atende ao critério de parada."""
     for person in people:
         confidence = _number(person.get("contact_confidence", person.get("confidence", 0)))
         verified = bool(person.get("email_verified", person.get("verified", False)))
         role_ok = _matches_role_requirements(person, min_role_fit, seniorities, departments)
-        if confidence >= minimum and (not require_verified_email or verified) and role_ok:
+        identity_ok = (
+            min_identity_confidence is None
+            or _number(person.get("identity_confidence", 0)) >= min_identity_confidence
+        )
+        buyer_ok = _matches_buyer_role(person, buyer_roles)
+        if confidence >= minimum and (not require_verified_email or verified) and role_ok and identity_ok and buyer_ok:
             return True
     return False
 
@@ -258,6 +304,29 @@ def _matches_role_requirements(
     if departments and str(person.get("role_department") or "").lower() not in departments:
         return False
     return True
+
+
+def _matches_buyer_role(person: Dict[str, Any], buyer_roles: Sequence[str]) -> bool:
+    """Confirma buyer role exigido; sem exigência, qualquer candidato passa."""
+    if not buyer_roles:
+        return True
+    return str(person.get("buyer_role") or "").upper() in {str(r).upper() for r in buyer_roles}
+
+
+def _with_buyer_role(person: Dict[str, Any], buyer_roles: Sequence[str]) -> Dict[str, Any]:
+    """Anota buyer role (explícito > inferido) sem remover o candidato."""
+    result = dict(person)
+    resolved = resolve_buyer_role(person)
+    result["buyer_role"] = resolved["buyer_role"]
+    result["buyer_role_source"] = resolved["buyer_role_source"]
+    result["buyer_role_status"] = (
+        "not_requested"
+        if not buyer_roles
+        else "matched"
+        if _matches_buyer_role(result, buyer_roles)
+        else "not_matched"
+    )
+    return result
 
 
 def _with_role_fit(person: Dict[str, Any], titles: Sequence[str]) -> Dict[str, Any]:
@@ -431,6 +500,10 @@ def _combine(existing: Dict[str, Any], incoming: Dict[str, Any]) -> Dict[str, An
     result["confidence"] = max(
         _number(existing.get("confidence", existing.get("contact_confidence", 0))),
         _number(incoming.get("confidence", incoming.get("contact_confidence", 0))),
+    )
+    result["identity_confidence"] = max(
+        _number(existing.get("identity_confidence", 0)),
+        _number(incoming.get("identity_confidence", 0)),
     )
     existing_fit = _number(existing.get("role_fit_score", 0))
     incoming_fit = _number(incoming.get("role_fit_score", 0))

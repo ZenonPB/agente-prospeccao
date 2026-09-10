@@ -458,15 +458,30 @@ class ContactEnrichmentService:
 
         max_cost = _bounded_float("max_cost", 0, 1000)
         min_role_fit = _bounded_float("min_role_fit", 0, 100)
+        min_identity_confidence = _bounded_float("min_identity_confidence", 0, 100)
         raw_steps = config.get("max_steps")
         try:
             max_steps = int(raw_steps)
         except (TypeError, ValueError):
             max_steps = 0
+        try:
+            from services.prospecting.buyer_persona import (
+                normalize_buyer_roles,
+                required_buyer_role_for_profile,
+            )
+            required_buyer_role = normalize_buyer_roles(config.get("required_buyer_role"))
+            if not required_buyer_role:
+                # Fallback honesto: buyer_types do OfferProfile viram o gate
+                # exigido quando o people_discovery não declara um próprio.
+                required_buyer_role = required_buyer_role_for_profile(profile)
+        except ImportError:  # pragma: no cover — módulo sempre presente
+            required_buyer_role = []
         return {
             "max_cost": max_cost,
             "max_steps": max_steps if 1 <= max_steps <= 20 else None,
             "min_role_fit": min_role_fit,
+            "min_identity_confidence": min_identity_confidence,
+            "required_buyer_role": required_buyer_role,
             "seniority": _string_list("seniority"),
             "department": _string_list("department"),
         }
@@ -654,6 +669,8 @@ class ContactEnrichmentService:
                         max_steps=discovery_config["max_steps"] or 1,
                         max_cost=discovery_config["max_cost"],
                         min_role_fit=discovery_config["min_role_fit"],
+                        min_identity_confidence=discovery_config.get("min_identity_confidence"),
+                        required_buyer_role=discovery_config.get("required_buyer_role"),
                         seniority=discovery_config.get("seniority"),
                         department=discovery_config.get("department"),
                     )
@@ -797,6 +814,7 @@ class ContactEnrichmentService:
                     "attempts": waterfall.get("attempts", []),
                     "cost_spent": waterfall.get("cost_spent", 0),
                     "role_fit": waterfall.get("role_fit", {}),
+                    "buyer_role": waterfall.get("buyer_role", {}),
                     "limits": discovery_config,
                 }
             lead.evidence_score = existing_evidence
@@ -883,6 +901,10 @@ class ContactEnrichmentService:
                     "role_seniority": person.get("role_seniority", "unknown"),
                     "role_department": person.get("role_department", "unknown"),
                     "role_filter_status": person.get("role_filter_status", "not_requested"),
+                    "buyer_role": person.get("buyer_role", "UNKNOWN"),
+                    "buyer_role_status": person.get("buyer_role_status", "not_requested"),
+                    "buyer_role_source": person.get("buyer_role_source", "unknown"),
+                    "identity_confidence": person.get("identity_confidence", 0),
                 },
             )
             db.add(contact)

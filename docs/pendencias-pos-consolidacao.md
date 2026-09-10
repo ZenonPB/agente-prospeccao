@@ -32,8 +32,11 @@
   endpoint de auditoria expondo o campo.
 - P1.36/P1.37: early stopping por orçamento no waterfall (`max_cost` +
   `cost_spent` observável, status `budget_exceeded`), role fit por título,
-  provider de site oficial opt-in e verificação de contato sem thread/rede
-  oculta no resolver síncrono (I/O só no `ContactVerifier`).
+  senioridade e departamento, gates de `min_identity_confidence` e
+  `required_buyer_role` (fallback para `decision_makers.buyer_types`),
+  entidade `BuyerPersona` com 8 personas, provider de site oficial opt-in e
+  verificação de contato sem thread/rede oculta no resolver síncrono (I/O só
+  no `ContactVerifier`).
 - P1.39: `NextBestActionService` distingue DIRECT/ROUTABLE/INSTITUTIONAL/
   UNREACHABLE e a ação de evento usa a roteabilidade do contato.
 
@@ -68,7 +71,7 @@
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança, role fit por título/senioridade/departamento e orçamento (`max_cost` + `cost_spent`); `HunterPeopleProvider` e `WebsitePeopleProvider` opt-in por quota; `ContactVerifier` async sem thread; snapshots imutáveis persistidos; falta provider especializado. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança de contato e identidade, role fit por título/senioridade/departamento, gate de buyer role (explícito > inferido, fallback para `buyer_types` do perfil) e orçamento (`max_cost` + `cost_spent`); entidade `BuyerPersona` com 8 personas; `HunterPeopleProvider` e `WebsitePeopleProvider` opt-in por quota; `ContactVerifier` async sem thread; snapshots imutáveis persistidos; falta provider especializado. |
 | P1.39 Routable contact | ✅ Operacional | Classificação persistida, exposta na API e usada pelo `NextBestActionService` (DIRECT/ROUTABLE → CALL, INSTITUTIONAL → pesquisa humana, UNREACHABLE → re-enriquecer); cadência de e-mail continua condicionada a e-mail verificado. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
@@ -1600,7 +1603,7 @@ company name + city/state
 
 ## P1.36 — Contact cascade realmente orientada a custo/confiança
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional
 
 Cascata recomendada:
 
@@ -1615,13 +1618,7 @@ Cascata recomendada:
 8. verification
 ```
 
-Entregue nesta branch: early stopping por orçamento e role fit no waterfall —
-`waterfall_search(max_cost=...)` bloqueia providers fora do orçamento restante
-(status `budget_exceeded`, nunca consultados), reporta `cost_spent` (cobrado
-apenas em chamadas com resposta) e o evidence `people_discovery` do lead
-persiste o custo gasto, tentativas, limites e contagem de matches de cargo.
-
-Early stopping deve usar:
+Early stopping usa todos os critérios previstos:
 
 ```text
 min_identity_confidence
@@ -1631,9 +1628,21 @@ max_cost
 max_steps
 ```
 
-`required_buyer_role` e `min_identity_confidence` no nível do waterfall
-continuam pendentes (hoje o corte usa confiança de contato e e-mail
-verificado).
+`waterfall_search` aceita `max_cost` (bloqueio `budget_exceeded`, `cost_spent`
+cobrado só com resposta), `min_role_fit` + senioridade/departamento,
+`min_identity_confidence` (providers sem identidade contam como zero, sem
+gate por padrão) e `required_buyer_role` (buyer role explícito do provider
+prevalece; sem ele, inferência determinística; `UNKNOWN` nunca finge match).
+Sem match de buyer role com gente encontrada, o status é
+`buyer_role_not_matched` (distinto de `role_not_matched`). O
+`discovery_limits` lê os gates do `people_discovery` e usa
+`decision_makers.buyer_types` como fallback; gate explícito prevalece. A
+entidade `BuyerPersona` (8 personas iniciais com title patterns, senioridade,
+departamento, buyer type, prioridade e canais) alimenta o gate e o match por
+cargo. Evidência `people_discovery` e `raw_data` do contato persistem buyer
+role, fonte, status e identidade. Cobertura:
+`tests/test_waterfall_buyer_gates.py` e
+`tests/test_waterfall_discovery_config.py`.
 
 ---
 

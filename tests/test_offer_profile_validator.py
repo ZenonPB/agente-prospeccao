@@ -75,3 +75,35 @@ def test_perfil_invalido_reporta_todos_os_problemas_estruturais():
     assert "channels" in texto
     assert "people_discovery" in texto
     assert "signal" in texto
+
+
+def test_gates_de_buyer_invalidos_sao_reportados():
+    bad = OfferProfile(
+        key="buyer_gates",
+        archetype="industrial",
+        vertical="mechanical_engineering",
+        version="1.0",
+        enrichment={"people_discovery": {
+            "min_identity_confidence": 101,
+            "required_buyer_role": ["DONO_DE_TUDO"],
+        }},
+    )
+    problems = validate_profile(bad)
+    texto = " ".join(problems)
+    assert "min_identity_confidence" in texto
+    assert "required_buyer_role" in texto
+
+
+def test_gates_de_buyer_validos_passam():
+    ok = OfferProfile(
+        key="buyer_gates_ok",
+        archetype="industrial",
+        vertical="mechanical_engineering",
+        version="1.0",
+        decision_makers={"roles": ["plant_engineer"]},
+        enrichment={"people_discovery": {
+            "min_identity_confidence": 60,
+            "required_buyer_role": "TECHNICAL_BUYER",
+        }},
+    )
+    assert _erros(validate_profile(ok)) == []

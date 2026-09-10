@@ -20,7 +20,7 @@ O projeto já possui arquitetura multi-tenant, OfferProfile, OfferMatcher,
 pre-scoring, discovery CNAE/Places/PNCP, enrichment, scoring, Event Discovery,
 cadência, outcomes e BI básico. As ondas de confiabilidade, identidade
 cross-provider, pessoas/decisores e auditoria de banco avançaram, mas ainda
-faltam provider especializado, BuyerPersona completa, buscas salvas, workflows,
+faltam provider especializado, buscas salvas, workflows,
 integrações CRM, Data Health, re-scoring histórico de oportunidades e operação
 contínua.
 
@@ -31,7 +31,7 @@ contínua.
 | Onda 0 — E2E, migration QA e observabilidade | ✅ Encerrada | Merges GitHub `#139`, `#143` e `#144`, `tests/e2e_outreach_cycle.py`, trace por `correlation_id`, tokens/custo Groq. |
 | Identidade cross-provider de empresas | ✅ Encerrada | `company_aliases`; commits `c69fdb1`, `5604641`, `471f2a2`, `2653493`; pipeline Places/CNAE/PNCP. |
 | Person canônica e estados de resolução | ✅ Entregue no escopo atual | `persons`, `needs_review/failed`, `CompanyPersonService`; commit `4d4b176`; waterfall externo ainda parcial. |
-| People Discovery opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider` + `WebsitePeopleProvider`, quota por organização, role fit por título/senioridade/departamento, snapshots e API; provider especializado adicional ainda pendente. |
+| People Discovery opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider` + `WebsitePeopleProvider`, quota por organização, role fit por título/senioridade/departamento, gates de identidade e buyer role (`BuyerPersona` com 8 personas, fallback para `buyer_types`), snapshots e API; provider especializado adicional ainda pendente. |
 | Ação recomendada e roteabilidade | ✅ Encerrada | `NextBestActionService`, API, `NextActionCard`, integração de eventos; commits `560340c`, `d2da865`, `2de3014`, `cabe188`. |
 | Auditoria de schema, performance e segurança do banco | ✅ Encerrada | Reset após backup, migrations `2c4e6f8a0d3e`, `2d5e7f9b1c3f`, `2e6f8a0c2d4e`, `2f7a9b1c3d5e`; commit `d22681f`. |
 
@@ -62,7 +62,7 @@ contínua.
 | P1.18 | 🟠 Parcial | Ação recomendada, persistência da ação de evento e UI entregues; descoberta multi-provider, timing e outreach completo ainda pendentes. |
 | P1.22–P1.24 | ✅ Encerradas | Atribuição de oferta/versão/oportunidade em conversões e outcomes. |
 | P1.30 | ✅ Encerrada | Comparação A/B com Wilson, amostra mínima, aprovação humana e auditoria. |
-| P1.36 | 🟠 Parcial | Orçamento (`max_cost`/`cost_spent`) encerrado; `required_buyer_role` e `min_identity_confidence` no waterfall ainda pendentes. |
+| P1.36 | ✅ Encerrada | Gates de cascata completos: `max_cost`/`cost_spent`, `min_role_fit` + senioridade/departamento, `min_identity_confidence` e `required_buyer_role` (explícito > inferido, fallback para `buyer_types`), entidade `BuyerPersona` com 8 personas, status `buyer_role_not_matched` distinto. |
 | P1.37 | ✅ Encerrada | Verificação assíncrona sem thread/rede oculta no resolver síncrono. |
 | P1.39 | ✅ Encerrada | Roteabilidade integrada à próxima ação, à ação de evento e à UI. |
 | Auditoria do banco (onda 3) | ✅ Encerrada | Tabela ausente, índices, integridade de versões, proteção de secrets em produção e verificador fortalecidos. |
@@ -300,9 +300,9 @@ Criar `POST /api/search/people` com:
 - status do email/telefone;
 - LinkedIn.
 
-## 4.4 BuyerPersona
+## 4.4 BuyerPersona — ✅ núcleo operacional
 
-Criar entidade/config:
+Entidade/config (`services/prospecting/buyer_persona.py`):
 - title patterns;
 - seniority;
 - department;
@@ -312,6 +312,12 @@ Criar entidade/config:
 
 Personas iniciais:
 Founder, Marketing Manager, Operations Director, Engineering Manager, Maintenance Manager, Safety Manager, Event Director, Procurement.
+
+A entidade alimenta o gate `required_buyer_role` do waterfall e o match por
+cargo; `required_buyer_role_for_profile` deriva o gate de
+`decision_makers.buyer_types`. Persistência dedicada em tabela própria segue
+fora do escopo até haver caso de uso (config versionada em código, validada
+em P1.4).
 
 ## 4.5 Canonical Person / Employment / ContactPoint — 🟠 parcial
 
@@ -330,11 +336,15 @@ mínimo até haver caso de uso comprovado.
 `OfferProfile roles → domain → providers → identity merge → role fit → contacts → verification`.
 
 **Status atual:** 🟠 parcial. `PeopleProviderRegistry` implementa o waterfall
-assíncrono com deduplicação, early stopping por confiança e orçamento (`max_cost`),
-telemetria de tentativas e `cost_spent`. `HunterPeopleProvider` implementa o primeiro
-adapter real via Domain Search oficial, com retry, quota e estados observáveis;
-ele só é ativado por chave e quota explícitas da organização. Ainda faltam
-providers complementares e role fit completo por OfferProfile.
+assíncrono com deduplicação, early stopping por confiança de contato e
+identidade (`min_identity_confidence`), gate de buyer role
+(`required_buyer_role`, explícito > inferido, fallback para
+`decision_makers.buyer_types`), role fit por título/senioridade/departamento,
+orçamento (`max_cost`), telemetria de tentativas e `cost_spent`. A entidade
+`BuyerPersona` (8 personas iniciais) alimenta gate e match por cargo.
+`HunterPeopleProvider` implementa o primeiro adapter real via Domain Search
+oficial, com retry, quota e estados observáveis; ele só é ativado por chave e
+quota explícitas da organização. Ainda falta provider especializado adicional.
 
 ## 4.7 ActionableContactScore
 
@@ -755,7 +765,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 - [ ] advanced company search
 - [🟠] people search por domínio via providers opt-in (role fit avançado operacional; busca federada completa e provider especializado pendentes)
 - [ ] 50+ filtros realmente úteis
-- [🟠] buyer roles em OfferProfile/campanhas legadas (senioridade/departamento operacionais; entidade BuyerPersona e `required_buyer_role` pendentes)
+- [✅] buyer roles em OfferProfile/campanhas legadas (senioridade/departamento, entidade `BuyerPersona` e `required_buyer_role` com fallback para `buyer_types` operacionais)
 - [ ] natural-language search
 - [ ] saved searches
 - [ ] alerts
@@ -806,7 +816,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 ## Intelligence
 - [✅] ICP/scoring contextual
 - [🟠] intent (signals e estrutura; provider real de vagas pendente)
-- [🟠] buyer roles (senioridade/departamento operacionais; BuyerPersona completa pendente)
+- [✅] buyer roles (`BuyerPersona` com 8 personas, gate `required_buyer_role` e match por cargo operacionais; provider especializado pendente)
 - [🟠] decision maker (Person canônica, Hunter/site opt-in, snapshots e provenance; provider especializado e pipeline completo pendentes)
 - [✅] opportunity vectors/LeadOpportunity
 - [✅] next best action determinística + UI
@@ -840,7 +850,6 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 
 ## Próximo marco — People Discovery federado completo
 - provider especializado adicional, com opt-in e quota;
-- entidade BuyerPersona e `required_buyer_role` configuráveis;
 - integração da resolução com o pipeline completo de decisores e outreach
   humano assistido;
 - BI por vertical, consultor, canal, campanha e controlled learning.
@@ -888,7 +897,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 | PR 02 — observabilidade (trace, tokens, custo) | ✅ Encerrado | Merge `#143`; `provider_execution_metrics` e trace org-scoped. |
 | PR 03 — identidade cross-provider de empresas | ✅ Encerrado | Merge `#142`; `company_aliases` integrado a Places/CNAE/PNCP. |
 | PR 04 — Person canônica/estados de resolução | ✅ Entregue no escopo atual | Commit `4d4b176`; `persons`, `needs_review`, `failed`, `ContactVerifier`. |
-| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Hunter/site opt-in, orçamento, role fit por título/senioridade/departamento, provenance e snapshots de resolução; falta provider especializado e BuyerPersona completa. |
+| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Hunter/site opt-in, orçamento, role fit por título/senioridade/departamento, gates de identidade e buyer role, `BuyerPersona` com 8 personas, provenance e snapshots de resolução; falta provider especializado. |
 | PR 09 — outcome → LeadOpportunity | ✅ Encerrado | Atribuição persistida em outcomes/conversões. |
 | PR 15 — Event Provider | ✅ Encerrado | Merge `#140`; provider HTTP opt-in com retry e estados. |
 | PR 16 — evento → organizador → Lead | ✅ Encerrado | Deduplicação, Company/Lead e provenance. |
@@ -907,7 +916,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 
 | Itens | Estado atual | Próxima entrega esperada |
 |---|---|---|
-| PR 06–08 | ⬜ Planejados | Busca avançada de pessoas/empresas, BuyerPersona e Search Builder. |
+| PR 06–08 | 🟠 Parciais | `BuyerPersona` com 8 personas e match por cargo entregues; busca avançada de pessoas/empresas e Search Builder continuam planejados. |
 | PR 10 | ✅ Entregue no escopo atual | Snapshots append-only de oportunidade, vínculo de venda ao snapshot e política explícita de re-scoring (migração `3a5b7c9d1e2f`). |
 | PR 11–14 | 🟠 Estruturais/parciais | Provider de vagas, sinais semânticos industriais, technographics e Intent v2. |
 | PR 18 | ⬜ Planejado | EventSeries e rebuy/recorrência de eventos. |
