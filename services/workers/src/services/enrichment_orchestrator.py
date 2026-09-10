@@ -117,6 +117,7 @@ async def process_single_lead(
     scoring_template: Optional[Dict[str, Any]] = None,
     allow_business_fallback: bool = False,
     learned_instructions: Optional[List[str]] = None,
+    explicit_reanalyze: bool = False,
 ) -> Tuple[Optional[Enrichment], Optional[Dict[str, Any]]]:
     """Processa um lead — enriquecimento + scoring contextual explicável.
 
@@ -268,6 +269,7 @@ async def process_single_lead(
             db,
             target_service=campaign_target_service,
             target_segment=campaign_target_segment,
+            explicit_reanalyze=explicit_reanalyze,
         )
 
     _persist_scoring(lead, scoring_data, enrichment, qualification_threshold)
@@ -297,6 +299,7 @@ async def _run_phase3_post_scoring(
     db: "Session",
     target_service: str = "",
     target_segment: str = "",
+    explicit_reanalyze: bool = False,
 ) -> Dict[str, Any]:
     """Integra serviços Fase 3 no pipeline real (#13 #19 #24 #25 #26 #28 #31 #32).
 
@@ -334,7 +337,11 @@ async def _run_phase3_post_scoring(
         opportunities = matcher.match(lead_data, min_score=1, top_k=5)
         from services.prospecting.lead_opportunity_service import LeadOpportunityService
 
-        LeadOpportunityService().replace_opportunities(db, lead, opportunities)
+        LeadOpportunityService().replace_opportunities(
+            db, lead, opportunities,
+            reason="reanalyze" if explicit_reanalyze else "enrichment",
+            explicit_reanalyze=explicit_reanalyze,
+        )
         results["offer_matcher"] = {
             "opportunities": [o.to_dict() for o in opportunities],
             "target_service": target_service or None,

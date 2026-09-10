@@ -9,8 +9,8 @@
 
 ## Estado atual verificado
 
-> **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` · Alembic
-> `2f7a9b1c3d5e` · `1039 passed` · E2E de outreach `1 passed`.
+> **Snapshot:** 2026-09-10 · branch `feat/oportunidade-historico-rescoring` · Alembic
+> `3a5b7c9d1e2f` · histórico de oportunidades e política de re-scoring entregues.
 
 As estimativas percentuais antigas foram removidas: não havia uma métrica
 reprodutível que justificasse os números. Use a matriz abaixo e
@@ -842,7 +842,6 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 - entidade BuyerPersona e `required_buyer_role` configuráveis;
 - integração da resolução com o pipeline completo de decisores e outreach
   humano assistido;
-- snapshot histórico da oportunidade e política de re-scoring do score de oferta;
 - BI por vertical, consultor, canal, campanha e controlled learning.
 
 ## Marcos posteriores
@@ -908,7 +907,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 | Itens | Estado atual | Próxima entrega esperada |
 |---|---|---|
 | PR 06–08 | ⬜ Planejados | Busca avançada de pessoas/empresas, BuyerPersona e Search Builder. |
-| PR 10 | 🟠 Parcial | Snapshots imutáveis de resolução entregues; snapshot histórico da oportunidade e política de re-scoring do score de oferta pendentes. |
+| PR 10 | ✅ Entregue no escopo atual | Snapshots append-only de oportunidade, vínculo de venda ao snapshot e política explícita de re-scoring (migração `3a5b7c9d1e2f`). |
 | PR 11–14 | 🟠 Estruturais/parciais | Provider de vagas, sinais semânticos industriais, technographics e Intent v2. |
 | PR 18 | ⬜ Planejado | EventSeries e rebuy/recorrência de eventos. |
 | PR 19–20 | 🟠 Parciais | OfferProfiles dedicados para impressão 3D e corte a laser. |

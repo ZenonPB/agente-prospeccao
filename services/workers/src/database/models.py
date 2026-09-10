@@ -1093,6 +1093,39 @@ class LeadOpportunityRow(Base):
         return f"<LeadOpportunityRow(lead='{self.lead_id}', offer='{self.offer_key}', score={self.score})>"
 
 
+class LeadOpportunitySnapshot(Base):
+    """Histórico append-only de avaliações de oportunidade.
+
+    A linha atual em `lead_opportunities` é mutável por re-scoring; cada
+    avaliação gera um snapshot imutável com versão do perfil, versão da
+    fórmula, hash do contexto e evidências. Vendas antigas continuam
+    apontando para o contexto original via `lead_opportunity_snapshot_id`.
+    """
+    __tablename__ = "lead_opportunity_snapshots"
+    __table_args__ = (
+        UniqueConstraint("lead_id", "snapshot_hash", name="uq_lead_opportunity_snapshot_hash"),
+        Index("ix_lead_opportunity_snapshots_org_lead", "organization_id", "lead_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
+    offer_key = Column(String(64), nullable=False)
+    offer_version = Column(String(32), nullable=True)
+    formula_version = Column(String(32), nullable=False, server_default="matcher-v1")
+    profile_snapshot_hash = Column(String(64), nullable=True)
+    score = Column(Integer, nullable=False, server_default="0")
+    signals_snapshot = Column(JSONB, nullable=True)
+    evidence_snapshot = Column(JSONB, nullable=True)
+    snapshot_hash = Column(String(64), nullable=False)
+    reason = Column(String(32), nullable=False, server_default="enrichment")
+    scored_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<LeadOpportunitySnapshot(lead='{self.lead_id}', offer='{self.offer_key}', score={self.score})>"
+
+
 class EventOpportunityRow(Base):
     """Evento descoberto e normalizado para prospecção rastreável."""
     __tablename__ = "event_opportunities"
@@ -1174,6 +1207,7 @@ class CommercialOutcomeRow(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
     lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
+    lead_opportunity_snapshot_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunity_snapshots.id", ondelete="SET NULL"), nullable=True)
     offer_key = Column(String(64), nullable=False)
     offer_version = Column(String(32), nullable=True)
     outcome = Column(String(32), nullable=False)
@@ -1214,6 +1248,7 @@ class Conversion(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
     lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
+    lead_opportunity_snapshot_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunity_snapshots.id", ondelete="SET NULL"), nullable=True)
     offer_key = Column(String(64), nullable=True)
     offer_version = Column(String(32), nullable=True)
     converted_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -1,6 +1,6 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` ·
-> Alembic head `2f7a9b1c3d5e`.
+> **Snapshot:** 2026-09-10 · branch `feat/oportunidade-historico-rescoring` ·
+> Alembic head `3a5b7c9d1e2f`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
 > real, testes relevantes, escopo de organização e persistência quando
@@ -23,9 +23,9 @@
 | Candidate pre-scoring | ✅ | pipeline antes do enrichment | `prescoring_discards` | calibração avançada ainda pendente |
 | Discovery Places/CNAE | 🟠 | `DiscoveryExecutor` + adapters | leads/provenance consolidada + `prescoring_discards.provenance` | revisão fuzzy de merge ainda parcial |
 | Enrichment adaptativo | ✅ | `enrichment_orchestrator` | `enrichments`/evidence | custo e cobertura dependem dos providers |
-| Scoring vetorial contextual | ✅ | `AIScoringService` | campos/evidence do lead + snapshots de resolução | política de re-score do score de oferta ainda pendente |
-| OfferMatcher | ✅ | pós-scoring do enrichment | `lead_opportunities` | sem tela administrativa dedicada |
-| Oportunidades do lead | ✅ | `GET /api/leads/{id}/oportunidades` | score, evidências, versão | resolução de oferta customizada em código |
+| Scoring vetorial contextual | ✅ | `AIScoringService` | campos/evidence do lead + snapshots de oportunidade | calibração avançada ainda pendente |
+| OfferMatcher | ✅ | pós-scoring do enrichment | `lead_opportunities` + histórico append-only | sem tela administrativa dedicada |
+| Oportunidades do lead | ✅ | `GET /api/leads/{id}/oportunidades` + `/historico` | score, evidências, versão, snapshots | resolução de oferta customizada em código |
 | Event Discovery | ✅ opt-in | `source=events` no pipeline | `event_opportunities` | decisor/outreach ainda dependem de ação comercial humana |
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
@@ -51,8 +51,8 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 - `python -m pytest tests -q -W error`: **1039 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `2f7a9b1c3d5e` (37 tabelas, 20 índices,
-  21 FKs e 5 constraints únicas).
+- `scripts/verify_migrations.py`: head único `3a5b7c9d1e2f` (38 tabelas, 21 índices,
+  24 FKs e 6 constraints únicas).
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 

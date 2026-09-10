@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow
+from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow, LeadOpportunitySnapshot
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -64,6 +64,26 @@ def _opportunity_to_dict(opportunity: LeadOpportunityRow) -> dict:
         "signals_missing": opportunity.signals_missing or [],
         "created_at": opportunity.created_at.isoformat() if opportunity.created_at else None,
         "updated_at": opportunity.updated_at.isoformat() if opportunity.updated_at else None,
+    }
+
+
+def _opportunity_snapshot_to_dict(snapshot: LeadOpportunitySnapshot) -> dict:
+    """Serializa um snapshot imutável do histórico da oportunidade."""
+    return {
+        "id": str(snapshot.id),
+        "lead_id": str(snapshot.lead_id),
+        "lead_opportunity_id": str(snapshot.lead_opportunity_id) if snapshot.lead_opportunity_id else None,
+        "offer_key": snapshot.offer_key,
+        "offer_version": snapshot.offer_version,
+        "formula_version": snapshot.formula_version,
+        "profile_snapshot_hash": snapshot.profile_snapshot_hash,
+        "score": snapshot.score,
+        "signals_snapshot": snapshot.signals_snapshot or {},
+        "evidence_snapshot": snapshot.evidence_snapshot or [],
+        "snapshot_hash": snapshot.snapshot_hash,
+        "reason": snapshot.reason,
+        "scored_at": snapshot.scored_at.isoformat() if snapshot.scored_at else None,
+        "created_at": snapshot.created_at.isoformat() if snapshot.created_at else None,
     }
 
 # Status em que faz sentido registrar o funil interno de negociação
@@ -329,6 +349,7 @@ def _record_commercial_outcome(
     offer_key: str | None = None,
     offer_version: str | None = None,
     lead_opportunity_id: uuid.UUID | None = None,
+    lead_opportunity_snapshot_id: uuid.UUID | None = None,
 ) -> None:
     """Registra um evento comercial persistente sem bloquear a transição."""
     try:
@@ -344,6 +365,7 @@ def _record_commercial_outcome(
             offer_key=offer_key,
             offer_version=offer_version,
             lead_opportunity_id=lead_opportunity_id,
+            lead_opportunity_snapshot_id=lead_opportunity_snapshot_id,
         )
     except Exception as exc:  # noqa: BLE001
         # A trilha/status continuam sendo a fonte operacional do funil.
@@ -836,6 +858,34 @@ def get_lead_opportunities(
     return {"oportunidades": [_opportunity_to_dict(item) for item in opportunities]}
 
 
+@router.get("/{lead_id}/oportunidades/historico")
+def get_lead_opportunities_history(
+    lead_id: str,
+    offer_key: Optional[str] = Query(None, max_length=64),
+    db: Session = Depends(get_db),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Lista o histórico append-only de avaliações de oportunidade do lead."""
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    query = db.query(LeadOpportunitySnapshot).filter(
+        LeadOpportunitySnapshot.lead_id == lead.id,
+        LeadOpportunitySnapshot.organization_id == _org.id,
+    )
+    if offer_key:
+        query = query.filter(LeadOpportunitySnapshot.offer_key == offer_key)
+    snapshots = query.order_by(LeadOpportunitySnapshot.created_at.desc()).all()
+    return {"historico": [_opportunity_snapshot_to_dict(item) for item in snapshots]}
+
+
 @router.get("/{lead_id}")
 def get_lead(
     lead_id: str,
@@ -1238,6 +1288,14 @@ def register_conversion(
     )
     db.add(conversion)
     db.flush()
+    snapshot_id = None
+    if opportunity is not None:
+        snapshot = db.query(LeadOpportunitySnapshot).filter(
+            LeadOpportunitySnapshot.lead_opportunity_id == opportunity.id,
+        ).order_by(LeadOpportunitySnapshot.created_at.desc()).first()
+        if snapshot is not None:
+            conversion.lead_opportunity_snapshot_id = snapshot.id
+            snapshot_id = snapshot.id
     _record_commercial_outcome(
         db,
         lead,
@@ -1247,6 +1305,7 @@ def register_conversion(
         offer_key=conversion.offer_key,
         offer_version=conversion.offer_version,
         lead_opportunity_id=conversion.lead_opportunity_id,
+        lead_opportunity_snapshot_id=snapshot_id,
     )
 
     # Contrato fechado ⇒ resultado final APROVADO.
@@ -1291,6 +1350,7 @@ def register_conversion(
         "offer_key": conversion.offer_key,
         "offer_version": conversion.offer_version,
         "lead_opportunity_id": str(conversion.lead_opportunity_id) if conversion.lead_opportunity_id else None,
+        "lead_opportunity_snapshot_id": str(conversion.lead_opportunity_snapshot_id) if conversion.lead_opportunity_snapshot_id else None,
         "contract_value": float(conversion.contract_value) if conversion.contract_value is not None else None,
         "time_to_close_days": conversion.time_to_close_days,
         "converted_at": conversion.converted_at.isoformat() if conversion.converted_at else None,

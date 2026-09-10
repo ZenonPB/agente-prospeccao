@@ -1310,6 +1310,7 @@ async def run_pipeline(
                     scoring_template=scoring_template,
                     allow_business_fallback=reanalyze_only,
                     learned_instructions=learned_instructions,
+                    explicit_reanalyze=reanalyze_only,
                 )
 
                 if scoring_result is None:

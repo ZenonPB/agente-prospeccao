@@ -8,9 +8,8 @@
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-09 · `1039 passed` com `-W error` · `compileall`, lint,
-> TypeScript, build Web e migration verifier verdes · Alembic head
-> `2f7a9b1c3d5e`.
+> **Snapshot:** 2026-09-10 · `compileall` verde · Alembic head
+> `3a5b7c9d1e2f`.
 
 ## Resumo desta revisão
 
@@ -55,7 +54,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `2f7a9b1c3d5e` (`persons` canônica + snapshots de resolução + provenance em `prescoring_discards` + `follow_up_versions` + índices de performance). |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `3a5b7c9d1e2f` (`persons` canônica + snapshots de resolução e de oportunidade + provenance em `prescoring_discards` + `follow_up_versions` + índices de performance). |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | ✅ Feito | `correlation_id`/`campaign_id`/`usage`/`cost` persistidos; telemetria de tokens Groq; endpoint `provider-trace` org-scoped explica "poucos leads". |
@@ -661,7 +660,14 @@ O matcher pode continuar simples, mas `LeadOpportunity.overall` deve vir de pol�
 
 ## P1.8 — Snapshot histórico da LeadOpportunity
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional
+
+Cada avaliação do matcher gera snapshot append-only em
+`lead_opportunity_snapshots` (versão do perfil, `matcher-v1`, hash canônico,
+sinais e evidências), idempotente por `(lead_id, snapshot_hash)`. Linhas
+removidas recebem snapshot final antes da exclusão; conversões e outcomes
+apontam para o snapshot (`lead_opportunity_snapshot_id`). Histórico exposto em
+`GET /api/leads/{id}/oportunidades/historico`.
 
 ### Problema
 
@@ -701,7 +707,15 @@ Uma mudança de profile v1.0 → v1.1 não altera retroativamente o contexto da 
 
 ## P1.9 — Política explícita de re-scoring
 
-**Status:** ⬜ Planejado
+**Status:** ✅ Operacional
+
+Comportamento vigente (também em `docs/decisions.md` e
+`docs/business-rules.md`):
+
+- oportunidades existentes **não** mudam de versão automaticamente;
+- novas coletas usam a versão nova;
+- campanha ativa recebe `reanalyze` explícito (`reanalyze_only=True`);
+- histórico antigo permanece preservado em snapshots append-only.
 
 Definir comportamento quando uma nova versão de OfferProfile é publicada:
 

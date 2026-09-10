@@ -23,6 +23,7 @@ class CommercialOutcomeService:
         offer_key: str | None = None,
         offer_version: str | None = None,
         lead_opportunity_id: UUID | None = None,
+        lead_opportunity_snapshot_id: UUID | None = None,
         provider: str | None = None,
         outreach_at: datetime | None = None,
     ) -> CommercialOutcomeRow:
@@ -47,11 +48,21 @@ class CommercialOutcomeService:
             ).order_by(LeadOpportunityRow.score.desc())).first()
             offer_key = opportunity.offer_key if opportunity else "unknown"
             offer_version = offer_version or (opportunity.offer_version if opportunity else None)
+            lead_opportunity_id = lead_opportunity_id or (opportunity.id if opportunity else None)
+
+        if lead_opportunity_id and not lead_opportunity_snapshot_id:
+            from database.models import LeadOpportunitySnapshot
+
+            snapshot = db.scalars(select(LeadOpportunitySnapshot).where(
+                LeadOpportunitySnapshot.lead_opportunity_id == lead_opportunity_id,
+            ).order_by(LeadOpportunitySnapshot.created_at.desc())).first()
+            lead_opportunity_snapshot_id = snapshot.id if snapshot else None
 
         row = CommercialOutcomeRow(
             organization_id=organization_id,
             lead_id=lead_id,
             lead_opportunity_id=lead_opportunity_id,
+            lead_opportunity_snapshot_id=lead_opportunity_snapshot_id,
             offer_key=offer_key,
             offer_version=offer_version,
             outcome=outcome,
