@@ -3,9 +3,9 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-10 · branch `feat/oportunidade-historico-rescoring` ·
-> Alembic head `3a5b7c9d1e2f` (histórico append-only de oportunidades +
-> vínculo de venda ao snapshot + política de re-scoring).
+> **Snapshot:** 2026-09-10 · branch `feat/waterfall-buyer-gates-persona` ·
+> Alembic head `3a5b7c9d1e2f` (sem migration nesta branch: gates de buyer no
+> waterfall + entidade `BuyerPersona`).
 >
 > **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
 > (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
@@ -31,6 +31,19 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Capacidades entregues nesta consolidação (onda 3 — People Discovery)
 
+- **Gates de buyer no waterfall (P1.36 ✅)**: `waterfall_search` exige
+  `min_identity_confidence` e `required_buyer_role` para early stopping
+  (buyer role explícito prevalece; sem ele, inferência determinística;
+  `UNKNOWN` nunca finge match; `buyer_role_not_matched` distinto de
+  `role_not_matched`). `discovery_limits` lê os gates do `people_discovery`
+  e usa `decision_makers.buyer_types` como fallback; evidência e `raw_data`
+  persistem buyer role, fonte, status e identidade.
+- **Entidade `BuyerPersona`**: 8 personas iniciais (founder, marketing,
+  operations, engineering, maintenance, safety, event director, procurement)
+  com title patterns, senioridade, departamento, buyer type, prioridade e
+  canais; `match_persona_for_role` e validação semântica das novas chaves
+  no build do registry (P1.4 estendido).
+
 - **People Discovery multi-provider opt-in**: `WebsitePeopleProvider` consulta
   somente páginas públicas conhecidas do domínio oficial e extrai JSON-LD
   `Person`; limita tamanho de HTML, rejeita redirecionamentos externos e IPs
@@ -42,9 +55,11 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   aceita `min_role_fit` para early stopping. O resultado distingue
   `role_not_matched` de ausência/falha do provider.
 - **OfferProfile no waterfall**: perfis padrão declaram limites de People
-  Discovery (`max_cost`, `max_steps`, `min_role_fit`, senioridade e departamento); o enriquecedor resolve o
+  Discovery (`max_cost`, `max_steps`, `min_role_fit`, senioridade,
+  departamento, `min_identity_confidence`, `required_buyer_role` com fallback
+  para `decision_makers.buyer_types`); o enriquecedor resolve o
   perfil efetivo da campanha, passa esses limites ao registry e persiste
-  `role_fit`, tentativas, custo e limites no evidence do lead. Providers
+  `role_fit`, `buyer_role`, tentativas, custo e limites no evidence do lead. Providers
   externos continuam opt-in por organização.
 
 ### Capacidades entregues nesta consolidação (onda 2 — fechamento de fluxos)
@@ -192,8 +207,8 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Provider especializado opt-in além do Hunter/site oficial, entidade
-`BuyerPersona` e controlled learning. Validação semântica de OfferProfile
+Provider especializado opt-in além do Hunter/site oficial e controlled
+learning. Gates de buyer, `BuyerPersona`, validação semântica de OfferProfile
 (P1.4) e cortes de BI por vertical/consultor/campanha/provider/versão já
 estão operacionais; as demais prioridades estão em
 `docs/pendencias-pos-consolidacao.md`.

@@ -30,7 +30,7 @@
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + ações de eventos | `contacts` + `persons` canônica + snapshots imutáveis + `next_best_action` + ação de evento persistida + role fit por título/senioridade/departamento | falta provider especializado adicional |
+| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + `BuyerPersona` + ações de eventos | `contacts` + `persons` canônica + snapshots imutáveis + `next_best_action` + ação de evento persistida + role fit por título/senioridade/departamento + gates de identidade/buyer role | falta provider especializado adicional |
 | Outcomes comerciais | ✅ | conversão/outcome service + `GET /api/analytics/outcomes-breakdown` | `commercial_outcomes` | cortes por vertical/consultor/campanha/provider/versão prontos; canal/variante/etapa sem coluna |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
