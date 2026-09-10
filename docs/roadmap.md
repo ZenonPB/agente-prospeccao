@@ -57,6 +57,7 @@ contínua.
 | P0.1–P0.5 | ✅ Encerradas | E2E PostgreSQL controlado, migration QA, warnings, documentação e observabilidade. |
 | P1.1 | ✅ Encerrada | Identidade cross-provider de empresas via `company_aliases`; merge fuzzy permanece somente para revisão. |
 | P1.2 | ✅ Encerrada | Provenance de candidatos rejeitados em `prescoring_discards.provenance`, com upsert e endpoint de auditoria. |
+| P1.4 | ✅ Encerrada | Validação semântica de OfferProfile no build do registry (`validate_profile`/`validate_registry`, 9 sinais incorporados, zero erros no registry padrão). |
 | P1.15–P1.17 e P1.19 | ✅ Encerradas | Provider de eventos opt-in, vínculo organizador → Lead, oferta `trophies` e expiração idempotente. |
 | P1.18 | 🟠 Parcial | Ação recomendada, persistência da ação de evento e UI entregues; descoberta multi-provider, timing e outreach completo ainda pendentes. |
 | P1.22–P1.24 | ✅ Encerradas | Atribuição de oferta/versão/oportunidade em conversões e outcomes. |

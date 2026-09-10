@@ -1,13 +1,20 @@
 """Perfis iniciais de OfferProfile — Fase B do plano de consolidação.
 
 Adicionar nova oferta = criar profile aqui. Engine não muda (consolidação §Fase B).
+
+Todo profile registrado passa por `validate_registry` (P1.4): erros são
+logados no build e barrados pelo teste de regressão; ferramenta
+administrativa futura deve barrar publish com erro.
 """
+import logging
 from typing import Any, Dict
 
 from services.prospecting.offer_profile import (
     OfferProfile,
     OfferProfileRegistry,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def build_default_registry() -> OfferProfileRegistry:
@@ -283,6 +290,12 @@ def build_default_registry() -> OfferProfileRegistry:
             "evidence_requirements": ["HOSTS_EVENTS"],
         },
     ))
+
+    from services.prospecting.offer_profile_validator import validate_registry
+    invalid = validate_registry(registry)
+    for key, errors in invalid.items():
+        logger.warning("OfferProfile %s com %d erro(s): %s",
+                       key, len(errors), "; ".join(errors))
 
     return registry
 
