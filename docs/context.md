@@ -3,13 +3,15 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-09 · branch `feat/onda1-people-decisor` ·
-> Alembic head `1a2b3c4d5e6f` (Person canônica).
+> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
+> Alembic head `2e6f8a0c2d4e` (Person canônica + provenance de descarte +
+> tabela `follow_up_versions` + índices de performance + integridade de versões).
 >
-> **Nota de ambiente:** o banco local desta máquina está em `c9d0e1f2a3b4`
-> (pendente de `alembic upgrade head`); rode
-> `python scripts/verify_migrations.py --upgrade --database-url <URL>` em
-> ambiente com Postgres antes de validar E2E.
+> **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
+> (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
+> backup prévio conservado em `backups/` (gitignored). Motivo: o banco
+> estava na revisão `c9d0e1f2a3b4`, que não existe mais no repositório
+> (carregava a tabela órfã `identity_reviews` de uma linha abandonada).
 
 ## Leitura obrigatória
 
@@ -26,6 +28,32 @@ workers Python async e PostgreSQL. O pipeline de empresas é orientado por
 `OfferProfile` quando configurado, usa `DiscoveryExecutor` para Places/CNAE,
 enrichment passivo, scoring contextual, `OfferMatcher`, decisores best-effort e
 outreach/cadência. Campanhas legadas continuam compatíveis.
+
+### Capacidades entregues nesta consolidação (onda 2 — fechamento de fluxos)
+
+- **Verificação de contato sem rede oculta (P1.37)**: o bloco com thread e o
+  hack de `sys.modules` foram removidos do `ContactVerification` legado em
+  `decision_maker_resolution.py`; a verificação real de e-mail é
+  responsabilidade exclusiva do seam async `ContactVerifier`, executada pelo
+  orquestrador, e o teste de integração cobre a ausência de rede oculta.
+- **Early stopping por orçamento no waterfall (P1.36)**:
+  `PeopleProviderRegistry.waterfall_search` aceita `max_cost`; providers fora
+  do orçamento restante ficam com status `budget_exceeded` (nunca consultados)
+  e o resultado reporta `cost_spent`, cobrado apenas em chamadas com
+  resposta. O evidence `people_discovery` do lead persiste o custo gasto.
+- **Roteabilidade na próxima ação (P1.39)**: `NextBestActionService`
+  distingue `DIRECT_CONTACT`/`ROUTABLE_CONTACT` (CALL),
+  `INSTITUTIONAL` (RESEARCH via recepção) e `UNKNOWN`/`UNREACHABLE`
+  (RE_ENRICH); a API repassa `routability_type` do contato,
+  `prepare_event_actions` usa o mesmo critério e a UI exibe a recomendação
+  no detalhe do lead (`NextActionCard` no `OverviewTab`).
+- **Provenance no descarte do pre-scoring (P1.2)**: coluna `provenance` em
+  `prescoring_discards` (migration `2b4d6f8a0c2e`) com providers, consultas e
+  ids do candidato rejeitado; upsert e endpoint de auditoria expõem o campo.
+- **Ação de evento persistida (P1.18)**: `prepare_event_actions` grava
+  `decision_maker_id`/`decision_maker_status`, canal recomendado,
+  `action_status` e `next_action` no row do evento, expostos em
+  `/api/intelligence` e na UI de relatórios.
 
 ### Capacidades entregues nesta consolidação (onda 0 — confiabilidade)
 
@@ -91,22 +119,61 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   `Contact` no `sync_lead_entities` sem sobrescrever dado existente.
 - `ContactEnrichmentService` aceita o seam de verificação com/sem mock
   explícito (`_accepts_mock_check`), sem mudar o fluxo de `evidence_score`.
+- `PeopleProviderRegistry` define o seam assíncrono de waterfall de pessoas,
+  com deduplicação, early stopping e estados explícitos, mas permanece sem
+  provider externo habilitado por padrão. `HunterPeopleProvider` é o primeiro
+  adapter real; só é registrado quando a organização tem `HUNTER_API_KEY` e
+  uma quota positiva explícita em `api_quota`.
+- `NextBestActionService` recomenda uma ação explicável sem efeitos colaterais
+  e a API a expõe em `GET /api/leads/{id}` como `next_best_action`; o envio
+  continua humano no loop.
 - Candidatos de discovery carregam provenance consolidada no `Lead`, incluindo
   providers, consultas, identificadores externos, plano e regra de identidade;
   merges automáticos ocorrem apenas por chaves fortes.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **972 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **1006 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
+- E2E de ciclo completo (`tests/e2e_outreach_cycle.py`) contra o Postgres
+  local reconstruido: **1 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `1a2b3c4d5e6f`;
+- `scripts/verify_migrations.py`: head único `2e6f8a0c2d4e` (36 tabelas, 19 índices,
+  19 FKs e 4 constraints únicas);
 - persistência controlada validada em PostgreSQL.
+
+## Auditoria do banco (onda 3)
+
+Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.md`):
+
+- **Bug crítico:** `follow_up_versions` existia no modelo e era usada por
+  `PATCH/GET /cadence/step`, mas nenhuma migration a criava → qualquer edição
+  de etapa quebraria em runtime. Criada na migration `2c4e6f8a0d3e`.
+- **Performance:** FKs usadas em leituras quentes estavam sem índice
+  (`enrichments.lead_id`, `jobs.campaign_id/organization_id`,
+  `persons.organization_id/company_id`, `event_opportunities.lead_id`,
+  `commercial_outcomes.lead_id`, `notifications.lead_id`, `leads.company_id`)
+  → 9 índices + um índice **parcial** para o claim da fila
+  (`ix_jobs_pending_claim ON jobs(created_at) WHERE status='PENDING'`, usado
+  por `_CLAIM_SQL` com `FOR UPDATE SKIP LOCKED`). Migration `2d5e7f9b1c3f`.
+- **Segurança:** `_CLAIM_SQL` parametrizado (bound params);
+  `organization_secrets` cifrado com Fernet; sem SQL bruto com concatenação;
+  tenant-scope aplicado na camada de rotas (RLS do Postgres não ativado —
+  decisão documentada). Em produção, `SECRETS_ENCRYPTION_KEY` agora é
+  obrigatória: a derivação determinística pelo `DATABASE_URL` fica restrita a
+  desenvolvimento/testes, com cobertura de regressão.
+- **Todos os dados esperados:** divergência de colunas entre models e banco = 0; 36 tabelas;
+  FKs verificadas; sem tabelas órfanas após o reset.
+- **Integridade de histórico:** `follow_up_versions` possui constraint única em
+  `(follow_up_id, version_number)` (`2e6f8a0c2d4e`), evitando versões duplicadas
+  em edições concorrentes.
+- **Idioma dos artefatos:** comentários e docstrings adicionados nesta
+  auditoria foram mantidos em PT-BR, conforme a convenção do repositório.
 
 ## Próximo passo imediato
 
-Não habilitar provider externo por padrão. Com a identidade cross-provider de
-empresas e a onda 0 de confiabilidade fechadas, priorizar People Discovery real
-para completar evento → decisor → outreach. As demais prioridades estão em
-`docs/pendencias-pos-consolidacao.md`.
+Waterfall multi-provider de pessoas (P1.34/35): registrar um segundo provider
+real além do Hunter (opt-in por organização) e aplicar role fit do
+OfferProfile no early stopping, mantendo quota, telemetria e orçamento. As
+demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.

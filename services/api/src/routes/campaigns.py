@@ -544,6 +544,7 @@ async def get_prescoring_discards(
              "threshold": d.threshold,
              "reason": d.reason,
              "profile_key": d.profile_key,
+             "provenance": d.provenance,
              "created_at": d.created_at.isoformat() if d.created_at else None}
             for d in discards]
 

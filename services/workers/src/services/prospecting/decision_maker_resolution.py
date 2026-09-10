@@ -412,6 +412,12 @@ class ContactVerification:
     - Email com MX válido + pessoa tem CPF → verificado
     - Email heurístico (sem CPF) → NUNCA verificado (consolidação §26.7)
     - Sem email → não verificado por email, mas pode ter CPF
+
+    A verificação real de e-mail (I/O) é assíncrona e mora em
+    `ContactVerifier` (`services.prospecting.contact_verifier`), executada
+    pelo orquestrador (`ContactEnrichmentService`). Este resolver síncrono
+    nunca abre thread, rede ou DNS oculto: sem `mock_mx_check` explicitamente
+    injetado, marca pendência (`pending_real_check`) em vez de bloquear.
     """
 
     def verify(
@@ -421,70 +427,15 @@ class ContactVerification:
     ) -> Dict[str, Any]:
         """Verifica email + identidade.
 
-        Se `mock_mx_check` for fornecido, usa-o (testabilidade). Senão,
-        tenta usar o EmailVerificationService real (sem dependência
-        forçada — se não disponível, marca como `pending_real_check`).
+        Se `mock_mx_check` for fornecido, usa-o (testabilidade). Sem mock,
+        nenhuma verificação real acontece aqui — o orquestrador executa a
+        verificação assíncrona via `ContactVerifier` e anexa o resultado.
         """
-        # Email verification
         email_verified = False
-        mx_check = mock_mx_check
-        # A verificação real assíncrona é executada pelo ContactEnrichmentService.
-        # Este resolver síncrono só usa o adapter quando ele foi explicitamente
-        # injetado (ou quando um provider já está carregado pelo chamador/teste),
-        # evitando DNS oculto dentro de uma resolução de identidade.
-        email_module = __import__("sys").modules.get("services.email_verification_service")
-        if (
-            mx_check is None
-            and person.email
-            and not self._is_heuristic_source(person)
-            # O teste de integração injeta um adapter fake em sys.modules.
-            # O módulo real é assíncrono e deve ser chamado pelo serviço de
-            # enriquecimento, não bloqueado dentro deste resolver síncrono.
-            and email_module is not None
-            and getattr(email_module, "__file__", None) is None
-        ):
-            # Tenta usar o serviço real
-            try:
-                from services.email_verification_service import EmailVerificationService
-                _svc = EmailVerificationService()
-                # O serviço real expõe `verify_email` assíncrono (não existe
-                # `check_domain_mx`). Adaptamos a coroutine para a API sync
-                # deste resolver, inclusive quando chamado dentro de ASGI.
-                def _real_mx(domain):
-                    import asyncio
-                    import inspect
-                    import threading
-
-                    async def _verify():
-                        result = await _svc.verify_email(person.email or "")
-                        return bool(result.get("verified"))
-
-                    try:
-                        asyncio.get_running_loop()
-                    except RuntimeError:
-                        return bool(asyncio.run(_verify()))
-
-                    result_box = []
-                    error_box = []
-
-                    def _run():
-                        try:
-                            result_box.append(asyncio.run(_verify()))
-                        except BaseException as exc:  # noqa: BLE001
-                            error_box.append(exc)
-
-                    worker = threading.Thread(target=_run, daemon=True)
-                    worker.start()
-                    worker.join()
-                    return bool(result_box and not error_box and result_box[0])
-
-                mx_check = _real_mx
-            except Exception:
-                mx_check = None
-        if person.email and mx_check and not self._is_heuristic_source(person):
+        if person.email and mock_mx_check and not self._is_heuristic_source(person):
             try:
                 domain = person.email.split("@", 1)[-1].lower()
-                email_verified = bool(mx_check(domain))
+                email_verified = bool(mock_mx_check(domain))
             except Exception:
                 email_verified = False
         # Identity verification: tem CPF

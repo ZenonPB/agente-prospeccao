@@ -137,6 +137,7 @@ def _persist_prescoring_discards(db: Session):
             set_={
                 "job_id": stmt.excluded.job_id,
                 "candidate_data": stmt.excluded.candidate_data,
+                "provenance": stmt.excluded.provenance,
                 "signals": stmt.excluded.signals,
                 "discovery_score": stmt.excluded.discovery_score,
                 "threshold": stmt.excluded.threshold,
@@ -1395,7 +1396,7 @@ async def run_pipeline(
 
             from services.contact_enrichment_service import ContactEnrichmentService
 
-            enrich_svc = ContactEnrichmentService()
+            enrich_svc = await ContactEnrichmentService.for_organization(db, organization_id)
             enriched_count = 0
             for lead in to_enrich:
                 try:

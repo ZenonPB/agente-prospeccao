@@ -59,3 +59,5 @@ graph.svg
 docs/planilha_alphamec_atual.xlsx
 # Planilhas do CRM (dados reais de clientes)
 *.xlsx
+# Dumps locais do PostgreSQL (contêm dados reais — nunca versionar)
+backups/

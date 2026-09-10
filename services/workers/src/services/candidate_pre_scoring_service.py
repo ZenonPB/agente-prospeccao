@@ -314,11 +314,43 @@ class CandidatePreScoringService:
             "place_id": item.get("place_id"),
             "company_name": item.get("name") or item.get("company_name"),
             "candidate_data": item,
+            "provenance": self._candidate_provenance(item),
             "signals": scored["signals"],
             "discovery_score": scored["discovery_score"],
             "threshold": prescoring.get("threshold"),
             "profile_key": profile.get("profile_key"),
             "reason": reason,
+        }
+
+    @staticmethod
+    def _candidate_provenance(item: Dict[str, Any]) -> Dict[str, Any]:
+        """Provenance consolidada do candidato rejeitado.
+
+        Usa a provenance montada pelo executor (mesma forma de
+        `discovery_executor._candidate_provenance`); sem ela, deriva dos
+        campos brutos para manter rastreabilidade mínima em itens que não
+        passaram pelo dedup.
+        """
+        provenance = item.get("provenance")
+        if isinstance(provenance, dict) and (
+            provenance.get("providers")
+            or provenance.get("provider_queries")
+            or provenance.get("provider_candidate_ids")
+        ):
+            return {
+                "providers": list(provenance.get("providers") or []),
+                "provider_queries": list(provenance.get("provider_queries") or []),
+                "provider_candidate_ids": [
+                    str(value) for value in (provenance.get("provider_candidate_ids") or [])
+                ],
+            }
+        return {
+            "providers": [item["provider"]] if item.get("provider") else [],
+            "provider_queries": [item["provider_query"]] if item.get("provider_query") else [],
+            "provider_candidate_ids": (
+                [str(item.get("provider_candidate_id") or item.get("id"))]
+                if item.get("provider_candidate_id") or item.get("id") else []
+            ),
         }
 
     def _warn_orphan_weights(self, weights, scored):

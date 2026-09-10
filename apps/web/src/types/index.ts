@@ -94,6 +94,16 @@ export interface ProviderUsageItem {
 export type NegotiationStage = 'RD' | 'ORCAMENTO' | 'RP';
 export type ContractOutcome = 'APROVADO' | 'REPROVADO' | 'EM_ANALISE';
 
+export interface NextBestAction {
+  action: string;
+  why: string;
+  confidence: number;
+  evidence: string[];
+  deadline?: string | null;
+  priority: 'HIGH' | 'MEDIUM';
+  offer_key?: string;
+}
+
 export interface Lead {
   id: string;
   place_id?: string;
@@ -146,6 +156,7 @@ export interface Lead {
   lost_reason?: 'PRECO' | 'PRAZO' | 'NAO_RESPONDEU' | 'CONCORRENTE' | 'OUTRO' | null;
   activities?: LeadActivityItem[];
   contacts?: ContactItem[];
+  next_best_action?: NextBestAction;
   created_at: string;
   updated_at: string;
 }

@@ -7,12 +7,71 @@
 >
 > **Limite importante:** paridade funcional não significa recriar do zero uma rede proprietária global com centenas de milhões de contatos. O caminho viável é uma **data network federada**: fontes próprias + públicas + providers externos intercambiáveis.
 
-## Estado atual estimado
+## Estado atual verificado
 
-- **Meta AlphaMec:** ~74%.
-- **Paridade funcional Apollo-like:** ~45%.
+> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` · Alembic
+> `2e6f8a0c2d4e` · `1006 passed` · E2E de outreach `1 passed`.
 
-O projeto já possui boa arquitetura, OfferProfile, OfferMatcher, pre-scoring, discovery, CNAE/Places/PNCP, enrichment, scoring, eventos, cadência, outcomes e BI básico. **Onda 0 de confiabilidade entregue** (E2E PostgreSQL, migration QA, provider observability com correlation IDs, telemetria de tokens/custo Groq e endpoint de trace). O maior gap agora é **dados, cobertura, timing, contatos e execução contínua**.
+As estimativas percentuais antigas foram removidas: não havia uma métrica
+reprodutível que justificasse os números. Use a matriz abaixo e
+`docs/00-status-mapa.md` como fonte de verdade por capacidade.
+
+O projeto já possui arquitetura multi-tenant, OfferProfile, OfferMatcher,
+pre-scoring, discovery CNAE/Places/PNCP, enrichment, scoring, Event Discovery,
+cadência, outcomes e BI básico. As ondas de confiabilidade, identidade
+cross-provider, pessoas/decisores e auditoria de banco avançaram, mas ainda
+faltam waterfall multi-provider completo, role fit avançado, buscas salvas,
+workflows, integrações CRM, Data Health e operação contínua.
+
+### Registro de entregas verificadas
+
+| Entrega | Status | Evidência principal |
+|---|---|---|
+| Onda 0 — E2E, migration QA e observabilidade | ✅ Encerrada | Merges GitHub `#139`, `#143` e `#144`, `tests/e2e_outreach_cycle.py`, trace por `correlation_id`, tokens/custo Groq. |
+| Identidade cross-provider de empresas | ✅ Encerrada | `company_aliases`; commits `c69fdb1`, `5604641`, `471f2a2`, `2653493`; pipeline Places/CNAE/PNCP. |
+| Person canônica e estados de resolução | ✅ Entregue no escopo atual | `persons`, `needs_review/failed`, `CompanyPersonService`; commit `4d4b176`; waterfall externo ainda parcial. |
+| Hunter opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider`, quota por organização e API; commits `7101c26`, `0bbc655`; segundo provider e role fit ainda pendentes. |
+| Ação recomendada e roteabilidade | ✅ Encerrada | `NextBestActionService`, API, `NextActionCard`, integração de eventos; commits `560340c`, `d2da865`, `2de3014`, `cabe188`. |
+| Auditoria de schema, performance e segurança do banco | ✅ Encerrada | Reset após backup, migrations `2c4e6f8a0d3e`, `2d5e7f9b1c3f`, `2e6f8a0c2d4e`; commit `d22681f`. |
+
+### PRs GitHub identificados no histórico
+
+| PR GitHub | Entrega | Estado |
+|---|---|---|
+| `#139` | Onda 0: E2E PostgreSQL, migration QA, attribution e base operacional | ✅ Encerrado |
+| `#140` | Event Discovery final, provider HTTP e fluxo inicial de eventos | ✅ Encerrado |
+| `#141` | Sprint de identidade de decisores e base da Person canônica | ✅ Encerrado no escopo entregue |
+| `#142` | Identidade cross-provider de empresas e provenance | ✅ Encerrado |
+| `#143` | Onda 0: observabilidade de providers, correlation IDs e telemetria | ✅ Encerrado |
+| `#144` | Ajustes de execução/skip dos testes PostgreSQL | ✅ Encerrado |
+
+> Os PRs acima são os merges GitHub que aparecem no histórico. As entregas
+> posteriores da branch (`4d4b176` em diante) foram feitas como commits
+> incrementais e ainda não devem ser apresentadas como PRs GitHub numerados.
+
+### Pendências encerradas no mapa operacional
+
+| Pendência | Estado | O que foi encerrado |
+|---|---|---|
+| P0.1–P0.5 | ✅ Encerradas | E2E PostgreSQL controlado, migration QA, warnings, documentação e observabilidade. |
+| P1.1 | ✅ Encerrada | Identidade cross-provider de empresas via `company_aliases`; merge fuzzy permanece somente para revisão. |
+| P1.2 | ✅ Encerrada | Provenance de candidatos rejeitados em `prescoring_discards.provenance`, com upsert e endpoint de auditoria. |
+| P1.15–P1.17 e P1.19 | ✅ Encerradas | Provider de eventos opt-in, vínculo organizador → Lead, oferta `trophies` e expiração idempotente. |
+| P1.18 | 🟠 Parcial | Ação recomendada, persistência da ação de evento e UI entregues; descoberta multi-provider, timing e outreach completo ainda pendentes. |
+| P1.22–P1.24 | ✅ Encerradas | Atribuição de oferta/versão/oportunidade em conversões e outcomes. |
+| P1.30 | ✅ Encerrada | Comparação A/B com Wilson, amostra mínima, aprovação humana e auditoria. |
+| P1.36 | 🟠 Parcial | Orçamento (`max_cost`/`cost_spent`) encerrado; `required_buyer_role` e `min_identity_confidence` no waterfall ainda pendentes. |
+| P1.37 | ✅ Encerrada | Verificação assíncrona sem thread/rede oculta no resolver síncrono. |
+| P1.39 | ✅ Encerrada | Roteabilidade integrada à próxima ação, à ação de evento e à UI. |
+| Auditoria do banco (onda 3) | ✅ Encerrada | Tabela ausente, índices, integridade de versões, proteção de secrets em produção e verificador fortalecidos. |
+
+### Estado do banco local
+
+O banco local foi exportado antes do reset para `backups/` (diretório
+ignorado pelo Git), reconstruído com `alembic upgrade head` e validado com
+`scripts/verify_migrations.py`: **36 tabelas, 19 índices, 19 FKs e 4
+constraints únicas**. O reset removeu uma revisão órfã
+`c9d0e1f2a3b4`/`identity_reviews` que não pertence à cadeia atual.
 
 
 # 1. Arquitetura-alvo
@@ -85,13 +144,17 @@ Campanha → Job → Discovery → PreScore → Lead → Enrichment → Scoring
 - erros possuem estágio identificável;
 - CI/job manual reproduzível.
 
-## 2.2 Migration QA — ✅ ENTREGA (onda 0)
+## 2.2 Migration QA — ✅ ENTREGA (ondas 0 e 3)
 
 Automatizar:
 - banco vazio → `upgrade head`;
 - versão anterior → `head`;
 - constraints/FKs/indexes;
 - rollback somente em DB temporário.
+
+**Estado atual:** encerrado para o schema vigente. O verificador oficial
+confirma head único, 36 tabelas, 19 índices, 19 FKs e 4 constraints únicas.
+As migrations da auditoria de banco também são idempotentes.
 
 ## 2.3 Provider observability — ✅ ENTREGA (onda 0)
 
@@ -111,8 +174,8 @@ Padronizar:
 Persistir métricas por provider/job/campaign/org.
 
 **Status:** operacional. `provider_execution_metrics` agora persiste
-`correlation_id`, `campaign_id` e `usage` (JSONB gratuito com tokens do Groq) e
-prenche `cost` (estimativa USD por modelo). Discovery (Places/CNAE), Event
+`correlation_id`, `campaign_id` e `usage` (JSONB com tokens do Groq) e
+preenche `cost` (estimativa USD por modelo). Discovery (Places/CNAE), Event
 Discovery e scoring Groq registram métricas por execução. Novo endpoint
 `GET /analytics/provider-trace/{correlation_id}` devolve o trace completo de um
 job (todas as medições do mesmo `correlation_id`, org-scoped — responde "por
@@ -129,10 +192,14 @@ Todo fluxo deve carregar:
 (`correlation_id` + `provider_metrics` agregadas). O rastro permite auditar
 status/latência/erro/custo de cada provider de uma execução.
 
-## 2.5 Sincronizar docs
+## 2.5 Sincronizar docs — ✅ operacional
 
 Atualizar sempre:
 `docs/context.md`, `docs/architecture.md`, `docs/00-status-mapa.md`, `docs/pendencias-pos-consolidacao.md`, `docs/offer-profile.md`.
+
+`context.md`, `00-status-mapa.md`, `pendencias-pos-consolidacao.md` e este
+roadmap são atualizados junto de cada onda. O snapshot de estado e o backlog
+operacional continuam separados do plano de longo prazo.
 
 
 # 3. Fase 1 — Unified Data Network
@@ -168,10 +235,16 @@ Company; a resolução (CNPJ → domínio → aliases) é usada pelo pipeline na
 Places, CNAE e PNCP para mesclar provenance em vez de duplicar lead. O match
 fuzzy (nome + cidade + UF) permanece apenas candidato para revisão.
 
-## 3.3 Provenance
+## 3.3 Provenance — ✅ operacional no discovery e no pré-scoring
 
-Cada dado enriquecido deve saber de onde veio. Criar `DataPoint` ou estrutura equivalente com:
+Cada dado enriquecido deve saber de onde veio. O discovery e o pré-scoring
+persistem estrutura equivalente com:
 `field`, `value`, `source`, `confidence`, `observed_at`, `expires_at`.
+
+`Lead.discovery_provenance` guarda a provenance consolidada do lead; o descarte
+de pré-scoring guarda providers, consultas e identificadores em
+`prescoring_discards.provenance`. A cobertura de todos os campos enriquecidos
+e o refresh de validade continuam pendentes.
 
 ## 3.4 Provider Federation
 
@@ -238,18 +311,28 @@ Criar entidade/config:
 Personas iniciais:
 Founder, Marketing Manager, Operations Director, Engineering Manager, Maintenance Manager, Safety Manager, Event Director, Procurement.
 
-## 4.5 Canonical Person / Employment / ContactPoint
+## 4.5 Canonical Person / Employment / ContactPoint — 🟠 parcial
 
 Persistir pessoa separadamente do lead:
 - `Person`;
 - `Employment`;
 - `PersonContactPoint`.
 
-Evitar CRM gigante; manter modelo mínimo necessário.
+O model `persons` é a entidade canônica mínima ligada a Company/organização e
+carrega confiança, verificação e roteabilidade. Employment e ContactPoint
+separados ainda não foram necessários para o fluxo atual; manter o modelo
+mínimo até haver caso de uso comprovado.
 
 ## 4.6 People Waterfall
 
 `OfferProfile roles → domain → providers → identity merge → role fit → contacts → verification`.
+
+**Status atual:** 🟠 parcial. `PeopleProviderRegistry` implementa o waterfall
+assíncrono com deduplicação, early stopping por confiança e orçamento (`max_cost`),
+telemetria de tentativas e `cost_spent`. `HunterPeopleProvider` implementa o primeiro
+adapter real via Domain Search oficial, com retry, quota e estados observáveis;
+ele só é ativado por chave e quota explícitas da organização. Ainda faltam
+providers complementares e role fit completo por OfferProfile.
 
 ## 4.7 ActionableContactScore
 
@@ -302,7 +385,7 @@ Página `/data-health`:
 Estados:
 `VERIFIED`, `LIKELY_VALID`, `UNKNOWN`, `INVALID`.
 
-## 5.6 Email Verification v2
+## 5.6 Email Verification v2 — 🟠 parcial
 
 Somar:
 - sintaxe/MX;
@@ -310,6 +393,10 @@ Somar:
 - bounce history;
 - catch-all;
 - engagement history.
+
+O seam assíncrono `ContactVerifier` e os estados de verificação já estão em
+produção no fluxo; catch-all, histórico de bounce/engagement e política de
+refresh ainda faltam.
 
 ## 5.7 Job change
 
@@ -508,6 +595,14 @@ Ações:
 
 Cada decisão retorna `why`, `confidence`, `evidence`, `deadline`.
 
+**Status atual:** 🟠 parcial. `NextBestActionService` já calcula uma
+recomendação determinística, respeita opt-out/identidade ambígua e o gate de
+email verificado, distingue roteabilidade (`DIRECT_CONTACT`,
+`ROUTABLE_CONTACT`, `INSTITUTIONAL`, `UNKNOWN/UNREACHABLE`) e é exposto no
+detalhe do lead. A ação de eventos é persistida em `event_opportunities`.
+Ainda faltam timing aprendido, cadência completa, persistência de cada decisão
+de sequência e integração com todas as ações do motor v2.
+
 ## 9.5 Reply/bounce automation
 
 - bounce → invalida contato;
@@ -656,9 +751,9 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 
 ## Prospecting
 - [ ] advanced company search
-- [ ] advanced people search
+- [🟠] people search por domínio via provider opt-in (busca avançada completa pendente)
 - [ ] 50+ filtros realmente úteis
-- [ ] personas
+- [🟠] buyer roles em OfferProfile/campanhas legadas (entidade BuyerPersona completa pendente)
 - [ ] natural-language search
 - [ ] saved searches
 - [ ] alerts
@@ -666,26 +761,26 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 - [ ] TAM/coverage
 
 ## Data
-- [ ] firmographics
-- [ ] people/contact data federation
-- [ ] email verification
-- [ ] phone confidence
+- [🟠] firmographics (Places/CNAE/Receita/PNCP)
+- [🟠] people/contact data federation (registry + Hunter opt-in; waterfall multi-provider pendente)
+- [🟠] email verification (seam async e status persistido; cobertura v2 pendente)
+- [🟠] phone confidence/roteabilidade
 - [ ] technographics
 - [ ] job changes
 - [ ] intent
 - [ ] continuous refresh
-- [ ] waterfall enrichment
-- [ ] provenance/confidence
+- [🟠] waterfall enrichment (pipeline adaptativo; refresh completo pendente)
+- [✅] provenance/confidence
 - [ ] company hierarchy
 
 ## Engagement
-- [ ] sequences
-- [ ] email
-- [ ] call tasks
+- [🟠] sequences/cadência atual (Sequence Engine v2 pendente)
+- [✅] email
+- [🟠] call tasks recomendadas pelo Next Best Action (execução/tarefas v2 pendente)
 - [ ] LinkedIn/manual tasks
 - [ ] WhatsApp/manual steps
-- [ ] reply detection
-- [ ] bounce handling
+- [✅] reply detection
+- [✅] bounce handling
 - [ ] auto-pause
 
 ## Automation
@@ -694,8 +789,8 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 - [ ] conditions
 - [ ] actions
 - [ ] monitoring
-- [ ] enrichment jobs
-- [ ] assignment/notifications
+- [✅] enrichment jobs
+- [✅] assignment/notifications
 
 ## CRM/Data Ops
 - [ ] Pipedrive
@@ -707,58 +802,50 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 - [ ] Data Health Center
 
 ## Intelligence
-- [ ] ICP
-- [ ] intent
-- [ ] buyer roles
-- [ ] decision maker
-- [ ] opportunity vectors
-- [ ] next best action
-- [ ] provider optimization
-- [ ] revenue attribution
+- [✅] ICP/scoring contextual
+- [🟠] intent (signals e estrutura; provider real de vagas pendente)
+- [🟠] buyer roles
+- [🟠] decision maker (Person canônica + Hunter opt-in; pipeline multi-provider pendente)
+- [✅] opportunity vectors/LeadOpportunity
+- [✅] next best action determinística + UI
+- [🟠] provider optimization (métricas e custo observáveis; otimização automática pendente)
+- [✅] revenue attribution via LeadOpportunity/CommercialOutcome
 
 ## Platform
 - [ ] public API
 - [ ] API keys
 - [ ] RBAC
-- [ ] audit
-- [ ] quotas
-- [ ] observability
-- [ ] retries
+- [✅] audit
+- [✅] quotas
+- [✅] observability
+- [✅] retries
 - [ ] failover
 
 
 # 14. Milestones de progresso
 
-## 80%
-- E2E PostgreSQL; ✅
-- People Search real;
-- Decision Maker real;
-- observabilidade; ✅
-- outcome attribution;
-- Job Intent.
+## Marco atual — base operacional encerrada
+- E2E PostgreSQL e migration QA; ✅
+- observabilidade de providers/correlation IDs; ✅
+- identidade cross-provider de empresas; ✅
+- Event Discovery → organizador → Lead → oportunidade; ✅
+- atribuição de outcomes/conversões e comparação A/B; ✅
+- Person canônica, verificação assíncrona e roteabilidade; 🟠 parcial no fluxo
+  completo de People Discovery.
 
-## 85%
-- technographics;
-- industrial semantic enrichment;
-- event provider MEJ;
-- event → lead → trophies;
-- contact waterfall.
+## Próximo marco — People Discovery operacional completo
+- segundo provider real além do Hunter;
+- role fit por OfferProfile e `required_buyer_role`;
+- timing de evento → decisor → tarefa/outreach;
+- snapshot imutável e política de re-scoring;
+- BI por vertical, consultor, canal e Precision@K.
 
-## 90%
-- saved searches;
-- alerts;
-- freshness;
-- Data Health;
-- Next Best Action;
-- personas.
-
-## 95%
-- workflows;
-- CRM sync;
-- advanced enrichment;
-- provider optimization;
-- A/B;
-- TAM.
+## Marcos posteriores
+- saved searches, alerts e monitoramento contínuo;
+- Data Health e refresh scheduler;
+- Sequence Builder v2 e Workflow Engine;
+- integrações CRM bidirecionais;
+- otimização automática de providers, TAM e exploration controlada.
 
 ## 100% AlphaMec
 - todas as ofertas com OfferProfiles;
@@ -790,53 +877,43 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 
 # 15. Ordem recomendada de PRs
 
-```text
-PR 01 — E2E PostgreSQL + migration QA                            ✅ entregue
-PR 02 — provider observability (trace, tokens, custo)            ✅ entregue
-PR 03 — cross-provider company identity                          ✅ entregue
-PR 04 — canonical Person/Employment/ContactPoint
-PR 05 — People Provider Registry + waterfall
-PR 06 — advanced People Search
-PR 07 — advanced Company Search
-PR 08 — BuyerPersona + Search Builder
-PR 09 — outcome → LeadOpportunity attribution
-PR 10 — opportunity snapshots/versioning
-PR 11 — Job Intent source real
-PR 12 — industrial semantic signals
-PR 13 — TechnologyStackProvider
-PR 14 — Intent v2
-PR 15 — MEJ Event Provider
-PR 16 — event → organizer → lead
-PR 17 — trophies → decision maker → action
-PR 18 — EventSeries + rebuy
-PR 19 — 3D printing OfferProfile
-PR 20 — laser OfferProfiles
-PR 21 — freshness policies
-PR 22 — refresh scheduler
-PR 23 — Data Health Center
-PR 24 — phone verification
-PR 25 — Saved Searches
-PR 26 — Prospecting Watches
-PR 27 — Account Monitoring
-PR 28 — Next Best Action
-PR 29 — Sequence Builder v2
-PR 30 — reply/bounce automation
-PR 31 — Workflow Engine
-PR 32 — Workflow UI
-PR 33 — Pipedrive
-PR 34 — HubSpot
-PR 35 — Salesforce
-PR 36 — CRM enrichment
-PR 37 — provider analytics
-PR 38 — signal analytics
-PR 39 — TAM dashboard
-PR 40 — controlled learning
-PR 41 — A/B statistics
-PR 42 — Public API v1
-PR 43 — API keys/RBAC/audit
-PR 44 — usage/quota layer
-PR 45 — scale/security hardening
-```
+| Item do plano | Estado | Evidência/observação |
+|---|---|---|
+| PR 01 — E2E PostgreSQL + migration QA | ✅ Encerrado | Merge `#139`/`#144`; E2E real e verificador de schema. |
+| PR 02 — observabilidade (trace, tokens, custo) | ✅ Encerrado | Merge `#143`; `provider_execution_metrics` e trace org-scoped. |
+| PR 03 — identidade cross-provider de empresas | ✅ Encerrado | Merge `#142`; `company_aliases` integrado a Places/CNAE/PNCP. |
+| PR 04 — Person canônica/estados de resolução | ✅ Entregue no escopo atual | Commit `4d4b176`; `persons`, `needs_review`, `failed`, `ContactVerifier`. |
+| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Commit `7101c26` + Hunter opt-in; falta segundo provider e role fit. |
+| PR 09 — outcome → LeadOpportunity | ✅ Encerrado | Atribuição persistida em outcomes/conversões. |
+| PR 15 — Event Provider | ✅ Encerrado | Merge `#140`; provider HTTP opt-in com retry e estados. |
+| PR 16 — evento → organizador → Lead | ✅ Encerrado | Deduplicação, Company/Lead e provenance. |
+| PR 17 — troféus → decisor → ação | 🟠 Parcial | Ação persistida e exibida; descoberta multi-provider/outreach ainda pendentes. |
+| PR 28 — Next Best Action | ✅ Entregue no escopo atual | `NextBestActionService`, roteabilidade, API e `NextActionCard`; motor de sequência v2 pendente. |
+| PR 30 — reply/bounce automation | ✅ Entregue no escopo atual | Inbound, supressão e pausa/controle existentes; ampliar condições no motor v2. |
+| PR 41 — A/B statistics | ✅ Encerrado | Wilson, amostra mínima, aprovação e auditoria. |
+| PR 45 — scale/security hardening | 🟠 Parcial | Índices, migrations, backup/reset, Fernet e verificador entregues; RLS, rotação e retenção LGPD ainda pendentes. |
+
+> Os IDs `PR 01`–`PR 45` são **itens conceituais do roadmap**, não números dos
+> Pull Requests GitHub. As referências `#139`–`#144` acima são os merges reais;
+> quando há commit verificável posterior, ele aparece explicitamente na coluna
+> de evidência. O histórico completo permanece no log do repositório.
+
+### Itens conceituais ainda pendentes
+
+| Itens | Estado atual | Próxima entrega esperada |
+|---|---|---|
+| PR 06–08 | ⬜ Planejados | Busca avançada de pessoas/empresas, BuyerPersona e Search Builder. |
+| PR 10 | ⬜ Planejado | Snapshots imutáveis e política de re-scoring. |
+| PR 11–14 | 🟠 Estruturais/parciais | Provider de vagas, sinais semânticos industriais, technographics e Intent v2. |
+| PR 18 | ⬜ Planejado | EventSeries e rebuy/recorrência de eventos. |
+| PR 19–20 | 🟠 Parciais | OfferProfiles dedicados para impressão 3D e corte a laser. |
+| PR 21–24 | 🟠 Parciais | Freshness/refresh, Data Health e verificação telefônica. |
+| PR 25–27 | ⬜ Planejados | Saved Searches, Watches e Account Monitoring. |
+| PR 29 | ⬜ Planejado | Sequence Builder v2. |
+| PR 31–32 | ⬜ Planejados | Workflow Engine e interface de workflows. |
+| PR 33–36 | ⬜ Planejados | Adapters e sincronização bidirecional com Pipedrive, HubSpot e Salesforce. |
+| PR 37–40 | 🟠 Parciais | Analytics de providers/sinais, TAM e learning controlado operacional. |
+| PR 42–44 | 🟠 Parciais | Public API v1, API keys/RBAC e camada de uso/quota para produto externo. |
 
 
 # 16. Definition of Done

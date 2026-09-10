@@ -11,6 +11,7 @@ from database.models import Company, Contact, EventOpportunityRow, Lead
 from services.prospecting.default_profiles import get_default_registry
 from services.prospecting.lead_opportunity_service import LeadOpportunityService
 from services.prospecting.offer_matcher import OfferMatcher
+from services.prospecting.next_best_action_service import NextBestActionService
 
 
 def _event_date(value: Any) -> date | None:
@@ -194,6 +195,7 @@ class EventOpportunityService:
         """Resolve contato já persistido e prepara próxima ação humana."""
         result: Dict[str, Any] = {"ready": 0, "needs_review": 0, "not_found": 0, "errors": []}
         channels = (get_default_registry().get("trophies").channels or {}).get("priority", [])
+        next_action_service = NextBestActionService()
         for event in events:
             if event.status != "upcoming" or not event.lead_id:
                 result["not_found"] += 1
@@ -219,8 +221,18 @@ class EventOpportunityService:
                 event.decision_maker_status = "resolved"
                 event.recommended_channel = channel
                 event.action_status = "ready" if contact.email_verified or contact.phone else "needs_review"
+                recommendation = next_action_service.recommend({
+                    "status": "QUALIFICADO",
+                    "has_verified_email": bool(contact.email_verified and contact.email),
+                    "routable": bool(contact.phone),
+                    "phone": contact.phone,
+                    "routability_type": getattr(contact, "routability_type", None),
+                    "has_primary_contact": bool(contact.is_primary),
+                    "opportunities": [{"offer_key": event.offer_key or "trophies", "score": 1}],
+                })
                 event.next_action = (
-                    f"Revisar {contact.name} e preparar contato por {channel}; não enviar mensagem automaticamente."
+                    f"Revisar {contact.name} e preparar contato por {channel}; "
+                    f"ação recomendada: {recommendation['action']}; não enviar mensagem automaticamente."
                 )
                 result[event.action_status] += 1
             except (TypeError, ValueError, AttributeError) as exc:

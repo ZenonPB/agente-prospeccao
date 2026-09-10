@@ -2,7 +2,8 @@
 
 Valida:
 - IdentityResolver normaliza acentos (Conceição == Conceicao)
-- ContactVerification usa EmailVerificationService real (não mock)
+- ContactVerification síncrono NÃO toca em rede (migração onda 2)
+- Verificação real de e-mail mora no seam assíncrono `ContactVerifier`
 - Pipeline produz pessoas REAIS (não inventadas) em cenário completo
 """
 import sys
@@ -55,9 +56,9 @@ class TestIdentityResolverNormalization:
 
 
 class TestContactVerificationReal:
-    """ContactVerification deve usar EmailVerificationService real quando disponível."""
+    """Sem mock explicitamente injetado, o resolver marca pendência real."""
 
-    def test_verification_chama_email_verification_service(self):
+    def test_verification_sem_mock_marca_pendencia_real(self):
         """Com mock_mx_check=None, verification_status = 'pending_real_check'."""
         from services.prospecting.decision_maker_resolution import (
             ContactVerification, PersonContact,
@@ -72,13 +73,17 @@ class TestContactVerificationReal:
         assert result["email_verified"] is False
         assert result["verification_status"] in ("pending_real_check", "identity_verified_no_email")
 
-    def test_verification_usa_metodo_publico_verify_email(self, monkeypatch):
-        """O adapter deve chamar `verify_email`, API pública existente."""
+    def test_verification_legado_nao_toca_rede_via_sys_modules(self, monkeypatch):
+        """Migração onda 2: o resolver síncrono não usa o serviço por hack.
+
+        Mesmo com um módulo fake de `email_verification_service` presente em
+        `sys.modules`, o resolver síncrono NÃO o chama — a verificação real
+        é responsabilidade do seam assíncrono `ContactVerifier`.
+        """
         import sys
         import types
         from services.prospecting.decision_maker_resolution import (
-            ContactVerification,
-            PersonContact,
+            ContactVerification, PersonContact,
         )
 
         calls = []
@@ -100,9 +105,31 @@ class TestContactVerificationReal:
         )
         result = ContactVerification().verify(person)
 
+        assert calls == []  # nunca tocou em rede por conta própria
+        assert result["email_verified"] is False
+        assert result["verification_status"] in ("pending_real_check", "identity_verified_no_email")
+
+    def test_verificador_assincrono_usa_metodo_publico_verify_email(self):
+        """O seam async `ContactVerifier` chama `verify_email` do serviço injetado."""
+        import asyncio
+        from types import SimpleNamespace
+        from services.prospecting.contact_verifier import ContactVerifier
+
+        calls = []
+
+        class FakeEmailVerificationService:
+            async def verify_email(self, email):
+                calls.append(email)
+                return {"verified": True, "reason": "ok"}
+
+        person = SimpleNamespace(
+            name="Maria", source="receita", email="maria@alpha.com", document_cpf="111",
+        )
+        result = asyncio.run(ContactVerifier(FakeEmailVerificationService()).verify_email(person))
+
         assert calls == ["maria@alpha.com"]
         assert result["email_verified"] is True
-        assert result["verification_status"] == "fully_verified"
+        assert result["verification_status"] == "verified"
 
 
 class TestPhaseGContactEnrichmentIntegration:

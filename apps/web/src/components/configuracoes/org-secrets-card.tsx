@@ -45,6 +45,12 @@ const KEYS = [
     description: "Usada para qualificar os clientes, criar mensagens e gerar sugestões.",
     placeholder: "gsk_…",
   },
+  {
+    key_name: "HUNTER_API_KEY",
+    label: "Contatos de decisores (Hunter)",
+    description: "Busca pessoas e e-mails profissionais. Só é usada quando esta chave está configurada.",
+    placeholder: "Chave Hunter…",
+  },
 ] as const;
 
 type KeyName = (typeof KEYS)[number]["key_name"];
@@ -130,7 +136,7 @@ export function OrgSecretsCard() {
           Chaves de Inteligência e Buscas (API)
         </CardTitle>
         <CardDescription>
-          Insira suas próprias chaves de acesso caso prefira utilizar seus limites diretos do Google e da Inteligência Artificial.
+          Insira suas próprias chaves para usar limites diretos do Google, da IA ou da busca de decisores.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
