@@ -9,8 +9,8 @@
 
 ## Estado atual verificado
 
-> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` · Alembic
-> `2e6f8a0c2d4e` · `1006 passed` · E2E de outreach `1 passed`.
+> **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` · Alembic
+> `2e6f8a0c2d4e` · `1030 passed` · E2E de outreach `1 passed`.
 
 As estimativas percentuais antigas foram removidas: não havia uma métrica
 reprodutível que justificasse os números. Use a matriz abaixo e
@@ -30,7 +30,7 @@ workflows, integrações CRM, Data Health e operação contínua.
 | Onda 0 — E2E, migration QA e observabilidade | ✅ Encerrada | Merges GitHub `#139`, `#143` e `#144`, `tests/e2e_outreach_cycle.py`, trace por `correlation_id`, tokens/custo Groq. |
 | Identidade cross-provider de empresas | ✅ Encerrada | `company_aliases`; commits `c69fdb1`, `5604641`, `471f2a2`, `2653493`; pipeline Places/CNAE/PNCP. |
 | Person canônica e estados de resolução | ✅ Entregue no escopo atual | `persons`, `needs_review/failed`, `CompanyPersonService`; commit `4d4b176`; waterfall externo ainda parcial. |
-| Hunter opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider`, quota por organização e API; commits `7101c26`, `0bbc655`; segundo provider e role fit ainda pendentes. |
+| People Discovery opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider` + `WebsitePeopleProvider`, quota por organização, role fit por título e API; commits `7101c26`, `0bbc655` e branch `feat/people-discovery-completo`; provider especializado, senioridade/departamento e snapshots ainda pendentes. |
 | Ação recomendada e roteabilidade | ✅ Encerrada | `NextBestActionService`, API, `NextActionCard`, integração de eventos; commits `560340c`, `d2da865`, `2de3014`, `cabe188`. |
 | Auditoria de schema, performance e segurança do banco | ✅ Encerrada | Reset após backup, migrations `2c4e6f8a0d3e`, `2d5e7f9b1c3f`, `2e6f8a0c2d4e`; commit `d22681f`. |
 
@@ -834,8 +834,8 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
   completo de People Discovery.
 
 ## Próximo marco — People Discovery operacional completo
-- segundo provider real além do Hunter;
-- role fit por OfferProfile e `required_buyer_role`;
+- role fit por senioridade, departamento e `required_buyer_role`;
+- provider especializado adicional, com opt-in e quota;
 - timing de evento → decisor → tarefa/outreach;
 - snapshot imutável e política de re-scoring;
 - BI por vertical, consultor, canal e Precision@K.
@@ -883,7 +883,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 | PR 02 — observabilidade (trace, tokens, custo) | ✅ Encerrado | Merge `#143`; `provider_execution_metrics` e trace org-scoped. |
 | PR 03 — identidade cross-provider de empresas | ✅ Encerrado | Merge `#142`; `company_aliases` integrado a Places/CNAE/PNCP. |
 | PR 04 — Person canônica/estados de resolução | ✅ Entregue no escopo atual | Commit `4d4b176`; `persons`, `needs_review`, `failed`, `ContactVerifier`. |
-| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Commit `7101c26` + Hunter opt-in; falta segundo provider e role fit. |
+| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Commit `7101c26` + Hunter/site opt-in, orçamento e role fit por título; branch `feat/people-discovery-completo`; falta provider especializado, senioridade/departamento e snapshot imutável. |
 | PR 09 — outcome → LeadOpportunity | ✅ Encerrado | Atribuição persistida em outcomes/conversões. |
 | PR 15 — Event Provider | ✅ Encerrado | Merge `#140`; provider HTTP opt-in com retry e estados. |
 | PR 16 — evento → organizador → Lead | ✅ Encerrado | Deduplicação, Company/Lead e provenance. |

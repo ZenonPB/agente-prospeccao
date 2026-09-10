@@ -3,7 +3,7 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
+> **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` ·
 > Alembic head `2e6f8a0c2d4e` (Person canônica + provenance de descarte +
 > tabela `follow_up_versions` + índices de performance + integridade de versões).
 >
@@ -28,6 +28,23 @@ workers Python async e PostgreSQL. O pipeline de empresas é orientado por
 `OfferProfile` quando configurado, usa `DiscoveryExecutor` para Places/CNAE,
 enrichment passivo, scoring contextual, `OfferMatcher`, decisores best-effort e
 outreach/cadência. Campanhas legadas continuam compatíveis.
+
+### Capacidades entregues nesta consolidação (onda 3 — People Discovery)
+
+- **People Discovery multi-provider opt-in**: `WebsitePeopleProvider` consulta
+  somente páginas públicas conhecidas do domínio oficial e extrai JSON-LD
+  `Person`; limita tamanho de HTML, rejeita redirecionamentos externos e IPs
+  privados, usa quota própria (`WEBSITE_PEOPLE_PROVIDER`) e nunca é habilitado
+  sem opt-in explícito da organização.
+- **Role fit configurável**: `PeopleProviderRegistry` anota
+  `role_fit_score`, `role_fit_status` e `matched_titles`, preserva o melhor fit
+  na deduplicação e aceita `min_role_fit` para early stopping. O resultado
+  distingue `role_not_matched` de ausência/falha do provider.
+- **OfferProfile no waterfall**: perfis padrão declaram limites de People
+  Discovery (`max_cost`, `max_steps`, `min_role_fit`); o enriquecedor resolve o
+  perfil efetivo da campanha, passa esses limites ao registry e persiste
+  `role_fit`, tentativas, custo e limites no evidence do lead. Providers
+  externos continuam opt-in por organização.
 
 ### Capacidades entregues nesta consolidação (onda 2 — fechamento de fluxos)
 
@@ -120,10 +137,11 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 - `ContactEnrichmentService` aceita o seam de verificação com/sem mock
   explícito (`_accepts_mock_check`), sem mudar o fluxo de `evidence_score`.
 - `PeopleProviderRegistry` define o seam assíncrono de waterfall de pessoas,
-  com deduplicação, early stopping e estados explícitos, mas permanece sem
-  provider externo habilitado por padrão. `HunterPeopleProvider` é o primeiro
-  adapter real; só é registrado quando a organização tem `HUNTER_API_KEY` e
-  uma quota positiva explícita em `api_quota`.
+  com deduplicação, early stopping, role fit por título, orçamento e estados
+  explícitos. `HunterPeopleProvider` e `WebsitePeopleProvider` são adapters
+  reais; o site oficial só é registrado quando a organização declara
+  `WEBSITE_PEOPLE_PROVIDER` com quota positiva em `api_quota`, e Hunter segue
+  exigindo chave + quota explícitas.
 - `NextBestActionService` recomenda uma ação explicável sem efeitos colaterais
   e a API a expõe em `GET /api/leads/{id}` como `next_best_action`; o envio
   continua humano no loop.
@@ -133,7 +151,7 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **1006 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **1030 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - E2E de ciclo completo (`tests/e2e_outreach_cycle.py`) contra o Postgres
   local reconstruido: **1 passed**;
@@ -171,9 +189,10 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 - **Idioma dos artefatos:** comentários e docstrings adicionados nesta
   auditoria foram mantidos em PT-BR, conforme a convenção do repositório.
 
-## Próximo passo imediato
+**Próximo passo imediato**
 
-Waterfall multi-provider de pessoas (P1.34/35): registrar um segundo provider
-real além do Hunter (opt-in por organização) e aplicar role fit do
-OfferProfile no early stopping, mantendo quota, telemetria e orçamento. As
-demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.
+Completar People Discovery multi-provider (P1.34/35): ampliar o role fit do
+OfferProfile para senioridade/departamento, adicionar provider externo
+especializado opt-in além do Hunter/site oficial, persistir snapshots de
+resolução e conectar timing de eventos à tarefa/outreach humano. As demais
+prioridades estão em `docs/pendencias-pos-consolidacao.md`.

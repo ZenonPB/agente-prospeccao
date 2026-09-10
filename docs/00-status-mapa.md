@@ -1,5 +1,5 @@
 # Mapa de status operacional
-> **Snapshot:** 2026-09-09 · branch `feat/onda-avanco-maximo` ·
+> **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` ·
 > Alembic head `2e6f8a0c2d4e`.
 >
 > Esta é a fonte de status por capacidade. “Completo” significa código no fluxo
@@ -30,7 +30,7 @@
 | Provider HTTP de eventos | ✅ opt-in | `EVENT_DISCOVERY_URL` | status e provenance do evento | cobertura externa depende de endpoint configurado |
 | Expiração de eventos | ✅ | scheduler da API | status `upcoming/expired` | recorrência e estados adicionais ainda não estão no escopo |
 | Intent Engine | 🟠 | enrichment com HTML/jobs fornecidos | `lead.evidence_score.phase3` | falta job board/producer real |
-| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + ações de eventos | `contacts` + `persons` canônica + snapshot + `next_best_action` + ação de evento persistida | provider Hunter integrado; faltam waterfall multi-provider e role fit avançado |
+| Decision Maker Resolution | 🟠 | `ContactEnrichmentService` + `PeopleProviderRegistry` opt-in + `HunterPeopleProvider` + `WebsitePeopleProvider` + ações de eventos | `contacts` + `persons` canônica + snapshot + `next_best_action` + ação de evento persistida + role fit por título | faltam provider especializado, role fit por senioridade/departamento e snapshots imutáveis |
 | Outcomes comerciais | ✅ | conversão/outcome service | `commercial_outcomes` | BI ainda não tem todos os cortes |
 | Comparação A/B | ✅ | `/api/intelligence/comparisons` | `commercial_comparisons` + audit | aprovação exige recomendação conclusiva |
 | Feedback humano de scoring | ✅ | rotas/UI de score feedback | `scoring_feedback`, `template_learning` | não é o mesmo que learning comercial |
@@ -48,7 +48,7 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Evidências de validação
 
-- `python -m pytest tests -q -W error`: **1006 passed**.
+- `python -m pytest tests -q -W error`: **1030 passed**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
 - `scripts/verify_migrations.py`: head único `2e6f8a0c2d4e` (36 tabelas, 19 índices,
@@ -58,8 +58,8 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 
 ## Próximas prioridades
 
-1. P1.18/P1.35 — decisor → outreach automático: waterfall multi-provider
-   (segundo provider real) e role fit do OfferProfile.
+1. P1.18/P1.35 — decisor → outreach automático: role fit por senioridade/
+   departamento, provider especializado adicional e snapshots de resolução.
 2. Snapshot imutável e política explícita de re-scoring.
 3. BI por vertical, consultor, canal, campanha, variante e Precision@K.
 4. Entidade canônica de decisores e administração/versionamento de ofertas.
