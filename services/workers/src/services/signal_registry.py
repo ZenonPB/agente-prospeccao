@@ -65,6 +65,15 @@ class SignalKey:
     NEW_BRANCH = "NEW_BRANCH"
     DECISION_MAKER_FOUND = "DECISION_MAKER_FOUND"
     VERIFIED_EMAIL = "VERIFIED_EMAIL"
+    HAS_CNPJ = "HAS_CNPJ"
+    HAS_BUSINESS_EMAIL = "HAS_BUSINESS_EMAIL"
+    CNAE_INDUSTRIAL = "CNAE_INDUSTRIAL"
+    HAS_OWN_WEBSITE_INSTITUTIONAL = "HAS_OWN_WEBSITE_INSTITUTIONAL"
+    ENTERPRISE = "ENTERPRISE"
+    RETAIL_FOCUSED = "RETAIL_FOCUSED"
+    SERVICE_ONLY = "SERVICE_ONLY"
+    HOSTS_EVENTS = "HOSTS_EVENTS"
+    ONLINE_ONLY_RESALE = "ONLINE_ONLY_RESALE"
 
 
 # Metadados do registry: tipo de valor esperado e descrição semântica.
@@ -105,6 +114,24 @@ SIGNAL_REGISTRY: Dict[str, Dict[str, str]] = {
         "type": "bool", "description": "decisor identificado (nome + cargo)"},
     SignalKey.VERIFIED_EMAIL: {
         "type": "bool", "description": "e-mail verificado (deliverable)"},
+    SignalKey.HAS_CNPJ: {
+        "type": "bool", "description": "possui CNPJ ativo na Receita"},
+    SignalKey.HAS_BUSINESS_EMAIL: {
+        "type": "bool", "description": "possui e-mail corporativo (domínio próprio)"},
+    SignalKey.CNAE_INDUSTRIAL: {
+        "type": "bool", "description": "CNAE principal é industrial"},
+    SignalKey.HAS_OWN_WEBSITE_INSTITUTIONAL: {
+        "type": "bool", "description": "site institucional robusto (presença forte)"},
+    SignalKey.ENTERPRISE: {
+        "type": "bool", "description": "empresa de grande porte"},
+    SignalKey.RETAIL_FOCUSED: {
+        "type": "bool", "description": "foco em varejo/consumidor final"},
+    SignalKey.SERVICE_ONLY: {
+        "type": "bool", "description": "opera somente serviços (sem produção)"},
+    SignalKey.HOSTS_EVENTS: {
+        "type": "bool", "description": "promove ou hospeda eventos"},
+    SignalKey.ONLINE_ONLY_RESALE: {
+        "type": "bool", "description": "revenda exclusivamente online"},
 }
 
 # Registro de chaves legadas que NÃO devem receber novos usos.
