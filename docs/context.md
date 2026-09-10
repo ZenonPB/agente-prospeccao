@@ -192,8 +192,8 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Evoluir o BI para canal/variante/etapa (sem coluna no outcome) e controlled
-learning, e adicionar provider especializado opt-in além do Hunter/site
-oficial. Cortes por vertical, consultor, campanha, provider e versão já estão
-integrados via `GET /api/analytics/outcomes-breakdown`; as demais prioridades
-estão em `docs/pendencias-pos-consolidacao.md`.
+Provider especializado opt-in além do Hunter/site oficial, entidade
+`BuyerPersona` e controlled learning. Validação semântica de OfferProfile
+(P1.4) e cortes de BI por vertical/consultor/campanha/provider/versão já
+estão operacionais; as demais prioridades estão em
+`docs/pendencias-pos-consolidacao.md`.

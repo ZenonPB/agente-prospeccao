@@ -39,7 +39,7 @@
 
 ### Ainda falta
 
-- schema semântico e administração de `OfferProfile`;
+- administração de `OfferProfile` (schema semântico validado em P1.4);
 - decisor → outreach automático (provider especializado e envio automático
   continuam fora do escopo; filtros de role fit, snapshots e timing já estão
   persistidos, e a ação recomendada segue humana);
@@ -499,54 +499,24 @@ prescoring_discard → revisão → qualidade posterior
 
 ## P1.4 — Validar schema semanticamente
 
-**Status:** 🔵 Estrutural
+**Status:** ✅ Operacional
 
-### Problema
-
-`OfferProfile` usa vários `Dict[str, Any]`. Isso facilitou a evolução, mas permite configurações inválidas como:
-
-- provider inexistente;
-- signal inexistente;
-- weight inválido;
-- threshold fora da faixa;
-- decision maker vazio;
-- `event_weight` fora de `[0,1]`;
-- enrichment step desconhecido.
-
-### O que criar
-
-`OfferProfileValidator` ou Pydantic schema equivalente.
-
-### Validar
-
-```text
-profile.key
-version
-provider keys
-signal keys
-prescoring thresholds
-weights
-intent config
-decision maker roles
-channel keys
-enrichment steps
-```
-
-### Quando executar
-
-- seed/startup;
-- teste;
-- publicação futura de profile;
-- criação administrativa futura.
-
-### Arquivos
-
-```text
-services/workers/src/services/prospecting/offer_profile.py
-services/workers/src/services/prospecting/default_profiles.py
-services/workers/src/services/enrichment_capability_registry.py
-services/workers/src/services/signal_registry.py
-```
+`validate_profile(profile)` (pura, em
+`services/workers/src/services/prospecting/offer_profile_validator.py`)
+confere key/archetype/vertical/version, thresholds, weights,
+`on_insufficient_data`, intent (`event_weights` em `[0,1]`, `decay_days`,
+`trigger_threshold`), `decision_makers.roles`/`buyer_types`, canais,
+`enrichment.steps` (contra as capabilities + legado `cnpj_qsa` como aviso),
+`people_discovery` (limites) e providers de discovery. Chaves de sinal
+(`weights`, `required_signals`, `signals.*`, `evidence_requirements`) são
+conferidas contra o Signal Registry — erro se desconhecidas; eventos de
+intent fora do registry são aviso. `build_default_registry` valida no build
+e loga; `validate_registry` expõe `{key: erros}` para a publicação
+administrativa futura. O registry padrão tem zero erros; 9 sinais reais
+usados pelos perfis (`HAS_CNPJ`, `HAS_BUSINESS_EMAIL`, `CNAE_INDUSTRIAL`,
+`HAS_OWN_WEBSITE_INSTITUTIONAL`, `ENTERPRISE`, `RETAIL_FOCUSED`,
+`SERVICE_ONLY`, `HOSTS_EVENTS`, `ONLINE_ONLY_RESALE`) foram incorporados ao
+registry. Cobertura: `tests/test_offer_profile_validator.py`.
 
 ---
 
