@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "2e6f8a0c2d4e"
+    assert verify_migrations.migration_head() == "2f7a9b1c3d5e"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -41,6 +41,18 @@ def test_versions_de_follow_up_tem_unicidade_por_etapa():
 
     assert verify_migrations.REQUIRED_UNIQUES["follow_up_versions"] == {
         "uq_follow_up_versions_follow_up_version",
+    }
+
+
+def test_snapshot_de_resolucao_tem_schema_e_integridade_obrigatorios():
+    verify_migrations = _module()
+
+    assert "decision_resolution_snapshots" in verify_migrations.REQUIRED_TABLES
+    assert verify_migrations.REQUIRED_COLUMNS["decision_resolution_snapshots"] == {
+        "status", "snapshot_hash", "payload", "reason", "created_at",
+    }
+    assert verify_migrations.REQUIRED_UNIQUES["decision_resolution_snapshots"] == {
+        "uq_decision_resolution_snapshot_hash",
     }
 
 

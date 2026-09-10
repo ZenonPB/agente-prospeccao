@@ -4,8 +4,8 @@
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
 > **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` ·
-> Alembic head `2e6f8a0c2d4e` (Person canônica + provenance de descarte +
-> tabela `follow_up_versions` + índices de performance + integridade de versões).
+> Alembic head `2f7a9b1c3d5e` (Person canônica + provenance de descarte +
+> tabela `follow_up_versions` + snapshots de resolução + índices de performance).
 >
 > **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
 > (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
@@ -37,11 +37,12 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   privados, usa quota própria (`WEBSITE_PEOPLE_PROVIDER`) e nunca é habilitado
   sem opt-in explícito da organização.
 - **Role fit configurável**: `PeopleProviderRegistry` anota
-  `role_fit_score`, `role_fit_status` e `matched_titles`, preserva o melhor fit
-  na deduplicação e aceita `min_role_fit` para early stopping. O resultado
-  distingue `role_not_matched` de ausência/falha do provider.
+  `role_fit_score`, `role_fit_status`, `matched_titles`, senioridade,
+  departamento e outcome dos filtros; preserva o melhor fit na deduplicação e
+  aceita `min_role_fit` para early stopping. O resultado distingue
+  `role_not_matched` de ausência/falha do provider.
 - **OfferProfile no waterfall**: perfis padrão declaram limites de People
-  Discovery (`max_cost`, `max_steps`, `min_role_fit`); o enriquecedor resolve o
+  Discovery (`max_cost`, `max_steps`, `min_role_fit`, senioridade e departamento); o enriquecedor resolve o
   perfil efetivo da campanha, passa esses limites ao registry e persiste
   `role_fit`, tentativas, custo e limites no evidence do lead. Providers
   externos continuam opt-in por organização.
@@ -151,14 +152,14 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
 
 ### Validação do snapshot
 
-- `python -m pytest tests -q -W error`: **1030 passed** (unit; testes com
+- `python -m pytest tests -q -W error`: **1039 passed** (unit; testes com
   Postgres real rodam apenas com `E2E_DATABASE_URL`/banco ativo);
 - E2E de ciclo completo (`tests/e2e_outreach_cycle.py`) contra o Postgres
   local reconstruido: **1 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `2e6f8a0c2d4e` (36 tabelas, 19 índices,
-  19 FKs e 4 constraints únicas);
+- `scripts/verify_migrations.py`: head único `2f7a9b1c3d5e` (37 tabelas, 20 índices,
+  21 FKs e 5 constraints únicas);
 - persistência controlada validada em PostgreSQL.
 
 ## Auditoria do banco (onda 3)
@@ -181,7 +182,7 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
   decisão documentada). Em produção, `SECRETS_ENCRYPTION_KEY` agora é
   obrigatória: a derivação determinística pelo `DATABASE_URL` fica restrita a
   desenvolvimento/testes, com cobertura de regressão.
-- **Todos os dados esperados:** divergência de colunas entre models e banco = 0; 36 tabelas;
+- **Todos os dados esperados:** divergência de colunas entre models e banco = 0; 37 tabelas;
   FKs verificadas; sem tabelas órfanas após o reset.
 - **Integridade de histórico:** `follow_up_versions` possui constraint única em
   `(follow_up_id, version_number)` (`2e6f8a0c2d4e`), evitando versões duplicadas
@@ -191,8 +192,8 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Completar People Discovery multi-provider (P1.34/35): ampliar o role fit do
-OfferProfile para senioridade/departamento, adicionar provider externo
-especializado opt-in além do Hunter/site oficial, persistir snapshots de
-resolução e conectar timing de eventos à tarefa/outreach humano. As demais
-prioridades estão em `docs/pendencias-pos-consolidacao.md`.
+Adicionar provider especializado opt-in além do Hunter/site oficial e evoluir
+o BI derivado para cortes por vertical, consultor, canal e controlled learning.
+Filtros de role fit, snapshots de resolução, timing de eventos e métricas
+executivas básicas já estão integrados; as demais prioridades estão em
+`docs/pendencias-pos-consolidacao.md`.

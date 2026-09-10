@@ -60,6 +60,23 @@ def overview(
     return analytics.overview(from_date=from_date, to_date=to_date)
 
 
+@router.get("/executive-metrics")
+def executive_metrics(
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    campaign_id: Optional[str] = Query(None),
+    k: int = Query(10, ge=1, le=100),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Expõe métricas executivas org-scoped sem efeitos colaterais."""
+    return analytics.executive_metrics(
+        from_date=from_date,
+        to_date=to_date,
+        campaign_id=campaign_id,
+        k=k,
+    )
+
+
 @router.get("/funnel")
 def funnel(
     from_date: Optional[str] = Query(None, alias="from"),

@@ -424,7 +424,7 @@ class ContactEnrichmentService:
     """Enriquece decisores com e-mail e LinkedIn por fontes passivas."""
 
     @staticmethod
-    def discovery_limits(profile: Optional[Dict[str, Any]]) -> Dict[str, Optional[float]]:
+    def discovery_limits(profile: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """Extrai limites seguros de People Discovery de um OfferProfile.
 
         O perfil pode declarar os limites diretamente em ``enrichment`` ou em
@@ -448,6 +448,14 @@ class ContactEnrichmentService:
                 return None
             return value if minimum <= value <= maximum else None
 
+        def _string_list(name: str) -> List[str]:
+            values = config.get(name)
+            if isinstance(values, str):
+                values = [values]
+            if not isinstance(values, (list, tuple)):
+                return []
+            return [str(value).strip().lower() for value in values if str(value).strip()]
+
         max_cost = _bounded_float("max_cost", 0, 1000)
         min_role_fit = _bounded_float("min_role_fit", 0, 100)
         raw_steps = config.get("max_steps")
@@ -459,6 +467,8 @@ class ContactEnrichmentService:
             "max_cost": max_cost,
             "max_steps": max_steps if 1 <= max_steps <= 20 else None,
             "min_role_fit": min_role_fit,
+            "seniority": _string_list("seniority"),
+            "department": _string_list("department"),
         }
 
     def __init__(
@@ -644,6 +654,8 @@ class ContactEnrichmentService:
                         max_steps=discovery_config["max_steps"] or 1,
                         max_cost=discovery_config["max_cost"],
                         min_role_fit=discovery_config["min_role_fit"],
+                        seniority=discovery_config.get("seniority"),
+                        department=discovery_config.get("department"),
                     )
                     self._persist_waterfall_people(db, lead, existing, waterfall, max_contacts)
                     db.flush()
@@ -708,6 +720,7 @@ class ContactEnrichmentService:
             from services.prospecting.decision_maker_resolution import (
                 DecisionMakerResolver, IdentityResolver, PersonContact,
             )
+            from services.prospecting.resolution_snapshot_service import ResolutionSnapshotService
             sources: Dict[str, List[Dict[str, Any]]] = {}
             for contact in results:
                 if not contact.get("name"):
@@ -742,6 +755,23 @@ class ContactEnrichmentService:
                         "email": p.email,
                         "verification": v,
                     })
+
+            ResolutionSnapshotService().persist(
+                db,
+                lead.organization_id,
+                lead.id,
+                resolution.status,
+                {
+                    "profile_key": profile_key,
+                    "domain": domain,
+                    "sources": sources,
+                    "resolution": {
+                        "status": resolution.status,
+                        "people": people_verified,
+                        "audit": resolution.audit,
+                    },
+                },
+            )
 
             # Anexa ao JSONB existente do lead (não à lista de contatos).
             # `Lead` não possui `raw_data`; usar `evidence_score` garante que
@@ -790,7 +820,7 @@ class ContactEnrichmentService:
         return [item["role"] for item in resolve_target_roles(profile_key)]
 
     @classmethod
-    def _discovery_config(cls, lead: Lead) -> Dict[str, Optional[float]]:
+    def _discovery_config(cls, lead: Lead) -> Dict[str, Any]:
         """Resolve a configuração de People Discovery do perfil da campanha."""
         return cls.discovery_limits(cls._resolved_offer_profile(lead))
 
@@ -850,6 +880,9 @@ class ContactEnrichmentService:
                     "role_fit_score": person.get("role_fit_score", 0),
                     "role_fit_status": person.get("role_fit_status", "unknown"),
                     "matched_titles": person.get("matched_titles") or [],
+                    "role_seniority": person.get("role_seniority", "unknown"),
+                    "role_department": person.get("role_department", "unknown"),
+                    "role_filter_status": person.get("role_filter_status", "not_requested"),
                 },
             )
             db.add(contact)

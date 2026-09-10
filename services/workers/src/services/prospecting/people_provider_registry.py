@@ -75,6 +75,8 @@ class PeopleProviderRegistry:
         max_steps: Optional[int] = None,
         max_cost: Optional[float] = None,
         min_role_fit: Optional[float] = None,
+        seniority: Optional[Sequence[str]] = None,
+        department: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
         """Busca pessoas em cascata sem tratar falha como lista vazia.
 
@@ -90,19 +92,28 @@ class PeopleProviderRegistry:
             min_role_fit: Pontuação mínima de aderência ao cargo-alvo para
                 early stopping. Quando ausente, o comportamento legado é
                 mantido e o fit é apenas anotado nos candidatos.
+            seniority: Senioridades aceitas para early stopping
+                (ex.: ``["senior"]``). Quando ausente, não filtra.
+            department: Departamentos aceitos para early stopping
+                (ex.: ``["engineering"]``). Quando ausente, não filtra.
 
         Returns:
             Dicionário com ``people``, tentativas, status agregado, indicação
-            de early stopping e ``cost_spent`` (custo acumulado dos providers
-            efetivamente consultados). O resultado é seguro para serialização
-            JSON.
+            de early stopping, ``cost_spent`` (custo acumulado dos providers
+            efetivamente consultados) e resumo ``role_fit``. O resultado é
+            seguro para serialização JSON.
         """
         people: List[Dict[str, Any]] = []
         attempts: List[ProviderAttempt] = []
         cost_spent = 0.0
+        seniorities = _normalize_filter_values(seniority)
+        departments = _normalize_filter_values(department)
         providers = self._providers[: max_steps if max_steps is not None else None]
         if not providers:
-            return self._result(people, attempts, "disabled", False, cost_spent)
+            return self._result(
+                people, attempts, "disabled", False, cost_spent,
+                seniorities, departments,
+            )
 
         for provider in providers:
             provider_cost = float(getattr(provider, "cost", 0))
@@ -135,7 +146,7 @@ class PeopleProviderRegistry:
                 continue
 
             normalized = [
-                _with_role_fit(item, titles)
+                _with_role_filters(_with_role_fit(item, titles), seniorities, departments)
                 for item in raw_people
                 if isinstance(item, dict)
             ]
@@ -147,16 +158,28 @@ class PeopleProviderRegistry:
                 min_contact_confidence,
                 require_verified_email,
                 min_role_fit,
+                seniorities,
+                departments,
             ):
-                return self._result(people, attempts, "success", True, cost_spent)
+                return self._result(
+                    people, attempts, "success", True, cost_spent,
+                    seniorities, departments,
+                )
 
         status = _aggregate_status(people, attempts)
-        if min_role_fit is not None and people and not any(
-            _number(person.get("role_fit_score", 0)) >= min_role_fit
-            for person in people
+        if (
+            (min_role_fit is not None or seniorities or departments)
+            and people
+            and not any(
+                _matches_role_requirements(person, min_role_fit, seniorities, departments)
+                for person in people
+            )
         ):
             status = "role_not_matched"
-        return self._result(people, attempts, status, False, cost_spent)
+        return self._result(
+            people, attempts, status, False, cost_spent,
+            seniorities, departments,
+        )
 
     @staticmethod
     def _result(
@@ -165,6 +188,8 @@ class PeopleProviderRegistry:
         status: str,
         early_stopped: bool,
         cost_spent: float = 0.0,
+        seniorities: Sequence[str] = (),
+        departments: Sequence[str] = (),
     ) -> Dict[str, Any]:
         """Monta um payload consistente para todos os estados do waterfall."""
         return {
@@ -185,6 +210,19 @@ class PeopleProviderRegistry:
                     1 for person in people if person.get("role_fit_status") == "unknown"
                 ),
             },
+            "role_filters": {
+                "seniority": list(seniorities),
+                "department": list(departments),
+                "requested": bool(seniorities or departments),
+                "matched": sum(
+                    1 for person in people
+                    if person.get("role_filter_status") == "matched"
+                ),
+                "not_matched": sum(
+                    1 for person in people
+                    if person.get("role_filter_status") == "not_matched"
+                ),
+            },
         }
 
 
@@ -193,16 +231,33 @@ def _has_sufficient_contact(
     minimum: float,
     require_verified_email: bool,
     min_role_fit: Optional[float] = None,
+    seniorities: Sequence[str] = (),
+    departments: Sequence[str] = (),
 ) -> bool:
     """Verifica se ao menos uma pessoa atende ao critério de parada."""
     for person in people:
         confidence = _number(person.get("contact_confidence", person.get("confidence", 0)))
         verified = bool(person.get("email_verified", person.get("verified", False)))
-        role_fit = _number(person.get("role_fit_score", 0))
-        role_ok = min_role_fit is None or role_fit >= min_role_fit
+        role_ok = _matches_role_requirements(person, min_role_fit, seniorities, departments)
         if confidence >= minimum and (not require_verified_email or verified) and role_ok:
             return True
     return False
+
+
+def _matches_role_requirements(
+    person: Dict[str, Any],
+    min_role_fit: Optional[float],
+    seniorities: Sequence[str],
+    departments: Sequence[str],
+) -> bool:
+    """Confirma score mínimo, senioridade e departamento quando exigidos."""
+    if min_role_fit is not None and _number(person.get("role_fit_score", 0)) < min_role_fit:
+        return False
+    if seniorities and str(person.get("role_seniority") or "").lower() not in seniorities:
+        return False
+    if departments and str(person.get("role_department") or "").lower() not in departments:
+        return False
+    return True
 
 
 def _with_role_fit(person: Dict[str, Any], titles: Sequence[str]) -> Dict[str, Any]:
@@ -220,6 +275,24 @@ def _with_role_fit(person: Dict[str, Any], titles: Sequence[str]) -> Dict[str, A
         "matched" if score >= 70 else "not_matched" if candidate_role else "unknown"
     )
     result["matched_titles"] = matched_titles
+    result["role_seniority"], result["role_department"] = _classify_role(candidate_role)
+    return result
+
+
+def _with_role_filters(
+    person: Dict[str, Any],
+    seniorities: Sequence[str],
+    departments: Sequence[str],
+) -> Dict[str, Any]:
+    """Anota o resultado dos filtros configuráveis sem remover o candidato."""
+    result = dict(person)
+    result["role_filter_status"] = (
+        "not_requested"
+        if not (seniorities or departments)
+        else "matched"
+        if _matches_role_requirements(person, None, seniorities, departments)
+        else "not_matched"
+    )
     return result
 
 
@@ -246,6 +319,57 @@ def _role_fit(role: Any, titles: Sequence[str]) -> tuple[float, List[str]]:
         elif score >= 70 and score == best_score and title not in matched:
             matched.append(title)
     return best_score, matched
+
+
+def _normalize_filter_values(values: Any) -> List[str]:
+    """Normaliza filtros opcionais como lista em minúsculas e sem duplicatas."""
+    if isinstance(values, str):
+        values = [values]
+    normalized = []
+    for value in values or ():
+        text = _normalize_role(value)
+        if text and text not in normalized:
+            normalized.append(text)
+    return normalized
+
+
+def _classify_role(role: Any) -> tuple[str, str]:
+    """Classifica senioridade e departamento com regras determinísticas."""
+    tokens = set(_normalize_role(role).split())
+    seniority = "unknown" if not tokens else "staff"
+    for level in ("c_level", "executive", "senior", "lead", "junior", "intern"):
+        if _SENIORITY_TOKENS[level] & tokens:
+            seniority = level
+            break
+    department = "other" if tokens else "unknown"
+    if tokens:
+        for area, keywords in _DEPARTMENT_TOKENS.items():
+            if keywords & tokens:
+                department = area
+                break
+    return seniority, department
+
+
+_SENIORITY_TOKENS = {
+    "c_level": {"ceo", "cfo", "cto", "cio", "coo", "cmo", "chief", "presidente", "president"},
+    "executive": {"director", "diretor", "diretora", "vp", "vice", "owner", "founder", "socio"},
+    "senior": {"senior", "sr", "head"},
+    "lead": {"lead", "techlead", "coordinator", "coordenador", "supervisor", "gerente", "manager"},
+    "junior": {"junior", "jr", "estagiario", "intern", "trainee", "assistente", "assistant"},
+    "intern": {"estagio"},
+}
+_DEPARTMENT_TOKENS = {
+    "engineering": {
+        "engineer", "engenheiro", "engenharia", "engineering", "plant", "maintenance",
+        "technical", "tecnico", "developer", "designer", "safety", "operations",
+    },
+    "sales": {"sales", "vendas", "comercial", "account", "sdr", "bdr"},
+    "marketing": {"marketing", "growth", "brand", "product"},
+    "finance": {"finance", "financas", "financeiro", "accounting", "controller"},
+    "hr": {"hr", "rh", "people", "talent", "recruiter"},
+    "legal": {"legal", "juridico", "compliance"},
+    "it": {"it", "ti", "infra", "devops", "security", "data"},
+}
 
 
 def _normalize_role(value: Any) -> str:

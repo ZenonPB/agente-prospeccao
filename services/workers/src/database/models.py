@@ -1139,6 +1139,30 @@ class EventOpportunityRow(Base):
         return f"<EventOpportunityRow(name='{self.name}', event_date='{self.event_date}')>"
 
 
+class DecisionResolutionSnapshot(Base):
+    """Snapshot append-only de uma resolução de decisor.
+
+    O payload representa uma avaliação completa em um instante. A impressão
+    digital permite reprocessamento idempotente sem alterar o histórico.
+    """
+    __tablename__ = "decision_resolution_snapshots"
+    __table_args__ = (
+        UniqueConstraint("lead_id", "snapshot_hash", name="uq_decision_resolution_snapshot_hash"),
+        Index("ix_decision_resolution_snapshots_org_lead", "organization_id", "lead_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(24), nullable=False)
+    snapshot_hash = Column(String(64), nullable=False)
+    payload = Column(JSONB, nullable=False)
+    reason = Column(String(32), nullable=False, server_default="enrichment")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<DecisionResolutionSnapshot(lead='{self.lead_id}', status='{self.status}')>"
+
+
 class CommercialOutcomeRow(Base):
     """Outcome comercial real, versionado por oferta e provider."""
     __tablename__ = "commercial_outcomes"

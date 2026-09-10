@@ -3,7 +3,7 @@
 > **Fonte operacional:** este documento descreve o código presente no branch
 > atual, não o plano histórico de consolidação. Snapshot: 2026-09-09 · branch
 > `feat/people-discovery-completo` ·
-> Alembic head `2e6f8a0c2d4e`.
+> Alembic head `2f7a9b1c3d5e`.
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -213,14 +213,21 @@ credenciais nos campos livres.
 - BI comercial expõe oferta, versão, período e amostra, mas ainda não oferece
   todos os cortes por vertical, consultor, canal, campanha e Precision@K.
 - `EventOpportunityService` calcula expiração por `event_date` ou `expires_at`,
-  normalizando timestamps ISO para UTC; recorrência e estados adicionais de
-  evento continuam fora do escopo atual.
+  normalizando timestamps ISO para UTC, e inclui o timing persistido na ação
+  humana recomendada; recorrência e estados adicionais de evento continuam
+  fora do escopo atual.
+- Resoluções de decisor são gravadas em `decision_resolution_snapshots` com
+  payload canônico e hash SHA-256. O reprocessamento é idempotente para a mesma
+  evidência; uma evidência diferente cria novo snapshot sem alterar o anterior.
+- BI executivo deriva `actionable_contact_rate` e `precision_at_k` sob demanda
+  em `GET /api/analytics/executive-metrics`, sempre org-scoped, e sinaliza
+  amostras vazias/parciais sem fabricar denominador.
 
 ## Verificação do snapshot
 
 No snapshot desta documentação foram validados:
 ```text
-python -m pytest tests -q -W error       → 987 passed
+python -m pytest tests -q -W error       → 1039 passed
 python -m compileall -q services/api services/workers
 apps/web: npm run lint → npx tsc --noEmit → npm run build
 scripts/verify_migrations.py             → head 1a2b3c4d5e6f

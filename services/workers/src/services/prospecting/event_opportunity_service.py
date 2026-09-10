@@ -211,7 +211,11 @@ class EventOpportunityService:
                     event.decision_maker_id = None
                     event.decision_maker_status = "not_found"
                     event.action_status = "needs_review"
-                    event.next_action = "Encontrar e validar um decisor; não enviar mensagem automaticamente."
+                    event.next_action = (
+                        "Encontrar e validar um decisor; "
+                        f"{self._timing_summary(event)}; "
+                        "não enviar mensagem automaticamente."
+                    )
                     result["not_found"] += 1
                     continue
                 channel = "email" if contact.email_verified and contact.email else "phone" if contact.phone else "email"
@@ -232,7 +236,9 @@ class EventOpportunityService:
                 })
                 event.next_action = (
                     f"Revisar {contact.name} e preparar contato por {channel}; "
-                    f"ação recomendada: {recommendation['action']}; não enviar mensagem automaticamente."
+                    f"ação recomendada: {recommendation['action']}; "
+                    f"{self._timing_summary(event)}; "
+                    "não enviar mensagem automaticamente."
                 )
                 result[event.action_status] += 1
             except (TypeError, ValueError, AttributeError) as exc:
@@ -241,6 +247,26 @@ class EventOpportunityService:
                 result["needs_review"] += 1
                 result["errors"].append({"event_id": str(event.id), "error_code": type(exc).__name__})
         return result
+
+    @staticmethod
+    def _timing_summary(event: EventOpportunityRow) -> str:
+        """Resume o timing persistido para orientar a próxima ação humana.
+
+        A função é deliberadamente determinística e não cria agendamento ou
+        envio. Valores ausentes/ilegíveis não impedem a preparação da ação.
+        """
+        timing = event.timing if isinstance(event.timing, dict) else {}
+        score = timing.get("timing_score")
+        days_until = timing.get("days_until")
+        urgency = timing.get("urgency")
+        parts = []
+        if score is not None:
+            parts.append(f"score de timing {score}/100")
+        if days_until is not None:
+            parts.append(f"faltam {days_until} dias")
+        if urgency:
+            parts.append(f"urgência {urgency}")
+        return "Timing do evento: " + (", ".join(parts) if parts else "sem dados")
 
     @staticmethod
     def _source_identifier(event: Dict[str, Any]) -> str | None:

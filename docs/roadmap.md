@@ -10,7 +10,7 @@
 ## Estado atual verificado
 
 > **Snapshot:** 2026-09-09 · branch `feat/people-discovery-completo` · Alembic
-> `2e6f8a0c2d4e` · `1030 passed` · E2E de outreach `1 passed`.
+> `2f7a9b1c3d5e` · `1039 passed` · E2E de outreach `1 passed`.
 
 As estimativas percentuais antigas foram removidas: não havia uma métrica
 reprodutível que justificasse os números. Use a matriz abaixo e
@@ -20,8 +20,9 @@ O projeto já possui arquitetura multi-tenant, OfferProfile, OfferMatcher,
 pre-scoring, discovery CNAE/Places/PNCP, enrichment, scoring, Event Discovery,
 cadência, outcomes e BI básico. As ondas de confiabilidade, identidade
 cross-provider, pessoas/decisores e auditoria de banco avançaram, mas ainda
-faltam waterfall multi-provider completo, role fit avançado, buscas salvas,
-workflows, integrações CRM, Data Health e operação contínua.
+faltam provider especializado, BuyerPersona completa, buscas salvas, workflows,
+integrações CRM, Data Health, re-scoring histórico de oportunidades e operação
+contínua.
 
 ### Registro de entregas verificadas
 
@@ -30,9 +31,9 @@ workflows, integrações CRM, Data Health e operação contínua.
 | Onda 0 — E2E, migration QA e observabilidade | ✅ Encerrada | Merges GitHub `#139`, `#143` e `#144`, `tests/e2e_outreach_cycle.py`, trace por `correlation_id`, tokens/custo Groq. |
 | Identidade cross-provider de empresas | ✅ Encerrada | `company_aliases`; commits `c69fdb1`, `5604641`, `471f2a2`, `2653493`; pipeline Places/CNAE/PNCP. |
 | Person canônica e estados de resolução | ✅ Entregue no escopo atual | `persons`, `needs_review/failed`, `CompanyPersonService`; commit `4d4b176`; waterfall externo ainda parcial. |
-| People Discovery opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider` + `WebsitePeopleProvider`, quota por organização, role fit por título e API; commits `7101c26`, `0bbc655` e branch `feat/people-discovery-completo`; provider especializado, senioridade/departamento e snapshots ainda pendentes. |
+| People Discovery opt-in e próxima ação | 🟠 Parcial | `HunterPeopleProvider` + `WebsitePeopleProvider`, quota por organização, role fit por título/senioridade/departamento, snapshots e API; provider especializado adicional ainda pendente. |
 | Ação recomendada e roteabilidade | ✅ Encerrada | `NextBestActionService`, API, `NextActionCard`, integração de eventos; commits `560340c`, `d2da865`, `2de3014`, `cabe188`. |
-| Auditoria de schema, performance e segurança do banco | ✅ Encerrada | Reset após backup, migrations `2c4e6f8a0d3e`, `2d5e7f9b1c3f`, `2e6f8a0c2d4e`; commit `d22681f`. |
+| Auditoria de schema, performance e segurança do banco | ✅ Encerrada | Reset após backup, migrations `2c4e6f8a0d3e`, `2d5e7f9b1c3f`, `2e6f8a0c2d4e`, `2f7a9b1c3d5e`; commit `d22681f`. |
 
 ### PRs GitHub identificados no histórico
 
@@ -69,7 +70,7 @@ workflows, integrações CRM, Data Health e operação contínua.
 
 O banco local foi exportado antes do reset para `backups/` (diretório
 ignorado pelo Git), reconstruído com `alembic upgrade head` e validado com
-`scripts/verify_migrations.py`: **36 tabelas, 19 índices, 19 FKs e 4
+`scripts/verify_migrations.py`: **37 tabelas, 20 índices, 21 FKs e 5
 constraints únicas**. O reset removeu uma revisão órfã
 `c9d0e1f2a3b4`/`identity_reviews` que não pertence à cadeia atual.
 
@@ -153,7 +154,7 @@ Automatizar:
 - rollback somente em DB temporário.
 
 **Estado atual:** encerrado para o schema vigente. O verificador oficial
-confirma head único, 36 tabelas, 19 índices, 19 FKs e 4 constraints únicas.
+confirma head único, 37 tabelas, 20 índices, 21 FKs e 5 constraints únicas.
 As migrations da auditoria de banco também são idempotentes.
 
 ## 2.3 Provider observability — ✅ ENTREGA (onda 0)
@@ -751,9 +752,9 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 
 ## Prospecting
 - [ ] advanced company search
-- [🟠] people search por domínio via provider opt-in (busca avançada completa pendente)
+- [🟠] people search por domínio via providers opt-in (role fit avançado operacional; busca federada completa e provider especializado pendentes)
 - [ ] 50+ filtros realmente úteis
-- [🟠] buyer roles em OfferProfile/campanhas legadas (entidade BuyerPersona completa pendente)
+- [🟠] buyer roles em OfferProfile/campanhas legadas (senioridade/departamento operacionais; entidade BuyerPersona e `required_buyer_role` pendentes)
 - [ ] natural-language search
 - [ ] saved searches
 - [ ] alerts
@@ -762,21 +763,21 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 
 ## Data
 - [🟠] firmographics (Places/CNAE/Receita/PNCP)
-- [🟠] people/contact data federation (registry + Hunter opt-in; waterfall multi-provider pendente)
+- [🟠] people/contact data federation (registry + Hunter/site oficial opt-in; filtros e snapshots operacionais, provider especializado pendente)
 - [🟠] email verification (seam async e status persistido; cobertura v2 pendente)
 - [🟠] phone confidence/roteabilidade
 - [ ] technographics
 - [ ] job changes
 - [ ] intent
 - [ ] continuous refresh
-- [🟠] waterfall enrichment (pipeline adaptativo; refresh completo pendente)
+- [🟠] waterfall enrichment (pipeline adaptativo, orçamento, role fit e provenance; refresh completo pendente)
 - [✅] provenance/confidence
 - [ ] company hierarchy
 
 ## Engagement
 - [🟠] sequences/cadência atual (Sequence Engine v2 pendente)
 - [✅] email
-- [🟠] call tasks recomendadas pelo Next Best Action (execução/tarefas v2 pendente)
+- [🟠] call tasks recomendadas pelo Next Best Action (timing de evento incluído; execução/tarefas v2 pendente)
 - [ ] LinkedIn/manual tasks
 - [ ] WhatsApp/manual steps
 - [✅] reply detection
@@ -804,10 +805,11 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 ## Intelligence
 - [✅] ICP/scoring contextual
 - [🟠] intent (signals e estrutura; provider real de vagas pendente)
-- [🟠] buyer roles
-- [🟠] decision maker (Person canônica + Hunter opt-in; pipeline multi-provider pendente)
+- [🟠] buyer roles (senioridade/departamento operacionais; BuyerPersona completa pendente)
+- [🟠] decision maker (Person canônica, Hunter/site opt-in, snapshots e provenance; provider especializado e pipeline completo pendentes)
 - [✅] opportunity vectors/LeadOpportunity
 - [✅] next best action determinística + UI
+- [✅] métricas executivas derivadas (acionabilidade e Precision@K com estado de amostra)
 - [🟠] provider optimization (métricas e custo observáveis; otimização automática pendente)
 - [✅] revenue attribution via LeadOpportunity/CommercialOutcome
 
@@ -832,13 +834,16 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 - atribuição de outcomes/conversões e comparação A/B; ✅
 - Person canônica, verificação assíncrona e roteabilidade; 🟠 parcial no fluxo
   completo de People Discovery.
+- role fit por título/senioridade/departamento, filtros de waterfall, snapshots
+  imutáveis de resolução e métricas executivas; ✅
 
-## Próximo marco — People Discovery operacional completo
-- role fit por senioridade, departamento e `required_buyer_role`;
+## Próximo marco — People Discovery federado completo
 - provider especializado adicional, com opt-in e quota;
-- timing de evento → decisor → tarefa/outreach;
-- snapshot imutável e política de re-scoring;
-- BI por vertical, consultor, canal e Precision@K.
+- entidade BuyerPersona e `required_buyer_role` configuráveis;
+- integração da resolução com o pipeline completo de decisores e outreach
+  humano assistido;
+- snapshot histórico da oportunidade e política de re-scoring do score de oferta;
+- BI por vertical, consultor, canal, campanha e controlled learning.
 
 ## Marcos posteriores
 - saved searches, alerts e monitoramento contínuo;
@@ -883,11 +888,11 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 | PR 02 — observabilidade (trace, tokens, custo) | ✅ Encerrado | Merge `#143`; `provider_execution_metrics` e trace org-scoped. |
 | PR 03 — identidade cross-provider de empresas | ✅ Encerrado | Merge `#142`; `company_aliases` integrado a Places/CNAE/PNCP. |
 | PR 04 — Person canônica/estados de resolução | ✅ Entregue no escopo atual | Commit `4d4b176`; `persons`, `needs_review`, `failed`, `ContactVerifier`. |
-| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Commit `7101c26` + Hunter/site opt-in, orçamento e role fit por título; branch `feat/people-discovery-completo`; falta provider especializado, senioridade/departamento e snapshot imutável. |
+| PR 05 — People Provider Registry + waterfall | 🟠 Parcial | Hunter/site opt-in, orçamento, role fit por título/senioridade/departamento, provenance e snapshots de resolução; falta provider especializado e BuyerPersona completa. |
 | PR 09 — outcome → LeadOpportunity | ✅ Encerrado | Atribuição persistida em outcomes/conversões. |
 | PR 15 — Event Provider | ✅ Encerrado | Merge `#140`; provider HTTP opt-in com retry e estados. |
 | PR 16 — evento → organizador → Lead | ✅ Encerrado | Deduplicação, Company/Lead e provenance. |
-| PR 17 — troféus → decisor → ação | 🟠 Parcial | Ação persistida e exibida; descoberta multi-provider/outreach ainda pendentes. |
+| PR 17 — troféus → decisor → ação | 🟠 Parcial | Ação persistida, timing incluído e exibida; provider especializado e outreach assistido ainda pendentes. |
 | PR 28 — Next Best Action | ✅ Entregue no escopo atual | `NextBestActionService`, roteabilidade, API e `NextActionCard`; motor de sequência v2 pendente. |
 | PR 30 — reply/bounce automation | ✅ Entregue no escopo atual | Inbound, supressão e pausa/controle existentes; ampliar condições no motor v2. |
 | PR 41 — A/B statistics | ✅ Encerrado | Wilson, amostra mínima, aprovação e auditoria. |
@@ -903,7 +908,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 | Itens | Estado atual | Próxima entrega esperada |
 |---|---|---|
 | PR 06–08 | ⬜ Planejados | Busca avançada de pessoas/empresas, BuyerPersona e Search Builder. |
-| PR 10 | ⬜ Planejado | Snapshots imutáveis e política de re-scoring. |
+| PR 10 | 🟠 Parcial | Snapshots imutáveis de resolução entregues; snapshot histórico da oportunidade e política de re-scoring do score de oferta pendentes. |
 | PR 11–14 | 🟠 Estruturais/parciais | Provider de vagas, sinais semânticos industriais, technographics e Intent v2. |
 | PR 18 | ⬜ Planejado | EventSeries e rebuy/recorrência de eventos. |
 | PR 19–20 | 🟠 Parciais | OfferProfiles dedicados para impressão 3D e corte a laser. |
@@ -912,7 +917,7 @@ JWT iss/aud, HSTS, CORS, secret rotation, webhook signatures, login lockout, PII
 | PR 29 | ⬜ Planejado | Sequence Builder v2. |
 | PR 31–32 | ⬜ Planejados | Workflow Engine e interface de workflows. |
 | PR 33–36 | ⬜ Planejados | Adapters e sincronização bidirecional com Pipedrive, HubSpot e Salesforce. |
-| PR 37–40 | 🟠 Parciais | Analytics de providers/sinais, TAM e learning controlado operacional. |
+| PR 37–40 | 🟠 Parciais | Métricas executivas e Precision@K derivadas entregues; cortes avançados, TAM e learning controlado pendentes. |
 | PR 42–44 | 🟠 Parciais | Public API v1, API keys/RBAC e camada de uso/quota para produto externo. |
 
 

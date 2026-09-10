@@ -39,6 +39,7 @@ REQUIRED_TABLES = {
     "enrichments",
     "notifications",
     "persons",
+    "decision_resolution_snapshots",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",
@@ -60,6 +61,7 @@ REQUIRED_INDEXES = {
     "ix_commercial_outcomes_lead_id",
     "ix_notifications_lead_id",
     "ix_follow_up_versions_follow_up_id",
+    "ix_decision_resolution_snapshots_org_lead",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -69,6 +71,7 @@ REQUIRED_FKS = {
     "event_opportunities": {"organizations.id", "leads.id", "contacts.id"},
     "commercial_outcomes": {"organizations.id", "leads.id"},
     "commercial_comparisons": {"organizations.id", "users.id"},
+    "decision_resolution_snapshots": {"organizations.id", "leads.id"},
     "provider_execution_metrics": {"organizations.id", "jobs.id", "campaigns.id"},
     "company_aliases": {"organizations.id", "companies.id"},
     "conversions": {"leads.id", "lead_opportunities.id"},
@@ -78,6 +81,7 @@ REQUIRED_UNIQUES = {
     "commercial_outcomes": {"uq_commercial_outcomes_org_event"},
     "company_aliases": {"uq_company_aliases_org_kind_value"},
     "follow_up_versions": {"uq_follow_up_versions_follow_up_version"},
+    "decision_resolution_snapshots": {"uq_decision_resolution_snapshot_hash"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -92,6 +96,13 @@ REQUIRED_COLUMNS = {
         "routability_type",
         "routable",
         "routability_reason",
+    },
+    "decision_resolution_snapshots": {
+        "status",
+        "snapshot_hash",
+        "payload",
+        "reason",
+        "created_at",
     },
 }
 

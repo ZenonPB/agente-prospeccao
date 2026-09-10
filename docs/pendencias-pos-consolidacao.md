@@ -8,9 +8,9 @@
 >
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
-> **Snapshot:** 2026-09-09 · `1030 passed` com `-W error` · `compileall`, lint,
+> **Snapshot:** 2026-09-09 · `1039 passed` com `-W error` · `compileall`, lint,
 > TypeScript, build Web e migration verifier verdes · Alembic head
-> `2e6f8a0c2d4e`.
+> `2f7a9b1c3d5e`.
 
 ## Resumo desta revisão
 
@@ -41,11 +41,11 @@
 ### Ainda falta
 
 - schema semântico e administração de `OfferProfile`;
-- decisor → outreach automático (role fit por senioridade/departamento,
-  provider especializado, snapshots e timing seguem na P1.34/35; a ação
-  recomendada já é persistida e exposta);
+- decisor → outreach automático (provider especializado e envio automático
+  continuam fora do escopo; filtros de role fit, snapshots e timing já estão
+  persistidos, e a ação recomendada segue humana);
 - provider real especializado de vagas e intent;
-- BI por vertical/consultor/canal/etapa/variante e Precision@K operacional;
+- BI por vertical/consultor/canal/etapa/variante e controlled learning;
 - entidade canônica e pipeline completo de decisores;
 - exploração controlada, recorrência de eventos, janela ideal aprendida e
   operação em devices reais.
@@ -55,7 +55,7 @@
 | Item | Status atual | Observação |
 |---|---|---|
 | P0.1 E2E/persistência PostgreSQL controlada | ✅ Feito | Ciclo persistente e testes controlados verdes; E2E externo com credenciais reais continua opcional. |
-| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `2e6f8a0c2d4e` (`persons` canônica + provenance em `prescoring_discards` + `follow_up_versions` + índices de performance + integridade de versões). |
+| P0.2 Migrations/head/schema | ✅ Feito | `verify_migrations.py` confirma head `2f7a9b1c3d5e` (`persons` canônica + snapshots de resolução + provenance em `prescoring_discards` + `follow_up_versions` + índices de performance). |
 | P0.3 Warnings Python | ✅ Feito | Suíte verde com `-W error`. |
 | P0.4 Documentação de estado | ✅ Feito | `context`, status e este mapa sincronizados nesta revisão. |
 | P0.5 Observabilidade agregada | ✅ Feito | `correlation_id`/`campaign_id`/`usage`/`cost` persistidos; telemetria de tokens Groq; endpoint `provider-trace` org-scoped explica "poucos leads". |
@@ -65,11 +65,11 @@
 | P1.25 BI por oferta/período | 🟠 Parcial | Oferta/versão/período/amostra prontos; cortes avançados faltam. |
 | P1.30 A/B estatístico | ✅ Feito | Wilson, persistência, aprovação humana e auditoria. |
 | P1.17 Evento → oferta | ✅ Operacional | Evento futuro com lead resolvido gera `trophies` via `OfferMatcher`; decisor/outreach seguem na P1.18. |
-| P1.18 Evento → decisor/outreach | 🟠 Parcial | Recomendação + persistência da ação de evento (`decision_maker_id/status`, canal, `next_action`) entregues e expostas em `/api/intelligence`; descoberta externa de decisor e outreach automático seguem na P1.34/35. |
+| P1.18 Evento → decisor/outreach | 🟠 Parcial | Recomendação + persistência da ação de evento (`decision_maker_id/status`, canal, `next_action`) entregues e expostas em `/api/intelligence`; timing é incluído na ação, mas outreach permanece humano. |
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
 | P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
-| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança, role fit por título e orçamento (`max_cost` + `cost_spent`); `HunterPeopleProvider` e `WebsitePeopleProvider` opt-in por quota; `ContactVerifier` async sem thread no resolver; provider especializado, role fit por senioridade/departamento e snapshots imutáveis ainda faltam. |
+| P1.34–P1.38 People Discovery/decisores | 🟠 Parcial | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança, role fit por título/senioridade/departamento e orçamento (`max_cost` + `cost_spent`); `HunterPeopleProvider` e `WebsitePeopleProvider` opt-in por quota; `ContactVerifier` async sem thread; snapshots imutáveis persistidos; falta provider especializado. |
 | P1.39 Routable contact | ✅ Operacional | Classificação persistida, exposta na API e usada pelo `NextBestActionService` (DIRECT/ROUTABLE → CALL, INSTITUTIONAL → pesquisa humana, UNREACHABLE → re-enriquecer); cadência de e-mail continua condicionada a e-mail verificado. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
 | P2.6 QA em device real | ⬜ Planejado | Falta execução em celular/tablet real. |
@@ -1317,9 +1317,11 @@ Exibir tamanho de amostra sempre.
 
 ## P1.26 — Precision@K operacional
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional na métrica executiva derivada
 
-A função existe, mas precisa de uso real em BI/learning.
+`GET /api/analytics/executive-metrics` calcula Precision@K na coorte org-scoped
+e informa o tamanho da janela e o estado `empty`/`partial`/`ok`. O snapshot do
+ranking de longo prazo e controlled learning continuam como evolução posterior.
 
 Medir:
 
@@ -1329,7 +1331,8 @@ Precision@10(MEETING)
 Precision@25(WON)
 ```
 
-com snapshot do ranking original.
+ com a janela do ranking atual; o snapshot histórico do ranking original segue
+ reservado para a próxima evolução de BI.
 
 ---
 
@@ -2052,10 +2055,9 @@ Reabrir apenas com escopo de produto específico.
 ## Onda 1 — corrigir learning/outcomes antes de contaminar dados
 
 1. P1.8 snapshot histórico da oportunidade;
-2. P1.9 política de re-scoring;
+2. P1.9 política de re-scoring do score de oferta;
 3. P1.25 BI por vertical/consultor/canal/etapa/variante;
-4. P1.26 Precision@K operacional;
-5. P1.29 controlled learning após aprovação A/B.
+4. P1.29 controlled learning após aprovação A/B.
 
 ## Onda 2 — contatos e decisores
 
