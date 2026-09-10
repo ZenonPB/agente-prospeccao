@@ -210,8 +210,9 @@ credenciais nos campos livres.
   e mantém snapshot JSONB compatível; `Person` canônica recebe os campos de
   `Contact` via `sync_lead_entities`, mas a descoberta externa de pessoas e a
   remoção do legado `ContactVerification` com thread ainda estão pendentes.
-- BI comercial expõe oferta, versão, período e amostra, mas ainda não oferece
-  todos os cortes por vertical, consultor, canal, campanha e Precision@K.
+- BI comercial expõe oferta, versão, período, amostra e cortes por vertical,
+  consultor, campanha, provider e versão (`GET /api/analytics/outcomes-breakdown`);
+  canal, variante e etapa seguem sem coluna de atribuição no outcome.
 - `EventOpportunityService` calcula expiração por `event_date` ou `expires_at`,
   normalizando timestamps ISO para UTC, e inclui o timing persistido na ação
   humana recomendada; recorrência e estados adicionais de evento continuam

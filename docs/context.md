@@ -192,7 +192,8 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Evoluir o BI derivado para cortes por vertical, consultor, canal e controlled
+Evoluir o BI para canal/variante/etapa (sem coluna no outcome) e controlled
 learning, e adicionar provider especializado opt-in além do Hunter/site
-oficial. Oportunidade histórica e re-scoring explícito já estão integrados;
-as demais prioridades estão em `docs/pendencias-pos-consolidacao.md`.
+oficial. Cortes por vertical, consultor, campanha, provider e versão já estão
+integrados via `GET /api/analytics/outcomes-breakdown`; as demais prioridades
+estão em `docs/pendencias-pos-consolidacao.md`.
