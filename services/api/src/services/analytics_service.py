@@ -1687,3 +1687,57 @@ def build_planilha_kpis(
         "avg_cadence_days": round(mean(cadence_days), 1) if cadence_days else 0.0,
         "avg_close_days": round(mean(close_days), 1) if close_days else 0.0,
     }
+
+
+# Amostra mínima para um corte de BI ser considerado suficiente.
+OUTCOMES_BREAKDOWN_MIN_SAMPLE = 5
+
+
+def build_outcomes_breakdown(rows: list, by: str = "vertical") -> dict:
+    """Agrupa outcomes por dimensão com amostra sempre visível.
+
+    Args:
+        rows: Linhas com `group`, `outcome` e `value` (ticket).
+        by: Nome da dimensão do corte (vertical, consultor, canal, ...).
+
+    Returns:
+        Dict com `by`, `total_outcomes`, `sample_minimum` e `groups`
+        (total, won, conversion_rate, average_ticket sobre WON e
+        sample_sufficient). Grupo vazio vira bucket `(sem <by>)`; lista
+        vazia retorna `groups` vazio sem confundir com zero.
+    """
+    by_label = (by or "grupo").strip() or "grupo"
+    empty_label = f"(sem {by_label})"
+    buckets: dict = {}
+    for row in rows or []:
+        raw = row.get("group") if isinstance(row, dict) else None
+        text = str(raw).strip() if raw is not None else ""
+        group = text or empty_label
+        bucket = buckets.setdefault(group, {"total": 0, "won": 0, "won_value_sum": 0.0})
+        bucket["total"] += 1
+        outcome = str(row.get("outcome") or "").strip().upper() if isinstance(row, dict) else ""
+        if outcome == "WON":
+            bucket["won"] += 1
+            try:
+                bucket["won_value_sum"] += float(row.get("value") or 0)
+            except (TypeError, ValueError):
+                continue
+    groups = []
+    for group in sorted(buckets, key=lambda g: (-buckets[g]["total"], g)):
+        bucket = buckets[group]
+        total = bucket["total"]
+        won = bucket["won"]
+        groups.append({
+            "group": group,
+            "total": total,
+            "won": won,
+            "conversion_rate": round(won / total * 100, 2) if total else 0.0,
+            "average_ticket": round(bucket["won_value_sum"] / won, 2) if won else 0.0,
+            "sample_sufficient": total >= OUTCOMES_BREAKDOWN_MIN_SAMPLE,
+        })
+    return {
+        "by": by_label,
+        "total_outcomes": len(rows or []),
+        "sample_minimum": OUTCOMES_BREAKDOWN_MIN_SAMPLE,
+        "groups": groups,
+    }
