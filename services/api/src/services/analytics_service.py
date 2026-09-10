@@ -21,6 +21,7 @@ from src.db.models import (
     Lead,
     LeadStatus,
     Campaign,
+    CommercialOutcomeRow,
     Conversion,
     Contact,
     FollowUp,
@@ -1039,6 +1040,107 @@ class AnalyticsService:
         result.sort(key=lambda r: r["leads"], reverse=True)
         return result
 
+    # ------------------------------------------------------- outcomes por corte
+    def outcomes_breakdown(
+        self,
+        by: str = "vertical",
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        offer_key: Optional[str] = None,
+        offer_version: Optional[str] = None,
+    ) -> dict:
+        """Cortes de BI sobre outcomes reais da org (P1.25).
+
+        Args:
+            by: Dimensão com coluna real (`vertical`, `consultor`,
+                `campanha`, `provider`, `offer_version`).
+            from_date: Início do período por `recorded_at`.
+            to_date: Fim do período por `recorded_at`.
+            offer_key: Restringe a uma oferta.
+            offer_version: Restringe a uma versão da oferta.
+
+        Returns:
+            Agrupamento via `build_outcomes_breakdown` com amostra sempre
+            visível. Dimensões sem coluna (canal, variante, etapa) levantam
+            `ValueError` em vez de retornar agrupamento enganoso.
+        """
+        dim = normalize_outcomes_dimension(by)
+        f = _parse_period(from_date)
+        t = _parse_period(to_date, end_of_day=True)
+        query = self.db.query(CommercialOutcomeRow).filter(
+            CommercialOutcomeRow.organization_id == self.org_id
+        )
+        if f:
+            query = query.filter(CommercialOutcomeRow.recorded_at >= f)
+        if t:
+            query = query.filter(CommercialOutcomeRow.recorded_at <= t)
+        if offer_key:
+            query = query.filter(CommercialOutcomeRow.offer_key == offer_key)
+        if offer_version:
+            query = query.filter(CommercialOutcomeRow.offer_version == offer_version)
+        outcome_rows = query.all()
+
+        lead_ids = [row.lead_id for row in outcome_rows if row.lead_id]
+        leads_by_id: dict = {}
+        if lead_ids:
+            for lead in (
+                self.db.query(Lead)
+                .filter(Lead.organization_id == self.org_id, Lead.id.in_(lead_ids))
+                .all()
+            ):
+                leads_by_id[lead.id] = lead
+                leads_by_id[str(lead.id)] = lead
+
+        campaigns_by_id: dict = {}
+        users_by_id: dict = {}
+        if leads_by_id and dim in {"consultor", "campanha", "vertical"}:
+            unique_leads = {id(v): v for v in leads_by_id.values()}.values()
+            if dim == "campanha":
+                campaign_ids = [lead.campaign_id for lead in unique_leads if lead.campaign_id]
+                if campaign_ids:
+                    for campaign in (
+                        self.db.query(Campaign)
+                        .filter(
+                            Campaign.organization_id == self.org_id,
+                            Campaign.id.in_(campaign_ids),
+                        )
+                        .all()
+                    ):
+                        campaigns_by_id[campaign.id] = campaign
+                        campaigns_by_id[str(campaign.id)] = campaign
+            if dim == "consultor":
+                user_ids = [lead.assigned_to_id for lead in unique_leads if lead.assigned_to_id]
+                if user_ids:
+                    for user in self.db.query(User).filter(User.id.in_(user_ids)).all():
+                        users_by_id[user.id] = user
+                        users_by_id[str(user.id)] = user
+
+        rows = []
+        for row in outcome_rows:
+            lead = leads_by_id.get(row.lead_id) or leads_by_id.get(str(row.lead_id))
+            if dim == "vertical":
+                group = (getattr(lead, "category", None) or getattr(lead, "segment_opportunity", None)) if lead else None
+            elif dim == "consultor":
+                user = None
+                if lead is not None and lead.assigned_to_id:
+                    user = users_by_id.get(lead.assigned_to_id) or users_by_id.get(str(lead.assigned_to_id))
+                group = getattr(user, "name", None)
+            elif dim == "campanha":
+                campaign = None
+                if lead is not None and lead.campaign_id:
+                    campaign = campaigns_by_id.get(lead.campaign_id) or campaigns_by_id.get(str(lead.campaign_id))
+                group = getattr(campaign, "name", None)
+            elif dim == "provider":
+                group = row.provider
+            else:
+                group = row.offer_version
+            rows.append({
+                "group": group,
+                "outcome": row.outcome,
+                "value": float(row.value or 0),
+            })
+        return build_outcomes_breakdown(rows, by=dim)
+
     # ---------------------------------------------------------------- timeline
     def timeline(
         self,
@@ -1691,6 +1793,45 @@ def build_planilha_kpis(
 
 # Amostra mínima para um corte de BI ser considerado suficiente.
 OUTCOMES_BREAKDOWN_MIN_SAMPLE = 5
+
+# Cortes com coluna real em `commercial_outcomes`/`leads` (P1.25). Canal,
+# variante e etapa não têm coluna de atribuição no outcome — pedir esses
+# cortes aqui retornaria agrupamento enganoso, por isso são rejeitados com
+# `ValueError` explícito até a modelagem existir.
+OUTCOMES_BREAKDOWN_DIMENSIONS = {
+    "vertical": "vertical",
+    "consultor": "consultor",
+    "campanha": "campanha",
+    "campaign": "campanha",
+    "provider": "provider",
+    "offer_version": "offer_version",
+    "versao": "offer_version",
+    "versão": "offer_version",
+    "version": "offer_version",
+}
+
+
+def normalize_outcomes_dimension(by: str) -> str:
+    """Normaliza a dimensão do corte de outcomes para o nome canônico.
+
+    Args:
+        by: Dimensão pedida (aceita aliases como `campaign`/`versao`).
+
+    Returns:
+        Nome canônico da dimensão.
+
+    Raises:
+        ValueError: Quando a dimensão não tem coluna real de atribuição
+            (canal, variante, etapa) ou é desconhecida.
+    """
+    key = (by or "").strip().lower()
+    if key in OUTCOMES_BREAKDOWN_DIMENSIONS:
+        return OUTCOMES_BREAKDOWN_DIMENSIONS[key]
+    supported = "vertical, consultor, campanha, provider, offer_version"
+    raise ValueError(
+        f"dimensão '{by}' sem coluna real de atribuição no outcome — "
+        f"cortes suportados: {supported}"
+    )
 
 
 def build_outcomes_breakdown(rows: list, by: str = "vertical") -> dict:

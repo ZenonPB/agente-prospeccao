@@ -13,6 +13,7 @@ Endpoints:
 - `GET /api/analytics/leads-ranking` — top leads (score/conversão/criação)
 - `GET /api/analytics/geo`           — agregação por cidade/UF (heatmap/mapa)
 - `GET /api/analytics/campaigns`     — desempenho por campanha
+- `GET /api/analytics/outcomes-breakdown` — cortes por vertical/consultor/campanha/provider/versão
 - `GET /api/analytics/timeline`      — evolução temporal (novos/reuniões/fechados)
 - `GET /api/analytics/forecast`      — forecast ponderado por estágio
 - `GET /api/analytics/export/pdf`    — relatório executivo em PDF
@@ -186,6 +187,33 @@ def campaigns(
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     return {"campaigns": analytics.campaigns(from_date=from_date, to_date=to_date)}
+
+
+@router.get("/outcomes-breakdown")
+def outcomes_breakdown(
+    by: str = Query("vertical", min_length=1, max_length=32),
+    from_date: Optional[str] = Query(None, alias="from"),
+    to_date: Optional[str] = Query(None, alias="to"),
+    offer_key: Optional[str] = Query(None, max_length=64),
+    offer_version: Optional[str] = Query(None, max_length=32),
+    analytics: AnalyticsService = Depends(_get_analytics),
+):
+    """Cortes de BI sobre outcomes reais (P1.25).
+
+    Dimensões com coluna real: `vertical` (Lead.category),
+    `consultor` (responsável do lead), `campanha`, `provider` e
+    `offer_version`. Amostra sempre visível com `sample_sufficient`.
+    """
+    try:
+        return analytics.outcomes_breakdown(
+            by=by,
+            from_date=from_date,
+            to_date=to_date,
+            offer_key=offer_key,
+            offer_version=offer_version,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/timeline")

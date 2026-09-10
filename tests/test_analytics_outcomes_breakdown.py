@@ -62,3 +62,24 @@ def test_breakdown_normaliza_grupo_vazio_em_bucket_explicito():
     assert len(result["groups"]) == 1
     assert result["groups"][0]["group"] == "(sem vertical)"
     assert result["groups"][0]["total"] == 2
+
+
+def test_normalize_dimensao_aceita_cortes_com_coluna_real():
+    from src.services.analytics_service import normalize_outcomes_dimension
+
+    assert normalize_outcomes_dimension("vertical") == "vertical"
+    assert normalize_outcomes_dimension("consultor") == "consultor"
+    assert normalize_outcomes_dimension("campaign") == "campanha"
+    assert normalize_outcomes_dimension("provider") == "provider"
+    assert normalize_outcomes_dimension("versao") == "offer_version"
+
+
+def test_normalize_dimensao_rejeita_corte_sem_coluna_com_mensagem_honesta():
+    import pytest
+
+    from src.services.analytics_service import normalize_outcomes_dimension
+
+    with pytest.raises(ValueError, match="sem coluna"):
+        normalize_outcomes_dimension("canal")
+    with pytest.raises(ValueError, match="sem coluna"):
+        normalize_outcomes_dimension("variant")
