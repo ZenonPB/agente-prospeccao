@@ -1,9 +1,9 @@
 # Arquitetura atual
 
 > **Fonte operacional:** este documento descreve o código presente no branch
-> atual, não o plano histórico de consolidação. Snapshot: 2026-09-10 · branch
-> `feat/people-provider-especializado-optin` ·
-> Alembic head `3d8e0f2a3b4c`.
+> atual, não o plano histórico de consolidação. Snapshot: 2026-09-10 ·
+> Alembic head `3d8e0f2a3b4c` (+ reconciliação documental Onda 0A, sem mudança
+> de código).
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
@@ -171,13 +171,19 @@ acionabilidade), `company_records`, `enrichments`,
 - **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
   por organização; isso é distinto de métricas comerciais A/B.
 
-O head atual é `1a2b3c4d5e6f`, que adiciona a `persons` canônica
-(identidade/contato/verificação e acionabilidade) sobre a base `ff8a9b0c1d2e`
-(`company_aliases` cross-provider + `correlation_id`/`campaign_id`/`usage` em
-telemetria de providers). A resolução de decisores distingue
-`resolved/partial/needs_review/not_found/failed`; verificação de e-mail roda
+A `persons` canônica carrega identidade/contato/verificação e acionabilidade; a
+resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
+(identity por evidências sem exigir CPF — P1.32 ✅; reliability por fonte
+persistida — P1.33 ✅ no cálculo/persistência); verificação de e-mail roda
 em `ContactVerifier` async com serviço injetado, sem thread no resolver.
 Migrations antigas não devem ser editadas.
+
+O head atual é `3d8e0f2a3b4c`, que persiste o `score_breakdown` do matcher
+(`matcher-v2` em runtime) sobre a base de snapshots de oportunidade, propostas
+controladas e tabelas comerciais. **Drift conhecido (finding F-01, não corrigido
+nesta entrega):** o modelo e a migration de snapshots declaram default
+`matcher-v1`, enquanto o serviço grava `matcher-v2` — ver
+`docs/pendencias-pos-consolidacao.md` §23.
 
 ## Tarefas e scheduler
 
@@ -220,11 +226,17 @@ credenciais nos campos livres.
   configurado e quota explícita `PEOPLE_DISCOVERY_HTTP` da organização; a
   quota é consumida após resposta HTTP 200.
 - `OfferProfile` e suas versões são cadastrados em código; não há CRUD
-  administrativo nem rollback de publicação.
+  administrativo nem rollback de publicação. `POST /api/campaigns/from-brief`
+  resolve apenas o `CampaignScoringTemplate`, nunca o OfferProfile (finding F-03):
+  campanhas nascidas do brief entram sem perfil explícito e caem no fallback
+  legado do resolver.
 - A resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
   e mantém snapshot JSONB compatível; `Person` canônica recebe os campos de
-  `Contact` via `sync_lead_entities`, mas a descoberta externa de pessoas e a
-  remoção do legado `ContactVerification` com thread ainda estão pendentes.
+  `Contact` via `sync_lead_entities`. A descoberta externa de pessoas opera via
+  waterfall (`Website`/`Http`/`Hunter`, opt-in por quota); a remoção do legado
+  `ContactVerification` com thread foi concluída (verificação só no seam async).
+  Pesos de identidade/reliability ainda são literais no código (calibráveis via
+  config só na Onda 1).
 - BI comercial expõe oferta, versão, período, amostra e cortes por vertical,
   consultor, campanha, provider e versão (`GET /api/analytics/outcomes-breakdown`);
   canal, variante e etapa seguem sem coluna de atribuição no outcome.
