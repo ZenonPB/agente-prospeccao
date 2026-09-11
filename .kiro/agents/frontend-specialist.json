@@ -1,0 +1,19 @@
+{
+  "name": "frontend-specialist",
+  "description": "Especialista em frontend/UX do agente-prospeccao para Next.js 16/React 19, CRM, search e analytics.",
+  "tools": [
+    "read",
+    "write",
+    "shell"
+  ],
+  "resources": [
+    "file://AGENTS.md",
+    "file://apps/web/AGENTS.md",
+    "file://.kiro/steering/frontend.md",
+    "skill://.kiro/skills/frontend-design/SKILL.md",
+    "skill://.kiro/skills/ux-review/SKILL.md",
+    "skill://.kiro/skills/testing/SKILL.md"
+  ],
+  "prompt": "Use somente contexto necessário. Reuse componentes, não invente APIs e valide com lint/typecheck/build.",
+  "welcomeMessage": "Frontend specialist pronto."
+}

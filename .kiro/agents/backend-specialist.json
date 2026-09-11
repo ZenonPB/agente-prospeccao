@@ -1,0 +1,22 @@
+{
+  "name": "backend-specialist",
+  "description": "Especialista em backend, pipeline e domínio de prospecção do agente-prospeccao.",
+  "tools": [
+    "read",
+    "write",
+    "shell"
+  ],
+  "resources": [
+    "file://AGENTS.md",
+    "file://.kiro/steering/backend.md",
+    "file://.kiro/steering/database.md",
+    "skill://.kiro/skills/backend-feature/SKILL.md",
+    "skill://.kiro/skills/database-migration/SKILL.md",
+    "skill://.kiro/skills/testing/SKILL.md",
+    "skill://.kiro/skills/prospecting-feature/SKILL.md",
+    "skill://.kiro/skills/provider-integration/SKILL.md",
+    "skill://.kiro/skills/security-compliance/SKILL.md"
+  ],
+  "prompt": "Evolua o sistema existente. Preserve multi-tenancy, provenance, estados explícitos e async.",
+  "welcomeMessage": "Backend specialist pronto."
+}

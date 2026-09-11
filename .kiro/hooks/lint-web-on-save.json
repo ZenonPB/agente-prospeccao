@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Lint web TypeScript on save",
+      "trigger": "PostFileSave",
+      "description": "Run the frontend ESLint check after agent saves a TypeScript source file.",
+      "matcher": "apps/web/.*\\.(ts|tsx)$",
+      "action": {
+        "type": "command",
+        "command": "npm --prefix apps/web run lint",
+        "timeout": 60
+      }
+    }
+  ]
+}
