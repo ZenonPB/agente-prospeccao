@@ -13,6 +13,7 @@ import {
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import { FollowUpCard, formatPrimaryNeed } from '@/components/oportunidades/follow-up-card';
 import { NextActionCard } from '@/components/oportunidades/next-action-card';
+import { EventTimingCard } from '@/components/oportunidades/event-timing-card';
 import type { Lead } from '@/types/index';
 import { getScoreBand, scoreBandBadge, SCORE_THRESHOLD_HINT, priorityLabels } from '@/components/oportunidades/score-scale';
 
@@ -39,7 +40,7 @@ function staleEnrichmentLabel(freshness?: Lead['enrichment_freshness']): string[
   return out;
 }
 
-export function OverviewTab({ lead }: { lead: Lead }) {
+export function OverviewTab({ lead, onOpenTab }: { lead: Lead; onOpenTab?: (tab: string) => void }) {
   const staleEnrichment = staleEnrichmentLabel(lead.enrichment_freshness);
 
   return (
@@ -150,7 +151,9 @@ export function OverviewTab({ lead }: { lead: Lead }) {
         </Card>
       </div>
 
-      <NextActionCard nextAction={lead.next_best_action} />
+      <NextActionCard lead={lead} nextAction={lead.next_best_action} onOpenTab={onOpenTab} />
+
+      <EventTimingCard leadId={lead.id} />
 
       {(lead.pitch_angle || lead.suggested_subject) && (
         <Card>

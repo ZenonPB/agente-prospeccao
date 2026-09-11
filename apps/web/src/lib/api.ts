@@ -307,6 +307,12 @@ export const leadsApi = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+
+  markResponded: (id: string) =>
+    request<{ status: string; cancelled: number }>(`/api/leads/${id}/mark-responded`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
 };
 
 export const authApi = {

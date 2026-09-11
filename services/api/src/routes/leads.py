@@ -1269,6 +1269,51 @@ def find_duplicate_conversion(db, lead_id, offer_key, lead_opportunity_id):
     return query.order_by(Conversion.converted_at.desc()).first()
 
 
+@router.post("/{lead_id}/mark-responded")
+def mark_lead_responded(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra resposta manual do lead (WhatsApp/telefone/presencial).
+
+    Marca RESPONDIDO (sem regredir reunião/proposta), pausa a cadência
+    cancelando pendências e registra na trilha — o mesmo efeito do inbound
+    de e-mail, para respostas que chegam por outros canais.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    if lead.status not in (
+        LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA,
+        LeadStatus.PROPOSTA_ENVIADA, LeadStatus.PERDIDO,
+    ):
+        lead.status = LeadStatus.RESPONDIDO
+    lead.last_contacted_at = datetime.now(timezone.utc)
+    cancelled = 0
+    for fu in db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.status == FollowUpStatus.PENDING,
+    ).all():
+        fu.status = FollowUpStatus.CANCELLED
+        cancelled += 1
+    log_activity(
+        db, lead, action=LeadActivityAction.RESPONDED,
+        user_id=str(user.id) if user else None,
+        detail="Resposta registrada manualmente — acompanhamento pausado",
+    )
+    db.commit()
+    return {"status": lead.status.value, "cancelled": cancelled}
+
+
 @router.post("/{lead_id}/conversion")
 def register_conversion(
     lead_id: str,

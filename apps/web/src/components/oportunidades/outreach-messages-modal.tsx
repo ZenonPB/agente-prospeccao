@@ -41,9 +41,13 @@ export function OutreachMessagesModal({
   onApplyVariant,
   onSaveToPlaybook,
 }: OutreachMessagesModalProps) {
-  const copyToClipboard = (text: string, message: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(message);
+  const copyToClipboard = async (text: string, message: string) => {
+    try {
+      await navigator.clipboard.writeText(text ?? '');
+      toast.success(message);
+    } catch {
+      toast.error('Não foi possível copiar. Selecione o texto manualmente.');
+    }
   };
   const whatsAppUrl = messages
     ? whatsAppLink(lead.whatsapp || lead.phone, messages.whatsapp_short)
@@ -202,9 +206,13 @@ export function OutreachMessagesModal({
         ) : (
           <div className="text-center py-6">
             <p className="text-sm text-muted-foreground mb-4">Nenhuma mensagem gerada ainda.</p>
-            <Button disabled>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Gerar Mensagem com IA
+            <Button onClick={onRegenerateVariants} disabled={isGenerating}>
+              {isGenerating ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
+              {isGenerating ? 'Gerando...' : 'Gerar mensagem com IA'}
             </Button>
           </div>
         )}

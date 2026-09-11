@@ -983,6 +983,18 @@ export function useOptOutLead() {
   });
 }
 
+export function useMarkResponded() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.markResponded(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", id, "cadence"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
 export function usePatchNegotiation() {
   const queryClient = useQueryClient();
   return useMutation({

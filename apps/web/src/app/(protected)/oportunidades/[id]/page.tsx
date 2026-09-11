@@ -28,6 +28,7 @@ import {
   useCreatePlaybook,
   useLeadDuplicates,
   useLeadOpportunities,
+  useMarkResponded,
 } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
@@ -68,12 +69,14 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const duplicatesQ = useLeadDuplicates(leadId);
   const opportunitiesQ = useLeadOpportunities(leadId);
   const updateStatus = useUpdateLeadStatus();
+  const markResponded = useMarkResponded();
   const generateMessagesMutation = useGenerateMessages();
   const updateStepMutation = useUpdateCadenceStep();
   const createPlaybookMutation = useCreatePlaybook();
   const recordWhatsApp = useRecordWhatsAppClick();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
   const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
   const [convOpen, setConvOpen] = useState(false);
   const [associateContact, setAssociateContact] = useState<ContactItem | null>(null);
@@ -145,6 +148,15 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Falha ao salvar no playbook.');
     }
+  };
+
+  const handleMarkResponded = () => {
+    if (!lead) return;
+    if (!window.confirm('Confirmar que o lead respondeu? O acompanhamento será pausado.')) return;
+    markResponded.mutate(lead.id, {
+      onSuccess: (res) => toast.success(`Resposta registrada. ${res.cancelled} mensagem(ns) pausada(s).`),
+      onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao registrar resposta.'),
+    });
   };
 
   const handleGenerateFromActions = async () => {
@@ -309,7 +321,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         </Reveal>
       )}
 
-      <Tabs defaultValue="overview" className="space-y-4 animate-fade-up stagger-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 animate-fade-up stagger-2">
         <TabsList className="h-11 w-full max-w-full justify-start gap-1 overflow-x-auto">
           <TabsTrigger value="overview" className="h-11 shrink-0">Visão Geral</TabsTrigger>
           <TabsTrigger value="offers" className="h-11 shrink-0">Ofertas relacionadas</TabsTrigger>
@@ -323,7 +335,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          <OverviewTab lead={lead} />
+          <OverviewTab lead={lead} onOpenTab={setActiveTab} />
         </TabsContent>
 
         <TabsContent value="offers" className="space-y-4">
@@ -393,6 +405,19 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                   <Phone className="mr-2 h-4 w-4" />
                 )}
                 Registrar contato realizado
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11"
+                onClick={handleMarkResponded}
+                disabled={markResponded.isPending}
+              >
+                {markResponded.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="mr-2 h-4 w-4 text-emerald-600" />
+                )}
+                Registrar resposta
               </Button>
               <Button
                 variant="outline"

@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarClock, Send, Play, Ban, Loader2, ShieldAlert, Eye, MousePointerClick } from "lucide-react";
 import { toast } from "sonner";
 import {
+  useLead,
   useLeadCadence,
   useStartCadence,
   useSendCadenceStep,
@@ -34,13 +35,22 @@ function formatDate(iso?: string | null): string {
 }
 
 export function CadencePanel({ leadId }: { leadId: string }) {
-  const { data, isLoading, refetch } = useLeadCadence(leadId);
+  const { data, isLoading, isError, refetch } = useLeadCadence(leadId);
+  const { data: lead } = useLead(leadId);
   const startCadence = useStartCadence();
   const sendStep = useSendCadenceStep();
   const optOut = useOptOutLead();
 
   const followUps: FollowUpItem[] = data?.follow_ups || [];
   const optOutActive = data?.opt_out || false;
+  const autoSend = data?.organization_auto_send || false;
+  const hasVerifiedEmail = (lead?.contacts ?? []).some(
+    (contact) => contact.email && contact.email_verified,
+  );
+  const pausedByResponse =
+    lead?.status === "RESPONDIDO" &&
+    followUps.length > 0 &&
+    followUps.every((fu) => fu.status === "CANCELLED");
 
   const handleStart = useCallback(async () => {
     try {
@@ -103,6 +113,15 @@ export function CadencePanel({ leadId }: { leadId: string }) {
             <ShieldAlert className="h-4 w-4 shrink-0" />
             Esta empresa pediu para não receber mensagens — o acompanhamento está pausado.
           </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Não foi possível carregar o acompanhamento agora.
+            </p>
+            <Button size="sm" variant="outline" onClick={() => refetch()}>
+              Tentar de novo
+            </Button>
+          </div>
         ) : followUps.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed p-4 text-center">
             <p className="text-sm text-muted-foreground">
@@ -123,11 +142,24 @@ export function CadencePanel({ leadId }: { leadId: string }) {
           </div>
         ) : (
           <>
+            {pausedByResponse && (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                <ShieldAlert className="h-4 w-4 shrink-0" />
+                Acompanhamento pausado porque o lead respondeu.
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {autoSend
+                ? "Envio automático ativado — as etapas vencidas saem sozinhas."
+                : "Envio manual — toque em Enviar em cada etapa."}
+            </p>
             <div className="space-y-2">
               {followUps.map((fu) => {
                 const badge = STATUS_BADGE[fu.status || "PENDING"];
                 const isSent = fu.status === "SENT";
                 const isPending = fu.status === "PENDING";
+                const isEmailStep = !fu.channel || fu.channel.toUpperCase().includes("MAIL");
+                const awaitingVerification = isPending && isEmailStep && !hasVerifiedEmail;
                 return (
                   <div
                     key={fu.id}
@@ -161,6 +193,11 @@ export function CadencePanel({ leadId }: { leadId: string }) {
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       <Badge variant={badge.variant}>{badge.label}</Badge>
+                      {awaitingVerification && (
+                        <Badge variant="outline" className="border-amber-200 bg-amber-50 font-normal text-amber-700">
+                          aguardando verificação
+                        </Badge>
+                      )}
                       {isPending && (
                         <Button
                           size="sm"
