@@ -42,6 +42,7 @@ REQUIRED_TABLES = {
     "decision_resolution_snapshots",
     "lead_opportunity_snapshots",
     "controlled_learning_proposals",
+    "login_attempts",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",

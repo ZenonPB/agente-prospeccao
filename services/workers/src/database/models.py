@@ -449,6 +449,22 @@ class User(Base):
     def __repr__(self):
         return f"<User(id='{self.id}', email='{self.email}')>"
 
+class LoginAttempt(Base):
+    """Tentativas de login por e-mail — base do lockout persistente.
+
+    Sem vínculo com organização: o lockout precisa funcionar antes mesmo de
+    identificar o usuário. O e-mail é guardado normalizado (lower/strip) e é
+    a chave primária — uma linha por e-mail, sem histórico.
+    """
+    __tablename__ = "login_attempts"
+    email = Column(String(255), primary_key=True)
+    failed_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_attempt_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<LoginAttempt(email='{self.email}', failed={self.failed_count})>"
+
 class Campaign(Base):
     __tablename__ = "campaigns"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

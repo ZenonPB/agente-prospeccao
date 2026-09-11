@@ -32,8 +32,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=settings.JWT_EXPIRES_HOURS))
     to_encode.update({
         "exp": expire,
-        "iss": "prospect-ai",
-        "aud": "prospect-ai-api",
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
     })
     return jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
@@ -45,8 +45,8 @@ def decode_access_token(token: str) -> Optional[dict]:
             token,
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM],
-            issuer="prospect-ai",
-            audience="prospect-ai-api",
+            issuer=settings.JWT_ISSUER,
+            audience=settings.JWT_AUDIENCE,
         )
     except jwt.ExpiredSignatureError:
         logger.info("Token expired")

@@ -5,9 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Camera, Sun, Moon, Palette, Lock, Save, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Sun, Moon, Palette, Lock, Save, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
@@ -144,11 +143,8 @@ export default function ConfiguracoesPage() {
               <AvatarFallback className="text-lg" aria-hidden="true">{initials}</AvatarFallback>
             </Avatar>
             <div>
-              <Button variant="outline" size="sm" disabled>
-                <Camera className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                Alterar foto
-              </Button>
-              <p className="mt-1 text-xs text-muted-foreground">Em breve</p>
+              <p className="text-sm font-medium">{session?.user?.name || 'Sua conta'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Suas iniciais são usadas como foto de perfil</p>
             </div>
           </div>
 
@@ -163,10 +159,7 @@ export default function ConfiguracoesPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Badge variant="outline" className="text-[10px] font-normal">Em breve</Badge>
-            </div>
+            <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               defaultValue={session?.user?.email || ''}
@@ -174,7 +167,7 @@ export default function ConfiguracoesPage() {
               className="opacity-60"
             />
             <p className="text-xs text-muted-foreground">
-              A alteração de email será integrada com verificação por email
+              O e-mail é a identidade de acesso da sua conta e não pode ser alterado por aqui
             </p>
           </div>
 
