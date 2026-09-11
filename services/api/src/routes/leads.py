@@ -1332,7 +1332,9 @@ def mark_lead_responded(
 
 
 @router.post("/{lead_id}/mark-lost")
-def mark_lead_lost(
+@limiter.limit("60/minute")
+async def mark_lead_lost(
+    request: Request,
     lead_id: str,
     body: MarkLostRequest,
     db: Session = Depends(get_db),
@@ -1373,7 +1375,9 @@ def mark_lead_lost(
 
 
 @router.post("/{lead_id}/mark-disqualified")
-def mark_lead_disqualified(
+@limiter.limit("60/minute")
+async def mark_lead_disqualified(
+    request: Request,
     lead_id: str,
     body: MarkDisqualifiedRequest,
     db: Session = Depends(get_db),

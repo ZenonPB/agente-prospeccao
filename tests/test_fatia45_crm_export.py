@@ -3,10 +3,26 @@
 RED: cobre WON x LOST x DESQUALIFICADO, motivo obrigatório de LOST,
 motivo opcional de DESQUALIFIED e isolamento cross-tenant do CSV.
 """
+import asyncio
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 from uuid import uuid4
 
+from fastapi import Request
+
 from src.db.models import LeadStatus, LostReason
+
+
+def _run(coro):
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+def _req():
+    return MagicMock(spec=Request)
 
 
 def _mk_lead(status=LeadStatus.PROPOSTA_ENVIADA, org="org-a"):
@@ -68,7 +84,9 @@ def test_mark_lost_exige_motivo_e_registra_lost():
     lead = _mk_lead()
     db = _DB(lead=lead)
     member, user, org = _ctx()
-    out = mark_lead_lost(str(lead.id), MarkLostRequest(lost_reason=LostReason.PRECO), db, user, org, member)
+    out = _run(
+        mark_lead_lost(_req(), str(lead.id), MarkLostRequest(lost_reason=LostReason.PRECO), db, user, org, member)
+    )
     assert out["status"] == LeadStatus.PERDIDO.value
     assert out["lost_reason"] == "PRECO"
     assert lead.status == LeadStatus.PERDIDO
@@ -80,7 +98,9 @@ def test_mark_disqualified_nao_gera_lost_e_registra_motivo():
     lead = _mk_lead()
     db = _DB(lead=lead)
     member, user, org = _ctx()
-    out = mark_lead_disqualified(str(lead.id), MarkDisqualifiedRequest(reason="Fora do ICP"), db, user, org, member)
+    out = _run(
+        mark_lead_disqualified(_req(), str(lead.id), MarkDisqualifiedRequest(reason="Fora do ICP"), db, user, org, member)
+    )
     assert out["status"] == LeadStatus.DESQUALIFICADO.value
     assert lead.status == LeadStatus.DESQUALIFICADO
     assert lead.lost_reason is None
@@ -92,7 +112,9 @@ def test_mark_disqualified_sem_motivo_tambem_passar():
     lead = _mk_lead()
     db = _DB(lead=lead)
     member, user, org = _ctx()
-    out = mark_lead_disqualified(str(lead.id), MarkDisqualifiedRequest(), db, user, org, member)
+    out = _run(
+        mark_lead_disqualified(_req(), str(lead.id), MarkDisqualifiedRequest(), db, user, org, member)
+    )
     assert out["status"] == LeadStatus.DESQUALIFICADO.value
 
 
