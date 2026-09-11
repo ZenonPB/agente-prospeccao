@@ -1245,6 +1245,21 @@ class RegisterPostSaleRequest(BaseModel):
     content: Optional[str] = None
 
 
+def find_duplicate_conversion(db, lead_id, offer_key, lead_opportunity_id):
+    """Localiza conversão já registrada para o mesmo lead+oferta, se houver.
+
+    Uma venda é um fato único: repetir o registro duplicaria a receita no BI.
+    Retorna a linha existente ou None.
+    """
+    query = db.query(Conversion).filter(
+        Conversion.lead_id == lead_id,
+        Conversion.offer_key == offer_key,
+    )
+    if lead_opportunity_id:
+        query = query.filter(Conversion.lead_opportunity_id == lead_opportunity_id)
+    return query.order_by(Conversion.converted_at.desc()).first()
+
+
 @router.post("/{lead_id}/conversion")
 def register_conversion(
     lead_id: str,
@@ -1272,6 +1287,18 @@ def register_conversion(
         raise HTTPException(status_code=403, detail="Acesso negado a este lead")
     if body.contract_value is not None and body.contract_value < 0:
         raise HTTPException(status_code=400, detail="contract_value não pode ser negativo")
+
+    duplicate = find_duplicate_conversion(
+        db,
+        lead_id=lead.id,
+        offer_key=body.offer_key,
+        lead_opportunity_id=body.lead_opportunity_id,
+    )
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Este lead já tem uma conversão registrada para esta oferta",
+        )
 
     opportunity = None
     if body.offer_key != "unknown":

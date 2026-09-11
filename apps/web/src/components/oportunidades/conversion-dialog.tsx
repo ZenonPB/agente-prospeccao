@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Trophy } from 'lucide-react';
 import { useRegisterConversion } from '@/hooks/use-api';
+import { offerProfileLabel } from '@/lib/offers';
 import { toast } from 'sonner';
 import type { LeadOpportunity } from '@/types';
 
@@ -23,32 +24,59 @@ interface ConversionDialogProps {
   opportunities: LeadOpportunity[];
 }
 
+function melhorOferta(opportunities: LeadOpportunity[]): LeadOpportunity | null {
+  if (opportunities.length === 0) return null;
+  return opportunities.reduce((melhor, atual) => (atual.score > melhor.score ? atual : melhor));
+}
+
 export function ConversionDialog({ leadId, open, onOpenChange, opportunities }: ConversionDialogProps) {
   const registerConversion = useRegisterConversion();
   const [service, setService] = useState('');
-  const [offerKey, setOfferKey] = useState('unknown');
-  const [opportunityId, setOpportunityId] = useState('');
+  const [manualKey, setManualKey] = useState<string | null>(null);
   const [value, setValue] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Oferta com maior aderência, derivada na renderização; o vendedor pode trocar.
+  const melhor = melhorOferta(opportunities);
+  const offerKey = manualKey ?? melhor?.offer_key ?? 'unknown';
+  const opportunityId = opportunities.find((item) => item.offer_key === offerKey)?.id ?? '';
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) setManualKey(null);
+    onOpenChange(nextOpen);
+  };
+
   const handleRegister = async () => {
+    if (registerConversion.isPending) return;
+    const texto = value.trim();
+    // Aceita "1234,56" e "1.234,56" além do formato do campo numérico ("1234.56").
+    const normalizado = texto.includes(',') && texto.includes('.')
+      ? texto.replace(/\./g, '').replace(',', '.')
+      : texto.replace(',', '.');
+    let contractValue: number | undefined;
+    if (normalizado) {
+      const numero = Number(normalizado);
+      if (!Number.isFinite(numero) || numero < 0) {
+        toast.error('Informe um valor de contrato válido (número maior ou igual a zero).');
+        return;
+      }
+      contractValue = numero;
+    }
     try {
-      const numeric = value.replace(',', '.');
       await registerConversion.mutateAsync({
         id: leadId,
         data: {
           offer_key: offerKey,
           lead_opportunity_id: opportunityId || undefined,
           service_sold: service || undefined,
-          contract_value: numeric ? Number(numeric) : undefined,
+          contract_value: contractValue,
           notes: notes || undefined,
         },
       });
       toast.success('Conversão registrada.');
       onOpenChange(false);
       setService('');
-      setOfferKey('unknown');
-      setOpportunityId('');
+      setManualKey(null);
       setValue('');
       setNotes('');
     } catch (error) {
@@ -57,7 +85,7 @@ export function ConversionDialog({ leadId, open, onOpenChange, opportunities }: 
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Registrar conversão</DialogTitle>
@@ -70,22 +98,18 @@ export function ConversionDialog({ leadId, open, onOpenChange, opportunities }: 
             <select
               id="convOffer"
               value={offerKey}
-              onChange={(event) => {
-                const nextKey = event.target.value;
-                setOfferKey(nextKey);
-                setOpportunityId(opportunities.find((item) => item.offer_key === nextKey)?.id ?? '');
-              }}
+              onChange={(event) => setManualKey(event.target.value)}
               className="h-10 w-full rounded-md border bg-background px-3 text-sm"
             >
               <option value="unknown">Não identificada (revisar depois)</option>
               {opportunities.map((opportunity) => (
                 <option key={opportunity.id} value={opportunity.offer_key}>
-                  {opportunity.offer_key} · {opportunity.score} pontos
+                  {offerProfileLabel(opportunity.offer_key)} · {opportunity.score} pontos
                 </option>
               ))}
             </select>
             <p className="text-xs text-muted-foreground">
-              Selecione a oferta vendida. O sistema não atribui automaticamente pela maior pontuação.
+              Já deixamos marcada a oferta com maior aderência — troque se a venda foi outra.
             </p>
           </div>
           <div className="space-y-2">

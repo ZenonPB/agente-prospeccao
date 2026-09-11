@@ -9,7 +9,7 @@
 > Este documento substitui o mapa anterior de pendências como referência operacional. Ele **não** substitui `docs/00-status-mapa.md`; os dois devem ser mantidos sincronizados.
 
 > **Snapshot:** 2026-09-10 · `compileall` verde · Alembic head
-> `3d8e0f2a3b4c` (propostas de learning controlado pendentes de publicação
+> `4a6b8c9d1e2f` (propostas de learning controlado pendentes de publicação
 > manual, matcher ponderado, narrativa de oportunidade e golden patterns por oferta).
 
 ## Resumo desta revisão
@@ -2296,19 +2296,17 @@ O próximo estágio do projeto não é criar mais abstrações genéricas. É **
 
 ## F-01 — Drift `formula_version`: `matcher-v1` no schema/docs vs `matcher-v2` em runtime
 
-- **Comportamento real:** `FORMULA_VERSION = "matcher-v2"` em
+**Status:** ✅ Corrigido na Fatia 1 (era finding aberto da Onda 0A)
+
+- **Correção:** migration `4a6b8c9d1e2f` altera o default da coluna para
+  `matcher-v2`; modelo (`models.py:1117`) e `docs/business-rules.md` alinhados.
+  Head único verificado via `alembic heads` + `test_verify_migrations.py`.
+- **Comportamento original:** `FORMULA_VERSION = "matcher-v2"` em
   `services/workers/src/services/prospecting/lead_opportunity_service.py:29`;
   `build_snapshot_hash` inclui a versão no hash (`:54-65`) e `_snapshot_row`
-  grava `formula_version=FORMULA_VERSION` (`:220`). Porém o modelo declara
-  `server_default="matcher-v1"` (`services/workers/src/database/models.py:1117`),
-  a migration `3a5b7c9d1e2f` cria a coluna com default `matcher-v1`, e
-  `docs/business-rules.md:120-122` cita `matcher-v1`.
-- **Impacto:** snapshots gravados pelo serviço carregam `matcher-v2`, mas linhas
-  inseridas por qualquer outro caminho recebem `matcher-v1`; como o hash inclui a
-  versão, a mesma avaliação gera hashes diferentes conforme o caminho —
-  idempotência do histórico enfraquecida e auditoria ambígua.
-- **Classificação:** dívida (com risco comercial — contamina a base que a Onda 1
-  vai versionar). Resolver na Onda 1 antes do `OfferProfileVersion` canônico.
+  grava `formula_version=FORMULA_VERSION` (`:220`). Porém o modelo declarava
+  `server_default="matcher-v1"`, a migration `3a5b7c9d1e2f` criava a coluna com
+  default `matcher-v1`, e os docs citavam `matcher-v1`.
 
 ## F-02 — Divergência de unique em `controlled_learning_proposals` (modelo vs migration)
 
@@ -2326,7 +2324,14 @@ O próximo estágio do projeto não é criar mais abstrações genéricas. É **
 
 ## F-03 — `POST /api/campaigns/from-brief` resolve template, nunca OfferProfile
 
-- **Comportamento real:** `create_campaign_from_brief`
+**Status:** ✅ Corrigido na Fatia 1 (era finding aberto da Onda 0A)
+
+- **Correção:** o endpoint agora resolve via `OfferProfileResolver.resolve_campaign`
+  (com 2ª passada por tokens significativos, genérica sem nomes de vertical) e
+  devolve `offer_profile_key/label/resolved_from`; a UI confirma e envia no
+  create; duplicar copia o vínculo. Regressão coberta em
+  `tests/test_from_brief_offer_profile.py`.
+- **Comportamento original:
   (`services/api/src/routes/campaigns.py:241-332`) roteia/gera apenas o
   `CampaignScoringTemplate` (`route_scoring_template`, `:282-288`, geração em
   `:293-313`) e devolve `scoring_template_id/label` — sem resolver nem sugerir
@@ -2335,8 +2340,8 @@ O próximo estágio do projeto não é criar mais abstrações genéricas. É **
 - **Impacto:** comercial — a porta de entrada guiada (brief em linguagem natural)
   produz campanhas fora da cadeia canônica de oferta, enfraquecendo matcher,
   atribuição e learning a jusante.
-- **Classificação:** commercial blocker. Resolver na Onda 1 (brief deve sugerir
-  `offer_profile_key` + versão publicada) ou 2.
+- **Classificação:** commercial blocker. Resolvido na Fatia 1 (brief sugere
+  `offer_profile_key` + versão publicada futura na Onda 1).
 
 ## F-04 — Conflito documental: re-scoring em `00-status-mapa.md` vs pendências
 

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { useCreateCampaign, useSuggestSegment, useCampaignFromBrief, useUpdateCampaign, type SegmentSuggestion, type CampaignBrief } from '@/hooks/use-api';
 import { TemplateSelector } from '@/components/campanhas/template-selector';
 import { PageHeader } from '@/components/ui/page-header';
+import { OFFER_PROFILE_OPTIONS, offerOriginLabel, offerProfileLabel } from '@/lib/offers';
 
 const steps = [
   { id: 1, title: 'Perfil da prospecção' },
@@ -64,6 +65,7 @@ export default function NovaCampanhaPage() {
   const [brief, setBrief] = useState('');
   const [briefResult, setBriefResult] = useState<CampaignBrief | null>(null);
   const [briefDraft, setBriefDraft] = useState<CampaignBrief | null>(null);
+  const [selectedOfferKey, setSelectedOfferKey] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     analysisProfile: 'web_presence',
     segment: '',
@@ -152,6 +154,7 @@ export default function NovaCampanhaPage() {
       const result = await campaignFromBrief.mutateAsync(brief);
       setBriefResult(result);
       setBriefDraft({ ...result });
+      setSelectedOfferKey(result.offer_profile_key ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao interpretar o brief');
     }
@@ -173,6 +176,7 @@ export default function NovaCampanhaPage() {
         target_city: briefDraft.target_city || undefined,
         target_state: briefDraft.target_state || undefined,
         places_query: briefDraft.places_query || undefined,
+        offer_profile_key: selectedOfferKey || briefDraft.offer_profile_key || undefined,
       });
       // Vincula o template resolvido/gerado na sugestão (a menos que o
       // usuário tenha escolhido outro manualmente no seletor).
@@ -310,6 +314,7 @@ export default function NovaCampanhaPage() {
                       onClick={() => {
                         setBriefResult(null);
                         setBriefDraft(null);
+                        setSelectedOfferKey(null);
                         setBrief('');
                       }}
                     >
@@ -410,6 +415,36 @@ export default function NovaCampanhaPage() {
                       </span>
                     </div>
                   )}
+
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge variant="secondary">O que você vende</Badge>
+                      <span className="font-medium">
+                        {offerProfileLabel(selectedOfferKey || briefDraft.offer_profile_key)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {offerOriginLabel(briefDraft.offer_resolved_from)} — confirme ou troque abaixo.
+                    </p>
+                    <Label htmlFor="brief-offer">Confirmar oferta</Label>
+                    <Select
+                      value={selectedOfferKey || briefDraft.offer_profile_key || ''}
+                      onValueChange={(value) => value && setSelectedOfferKey(value)}
+                    >
+                      <SelectTrigger id="brief-offer">
+                        <SelectValue>
+                          {(value) => (value ? offerProfileLabel(value) : 'Escolha a oferta')}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {OFFER_PROFILE_OPTIONS.map((option) => (
+                          <SelectItem key={option.key} value={option.key}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                     <Button

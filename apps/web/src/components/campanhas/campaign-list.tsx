@@ -83,11 +83,24 @@ export function CampaignList() {
         target_state: campaign.target_state,
         target_country: campaign.target_country,
         places_query: campaign.places_query,
+        search_queries: campaign.search_queries ?? undefined,
+        offer_profile_key: campaign.offer_profile_key ?? undefined,
       },
       {
         onSuccess: (created) => {
-          toast.success('Campanha duplicada. Ajuste a cidade e inicie a coleta.');
-          router.push(`/campanhas/${created.id}`);
+          const scoringTemplateId = campaign.scoring_template_id;
+          const finish = () => {
+            toast.success('Campanha duplicada. Ajuste a cidade e inicie a coleta.');
+            router.push(`/campanhas/${created.id}`);
+          };
+          if (scoringTemplateId) {
+            updateCampaign.mutate(
+              { id: created.id, data: { scoring_template_id: scoringTemplateId } },
+              { onSuccess: finish, onError: finish },
+            );
+          } else {
+            finish();
+          }
         },
         onError: () => toast.error('Não foi possível duplicar a campanha.'),
       }

@@ -39,6 +39,7 @@ import { TechnicalTab } from '@/components/oportunidades/technical-tab';
 import { ContactsTab } from '@/components/oportunidades/contacts-tab';
 import { OverviewTab } from '@/components/oportunidades/overview-tab';
 import { ActivitiesTab } from '@/components/oportunidades/activities-tab';
+import { OffersTab } from '@/components/oportunidades/offers-tab';
 import { ConversionDialog } from '@/components/oportunidades/conversion-dialog';
 import { OutreachMessagesModal } from '@/components/oportunidades/outreach-messages-modal';
 import { toast } from 'sonner';
@@ -319,36 +320,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         </TabsContent>
 
         <TabsContent value="offers" className="space-y-4">
-          <Card>
-            <CardContent className="space-y-3 pt-6">
-              <div>
-                <h3 className="font-semibold">Oportunidades por oferta</h3>
-                <p className="text-sm text-muted-foreground">
-                  Correspondências calculadas pelo perfil comercial e suas evidências.
-                </p>
-              </div>
-              {opportunitiesQ.isLoading && <p className="text-sm text-muted-foreground">Carregando ofertas…</p>}
-              {!opportunitiesQ.isLoading && (opportunitiesQ.data?.oportunidades ?? []).length === 0 && (
-                <p className="text-sm text-muted-foreground">Nenhuma oferta relacionada foi registrada.</p>
-              )}
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(opportunitiesQ.data?.oportunidades ?? []).map((opportunity) => (
-                  <div key={opportunity.id} className="rounded-lg border p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{opportunity.offer_key}</span>
-                      <Badge>{opportunity.score}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Versão {opportunity.offer_version ?? 'não informada'} · origem {opportunity.resolved_from ?? 'não informada'}
-                    </p>
-                    {opportunity.evidence.length > 0 && (
-                      <p className="mt-2 text-xs">Evidências: {opportunity.evidence.join(', ')}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <OffersTab leadId={lead.id} />
         </TabsContent>
 
         <TabsContent value="pitch" className="space-y-4">

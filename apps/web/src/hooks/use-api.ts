@@ -97,6 +97,14 @@ export function useLeadOpportunities(id: string) {
   });
 }
 
+export function useLeadOpportunitiesHistory(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["leads", id, "opportunities-history"],
+    queryFn: () => leadsApi.opportunitiesHistory(id),
+    enabled: !!id && enabled,
+  });
+}
+
 export function useIntelligenceEvents(limit = 100, enabled = true) {
   return useQuery({
     queryKey: ["intelligence", "events", limit],

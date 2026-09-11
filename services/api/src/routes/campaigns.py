@@ -324,11 +324,33 @@ async def create_campaign_from_brief(
             scoring_template_id = str(tmpl.id)
             scoring_template_label = tmpl.service_label
 
+    # F-03: resolve o OfferProfile da intenção (mesma regra do pipeline) para
+    # a campanha já nascer vinculada à oferta — sem edição manual posterior.
+    offer_profile_key = None
+    offer_profile_label = None
+    offer_resolved_from = "generic"
+    try:
+        from services.prospecting.default_profiles import get_default_registry
+        from services.prospecting.offer_profile import OfferProfileResolver
+        resolved_offer = OfferProfileResolver(get_default_registry()).resolve_campaign(
+            target_service=suggestion.get("target_service") or "",
+            target_segment=suggestion.get("target_segment") or "",
+        )
+        offer_resolved_from = resolved_offer.resolved_from
+        if resolved_offer.resolved_from != "generic":
+            offer_profile_key = resolved_offer.key
+            offer_profile_label = str((resolved_offer.offer or {}).get("name", "") or resolved_offer.key)
+    except Exception:  # noqa: BLE001 — preview não pode quebrar; pipeline resolve depois
+        logger.warning("Resolução de OfferProfile no preview falhou, seguindo sem perfil.")
+
     return {
         **suggestion,
         "scoring_template_id": scoring_template_id,
         "scoring_template_label": scoring_template_label,
         "template_route": template_info.get("route"),
+        "offer_profile_key": offer_profile_key,
+        "offer_profile_label": offer_profile_label,
+        "offer_resolved_from": offer_resolved_from,
     }
 
 

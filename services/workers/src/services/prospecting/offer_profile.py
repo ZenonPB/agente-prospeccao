@@ -17,6 +17,35 @@ Cascata de resolução:
 """
 from dataclasses import MISSING, dataclass, field, asdict
 from typing import Any, Dict, List, Optional
+import re
+import unicodedata
+
+
+def _normalize_token(text: str) -> str:
+    """Minúsculas sem acento para comparação de intenção comercial."""
+    lowered = unicodedata.normalize("NFKD", text.lower())
+    return "".join(ch for ch in lowered if not unicodedata.combining(ch))
+
+
+# Palavras gramaticais do português que não distinguem ofertas. Conjunto
+# propositalmente pequeno: só remove ruído, nunca vocabulário comercial.
+_PT_STOPWORDS = frozenset({
+    "para", "com", "sem", "dos", "das", "nos", "nas", "aos", "que",
+    "uma", "uns", "umas", "este", "esta", "esse", "essa", "meu",
+    "minha", "seus", "suas", "quero", "vender",
+})
+
+
+def _offer_tokens(*texts: Optional[str]) -> set:
+    """Tokens significativos de nome/tagline/segmento (genérico, sem vertical)."""
+    tokens: set = set()
+    for text in texts:
+        if not text:
+            continue
+        for raw in re.split(r"[^a-z0-9]+", _normalize_token(str(text))):
+            if len(raw) >= 3 and raw not in _PT_STOPWORDS:
+                tokens.add(raw)
+    return tokens
 
 
 @dataclass(frozen=True)
@@ -180,6 +209,25 @@ class OfferProfileResolver:
                 }
                 if any(term and (term in needle or needle in term) for term in terms):
                     return _ResolvedOffer(profile, "vertical")
+
+            # Sem substring exata: conta tokens significativos compartilhados
+            # entre a intenção e nome/tagline/segmento de cada oferta. Genérico
+            # por construção — nenhum nome de vertical aparece aqui.
+            needle_tokens = _offer_tokens(target_service, target_segment)
+            best: Optional[OfferProfile] = None
+            best_score = 0
+            for profile in self.registry.list():
+                profile_tokens = _offer_tokens(
+                    profile.key,
+                    str((profile.offer or {}).get("name", "")),
+                    str((profile.offer or {}).get("tagline", "")),
+                    " ".join(str(s) for s in (profile.icp or {}).get("segments", [])),
+                )
+                score = len(needle_tokens & profile_tokens)
+                if score > best_score:
+                    best, best_score = profile, score
+            if best is not None:
+                return _ResolvedOffer(best, "vertical")
 
         return self.resolve(
             vertical_key=target_segment,

@@ -119,7 +119,7 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
 
 - Cada avaliação do `OfferMatcher` gera um snapshot imutável em
   `lead_opportunity_snapshots` (versão do perfil, versão da fórmula
-  `matcher-v1`, score, sinais e evidências do momento).
+  `matcher-v2`, score, sinais e evidências do momento).
 - Publicar uma nova versão de `OfferProfile` **não** atualiza oportunidades
   existentes automaticamente; novas coletas usam a versão nova.
 - Campanha ativa só migra de versão via reavaliação explícita

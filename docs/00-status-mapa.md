@@ -1,6 +1,6 @@
 # Mapa de status operacional
 > **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·
-> Alembic head `3d8e0f2a3b4c` (propostas de learning controlado pendentes de
+> Alembic head `4a6b8c9d1e2f` (propostas de learning controlado pendentes de
 > publicação manual; matcher ponderado `matcher-v2`, narrativa de oportunidade
 > e golden patterns por oferta).
 >
@@ -54,7 +54,7 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 - `python -m pytest tests -q -W error`: **1097 passed, 19 skipped**.
 - `python -m compileall -q services/api services/workers`: passou.
 - Web: `npm run lint`, `npx tsc --noEmit` e `npm run build`: passaram.
-- `scripts/verify_migrations.py`: head único `3d8e0f2a3b4c`, incluindo a tabela
+- `scripts/verify_migrations.py`: head único `4a6b8c9d1e2f`, incluindo a tabela
   de propostas controladas e o breakdown persistido do matcher.
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
@@ -84,17 +84,15 @@ nunca o contrário.
   Uso em gates de decisão e no Intent v2 continua ⬜ Planejado.
 - **Drifts código-vs-docs registrados** (detalhes em
   `pendencias-pos-consolidacao.md` §23, não corrigidos nesta entrega):
-  F-01 `formula_version` (`matcher-v2` em runtime vs `matcher-v1` no
-  schema/docs); F-02 unique `uq_controlled_learning_org_offer_version` ausente no
+  F-01 `formula_version` (alinhado em `matcher-v2` na Fatia 1, migration
+  `4a6b8c9d1e2f`); F-02 unique `uq_controlled_learning_org_offer_version` ausente no
   modelo; F-03 `POST /campaigns/from-brief` resolve template, nunca perfil;
   F-04 conflito sobre re-scoring entre este mapa e as pendências (P1.9 é
-  ✅ Operacional — este item de "Próximas prioridades" será removido na próxima
-  varredura).
+  ✅ Operacional — item removido das "Próximas prioridades" na Fatia 1).
 
 ## Próximas prioridades
 
 1. P1.18 — decisor → outreach humano assistido: envio com aprovação humana
    sobre a base federada (providers, filtros, snapshots e timing prontos).
-2. Política explícita de re-scoring do score de oferta.
-3. BI por vertical, consultor, canal, campanha, variante e controlled learning.
-4. Entidade canônica de decisores e administração/versionamento de ofertas.
+2. BI por vertical, consultor, canal, campanha, variante e controlled learning.
+3. Entidade canônica de decisores e administração/versionamento de ofertas.

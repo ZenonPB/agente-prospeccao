@@ -1130,7 +1130,7 @@ class LeadOpportunitySnapshot(Base):
     lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
     offer_key = Column(String(64), nullable=False)
     offer_version = Column(String(32), nullable=True)
-    formula_version = Column(String(32), nullable=False, server_default="matcher-v1")
+    formula_version = Column(String(32), nullable=False, server_default="matcher-v2")
     profile_snapshot_hash = Column(String(64), nullable=True)
     score = Column(Integer, nullable=False, server_default="0")
     signals_snapshot = Column(JSONB, nullable=True)

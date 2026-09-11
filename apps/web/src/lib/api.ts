@@ -120,6 +120,11 @@ export const leadsApi = {
 
   opportunities: (id: string) => request<{ oportunidades: LeadOpportunity[] }>(`/api/leads/${id}/oportunidades`),
 
+  opportunitiesHistory: (id: string, offerKey?: string) =>
+    request<{ historico: import("@/types").LeadOpportunityHistoryItem[] }>(`/api/leads/${id}/oportunidades/historico`, {
+      params: offerKey ? { offer_key: offerKey } : undefined,
+    }),
+
   update: (id: string, data: { notes?: string; whatsapp?: string; next_action_at?: string | null; value?: number; expected_close_date?: string | null; lost_reason?: string }) =>
     request<Lead>(`/api/leads/${id}`, {
       method: "PATCH",
@@ -371,6 +376,7 @@ export const campaignsApi = {
     target_state?: string;
     target_country?: string;
     places_query?: string;
+    search_queries?: string[];
     offer_profile_key?: string;
   }) =>
     request<Campaign>("/api/campaigns", {
@@ -407,6 +413,9 @@ export const campaignsApi = {
       scoring_template_id: string | null;
       template_route: string;
       rationale: string;
+      offer_profile_key: string | null;
+      offer_profile_label: string | null;
+      offer_resolved_from: string;
     }>("/api/campaigns/from-brief", {
       method: "POST",
       body: JSON.stringify({ brief }),
