@@ -108,6 +108,7 @@ export interface Lead {
   id: string;
   place_id?: string;
   company_name: string;
+  cnpj?: string | null;
   website?: string;
   phone?: string;
   email?: string;

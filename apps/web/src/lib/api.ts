@@ -109,6 +109,7 @@ export const leadsApi = {
     campaign_id?: string;
     search?: string;
     min_score?: number;
+    priority?: string;
     assigned?: string;
     consultant_id?: string;
     next_action_before?: string;

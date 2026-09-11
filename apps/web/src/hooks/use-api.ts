@@ -17,6 +17,7 @@ export function useLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  priority?: string;
   assigned?: string;
   consultant_id?: string;
   next_action_before?: string;
@@ -36,6 +37,7 @@ export function useAllLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  priority?: string;
   assigned?: string;
   consultant_id?: string;
 }) {
@@ -65,6 +67,7 @@ export function useInfiniteLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  priority?: string;
   assigned?: string;
   consultant_id?: string;
   next_action_before?: string;

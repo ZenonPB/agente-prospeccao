@@ -46,6 +46,7 @@ import { toast } from 'sonner';
 import type { ContactItem, OutreachMessages, OutreachVariant } from '@/types/index';
 import { useState } from 'react';
 import { Reveal } from '@/components/ui/motion';
+import { getScoreBand, scoreBandBadge, SCORE_THRESHOLD_HINT } from '@/components/oportunidades/score-scale';
 
 const priorityBadgeConfig: Record<string, { label: string; color: string; emoji: string }> = {
   HOT: { label: 'Quente', color: 'bg-red-100 text-red-700', emoji: '🔥' },
@@ -214,7 +215,12 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="break-words text-2xl font-bold tracking-tight">{lead.company_name}</h2>
-            <Badge className="bg-emerald-100 text-emerald-700 text-lg">{lead.qualification_score}</Badge>
+            <Badge
+              className={`${scoreBandBadge[getScoreBand(lead.qualification_score)]} text-lg`}
+              title={getScoreBand(lead.qualification_score) === 'unevaluated' ? 'Ainda não avaliado' : SCORE_THRESHOLD_HINT}
+            >
+              {getScoreBand(lead.qualification_score) === 'unevaluated' ? 'não avaliado' : lead.qualification_score}
+            </Badge>
             {lead.priority && priorityBadgeConfig[lead.priority] && (
               <Badge className={priorityBadgeConfig[lead.priority].color}>
                 <span className="mr-1">{priorityBadgeConfig[lead.priority].emoji}</span>
@@ -223,6 +229,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
             )}
           </div>
           <p className="break-words text-muted-foreground">{lead.category || 'Sem categoria'} • {lead.city || 'Não informado'}{lead.state ? `, ${lead.state}` : ''}</p>
+          <p className="text-xs text-muted-foreground">{SCORE_THRESHOLD_HINT}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {whatsAppLink(lead.whatsapp || lead.phone) && (
@@ -339,7 +346,7 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         </TabsContent>
 
         <TabsContent value="technical" className="space-y-4">
-          <TechnicalTab enrichment={lead.enrichment} />
+          <TechnicalTab enrichment={lead.enrichment} website={lead.website} />
         </TabsContent>
 
         <TabsContent value="contacts" className="space-y-4">

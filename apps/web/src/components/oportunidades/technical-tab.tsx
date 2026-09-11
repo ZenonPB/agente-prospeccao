@@ -5,10 +5,12 @@ import type { Enrichment } from '@/types';
 
 interface TechnicalTabProps {
   enrichment?: Enrichment;
+  website?: string | null;
 }
 
-export function TechnicalTab({ enrichment }: TechnicalTabProps) {
+export function TechnicalTab({ enrichment, website }: TechnicalTabProps) {
   const securityIssues = enrichment?.security_issues || [];
+  const hasWebsite = !!website?.trim();
 
   return (
     <Card>
@@ -48,8 +50,17 @@ export function TechnicalTab({ enrichment }: TechnicalTabProps) {
               </div>
             )}
           </>
-        ) : (
+        ) : hasWebsite ? (
           <p className="text-sm text-muted-foreground">Nenhuma análise técnica disponível</p>
+        ) : (
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Empresa sem site — público-alvo</p>
+            <p className="text-sm text-muted-foreground">
+              Este lead foi avaliado pelos dados do cadastro (segmento, região e
+              sinais públicos). Não há página para analisar, e isso não o
+              desqualifica: empresas sem site são o público-alvo de presença web.
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>

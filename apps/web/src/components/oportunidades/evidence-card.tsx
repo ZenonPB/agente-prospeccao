@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { EvidenceItem, ScoreFactor, LeadPriority } from '@/types';
+import { getScoreBand, scoreBandBadge, SCORE_THRESHOLD_HINT } from '@/components/oportunidades/score-scale';
 
 const severityConfig: Record<string, { label: string; color: string }> = {
   CRITICO: { label: 'Crítico', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -30,6 +31,7 @@ interface EvidenceCardProps {
 }
 
 export function EvidenceCard({
+  score,
   priority,
   priorityReasoning,
   executiveSummary,
@@ -66,15 +68,24 @@ export function EvidenceCard({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <CardTitle>Por que a IA recomendou</CardTitle>
-          {priority && priorityConfig[priority] && (
-            <Badge className={priorityConfig[priority].color}>
-              <span className="mr-1">{priorityConfig[priority].emoji}</span>
-              {priorityConfig[priority].label}
+          <div className="flex items-center gap-2">
+            <Badge
+              className={scoreBandBadge[getScoreBand(score)]}
+              title={getScoreBand(score) === 'unevaluated' ? 'Ainda não avaliado' : SCORE_THRESHOLD_HINT}
+            >
+              {getScoreBand(score) === 'unevaluated' ? 'não avaliado' : score}
             </Badge>
-          )}
+            {priority && priorityConfig[priority] && (
+              <Badge className={priorityConfig[priority].color}>
+                <span className="mr-1">{priorityConfig[priority].emoji}</span>
+                {priorityConfig[priority].label}
+              </Badge>
+            )}
+          </div>
         </div>
+        <p className="text-xs text-muted-foreground">{SCORE_THRESHOLD_HINT}</p>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Resumo executivo */}

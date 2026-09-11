@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow, LeadOpportunitySnapshot
+from src.db.models import Lead, LeadStatus, LeadPriority, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow, LeadOpportunitySnapshot
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -405,6 +405,7 @@ def list_leads(
     assigned: Optional[str] = Query(None, pattern="^(me|none|any)$"),
     consultant_id: Optional[str] = None,
     next_action_before: Optional[str] = None,
+    priority: Optional[str] = Query(None, pattern="^(HOT|WARM|COLD)$"),
     limit: int = Query(50, le=100),
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -431,6 +432,14 @@ def list_leads(
         query = query.filter(Lead.company_name.ilike(f"%{search}%"))
     if min_score is not None:
         query = query.filter(Lead.qualification_score >= min_score)
+    if priority:
+        # Preset "Quentes": HOT é decisão da IA (urgência+fito), não faixa de
+        # score — filtrar por score>=80 escondia HOTs com score menor.
+        try:
+            priority_enum = LeadPriority(priority)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Prioridade inválida: {priority}")
+        query = query.filter(Lead.priority == priority_enum)
     if consultant_id:
         # Filtro por consultor (carteira de um usuário) — limitado a quem tem
         # acesso total (ANALYST/MANAGER/owner), mesmo padrão das rotas de BI.
