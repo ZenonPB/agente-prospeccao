@@ -29,6 +29,8 @@ import {
   useLeadDuplicates,
   useLeadOpportunities,
   useMarkResponded,
+  useMarkLost,
+  useMarkDisqualified,
 } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
@@ -70,6 +72,8 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const opportunitiesQ = useLeadOpportunities(leadId);
   const updateStatus = useUpdateLeadStatus();
   const markResponded = useMarkResponded();
+  const markLost = useMarkLost();
+  const markDisqualified = useMarkDisqualified();
   const generateMessagesMutation = useGenerateMessages();
   const updateStepMutation = useUpdateCadenceStep();
   const createPlaybookMutation = useCreatePlaybook();
@@ -157,6 +161,38 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
       onSuccess: (res) => toast.success(`Resposta registrada. ${res.cancelled} mensagem(ns) pausada(s).`),
       onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao registrar resposta.'),
     });
+  };
+
+  const handleMarkLost = () => {
+    if (!lead) return;
+    const motivo = window.prompt('Motivo da perda (PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO):', 'NAO_RESPONDEU');
+    if (!motivo) return;
+    const normalizado = motivo.trim().toUpperCase();
+    const validos = ['PRECO', 'PRAZO', 'NAO_RESPONDEU', 'CONCORRENTE', 'OUTRO'];
+    if (!validos.includes(normalizado)) {
+      toast.error('Motivo inválido. Use PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO.');
+      return;
+    }
+    markLost.mutate(
+      { id: lead.id, lost_reason: normalizado as 'PRECO' | 'PRAZO' | 'NAO_RESPONDEU' | 'CONCORRENTE' | 'OUTRO' },
+      {
+        onSuccess: () => toast.success('Lead marcado como perdido.'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao marcar como perdido.'),
+      }
+    );
+  };
+
+  const handleMarkDisqualified = () => {
+    if (!lead) return;
+    const motivo = window.prompt('Motivo da desqualificação (opcional):', '');
+    if (motivo === null) return;
+    markDisqualified.mutate(
+      { id: lead.id, reason: motivo.trim() || undefined },
+      {
+        onSuccess: () => toast.success('Lead desqualificado.'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao desqualificar.'),
+      }
+    );
   };
 
   const handleGenerateFromActions = async () => {
@@ -426,6 +462,32 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
               >
                 <Trophy className="mr-2 h-4 w-4 text-emerald-600" />
                 Registrar conversão
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11"
+                onClick={handleMarkLost}
+                disabled={markLost.isPending}
+              >
+                {markLost.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <AlertTriangle className="mr-2 h-4 w-4 text-red-600" />
+                )}
+                Marcar como perdido (exige motivo)
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full h-11"
+                onClick={handleMarkDisqualified}
+                disabled={markDisqualified.isPending}
+              >
+                {markDisqualified.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
+                )}
+                Desqualificar (motivo opcional)
               </Button>
               {negotiationStatuses.has(lead.status ?? '') && (
                 <NegotiationControl

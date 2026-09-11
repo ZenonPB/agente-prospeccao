@@ -995,6 +995,33 @@ export function useMarkResponded() {
   });
 }
 
+export const LOST_REASON_OPTIONS = ["PRECO", "PRAZO", "NAO_RESPONDEU", "CONCORRENTE", "OUTRO"] as const;
+export type LostReasonOption = (typeof LOST_REASON_OPTIONS)[number];
+
+export function useMarkLost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lost_reason }: { id: string; lost_reason: LostReasonOption }) =>
+      leadsApi.markLost(id, lost_reason),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+export function useMarkDisqualified() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      leadsApi.markDisqualified(id, reason),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
 export function usePatchNegotiation() {
   const queryClient = useQueryClient();
   return useMutation({

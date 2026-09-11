@@ -1269,6 +1269,23 @@ def find_duplicate_conversion(db, lead_id, offer_key, lead_opportunity_id):
     return query.order_by(Conversion.converted_at.desc()).first()
 
 
+class MarkLostRequest(BaseModel):
+    """Marca o lead como PERDIDO — oportunidade válida que foi perdida.
+
+    O motivo é obrigatório: sem ele o aprendizado futuro perde a base.
+    """
+    lost_reason: LostReason = Field(..., description="Motivo da perda (obrigatório)")
+
+
+class MarkDisqualifiedRequest(BaseModel):
+    """Marca o lead como DESQUALIFICADO — inadequado, não "perdido".
+
+    O motivo é opcional mas registrado quando informado. LOST e
+    DESQUALIFICADO alimentam aprendizados diferentes — nunca equivalentes.
+    """
+    reason: Optional[str] = Field(None, max_length=500, description="Motivo da desqualificação (opcional)")
+
+
 @router.post("/{lead_id}/mark-responded")
 def mark_lead_responded(
     lead_id: str,
@@ -1312,6 +1329,85 @@ def mark_lead_responded(
     )
     db.commit()
     return {"status": lead.status.value, "cancelled": cancelled}
+
+
+@router.post("/{lead_id}/mark-lost")
+def mark_lead_lost(
+    lead_id: str,
+    body: MarkLostRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Marca o lead como PERDIDO — oportunidade válida que foi perdida.
+
+    O motivo é obrigatório (422 sem ele). Registra o outcome LOST quando
+    há oferta resolvida e grava a trilha LOST. LOST nunca equivale a
+    DESQUALIFICADO: outcomes diferentes alimentam aprendizados diferentes.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    previous = lead.status
+    lead.status = LeadStatus.PERDIDO
+    lead.lost_reason = body.lost_reason
+    log_activity(
+        db, lead, action=LeadActivityAction.LOST,
+        user_id=str(user.id) if user else None,
+        status_from=previous, status_to=LeadStatus.PERDIDO,
+        detail=f"Lead perdido — motivo: {body.lost_reason.value}",
+    )
+    _record_commercial_outcome(
+        db, lead, "LOST",
+        event_key=f"mark-lost:{lead.id}",
+    )
+    db.commit()
+    return {"status": lead.status.value, "lost_reason": lead.lost_reason.value}
+
+
+@router.post("/{lead_id}/mark-disqualified")
+def mark_lead_disqualified(
+    lead_id: str,
+    body: MarkDisqualifiedRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Marca o lead como DESQUALIFICADO — inadequado, não "perdido".
+
+    O motivo é opcional, mas registrado na trilha quando informado. Não
+    gera outcome LOST: desqualificação não é perda comercial.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    previous = lead.status
+    lead.status = LeadStatus.DESQUALIFICADO
+    detail = "Lead desqualificado"
+    if body.reason:
+        detail += f" — motivo: {body.reason.strip()}"
+    log_activity(
+        db, lead, action=LeadActivityAction.STATUS_CHANGED,
+        user_id=str(user.id) if user else None,
+        status_from=previous, status_to=LeadStatus.DESQUALIFICADO,
+        detail=detail,
+    )
+    db.commit()
+    return {"status": lead.status.value}
 
 
 @router.post("/{lead_id}/conversion")

@@ -313,6 +313,18 @@ export const leadsApi = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+
+  markLost: (id: string, lost_reason: string) =>
+    request<{ status: string; lost_reason: string }>(`/api/leads/${id}/mark-lost`, {
+      method: "POST",
+      body: JSON.stringify({ lost_reason }),
+    }),
+
+  markDisqualified: (id: string, reason?: string) =>
+    request<{ status: string }>(`/api/leads/${id}/mark-disqualified`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? null }),
+    }),
 };
 
 export const authApi = {
