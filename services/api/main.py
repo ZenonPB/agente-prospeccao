@@ -279,6 +279,21 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Organization-Id"],
 )
 
+# Em produção, rejeita requests com Host fora do allowlist (host header
+# injection). Os hosts válidos derivam dos mesmos domínios do CORS — se
+# nenhum domínio parseável, não aplica (fail-open explícito para não derrubar
+# deploys atrás de proxy com Host interno).
+if _is_prod:
+    from urllib.parse import urlparse
+
+    _trusted_hosts = [
+        parsed.netloc
+        for parsed in (urlparse(str(o)) for o in _cors_origins)
+        if parsed.netloc
+    ]
+    if _trusted_hosts:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=_trusted_hosts)
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Injeta headers de segurança em todas as respostas."""
