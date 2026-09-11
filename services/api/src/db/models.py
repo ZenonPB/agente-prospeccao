@@ -24,6 +24,7 @@ from database.models import (
     MessageChannel,
     Job,
     User,
+    LoginAttempt,
     Notification,
     NotificationType,
     Contact,

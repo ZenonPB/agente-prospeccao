@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "3d8e0f2a3b4c"
+    assert verify_migrations.migration_head() == "4a6b8c9d1e2f"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():

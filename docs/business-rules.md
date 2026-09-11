@@ -11,6 +11,12 @@ NOVO
 → REUNIAO_FEITA  (reunião realizada)
 → PROPOSTA_ENVIADA
 → PERDIDO        (automático ao encerrar a cadência sem resposta; volta à fila após 90 dias — perdas deliberadas não voltam)
+→ DESQUALIFICADO via `POST /leads/{id}/mark-disqualified` (inadequado — motivo opcional, sem outcome LOST)
+→ PERDIDO via `POST /leads/{id}/mark-lost` (oportunidade válida perdida — `lost_reason` obrigatório, outcome LOST)
+
+WON (conversão) × LOST (perda válida) × DESQUALIFICADO (inadequado) são
+outcomes semanticamente distintos e alimentam aprendizados diferentes —
+nunca equivalentes.
 
 ## Critérios de Scoring (0-100)
 
@@ -119,7 +125,7 @@ O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
 
 - Cada avaliação do `OfferMatcher` gera um snapshot imutável em
   `lead_opportunity_snapshots` (versão do perfil, versão da fórmula
-  `matcher-v1`, score, sinais e evidências do momento).
+  `matcher-v2`, score, sinais e evidências do momento).
 - Publicar uma nova versão de `OfferProfile` **não** atualiza oportunidades
   existentes automaticamente; novas coletas usam a versão nova.
 - Campanha ativa só migra de versão via reavaliação explícita

@@ -13,7 +13,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from src.db.dependencies import get_db
-from src.db.models import Lead, LeadStatus, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow, LeadOpportunitySnapshot
+from src.db.models import Lead, LeadStatus, LeadPriority, Enrichment, Contact, CompanyRecord, ContactRole, Campaign, User, Organization, OrganizationMember, LeadActivity, LeadActivityAction, Conversion, FollowUp, FollowUpStatus, FollowUpStep, Message, NegotiationStage, ContractOutcome, PostSaleChannel, LostReason, LeadOpportunityRow, LeadOpportunitySnapshot
 from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.lead_activity_service import log_activity, log_status_change, semantic_action_for
@@ -405,6 +405,7 @@ def list_leads(
     assigned: Optional[str] = Query(None, pattern="^(me|none|any)$"),
     consultant_id: Optional[str] = None,
     next_action_before: Optional[str] = None,
+    priority: Optional[str] = Query(None, pattern="^(HOT|WARM|COLD)$"),
     limit: int = Query(50, le=100),
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -431,6 +432,14 @@ def list_leads(
         query = query.filter(Lead.company_name.ilike(f"%{search}%"))
     if min_score is not None:
         query = query.filter(Lead.qualification_score >= min_score)
+    if priority:
+        # Preset "Quentes": HOT é decisão da IA (urgência+fito), não faixa de
+        # score — filtrar por score>=80 escondia HOTs com score menor.
+        try:
+            priority_enum = LeadPriority(priority)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Prioridade inválida: {priority}")
+        query = query.filter(Lead.priority == priority_enum)
     if consultant_id:
         # Filtro por consultor (carteira de um usuário) — limitado a quem tem
         # acesso total (ANALYST/MANAGER/owner), mesmo padrão das rotas de BI.
@@ -1245,6 +1254,166 @@ class RegisterPostSaleRequest(BaseModel):
     content: Optional[str] = None
 
 
+def find_duplicate_conversion(db, lead_id, offer_key, lead_opportunity_id):
+    """Localiza conversão já registrada para o mesmo lead+oferta, se houver.
+
+    Uma venda é um fato único: repetir o registro duplicaria a receita no BI.
+    Retorna a linha existente ou None.
+    """
+    query = db.query(Conversion).filter(
+        Conversion.lead_id == lead_id,
+        Conversion.offer_key == offer_key,
+    )
+    if lead_opportunity_id:
+        query = query.filter(Conversion.lead_opportunity_id == lead_opportunity_id)
+    return query.order_by(Conversion.converted_at.desc()).first()
+
+
+class MarkLostRequest(BaseModel):
+    """Marca o lead como PERDIDO — oportunidade válida que foi perdida.
+
+    O motivo é obrigatório: sem ele o aprendizado futuro perde a base.
+    """
+    lost_reason: LostReason = Field(..., description="Motivo da perda (obrigatório)")
+
+
+class MarkDisqualifiedRequest(BaseModel):
+    """Marca o lead como DESQUALIFICADO — inadequado, não "perdido".
+
+    O motivo é opcional mas registrado quando informado. LOST e
+    DESQUALIFICADO alimentam aprendizados diferentes — nunca equivalentes.
+    """
+    reason: Optional[str] = Field(None, max_length=500, description="Motivo da desqualificação (opcional)")
+
+
+@router.post("/{lead_id}/mark-responded")
+def mark_lead_responded(
+    lead_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Registra resposta manual do lead (WhatsApp/telefone/presencial).
+
+    Marca RESPONDIDO (sem regredir reunião/proposta), pausa a cadência
+    cancelando pendências e registra na trilha — o mesmo efeito do inbound
+    de e-mail, para respostas que chegam por outros canais.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    if lead.status not in (
+        LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA,
+        LeadStatus.PROPOSTA_ENVIADA, LeadStatus.PERDIDO,
+    ):
+        lead.status = LeadStatus.RESPONDIDO
+    lead.last_contacted_at = datetime.now(timezone.utc)
+    cancelled = 0
+    for fu in db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.status == FollowUpStatus.PENDING,
+    ).all():
+        fu.status = FollowUpStatus.CANCELLED
+        cancelled += 1
+    log_activity(
+        db, lead, action=LeadActivityAction.RESPONDED,
+        user_id=str(user.id) if user else None,
+        detail="Resposta registrada manualmente — acompanhamento pausado",
+    )
+    db.commit()
+    return {"status": lead.status.value, "cancelled": cancelled}
+
+
+@router.post("/{lead_id}/mark-lost")
+@limiter.limit("60/minute")
+async def mark_lead_lost(
+    request: Request,
+    lead_id: str,
+    body: MarkLostRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Marca o lead como PERDIDO — oportunidade válida que foi perdida.
+
+    O motivo é obrigatório (422 sem ele). Registra o outcome LOST quando
+    há oferta resolvida e grava a trilha LOST. LOST nunca equivale a
+    DESQUALIFICADO: outcomes diferentes alimentam aprendizados diferentes.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    previous = lead.status
+    lead.status = LeadStatus.PERDIDO
+    lead.lost_reason = body.lost_reason
+    log_activity(
+        db, lead, action=LeadActivityAction.LOST,
+        user_id=str(user.id) if user else None,
+        status_from=previous, status_to=LeadStatus.PERDIDO,
+        detail=f"Lead perdido — motivo: {body.lost_reason.value}",
+    )
+    _record_commercial_outcome(
+        db, lead, "LOST",
+        event_key=f"mark-lost:{lead.id}",
+    )
+    db.commit()
+    return {"status": lead.status.value, "lost_reason": lead.lost_reason.value}
+
+
+@router.post("/{lead_id}/mark-disqualified")
+@limiter.limit("60/minute")
+async def mark_lead_disqualified(
+    request: Request,
+    lead_id: str,
+    body: MarkDisqualifiedRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Marca o lead como DESQUALIFICADO — inadequado, não "perdido".
+
+    O motivo é opcional, mas registrado na trilha quando informado. Não
+    gera outcome LOST: desqualificação não é perda comercial.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.organization_id == _org.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    if not _can_access_lead(member, lead):
+        raise HTTPException(status_code=403, detail="Acesso negado a este lead")
+
+    previous = lead.status
+    lead.status = LeadStatus.DESQUALIFICADO
+    detail = "Lead desqualificado"
+    if body.reason:
+        detail += f" — motivo: {body.reason.strip()}"
+    log_activity(
+        db, lead, action=LeadActivityAction.STATUS_CHANGED,
+        user_id=str(user.id) if user else None,
+        status_from=previous, status_to=LeadStatus.DESQUALIFICADO,
+        detail=detail,
+    )
+    db.commit()
+    return {"status": lead.status.value}
+
+
 @router.post("/{lead_id}/conversion")
 def register_conversion(
     lead_id: str,
@@ -1272,6 +1441,18 @@ def register_conversion(
         raise HTTPException(status_code=403, detail="Acesso negado a este lead")
     if body.contract_value is not None and body.contract_value < 0:
         raise HTTPException(status_code=400, detail="contract_value não pode ser negativo")
+
+    duplicate = find_duplicate_conversion(
+        db,
+        lead_id=lead.id,
+        offer_key=body.offer_key,
+        lead_opportunity_id=body.lead_opportunity_id,
+    )
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Este lead já tem uma conversão registrada para esta oferta",
+        )
 
     opportunity = None
     if body.offer_key != "unknown":

@@ -108,6 +108,7 @@ export interface Lead {
   id: string;
   place_id?: string;
   company_name: string;
+  cnpj?: string | null;
   website?: string;
   phone?: string;
   email?: string;
@@ -161,6 +162,13 @@ export interface Lead {
   updated_at: string;
 }
 
+export interface OpportunityNarrative {
+  headline?: string;
+  facts: string[];
+  hypotheses: string[];
+  validation_questions: string[];
+}
+
 export interface LeadOpportunity {
   id: string;
   lead_id: string;
@@ -172,8 +180,25 @@ export interface LeadOpportunity {
   evidence: string[];
   signals_matched: string[];
   signals_missing: string[];
+  score_breakdown?: Record<string, number | string> | null;
+  narrative?: OpportunityNarrative | null;
   created_at?: string | null;
   updated_at?: string | null;
+}
+
+export interface LeadOpportunityHistoryItem {
+  id: string;
+  lead_id: string;
+  lead_opportunity_id?: string | null;
+  offer_key: string;
+  offer_version?: string | null;
+  formula_version?: string | null;
+  score: number;
+  signals_snapshot?: Record<string, unknown> | null;
+  evidence_snapshot?: string[] | null;
+  reason?: string | null;
+  scored_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface EventOpportunity {

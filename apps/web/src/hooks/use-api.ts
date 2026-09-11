@@ -17,6 +17,7 @@ export function useLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  priority?: string;
   assigned?: string;
   consultant_id?: string;
   next_action_before?: string;
@@ -36,6 +37,7 @@ export function useAllLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  priority?: string;
   assigned?: string;
   consultant_id?: string;
 }) {
@@ -65,6 +67,7 @@ export function useInfiniteLeads(params?: {
   campaign_id?: string;
   search?: string;
   min_score?: number;
+  priority?: string;
   assigned?: string;
   consultant_id?: string;
   next_action_before?: string;
@@ -94,6 +97,14 @@ export function useLeadOpportunities(id: string) {
     queryKey: ["leads", id, "opportunities"],
     queryFn: () => leadsApi.opportunities(id),
     enabled: !!id,
+  });
+}
+
+export function useLeadOpportunitiesHistory(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ["leads", id, "opportunities-history"],
+    queryFn: () => leadsApi.opportunitiesHistory(id),
+    enabled: !!id && enabled,
   });
 }
 
@@ -968,6 +979,45 @@ export function useOptOutLead() {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["leads", id, "cadence"] });
       queryClient.invalidateQueries({ queryKey: ["leads", id] });
+    },
+  });
+}
+
+export function useMarkResponded() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadsApi.markResponded(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", id, "cadence"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+export const LOST_REASON_OPTIONS = ["PRECO", "PRAZO", "NAO_RESPONDEU", "CONCORRENTE", "OUTRO"] as const;
+export type LostReasonOption = (typeof LOST_REASON_OPTIONS)[number];
+
+export function useMarkLost() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, lost_reason }: { id: string; lost_reason: LostReasonOption }) =>
+      leadsApi.markLost(id, lost_reason),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+}
+
+export function useMarkDisqualified() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      leadsApi.markDisqualified(id, reason),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
     },
   });
 }

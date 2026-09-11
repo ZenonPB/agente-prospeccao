@@ -1,7 +1,7 @@
 # OfferProfile e oportunidades comerciais
 
 > **Status atual:** contrato, registry, resolver e matcher estão operacionais no
-> pipeline. Snapshot: 2026-09-10 · Alembic head `3d8e0f2a3b4c` (+ reconciliação
+> pipeline. Snapshot: 2026-09-10 · Alembic head `4a6b8c9d1e2f` (+ reconciliação
 > documental Onda 0A, sem mudança de código).
 > Este documento substitui os status históricos das fases C–H; o plano original
 > está preservado em `docs/consolidacao.md`.
@@ -111,11 +111,10 @@ operacional lê e grava no PostgreSQL.
 - A resolução de decisores opera por evidências sem exigir CPF (P1.32 ✅) com
   reliability por fonte persistida (P1.33 ✅ no cálculo/persistência); pesos ainda
   literais no código, calibráveis via configuração só na Onda 1.
-- **Drifts conhecidos (findings F-01–F-03, ver
-  `docs/pendencias-pos-consolidacao.md` §23):** `formula_version` gravada como
-  `matcher-v2` em runtime vs `matcher-v1` no schema/docs; unique
-  `uq_controlled_learning_org_offer_version` ausente no modelo;
-  `POST /campaigns/from-brief` resolve template, nunca perfil.
+- **Drifts F-01 e F-03 corrigidos na Fatia 1** (ver
+  `docs/pendencias-pos-consolidacao.md` §23). Resta F-02 (unique
+  `uq_controlled_learning_org_offer_version` ausente no modelo — sem efeito
+  operacional).
 - BI avançado por vertical, consultor, canal, campanha, variante e Precision@K
   ainda precisa de agregações e jobs próprios.
 

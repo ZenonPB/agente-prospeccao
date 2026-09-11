@@ -81,6 +81,16 @@ async def start_pipeline(
                 status_code=404,
                 detail="Campanha não encontrada",
             )
+        if campaign.status and campaign.status.value in ("PAUSED", "ARCHIVED", "COMPLETED"):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Campanha não está ativa — retome a busca antes de "
+                    "iniciar uma nova rodada"
+                    if campaign.status.value == "PAUSED"
+                    else "Campanha encerrada — duplique para iniciar um novo ciclo"
+                ),
+            )
 
     job = Job(
         job_type=JobType.LEAD_ENRICHMENT,

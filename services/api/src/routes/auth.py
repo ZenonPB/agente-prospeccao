@@ -14,17 +14,53 @@ from src.auth.dependencies import get_current_user
 from src.middleware.rate_limit import limiter
 from src.config.settings import settings
 from src.services.email_service import send_password_reset_email
+from src.services.login_lockout_service import (
+    LOGIN_LOCKOUT_THRESHOLD,
+    clear_attempts,
+    is_locked,
+    register_failure,
+)
 from src.services.org_service import create_personal_organization
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-# Lockout simples em memória (adequado para deploy single-process em tier grátis).
-# Chave: email normalizado → (tentativas_falhas, timestamp_última_tentativa).
+# Fallback transitório do lockout em memória: usado só se o banco falhar
+# (ex.: tabela ainda não migrada). O caminho normal é persistente (tabela
+# `login_attempts`, via `login_lockout_service`).
 _login_attempts: dict[str, tuple[int, float]] = {}
-_LOCKOUT_THRESHOLD = 5
+_LOCKOUT_THRESHOLD = LOGIN_LOCKOUT_THRESHOLD
 _LOCKOUT_SECONDS = 900  # 15 minutos
+
+
+def _fallback_is_locked(email_key: str) -> tuple[bool, int]:
+    if email_key in _login_attempts:
+        fails, last_ts = _login_attempts[email_key]
+        if fails >= _LOCKOUT_THRESHOLD:
+            elapsed = time.monotonic() - last_ts
+            if elapsed < _LOCKOUT_SECONDS:
+                return True, int(_LOCKOUT_SECONDS - elapsed)
+            _login_attempts.pop(email_key, None)
+    return False, 0
+
+
+def _fallback_register_failure(email_key: str) -> None:
+    fails, _ = _login_attempts.get(email_key, (0, 0.0))
+    _login_attempts[email_key] = (fails + 1, time.monotonic())
+
+
+def _failure_count(db, email_key: str) -> int:
+    """Tentativas acumuladas (só para o log — nunca quebra o login)."""
+    try:
+        from src.db.models import LoginAttempt
+
+        row = db.query(LoginAttempt).filter(LoginAttempt.email == email_key).first()
+        if row is not None:
+            return int(row.failed_count or 0)
+    except Exception:  # noqa: BLE001 - log é best-effort
+        pass
+    return _login_attempts.get(email_key, (0, 0.0))[0]
 
 
 class RegisterRequest(BaseModel):
@@ -111,31 +147,39 @@ def login(request: Request, body: LoginRequest, db: Session = Depends(get_db)):
     """Login com email e senha, retorna um token JWT."""
     email_key = body.email.lower().strip()
 
-    # Account lockout: verifica se excedeu tentativas
-    if email_key in _login_attempts:
-        fails, last_ts = _login_attempts[email_key]
-        if fails >= _LOCKOUT_THRESHOLD:
-            elapsed = time.monotonic() - last_ts
-            if elapsed < _LOCKOUT_SECONDS:
-                remaining = int(_LOCKOUT_SECONDS - elapsed)
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail=f"Muitas tentativas. Tente novamente em {remaining // 60}min.",
-                )
-            _login_attempts.pop(email_key, None)
+    # Account lockout persistente (tabela `login_attempts` — vale entre
+    # processos e restarts). Com o banco indisponível, cai no fallback
+    # em memória em vez de derrubar o login.
+    try:
+        locked, remaining = is_locked(db, email_key)
+    except Exception:  # noqa: BLE001 - lockout nunca pode quebrar o login
+        logger.warning("Lockout persistente indisponível, usando fallback em memória")
+        locked, remaining = _fallback_is_locked(email_key)
+    if locked:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Muitas tentativas. Tente novamente em {remaining // 60}min.",
+        )
 
     user = db.query(User).filter(User.email == email_key).first()
     if not user or not verify_password(body.password, user.password_hash):
         # Registra tentativa falha
-        fails, _ = _login_attempts.get(email_key, (0, 0.0))
-        _login_attempts[email_key] = (fails + 1, time.monotonic())
-        logger.warning("Login falhou para %s (tentativa %d)", email_key, fails + 1)
+        try:
+            register_failure(db, email_key)
+        except Exception:  # noqa: BLE001 - idem acima
+            _fallback_register_failure(email_key)
+        fails = _failure_count(db, email_key)
+        logger.warning("Login falhou para %s (tentativa %d)", email_key, fails)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha incorretos",
         )
 
     # Login bem-sucedido: reseta contador
+    try:
+        clear_attempts(db, email_key)
+    except Exception:  # noqa: BLE001 - idem acima
+        pass
     _login_attempts.pop(email_key, None)
 
     token = create_access_token({"sub": str(user.id), "email": user.email})

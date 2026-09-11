@@ -9,9 +9,10 @@ from pydantic import BaseModel, Field
 
 from src.db.dependencies import get_db
 from src.db.models import Campaign, CampaignStatus, Lead, LeadStatus, User, Job, JobStatus, JobType, Organization
-from src.auth.dependencies import get_current_user, get_user_organization
+from src.auth.dependencies import get_current_user, get_user_organization, get_user_membership
 from src.middleware.rate_limit import limiter
 from src.services.csv_import_service import CsvImportService
+from src.services.org_service import is_full_access
 
 # Importa o serviço de sugestão de segmentos dos workers (reaproveitando a fonte única).
 _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "workers", "src")
@@ -324,11 +325,33 @@ async def create_campaign_from_brief(
             scoring_template_id = str(tmpl.id)
             scoring_template_label = tmpl.service_label
 
+    # F-03: resolve o OfferProfile da intenção (mesma regra do pipeline) para
+    # a campanha já nascer vinculada à oferta — sem edição manual posterior.
+    offer_profile_key = None
+    offer_profile_label = None
+    offer_resolved_from = "generic"
+    try:
+        from services.prospecting.default_profiles import get_default_registry
+        from services.prospecting.offer_profile import OfferProfileResolver
+        resolved_offer = OfferProfileResolver(get_default_registry()).resolve_campaign(
+            target_service=suggestion.get("target_service") or "",
+            target_segment=suggestion.get("target_segment") or "",
+        )
+        offer_resolved_from = resolved_offer.resolved_from
+        if resolved_offer.resolved_from != "generic":
+            offer_profile_key = resolved_offer.key
+            offer_profile_label = str((resolved_offer.offer or {}).get("name", "") or resolved_offer.key)
+    except Exception:  # noqa: BLE001 — preview não pode quebrar; pipeline resolve depois
+        logger.warning("Resolução de OfferProfile no preview falhou, seguindo sem perfil.")
+
     return {
         **suggestion,
         "scoring_template_id": scoring_template_id,
         "scoring_template_label": scoring_template_label,
         "template_route": template_info.get("route"),
+        "offer_profile_key": offer_profile_key,
+        "offer_profile_label": offer_profile_label,
+        "offer_resolved_from": offer_resolved_from,
     }
 
 
@@ -855,8 +878,16 @@ def export_campaign_google_sheets(
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
+    member=Depends(get_user_membership),
 ):
-    """Exporta os leads da campanha formatados para o Google Sheets (CSV)."""
+    """Exporta os leads da campanha formatados para o Google Sheets (CSV).
+
+    Guard de organização/permissão (BLOCKS_V1): a campanha precisa
+    pertencer à organização do solicitante e o consultor só exporta leads
+    do próprio escopo — nenhum usuário exporta dados de outra org.
+    Sem `campaign_id` válido da própria org, retorna 404 (nunca vaza
+    existência de campanha alheia).
+    """
     campaign = db.query(Campaign).filter(
         Campaign.id == campaign_id,
         Campaign.organization_id == _org.id,
@@ -867,10 +898,20 @@ def export_campaign_google_sheets(
     from sqlalchemy.orm import joinedload
     leads = (
         db.query(Lead)
-        .filter(Lead.campaign_id == campaign.id)
+        .filter(
+            Lead.campaign_id == campaign.id,
+            Lead.organization_id == _org.id,
+        )
         .options(joinedload(Lead.contacts))
         .all()
     )
+    if not is_full_access(member):
+        leads = [
+            lead for lead in leads
+            if str(getattr(lead, "assigned_to_id", "") or "") in ("", "None", str(member.user_id))
+            or lead.assigned_to_id is None
+            or str(lead.assigned_to_id) == str(member.user_id)
+        ]
 
     import csv
     import io

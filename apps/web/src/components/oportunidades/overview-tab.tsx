@@ -13,7 +13,9 @@ import {
 import { LinkedInIcon } from '@/components/ui/linkedin-icon';
 import { FollowUpCard, formatPrimaryNeed } from '@/components/oportunidades/follow-up-card';
 import { NextActionCard } from '@/components/oportunidades/next-action-card';
+import { EventTimingCard } from '@/components/oportunidades/event-timing-card';
 import type { Lead } from '@/types/index';
+import { getScoreBand, scoreBandBadge, SCORE_THRESHOLD_HINT, priorityLabels } from '@/components/oportunidades/score-scale';
 
 const statusLabels: Record<string, string> = {
   NOVO: 'Novo',
@@ -38,7 +40,7 @@ function staleEnrichmentLabel(freshness?: Lead['enrichment_freshness']): string[
   return out;
 }
 
-export function OverviewTab({ lead }: { lead: Lead }) {
+export function OverviewTab({ lead, onOpenTab }: { lead: Lead; onOpenTab?: (tab: string) => void }) {
   const staleEnrichment = staleEnrichmentLabel(lead.enrichment_freshness);
 
   return (
@@ -109,8 +111,28 @@ export function OverviewTab({ lead }: { lead: Lead }) {
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Pontuação:</span>
-              <Badge className="bg-emerald-100 text-emerald-700 text-lg">{lead.qualification_score}</Badge>
+              <Badge
+                className={`${scoreBandBadge[getScoreBand(lead.qualification_score)]} text-lg`}
+                title={getScoreBand(lead.qualification_score) === 'unevaluated' ? 'Ainda não avaliado' : SCORE_THRESHOLD_HINT}
+              >
+                {getScoreBand(lead.qualification_score) === 'unevaluated' ? 'não avaliado' : lead.qualification_score}
+              </Badge>
             </div>
+            <p className="text-xs text-muted-foreground">{SCORE_THRESHOLD_HINT}</p>
+            {lead.priority && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Prioridade:</span>
+                <Badge variant="outline">{priorityLabels[lead.priority] ?? lead.priority}</Badge>
+              </div>
+            )}
+            {lead.priority && lead.priority_reasoning && (
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Por que prioridade {(priorityLabels[lead.priority] ?? lead.priority).toLowerCase()}:
+                </p>
+                <p className="text-sm mt-1">{lead.priority_reasoning}</p>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Necessidade:</span>
               <Badge variant="outline">{formatPrimaryNeed(lead.primary_need)}</Badge>
@@ -129,7 +151,9 @@ export function OverviewTab({ lead }: { lead: Lead }) {
         </Card>
       </div>
 
-      <NextActionCard nextAction={lead.next_best_action} />
+      <NextActionCard lead={lead} nextAction={lead.next_best_action} onOpenTab={onOpenTab} />
+
+      <EventTimingCard leadId={lead.id} />
 
       {(lead.pitch_angle || lead.suggested_subject) && (
         <Card>

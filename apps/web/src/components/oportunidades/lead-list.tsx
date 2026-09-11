@@ -19,18 +19,9 @@ import { WhyProspectSignals } from '@/components/oportunidades/why-prospect-sign
 import { EmptyState } from '@/components/ui/empty-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { getScoreBand, scoreBandBadge, SCORE_THRESHOLD_HINT } from '@/components/oportunidades/score-scale';
 
-const scoreColors = {
-  high: 'bg-emerald-100 text-emerald-700',
-  medium: 'bg-amber-100 text-amber-700',
-  low: 'bg-red-100 text-red-700',
-};
-
-const getScoreColor = (score: number) => {
-  if (score >= 80) return scoreColors.high;
-  if (score >= 60) return scoreColors.medium;
-  return scoreColors.low;
-};
+const getScoreColor = (score?: number | null) => scoreBandBadge[getScoreBand(score)];
 
 const primaryNeedLabels: Record<string, string> = {
   SECURITY_FIX: 'Problemas de segurança',
@@ -71,13 +62,6 @@ const bulkStatusOptions = [
   { value: 'REUNIAO_MARCADA', label: 'Marcar reunião marcada' },
   { value: 'PROPOSTA_ENVIADA', label: 'Marcar proposta enviada' },
   { value: 'PERDIDO', label: 'Marcar como perdido' },
-];
-
-const sortByOptions = [
-  { value: 'score_desc', label: 'Maior aptidão primeiro' },
-  { value: 'score_asc', label: 'Menor aptidão primeiro' },
-  { value: 'date_desc', label: 'Mais recente' },
-  { value: 'date_asc', label: 'Mais antigo' },
 ];
 
 function exportSelectedCsv(leads: Lead[], name: string) {
@@ -154,10 +138,10 @@ export function LeadList() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<string>('score_desc');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [presetFilter, setPresetFilter] = useState<'all' | 'hot' | 'qualified' | 'my_leads'>('all');
   const [minScoreFilter, setMinScoreFilter] = useState<number | undefined>(undefined);
+  const [priorityFilter, setPriorityFilter] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [myLeadsOnly, setMyLeadsOnly] = useState<boolean>(false);
 
@@ -165,18 +149,22 @@ export function LeadList() {
   const handlePreset = (preset: 'all' | 'hot' | 'qualified' | 'my_leads') => {
     setPresetFilter(preset);
     if (preset === 'hot') {
-      setMinScoreFilter(80);
+      setPriorityFilter('HOT');
+      setMinScoreFilter(undefined);
       setStatusFilter(undefined);
       setMyLeadsOnly(false);
     } else if (preset === 'qualified') {
+      setPriorityFilter(undefined);
       setMinScoreFilter(60);
       setStatusFilter('QUALIFICADO');
       setMyLeadsOnly(false);
     } else if (preset === 'my_leads') {
+      setPriorityFilter(undefined);
       setMinScoreFilter(undefined);
       setStatusFilter(undefined);
       setMyLeadsOnly(true);
     } else {
+      setPriorityFilter(undefined);
       setMinScoreFilter(undefined);
       setStatusFilter(undefined);
       setMyLeadsOnly(false);
@@ -202,6 +190,7 @@ export function LeadList() {
     search: debouncedSearch || undefined,
     campaign_id: campaignFilter !== 'all' ? campaignFilter : undefined,
     min_score: minScoreFilter,
+    priority: priorityFilter,
     status: statusFilter,
     assigned: myLeadsOnly && currentUserId ? currentUserId : undefined,
   });
@@ -211,20 +200,14 @@ export function LeadList() {
   const hasMore = hasNextPage ?? false;
   const loadingMore = isFetchingNextPage;
 
-  const sortedLeads = [...leads].sort((a, b) => {
-    switch (sortBy) {
-      case 'score_desc':
-        return b.qualification_score - a.qualification_score;
-      case 'score_asc':
-        return a.qualification_score - b.qualification_score;
-      case 'date_desc':
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      case 'date_asc':
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      default:
-        return 0;
-    }
-  });
+  // Ordem do servidor (aptidão desc, válida para o total). Sem re-ordenação
+  // client-side: ela só reordenaria a página carregada e confundiria o total.
+  // No preset "Quentes", garante o filtro por prioridade mesmo se o servidor
+  // ainda não filtrar (fallback: lead sem prioridade usa nota >= 80).
+  const visibleLeads = presetFilter === 'hot'
+    ? leads.filter((l) => (l.priority ? l.priority === 'HOT' : (l.qualification_score ?? 0) >= 80))
+    : leads;
+  const sortedLeads = visibleLeads;
 
   const selectedLeads = sortedLeads.filter((l) => selected.has(l.id));
   const allVisibleSelected = sortedLeads.length > 0 && sortedLeads.every((l) => selected.has(l.id));
@@ -301,7 +284,7 @@ export function LeadList() {
           className="h-9 rounded-full text-xs font-medium sm:h-8"
           onClick={() => handlePreset('hot')}
         >
-          🔥 Leads Quentes (80+)
+          🔥 Leads Quentes
         </Button>
         <Button
           variant={presetFilter === 'qualified' ? 'default' : 'outline'}
@@ -350,18 +333,9 @@ export function LeadList() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v || 'score_desc')}>
-          <SelectTrigger className="w-full sm:w-[180px] h-10">
-            <SelectValue>
-              {(value) => sortByOptions.find((o) => o.value === value)?.label ?? 'Ordenar por'}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {sortByOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <span className="text-xs text-muted-foreground" title="A lista vem do servidor em ordem de aptidão">
+          {SCORE_THRESHOLD_HINT} · ordenado por aptidão
+        </span>
       </div>
 
       {selected.size > 0 && (
@@ -515,8 +489,11 @@ export function LeadList() {
                               {priorityBadgeConfig[lead.priority].label}
                             </Badge>
                           )}
-                          <Badge className={getScoreColor(lead.qualification_score)}>
-                            {lead.qualification_score}
+                          <Badge
+                            className={getScoreColor(lead.qualification_score)}
+                            title={getScoreBand(lead.qualification_score) === 'unevaluated' ? 'Ainda não avaliado' : SCORE_THRESHOLD_HINT}
+                          >
+                            {getScoreBand(lead.qualification_score) === 'unevaluated' ? 'não avaliado' : lead.qualification_score}
                           </Badge>
                         </div>
                       </div>

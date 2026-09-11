@@ -109,6 +109,7 @@ export const leadsApi = {
     campaign_id?: string;
     search?: string;
     min_score?: number;
+    priority?: string;
     assigned?: string;
     consultant_id?: string;
     next_action_before?: string;
@@ -119,6 +120,11 @@ export const leadsApi = {
   get: (id: string) => request<Lead & { enrichment?: Enrichment }>(`/api/leads/${id}`),
 
   opportunities: (id: string) => request<{ oportunidades: LeadOpportunity[] }>(`/api/leads/${id}/oportunidades`),
+
+  opportunitiesHistory: (id: string, offerKey?: string) =>
+    request<{ historico: import("@/types").LeadOpportunityHistoryItem[] }>(`/api/leads/${id}/oportunidades/historico`, {
+      params: offerKey ? { offer_key: offerKey } : undefined,
+    }),
 
   update: (id: string, data: { notes?: string; whatsapp?: string; next_action_at?: string | null; value?: number; expected_close_date?: string | null; lost_reason?: string }) =>
     request<Lead>(`/api/leads/${id}`, {
@@ -301,6 +307,24 @@ export const leadsApi = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+
+  markResponded: (id: string) =>
+    request<{ status: string; cancelled: number }>(`/api/leads/${id}/mark-responded`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+
+  markLost: (id: string, lost_reason: string) =>
+    request<{ status: string; lost_reason: string }>(`/api/leads/${id}/mark-lost`, {
+      method: "POST",
+      body: JSON.stringify({ lost_reason }),
+    }),
+
+  markDisqualified: (id: string, reason?: string) =>
+    request<{ status: string }>(`/api/leads/${id}/mark-disqualified`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason ?? null }),
+    }),
 };
 
 export const authApi = {
@@ -371,6 +395,7 @@ export const campaignsApi = {
     target_state?: string;
     target_country?: string;
     places_query?: string;
+    search_queries?: string[];
     offer_profile_key?: string;
   }) =>
     request<Campaign>("/api/campaigns", {
@@ -407,6 +432,9 @@ export const campaignsApi = {
       scoring_template_id: string | null;
       template_route: string;
       rationale: string;
+      offer_profile_key: string | null;
+      offer_profile_label: string | null;
+      offer_resolved_from: string;
     }>("/api/campaigns/from-brief", {
       method: "POST",
       body: JSON.stringify({ brief }),

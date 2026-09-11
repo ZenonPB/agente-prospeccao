@@ -4,7 +4,7 @@
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
 > **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·
-> Alembic head `3d8e0f2a3b4c` (propostas de learning controlado pendentes de
+> Alembic head `4a6b8c9d1e2f` (propostas de learning controlado pendentes de
 > publicação manual; matcher ponderado `matcher-v2`, narrativa de oportunidade
 > e golden patterns por oferta).
 >
@@ -42,11 +42,10 @@ nunca o contrário.
   código; torná-los calibráveis via configuração é escopo da Onda 1). Uso de
   reliability em gates/Intent v2 continua planejado. Provas e detalhes em
   `docs/00-status-mapa.md` e `docs/pendencias-pos-consolidacao.md` (§P1.32/P1.33).
-- **Drifts registrados, não corrigidos** (`pendencias-pos-consolidacao.md` §23):
-  F-01 `formula_version` (`matcher-v2` em runtime vs `matcher-v1` no schema e nos
-  docs); F-02 unique `uq_controlled_learning_org_offer_version` ausente no modelo;
-  F-03 `POST /campaigns/from-brief` resolve template, nunca OfferProfile; F-04
-  conflito sobre re-scoring entre mapa e pendências.
+- **Drifts F-01, F-03 e F-04 corrigidos na Fatia 1** (`pendencias-pos-consolidacao.md`
+  §23): default `matcher-v2` alinhado (migration `4a6b8c9d1e2f`), from-brief sugere
+  `offer_profile_key`, item de re-scoring removido do mapa. Resta F-02 (unique
+  ausente no modelo — sem efeito operacional).
 
 ## Estado atual
 
@@ -226,7 +225,7 @@ outreach/cadência. Campanhas legadas continuam compatíveis.
   local reconstruido: **1 passed**;
 - `python -m compileall -q services/api services/workers`: passou;
 - Web: lint, TypeScript e build: passaram;
-- `scripts/verify_migrations.py`: head único `3d8e0f2a3b4c`, incluindo propostas
+- `scripts/verify_migrations.py`: head único `4a6b8c9d1e2f`, incluindo propostas
   controladas e breakdown persistido do matcher;
 - persistência controlada validada em PostgreSQL.
 

@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     JWT_SECRET: str = Field(..., description='Chave secreta para assinatura de tokens JWT')
     JWT_ALGORITHM: str = Field("HS256", description='Algoritmo de assinatura JWT')
     JWT_EXPIRES_HOURS: int = Field(24, description='Horas até expiração do token JWT')
+    # Emissor e audiência dos tokens: isolam tokens entre ambientes. Em staging
+    # use valores próprios (ex.: JWT_ISSUER=prospect-ai-staging) para que um
+    # token de um ambiente nunca seja aceito em outro.
+    JWT_ISSUER: str = Field("prospect-ai", description='Emissor (iss) esperado nos tokens JWT')
+    JWT_AUDIENCE: str = Field("prospect-ai-api", description='Audiência (aud) esperada nos tokens JWT')
 
     # Ambiente: 'development' (padrão) ou 'production'. Em produção, SMTP ausente
     # não é aceito silenciosamente — envio falha em vez de "fingir" que funcionou.

@@ -449,6 +449,22 @@ class User(Base):
     def __repr__(self):
         return f"<User(id='{self.id}', email='{self.email}')>"
 
+class LoginAttempt(Base):
+    """Tentativas de login por e-mail — base do lockout persistente.
+
+    Sem vínculo com organização: o lockout precisa funcionar antes mesmo de
+    identificar o usuário. O e-mail é guardado normalizado (lower/strip) e é
+    a chave primária — uma linha por e-mail, sem histórico.
+    """
+    __tablename__ = "login_attempts"
+    email = Column(String(255), primary_key=True)
+    failed_count = Column(Integer, nullable=False, default=0, server_default="0")
+    last_attempt_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    locked_until = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<LoginAttempt(email='{self.email}', failed={self.failed_count})>"
+
 class Campaign(Base):
     __tablename__ = "campaigns"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -1114,7 +1130,7 @@ class LeadOpportunitySnapshot(Base):
     lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
     offer_key = Column(String(64), nullable=False)
     offer_version = Column(String(32), nullable=True)
-    formula_version = Column(String(32), nullable=False, server_default="matcher-v1")
+    formula_version = Column(String(32), nullable=False, server_default="matcher-v2")
     profile_snapshot_hash = Column(String(64), nullable=True)
     score = Column(Integer, nullable=False, server_default="0")
     signals_snapshot = Column(JSONB, nullable=True)

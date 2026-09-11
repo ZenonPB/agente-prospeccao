@@ -10,6 +10,7 @@ import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, Us
 import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import { ScoreFeedbackDialog } from '@/components/vendas/score-feedback-dialog';
+import { OutcomeDialog } from '@/components/oportunidades/conversion-dialog';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -68,6 +69,8 @@ interface KanbanCardProps {
   onAssignToMe: (leadId: string) => void;
   onAssignTo: (leadId: string, userId: string | null, name?: string) => void;
   onMoveTo: (leadId: string, status: string) => void;
+  onMarkLost: (lead: LeadbanCard) => void;
+  onMarkDisqualified: (lead: LeadbanCard) => void;
   onOpenFeedback: (lead: LeadbanCard) => void;
   onOpenLead: (leadId: string) => void;
 }
@@ -91,6 +94,8 @@ const KanbanCard = memo(function KanbanCard({
   onAssignToMe,
   onAssignTo,
   onMoveTo,
+  onMarkLost,
+  onMarkDisqualified,
   onOpenFeedback,
   onOpenLead,
 }: KanbanCardProps) {
@@ -361,6 +366,25 @@ const KanbanCard = memo(function KanbanCard({
                       <BrainCircuit className="mr-2 h-3.5 w-3.5" />
                       Discordar do score
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkLost(lead);
+                      }}
+                    >
+                      <AlertTriangle className="mr-2 h-3.5 w-3.5 text-red-600" />
+                      Marcar como perdido
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkDisqualified(lead);
+                      }}
+                    >
+                      <AlertTriangle className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                      Desqualificar
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -422,6 +446,8 @@ const KanbanCard = memo(function KanbanCard({
   if (prev.onAssignToMe !== next.onAssignToMe) return false;
   if (prev.onAssignTo !== next.onAssignTo) return false;
   if (prev.onMoveTo !== next.onMoveTo) return false;
+  if (prev.onMarkLost !== next.onMarkLost) return false;
+  if (prev.onMarkDisqualified !== next.onMarkDisqualified) return false;
   if (prev.onOpenFeedback !== next.onOpenFeedback) return false;
   if (prev.onOpenLead !== next.onOpenLead) return false;
   return true;
@@ -507,6 +533,8 @@ export function KanbanBoard() {
   // Feedback de score: qual lead está sendo corrigido e se o diálogo está aberto.
   const [feedbackLead, setFeedbackLead] = useState<LeadData | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // Diálogo de outcome (LOST/DESQUALIFICADO): lead alvo + modo.
+  const [outcomeLead, setOutcomeLead] = useState<{ id: string; mode: 'lost' | 'disqualified' } | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useAllLeads({
     status: SALES_STATUSES,
@@ -671,6 +699,18 @@ export function KanbanBoard() {
     setFeedbackOpen(true);
   }, []);
 
+  // Abrir diálogo de outcome. Estável para o memo; a submissão acontece no
+  // OutcomeDialog (LOST exige motivo em select; DESQUALIFICADO é opcional).
+  const onMarkLost = useCallback((lead: LeadData) => {
+    if (!lead.id) return;
+    setOutcomeLead({ id: lead.id, mode: 'lost' });
+  }, []);
+
+  const onMarkDisqualified = useCallback((lead: LeadData) => {
+    if (!lead.id) return;
+    setOutcomeLead({ id: lead.id, mode: 'disqualified' });
+  }, []);
+
   const totalLeads = Object.values(visibleColumns).reduce((acc, col) => acc + col.length, 0);
 
   if (isLoading) {
@@ -826,6 +866,8 @@ export function KanbanBoard() {
                           onAssignToMe={onAssignToMe}
                           onAssignTo={onAssignTo}
                           onMoveTo={onMoveTo}
+                          onMarkLost={onMarkLost}
+                          onMarkDisqualified={onMarkDisqualified}
                           onOpenFeedback={onOpenFeedback}
                           onOpenLead={onOpenLead}
                         />
@@ -864,6 +906,19 @@ export function KanbanBoard() {
           if (!open) setFeedbackLead(null);
         }}
       />
+
+      {/* Outcome (LOST/DESQUALIFICADO) — mesma semântica da página de detalhe. */}
+      {outcomeLead && (
+        <OutcomeDialog
+          key={`${outcomeLead.id}:${outcomeLead.mode}`}
+          leadId={outcomeLead.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setOutcomeLead(null);
+          }}
+          mode={outcomeLead.mode}
+        />
+      )}
     </div>
   );
 }
