@@ -18,6 +18,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
 from src.middleware.rate_limit import limiter
+from src.middleware.correlation import CorrelationIdMiddleware
 from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, intelligence
 from src.routes.auth import router as auth_router
 
@@ -295,6 +296,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Correlacao de requests: registrado por ultimo => middleware mais externo,
+# cobrindo todo o ciclo (inclusive respostas de erro). Liga request ->
+# job -> provider trace via X-Request-ID e observability.log_event.
+app.add_middleware(CorrelationIdMiddleware)
 
 # NOTA: HTTPSRedirectMiddleware foi removido. Plataformas como Render/Railway
 # já terminam TLS no proxy de borda — o app recebe HTTP internamente. Um

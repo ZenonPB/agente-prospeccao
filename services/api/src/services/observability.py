@@ -3,6 +3,10 @@
 Os eventos de cadência/abertura/opt-out são emitidos aqui num formato estável
 `event=<name> key=value ...` em uma linha única, permitindo grep e ingestão em
 ferramentas de observabilidade sem depender de um JSON formatter global.
+
+Quando emitidos dentro do ciclo de uma request HTTP, os eventos recebem
+automaticamente o `request_id` da correlação (ver
+`src.middleware.correlation`), ligando request -> job -> provider trace.
 """
 import json
 import logging
@@ -19,6 +23,21 @@ _SENSITIVE_FIELD_PARTS = (
     "secret",
     "token",
 )
+
+
+def _current_request_id() -> Optional[str]:
+    """Lê o id de correlação da request corrente sem acoplar a importação.
+
+    A observability é compartilhada e pode ser importada fora do processo da
+    API; por isso a dependência do middleware é resolvida de forma preguiçosa e
+    tolerante a falhas.
+    """
+    try:
+        from src.middleware.correlation import get_request_id
+
+        return get_request_id()
+    except Exception:  # noqa: BLE001 - correlação é best-effort no log
+        return None
 
 
 def _safe_value(key: str, value: Any) -> Any:
@@ -45,9 +64,14 @@ def log_event(
 
     `event` e `lead_id`/`organization_id` são sempre incluídos (filtro comum);
     demais campos passam como pares chave=valor. Valores não-simples (dicts)
-    são serializados como JSON compacto.
+    são serializados como JSON compacto. Quando houver uma request corrente, o
+    `request_id` da correlação é incluído automaticamente (a menos que o
+    chamador já forneça um).
     """
     payload: dict[str, Any] = {"event": event}
+    request_id = fields.pop("request_id", None) or _current_request_id()
+    if request_id:
+        payload["request_id"] = request_id
     if lead_id:
         payload["lead_id"] = lead_id
     if organization_id:
