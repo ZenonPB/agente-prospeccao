@@ -22,6 +22,32 @@
 4. `docs/pendencias-pos-consolidacao.md` — backlog operacional;
 5. `docs/decisions.md` e `docs/coding-standards.md` — decisões e padrões.
 
+## Fontes de verdade (declaradas na Onda 0A)
+
+| Assunto | Fonte canônica |
+|---|---|
+| Status por capacidade | `docs/00-status-mapa.md` |
+| Backlog operacional | `docs/pendencias-pos-consolidacao.md` |
+| Arquitetura e fluxos reais | `docs/architecture.md` |
+| Histórico e planos de longo prazo | `docs/consolidacao.md`, `docs/roadmap.md`, `docs/roadmap-vendas.md` |
+| Estado vivo + próximo passo | este arquivo (`docs/context.md`) |
+
+Em caso de conflito, vale o código + testes; o documento divergente é corrigido,
+nunca o contrário.
+
+## Reconciliação Onda 0A (verdade documental)
+
+- **P1.32 (identity confidence sem CPF) e P1.33 (Source Reliability): ✅
+  Operacionais** no cálculo, persistência e fluxo real (pesos ainda literais no
+  código; torná-los calibráveis via configuração é escopo da Onda 1). Uso de
+  reliability em gates/Intent v2 continua planejado. Provas e detalhes em
+  `docs/00-status-mapa.md` e `docs/pendencias-pos-consolidacao.md` (§P1.32/P1.33).
+- **Drifts registrados, não corrigidos** (`pendencias-pos-consolidacao.md` §23):
+  F-01 `formula_version` (`matcher-v2` em runtime vs `matcher-v1` no schema e nos
+  docs); F-02 unique `uq_controlled_learning_org_offer_version` ausente no modelo;
+  F-03 `POST /campaigns/from-brief` resolve template, nunca OfferProfile; F-04
+  conflito sobre re-scoring entre mapa e pendências.
+
 ## Estado atual
 
 O produto opera como plataforma multi-tenant em Web Next.js, API FastAPI,
@@ -234,9 +260,9 @@ Problemas corrigidos e decisões (detalhes em `docs/pendencias-pos-consolidacao.
 
 **Próximo passo imediato**
 
-Outreach humano assistido sobre a base federada e controlled learning. Gates
-de buyer, `BuyerPersona`, validação semântica de OfferProfile (P1.4), cortes
-de BI por vertical/consultor/campanha/provider/versão, provider especializado
-federado (P1.35), matcher ponderado (P1.7), narrativa de oportunidade (P1.10)
-e golden patterns por oferta (P1.28) já estão operacionais; as demais
-prioridades estão em `docs/pendencias-pos-consolidacao.md`.
+Onda 0A (verdade documental) concluída: P1.32/P1.33 reconciliados como
+operacionais, drifts F-01–F-04 registrados, fontes de verdade declaradas. O
+próximo passo é a **Onda 0B** (grafo local + release blockers: reprodutibilidade,
+placeholders, hardening, baseline de telas) e, na sequência, a **Onda 1**
+(controlled learning com publicação/versionamento de `OfferProfile`) — nesta
+ordem, antes do outreach assistido, conforme prioridade confirmada.

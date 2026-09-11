@@ -59,6 +59,38 @@ detalhado de propostas permanece em `docs/consolidacao.md` e
 - Testes de persistência controlada usam PostgreSQL; o E2E externo continua
   opcional quando `E2E_DATABASE_URL` não está configurada.
 
+## Fontes de verdade (declaradas na Onda 0A)
+
+| Assunto | Fonte canônica |
+|---|---|
+| Status por capacidade (o que está ✅/🟠/🔵/⬜) | este mapa (`00-status-mapa.md`) |
+| Backlog operacional (o que falta fazer) | `pendencias-pos-consolidacao.md` |
+| Arquitetura e fluxos reais | `architecture.md` |
+| Histórico e planos de longo prazo | `consolidacao.md`, `roadmap.md`, `roadmap-vendas.md` |
+| Estado vivo + próximo passo | `context.md` |
+
+Em caso de conflito, vale o código + testes; o documento divergente é corrigido,
+nunca o contrário.
+
+## Reconciliação Onda 0A (verdade documental)
+
+- **P1.32 (identity confidence sem CPF): ✅ Operacional.** Cálculo por evidências
+  sem exigir CPF, com `resolved >= 70`, persistido e consumido pelo waterfall;
+  prova em `tests/test_decision_maker_resolution.py:79-100,191-217`. Resta tornar
+  os pesos calibráveis via configuração (Onda 1).
+- **P1.33 (Source Reliability): ✅ Operacional no cálculo e na persistência.**
+  Registry com os valores do plano, integrado ao `contact_confidence`, persistido
+  e exposto na API/UI; prova em `tests/test_decision_maker_resolution.py:182-189`.
+  Uso em gates de decisão e no Intent v2 continua ⬜ Planejado.
+- **Drifts código-vs-docs registrados** (detalhes em
+  `pendencias-pos-consolidacao.md` §23, não corrigidos nesta entrega):
+  F-01 `formula_version` (`matcher-v2` em runtime vs `matcher-v1` no
+  schema/docs); F-02 unique `uq_controlled_learning_org_offer_version` ausente no
+  modelo; F-03 `POST /campaigns/from-brief` resolve template, nunca perfil;
+  F-04 conflito sobre re-scoring entre este mapa e as pendências (P1.9 é
+  ✅ Operacional — este item de "Próximas prioridades" será removido na próxima
+  varredura).
+
 ## Próximas prioridades
 
 1. P1.18 — decisor → outreach humano assistido: envio com aprovação humana

@@ -84,7 +84,7 @@
 | P1.18 Evento → decisor/outreach | 🟠 Parcial | Recomendação + persistência da ação de evento (`decision_maker_id/status`, canal, `next_action`) entregues e expostas em `/api/intelligence`; timing é incluído na ação, mas outreach permanece humano. |
 | P1.31 Entidade canônica de pessoa | 🟠 Parcial | `persons` canônica com confiança/verificação/acionabilidade (migration `1a2b3c4d5e6f`) propagada de `Contact` via `sync_lead_entities`; pipeline de descoberta externa ainda falta. |
 | P1.32 Identity confidence sem CPF | ✅ Operacional | Score de evidências persistido; CPF/QSA continua forte, mas não obrigatório. |
-| P1.33 Source Reliability | ✅ Operacional | Registry calibrável integrado ao cálculo de confiança. |
+| P1.33 Source Reliability | ✅ Operacional (cálculo + persistência) | Registry integrado ao `contact_confidence`, persistido e exposto na API; pesos ainda literais no código (calibráveis via config só na Onda 1); uso em gates/Intent v2 pendente. |
 | P1.34–P1.38 People Discovery/decisores | ✅ Operacional | `PeopleProviderRegistry` async com waterfall, dedup, early stopping por confiança de contato e identidade, role fit por título/senioridade/departamento, gate de buyer role (explícito > inferido, fallback para `buyer_types` do perfil) e orçamento (`max_cost` + `cost_spent`); entidade `BuyerPersona` com 8 personas; `HunterPeopleProvider`, `WebsitePeopleProvider` e `HttpPeopleProvider` (fonte especializada federada via endpoint próprio) opt-in por quota; `ContactVerifier` async sem thread; snapshots imutáveis persistidos. |
 | P1.39 Routable contact | ✅ Operacional | Classificação persistida, exposta na API e usada pelo `NextBestActionService` (DIRECT/ROUTABLE → CALL, INSTITUTIONAL → pesquisa humana, UNREACHABLE → re-enriquecer); cadência de e-mail continua condicionada a e-mail verificado. |
 | P2.1–P2.2 OfferProfile administrativo | 🟠 Parcial | Perfis ainda são registrados em código. |
@@ -1525,27 +1525,33 @@ Não reabrir automaticamente o antigo modelo completo `Company/Person/Employment
 
 ## P1.32 — Identity resolution não pode depender de CPF
 
-**Status:** 🟠 Parcial
+**Status:** ✅ Operacional (reconciliação Onda 0A — era 🟠 Parcial)
 
-### Problema
+### Estado verificado no código
 
-No resolver atual, CPF tem peso estrutural muito forte para considerar pessoa “resolved”.
+`ContactConfidence.identity_confidence` (`services/workers/src/services/prospecting/decision_maker_resolution.py:281-324`)
+calcula por evidências — CPF/QSA +50, site oficial +35, e-mail corporativo +25,
+LinkedIn atual +25, 2 fontes concordantes +20 — e `resolved` exige 70 pontos,
+**sem exigir CPF** (`resolve()` em `:140-173`; `needs_review` só para identidade
+ambígua sem CPF). O fluxo real persiste os campos via
+`ContactEnrichmentService.update_contact_confidence`
+(`services/workers/src/services/contact_enrichment_service.py:1557-1606`) e o
+gate `min_identity_confidence` é consumido pelo waterfall
+(`people_provider_registry.py:283-286`). Cobertura:
+`tests/test_decision_maker_resolution.py:79-100,103-120,191-217`,
+`tests/test_contact_site_sources.py:188-219`.
 
-Isso funciona para QSA, mas não para gerentes B2B.
+### Pendente restante (escopo da Onda 1)
 
-Exemplo confiável sem CPF:
+Os pesos são literais no código (`+50/+35/+25/+25/+20`, limiares `>=70/>=50`).
+"Pesos calibráveis" significa movê-los para configuração versionada junto ao
+`OfferProfileVersion`, não editar constantes.
 
-```text
-site oficial
-+ LinkedIn atual
-+ email corporativo
-```
+### Contexto original (já atendido — mantido como histórico)
 
-### Mudança
-
-Calcular `identity_confidence` por evidências.
-
-Exemplo inicial:
+O resolver antigo dava peso estrutural ao CPF para considerar pessoa "resolved",
+o que funcionava para QSA mas não para gerentes B2B. A mudança pedida era
+calcular `identity_confidence` por evidências:
 
 ```text
 CPF/QSA                  +50
@@ -1555,23 +1561,40 @@ LinkedIn atual           +25
 2 fontes concordantes    +20
 ```
 
-Os pesos devem ser calibráveis.
-
-### Resultado
-
-`resolved` baseado em threshold de confiança, não em “tem CPF”.
+com `resolved` baseado em threshold de confiança, não em "tem CPF" — exatamente
+o que o código faz hoje (ver "Estado verificado no código" acima). Resta apenas
+tornar os pesos calibráveis via configuração (ver "Pendente restante").
 
 ---
 
 ## P1.33 — Source Reliability para contatos
 
-**Status:** ⬜ Planejado
+**Status:** ✅ Operacional no cálculo e na persistência (reconciliação Onda 0A —
+era ⬜ Planejado); uso em gates de decisão e no Intent v2 continua ⬜ Planejado
 
-Nem todas as fontes têm a mesma qualidade.
+### Estado verificado no código
 
-Adicionar reliability por provider.
+`ContactConfidence.SOURCE_RELIABILITY`
+(`services/workers/src/services/prospecting/decision_maker_resolution.py:264-278`)
+declara exatamente a tabela acima (`receita_qsa` 0.95 … `heuristic` 0.30, fallback
+para fonte desconhecida) e `contact_confidence()` a integra como
+`source_reliability = max(...)` (`:351-354`). O fluxo real persiste o valor em
+`Contact.source_reliability`
+(`services/workers/src/services/contact_enrichment_service.py:1596`, coluna
+`models.py:866,1022`, migration `bb7c8d9e0f1a`) e o expõe na API
+(`services/api/src/routes/leads.py:169`) e no Web (`apps/web/src/types/index.ts:65`).
+Cobertura: `tests/test_decision_maker_resolution.py:182-189`,
+`tests/test_contact_site_sources.py:205,219`,
+`tests/test_event_outcome_persistence.py:259`.
 
-Exemplo inicial:
+### Limite conhecido (não é bug, é escopo futuro)
+
+Nenhum gate de decisão consome `source_reliability` hoje — waterfall e gates usam
+`identity_confidence`/`contact_confidence` (`people_provider_registry.py:280-286`).
+A fórmula `signal_weight × confidence × source_reliability × recency_decay` citada
+no roadmap permanece sem implementação (escopo do Intent v2, Onda 4).
+
+### Tabela original (já implementada — mantida como referência)
 
 ```text
 receita_qsa         0.95
@@ -1582,8 +1605,6 @@ hunter              0.75
 search_engine       0.55
 heuristic           0.30
 ```
-
-Usar no `ContactConfidence`.
 
 ---
 
@@ -2264,3 +2285,65 @@ empresa industrial
 ```
 
 O próximo estágio do projeto não é criar mais abstrações genéricas. É **fechar os fluxos que ligam descoberta, oportunidade, timing, decisor, ação comercial e aprendizado real**.
+
+---
+
+# 23. Findings da reconciliação Onda 0A (documentados, não corrigidos)
+
+> Levantados por leitura de código + testes durante a reconciliação documental.
+> Nenhum foi corrigido nesta entrega (escopo estrito: só docs). Cada finding vira
+> item de trabalho da onda indicada.
+
+## F-01 — Drift `formula_version`: `matcher-v1` no schema/docs vs `matcher-v2` em runtime
+
+- **Comportamento real:** `FORMULA_VERSION = "matcher-v2"` em
+  `services/workers/src/services/prospecting/lead_opportunity_service.py:29`;
+  `build_snapshot_hash` inclui a versão no hash (`:54-65`) e `_snapshot_row`
+  grava `formula_version=FORMULA_VERSION` (`:220`). Porém o modelo declara
+  `server_default="matcher-v1"` (`services/workers/src/database/models.py:1117`),
+  a migration `3a5b7c9d1e2f` cria a coluna com default `matcher-v1`, e
+  `docs/business-rules.md:120-122` cita `matcher-v1`.
+- **Impacto:** snapshots gravados pelo serviço carregam `matcher-v2`, mas linhas
+  inseridas por qualquer outro caminho recebem `matcher-v1`; como o hash inclui a
+  versão, a mesma avaliação gera hashes diferentes conforme o caminho —
+  idempotência do histórico enfraquecida e auditoria ambígua.
+- **Classificação:** dívida (com risco comercial — contamina a base que a Onda 1
+  vai versionar). Resolver na Onda 1 antes do `OfferProfileVersion` canônico.
+
+## F-02 — Divergência de unique em `controlled_learning_proposals` (modelo vs migration)
+
+- **Comportamento real:** a migration
+  `3b6c8d0e1f2a_controlled_learning_proposals.py:40-44` cria duas uniques —
+  `uq_controlled_learning_org_comparison` e
+  `uq_controlled_learning_org_offer_version` — mas o modelo
+  (`services/workers/src/database/models.py:1248-1257`) declara só a primeira.
+  `scripts/verify_migrations.py:96-98` cobra as duas, e
+  `ControlledLearningService` conta com a segunda (`proposal_version = max+1`).
+- **Impacto:** baixo em runtime (o banco tem a constraint correta); drift
+  modelo-vs-schema pode gerar migration autogenerate espúria e confunde quem lê
+  o modelo como contrato.
+- **Classificação:** dívida. Resolver na Onda 0C ou 1 (declarar a unique no modelo).
+
+## F-03 — `POST /api/campaigns/from-brief` resolve template, nunca OfferProfile
+
+- **Comportamento real:** `create_campaign_from_brief`
+  (`services/api/src/routes/campaigns.py:241-332`) roteia/gera apenas o
+  `CampaignScoringTemplate` (`route_scoring_template`, `:282-288`, geração em
+  `:293-313`) e devolve `scoring_template_id/label` — sem resolver nem sugerir
+  `offer_profile_key`. Campanhas nascidas do brief entram no pipeline sem perfil
+  explícito e caem no fallback legado do resolver.
+- **Impacto:** comercial — a porta de entrada guiada (brief em linguagem natural)
+  produz campanhas fora da cadeia canônica de oferta, enfraquecendo matcher,
+  atribuição e learning a jusante.
+- **Classificação:** commercial blocker. Resolver na Onda 1 (brief deve sugerir
+  `offer_profile_key` + versão publicada) ou 2.
+
+## F-04 — Conflito documental: re-scoring em `00-status-mapa.md` vs pendências
+
+- **Comportamento real:** `docs/00-status-mapa.md` lista "Política explícita de
+  re-scoring do score de oferta" nas "Próximas prioridades", enquanto este mapa
+  (P1.9) e `docs/business-rules.md:118-130` registram a política como
+  ✅ Operacional (`should_apply_rescore` + `explicit_reanalyze` + snapshots).
+- **Impacto:** só documental — risco de trabalho duplicado.
+- **Classificação:** dívida documental. Resolver na próxima varredura (fora do
+  escopo estrito desta entrega, registrado para não se perder).

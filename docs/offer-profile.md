@@ -1,7 +1,8 @@
 # OfferProfile e oportunidades comerciais
 
 > **Status atual:** contrato, registry, resolver e matcher estão operacionais no
-> pipeline. Snapshot: 2026-09-07 · branch `feat/identidade-cross-provider`.
+> pipeline. Snapshot: 2026-09-10 · Alembic head `3d8e0f2a3b4c` (+ reconciliação
+> documental Onda 0A, sem mudança de código).
 > Este documento substitui os status históricos das fases C–H; o plano original
 > está preservado em `docs/consolidacao.md`.
 
@@ -103,11 +104,18 @@ operacional lê e grava no PostgreSQL.
 
 ## Limitações e próximos passos
 
-- Não há entidade administrativa para definir OfferProfiles sem deploy.
-- Não há snapshot imutável de toda a configuração usada por cada lead nem
-  política de re-scoring publicada.
-- A resolução de decisores é best-effort e a migração completa para `Person`
-  ainda não terminou.
+- Não há entidade administrativa para definir OfferProfiles sem deploy
+  (Onda 1: `OfferProfileVersion` canônica + publicação + rollback).
+- Snapshots append-only e política explícita de re-scoring existem (P1.8/P1.9 ✅);
+  falta o versionamento dinâmico do perfil com publicação transacional (Onda 1).
+- A resolução de decisores opera por evidências sem exigir CPF (P1.32 ✅) com
+  reliability por fonte persistida (P1.33 ✅ no cálculo/persistência); pesos ainda
+  literais no código, calibráveis via configuração só na Onda 1.
+- **Drifts conhecidos (findings F-01–F-03, ver
+  `docs/pendencias-pos-consolidacao.md` §23):** `formula_version` gravada como
+  `matcher-v2` em runtime vs `matcher-v1` no schema/docs; unique
+  `uq_controlled_learning_org_offer_version` ausente no modelo;
+  `POST /campaigns/from-brief` resolve template, nunca perfil.
 - BI avançado por vertical, consultor, canal, campanha, variante e Precision@K
   ainda precisa de agregações e jobs próprios.
 
