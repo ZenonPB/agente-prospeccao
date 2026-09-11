@@ -273,3 +273,64 @@ def test_engenharia_atravessa_o_contrato_sem_codigo_dedicado(registry):
         "opportunities": [{"offer_key": ENGINEERING_KEY, "score": 80}],
     })
     assert action["offer_key"] == ENGINEERING_KEY
+
+# ============================================================
+# Capability: enrichment dirigido pelo perfil (nível de configuração)
+# ============================================================
+# Executar o `enrichment_orchestrator` exige banco e LLM; aqui o contrato
+# verificado é que os passos e orçamentos declarados por cada vertical são
+# reconhecidos pelo mesmo capability registry, sem passo exclusivo de domínio.
+
+@pytest.mark.parametrize("key", CONTRACT_KEYS)
+def test_enrichment_declara_passos_conhecidos_pelo_capability_registry(key):
+    """Nenhuma vertical inventa passo próprio: todos vêm do registry comum.
+
+    Passos legados (``LEGACY_ENRICHMENT_STEPS``) são aceitos porque perfis de
+    produção ainda os declaram, mas precisam continuar visíveis como aviso do
+    validator — nunca silenciosos.
+    """
+    from services.enrichment_capability_registry import (
+        CAPABILITIES,
+        ENRICHMENT_STEP_KEYS,
+    )
+    from services.prospecting.offer_profile_validator import (
+        LEGACY_ENRICHMENT_STEPS,
+        validate_profile,
+    )
+
+    profile = PROFILES[key]
+    warnings = [p for p in validate_profile(profile) if p.startswith("aviso:")]
+
+    for step in (profile.enrichment or {}).get("steps") or []:
+        assert step in set(ENRICHMENT_STEP_KEYS) | set(LEGACY_ENRICHMENT_STEPS), (
+            f"{key}: passo {step!r} não existe no capability registry — "
+            "uma vertical não pode inventar passo próprio no core"
+        )
+        if step in LEGACY_ENRICHMENT_STEPS:
+            assert any(step in warning for warning in warnings), (
+                f"{key}: passo legado {step!r} deveria aparecer como aviso"
+            )
+            continue
+        # O mesmo registry descreve custo/produção para qualquer vertical.
+        assert "cost" in CAPABILITIES[step]
+        assert "produces" in CAPABILITIES[step]
+
+
+@pytest.mark.parametrize("key", CONTRACT_KEYS)
+def test_enrichment_declara_orcamento_de_descoberta_de_pessoas(key):
+    """Waterfall barato-primeiro é configurado, não embutido por vertical."""
+    people = (PROFILES[key].enrichment or {}).get("people_discovery") or {}
+    assert people, f"{key}: perfil sem people_discovery"
+    assert people["max_cost"] >= 0
+    assert people["max_steps"] >= 1
+    assert 0 <= people["min_role_fit"] <= 100
+
+
+def test_enrichment_diverge_por_configuracao_entre_verticais():
+    """Verticais opostas não são obrigadas a usar o mesmo enrichment."""
+    steps = {
+        key: tuple((PROFILES[key].enrichment or {}).get("steps") or ())
+        for key in CONTRACT_KEYS
+    }
+    # Ao menos duas verticais declaram conjuntos diferentes de passos.
+    assert len(set(steps.values())) > 1, steps
