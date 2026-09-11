@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users, BrainCircuit } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
-import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
+import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads, useMarkLost, useMarkDisqualified, type LostReasonOption } from '@/hooks/use-api';
 import { ScoreFeedbackDialog } from '@/components/vendas/score-feedback-dialog';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
@@ -68,6 +68,8 @@ interface KanbanCardProps {
   onAssignToMe: (leadId: string) => void;
   onAssignTo: (leadId: string, userId: string | null, name?: string) => void;
   onMoveTo: (leadId: string, status: string) => void;
+  onMarkLost: (lead: LeadbanCard) => void;
+  onMarkDisqualified: (lead: LeadbanCard) => void;
   onOpenFeedback: (lead: LeadbanCard) => void;
   onOpenLead: (leadId: string) => void;
 }
@@ -91,6 +93,8 @@ const KanbanCard = memo(function KanbanCard({
   onAssignToMe,
   onAssignTo,
   onMoveTo,
+  onMarkLost,
+  onMarkDisqualified,
   onOpenFeedback,
   onOpenLead,
 }: KanbanCardProps) {
@@ -361,6 +365,25 @@ const KanbanCard = memo(function KanbanCard({
                       <BrainCircuit className="mr-2 h-3.5 w-3.5" />
                       Discordar do score
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkLost(lead);
+                      }}
+                    >
+                      <AlertTriangle className="mr-2 h-3.5 w-3.5 text-red-600" />
+                      Marcar como perdido
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMarkDisqualified(lead);
+                      }}
+                    >
+                      <AlertTriangle className="mr-2 h-3.5 w-3.5 text-amber-600" />
+                      Desqualificar
+                    </DropdownMenuItem>
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -422,6 +445,8 @@ const KanbanCard = memo(function KanbanCard({
   if (prev.onAssignToMe !== next.onAssignToMe) return false;
   if (prev.onAssignTo !== next.onAssignTo) return false;
   if (prev.onMoveTo !== next.onMoveTo) return false;
+  if (prev.onMarkLost !== next.onMarkLost) return false;
+  if (prev.onMarkDisqualified !== next.onMarkDisqualified) return false;
   if (prev.onOpenFeedback !== next.onOpenFeedback) return false;
   if (prev.onOpenLead !== next.onOpenLead) return false;
   return true;
@@ -496,6 +521,8 @@ export function KanbanBoard() {
   const updateStatus = useUpdateLeadStatus();
   const assignLead = useAssignLead();
   const recordWhatsApp = useRecordWhatsAppClick();
+  const markLost = useMarkLost();
+  const markDisqualified = useMarkDisqualified();
   const { data: membership } = useOrgMembership();
   const orgId = membership?.organization?.id;
   const myRole = membership?.membership?.role;
@@ -671,6 +698,39 @@ export function KanbanBoard() {
     setFeedbackOpen(true);
   }, []);
 
+  // LOST exige motivo; DESQUALIFICADO registra motivo quando informado.
+  // Outcomes distintos — nunca equivalentes (alimentam aprendizados futuros
+  // diferentes).
+  const onMarkLost = useCallback((lead: LeadData) => {
+    const motivo = window.prompt('Motivo da perda (PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO):', 'NAO_RESPONDEU');
+    if (!motivo || !lead.id) return;
+    const normalizado = motivo.trim().toUpperCase() as LostReasonOption;
+    const validos: LostReasonOption[] = ['PRECO', 'PRAZO', 'NAO_RESPONDEU', 'CONCORRENTE', 'OUTRO'];
+    if (!validos.includes(normalizado)) {
+      toast.error('Motivo inválido. Use PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO.');
+      return;
+    }
+    markLost.mutate(
+      { id: lead.id, lost_reason: normalizado },
+      {
+        onSuccess: () => toast.success('Lead marcado como perdido.'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao marcar como perdido.'),
+      }
+    );
+  }, [markLost]);
+
+  const onMarkDisqualified = useCallback((lead: LeadData) => {
+    const motivo = window.prompt('Motivo da desqualificação (opcional):', '');
+    if (motivo === null || !lead.id) return;
+    markDisqualified.mutate(
+      { id: lead.id, reason: motivo.trim() || undefined },
+      {
+        onSuccess: () => toast.success('Lead desqualificado.'),
+        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao desqualificar.'),
+      }
+    );
+  }, [markDisqualified]);
+
   const totalLeads = Object.values(visibleColumns).reduce((acc, col) => acc + col.length, 0);
 
   if (isLoading) {
@@ -826,6 +886,8 @@ export function KanbanBoard() {
                           onAssignToMe={onAssignToMe}
                           onAssignTo={onAssignTo}
                           onMoveTo={onMoveTo}
+                          onMarkLost={onMarkLost}
+                          onMarkDisqualified={onMarkDisqualified}
                           onOpenFeedback={onOpenFeedback}
                           onOpenLead={onOpenLead}
                         />

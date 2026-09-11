@@ -11,6 +11,12 @@ NOVO
 → REUNIAO_FEITA  (reunião realizada)
 → PROPOSTA_ENVIADA
 → PERDIDO        (automático ao encerrar a cadência sem resposta; volta à fila após 90 dias — perdas deliberadas não voltam)
+→ DESQUALIFICADO via `POST /leads/{id}/mark-disqualified` (inadequado — motivo opcional, sem outcome LOST)
+→ PERDIDO via `POST /leads/{id}/mark-lost` (oportunidade válida perdida — `lost_reason` obrigatório, outcome LOST)
+
+WON (conversão) × LOST (perda válida) × DESQUALIFICADO (inadequado) são
+outcomes semanticamente distintos e alimentam aprendizados diferentes —
+nunca equivalentes.
 
 ## Critérios de Scoring (0-100)
 

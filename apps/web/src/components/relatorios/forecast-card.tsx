@@ -112,8 +112,11 @@ export function ForecastCard({ forecast }: { forecast: ForecastData }) {
           <div>
             <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              <span>Motivos de Perda de Leads (PERDIDO)</span>
+              <span>Motivos de Perda (LOST — oportunidade válida perdida)</span>
             </h4>
+            <p className="mb-2 text-[11px] text-muted-foreground">
+              Desqualificados (inadequados) não entram aqui — são outcome distinto.
+            </p>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {forecast.lost_reasons_breakdown
                 .filter((r) => r.count > 0)
