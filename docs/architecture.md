@@ -7,7 +7,9 @@
 >
 > Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
 > `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
-> `docs/business-rules.md`.
+> `docs/business-rules.md`. Para o contrato de genericidade do core (o que pode
+> e o que não pode conhecer uma vertical pelo nome), consulte
+> `docs/adr/0001-genericity-contract.md`.
 
 ## Visão geral
 
@@ -194,6 +196,11 @@ credenciais nos campos livres.
 
 ## Limitações atuais
 
+- O core ainda possui acoplamento a vertical em dois pontos conhecidos
+  (`discovery_planner_service` ramifica por `profile_key`;
+  `event_opportunity_service` fixa `"trophies"`). Ambos estão registrados
+  no ratchet do Genericity Harness e atribuídos às Tasks 5 e 6 do roadmap;
+  o teste falha se o acoplamento crescer.
 - Providers externos de eventos e vagas são opt-in; não são habilitados por
   padrão nem constituem garantia de cobertura externa.
 - Event Discovery já persiste evento, organizador/lead e a oportunidade `trophies`,
