@@ -29,8 +29,6 @@ import {
   useLeadDuplicates,
   useLeadOpportunities,
   useMarkResponded,
-  useMarkLost,
-  useMarkDisqualified,
 } from '@/hooks/use-api';
 import { CadencePanel } from '@/components/oportunidades/cadence-panel';
 import { EvidenceCard } from '@/components/oportunidades/evidence-card';
@@ -43,7 +41,7 @@ import { ContactsTab } from '@/components/oportunidades/contacts-tab';
 import { OverviewTab } from '@/components/oportunidades/overview-tab';
 import { ActivitiesTab } from '@/components/oportunidades/activities-tab';
 import { OffersTab } from '@/components/oportunidades/offers-tab';
-import { ConversionDialog } from '@/components/oportunidades/conversion-dialog';
+import { ConversionDialog, OutcomeDialog, RespondedConfirmDialog } from '@/components/oportunidades/conversion-dialog';
 import { OutreachMessagesModal } from '@/components/oportunidades/outreach-messages-modal';
 import { toast } from 'sonner';
 import type { ContactItem, OutreachMessages, OutreachVariant } from '@/types/index';
@@ -72,8 +70,6 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const opportunitiesQ = useLeadOpportunities(leadId);
   const updateStatus = useUpdateLeadStatus();
   const markResponded = useMarkResponded();
-  const markLost = useMarkLost();
-  const markDisqualified = useMarkDisqualified();
   const generateMessagesMutation = useGenerateMessages();
   const updateStepMutation = useUpdateCadenceStep();
   const createPlaybookMutation = useCreatePlaybook();
@@ -83,6 +79,8 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
   const [activeTab, setActiveTab] = useState('overview');
   const [generatedMessages, setGeneratedMessages] = useState<OutreachMessages | null>(null);
   const [convOpen, setConvOpen] = useState(false);
+  const [outcomeMode, setOutcomeMode] = useState<'lost' | 'disqualified' | null>(null);
+  const [respondedOpen, setRespondedOpen] = useState(false);
   const [associateContact, setAssociateContact] = useState<ContactItem | null>(null);
 
   const copyToClipboard = (text: string, message: string) => {
@@ -156,43 +154,15 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
 
   const handleMarkResponded = () => {
     if (!lead) return;
-    if (!window.confirm('Confirmar que o lead respondeu? O acompanhamento será pausado.')) return;
-    markResponded.mutate(lead.id, {
-      onSuccess: (res) => toast.success(`Resposta registrada. ${res.cancelled} mensagem(ns) pausada(s).`),
-      onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao registrar resposta.'),
-    });
+    setRespondedOpen(true);
   };
 
   const handleMarkLost = () => {
-    if (!lead) return;
-    const motivo = window.prompt('Motivo da perda (PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO):', 'NAO_RESPONDEU');
-    if (!motivo) return;
-    const normalizado = motivo.trim().toUpperCase();
-    const validos = ['PRECO', 'PRAZO', 'NAO_RESPONDEU', 'CONCORRENTE', 'OUTRO'];
-    if (!validos.includes(normalizado)) {
-      toast.error('Motivo inválido. Use PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO.');
-      return;
-    }
-    markLost.mutate(
-      { id: lead.id, lost_reason: normalizado as 'PRECO' | 'PRAZO' | 'NAO_RESPONDEU' | 'CONCORRENTE' | 'OUTRO' },
-      {
-        onSuccess: () => toast.success('Lead marcado como perdido.'),
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao marcar como perdido.'),
-      }
-    );
+    setOutcomeMode('lost');
   };
 
   const handleMarkDisqualified = () => {
-    if (!lead) return;
-    const motivo = window.prompt('Motivo da desqualificação (opcional):', '');
-    if (motivo === null) return;
-    markDisqualified.mutate(
-      { id: lead.id, reason: motivo.trim() || undefined },
-      {
-        onSuccess: () => toast.success('Lead desqualificado.'),
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao desqualificar.'),
-      }
-    );
+    setOutcomeMode('disqualified');
   };
 
   const handleGenerateFromActions = async () => {
@@ -467,26 +437,16 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
                 variant="outline"
                 className="w-full h-11"
                 onClick={handleMarkLost}
-                disabled={markLost.isPending}
               >
-                {markLost.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <AlertTriangle className="mr-2 h-4 w-4 text-red-600" />
-                )}
+                <AlertTriangle className="mr-2 h-4 w-4 text-red-600" />
                 Marcar como perdido (exige motivo)
               </Button>
               <Button
                 variant="outline"
                 className="w-full h-11"
                 onClick={handleMarkDisqualified}
-                disabled={markDisqualified.isPending}
               >
-                {markDisqualified.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
-                )}
+                <AlertTriangle className="mr-2 h-4 w-4 text-amber-600" />
                 Desqualificar (motivo opcional)
               </Button>
               {negotiationStatuses.has(lead.status ?? '') && (
@@ -510,6 +470,23 @@ export default function LeadDetailPage(props: { params: Promise<{ id: string }> 
         open={convOpen}
         onOpenChange={setConvOpen}
         opportunities={opportunitiesQ.data?.oportunidades ?? []}
+      />
+
+      {outcomeMode && (
+        <OutcomeDialog
+          leadId={lead.id}
+          open={!!outcomeMode}
+          onOpenChange={(open) => {
+            if (!open) setOutcomeMode(null);
+          }}
+          mode={outcomeMode}
+        />
+      )}
+
+      <RespondedConfirmDialog
+        leadId={lead.id}
+        open={respondedOpen}
+        onOpenChange={setRespondedOpen}
       />
 
       <OutreachMessagesModal

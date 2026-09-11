@@ -8,8 +8,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, UserPlus, User, Check, MoreHorizontal, MessageCircle, ArrowRight, Filter, Users, BrainCircuit } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
-import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads, useMarkLost, useMarkDisqualified, type LostReasonOption } from '@/hooks/use-api';
+import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import { ScoreFeedbackDialog } from '@/components/vendas/score-feedback-dialog';
+import { OutcomeDialog } from '@/components/oportunidades/conversion-dialog';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -521,8 +522,6 @@ export function KanbanBoard() {
   const updateStatus = useUpdateLeadStatus();
   const assignLead = useAssignLead();
   const recordWhatsApp = useRecordWhatsAppClick();
-  const markLost = useMarkLost();
-  const markDisqualified = useMarkDisqualified();
   const { data: membership } = useOrgMembership();
   const orgId = membership?.organization?.id;
   const myRole = membership?.membership?.role;
@@ -534,6 +533,8 @@ export function KanbanBoard() {
   // Feedback de score: qual lead está sendo corrigido e se o diálogo está aberto.
   const [feedbackLead, setFeedbackLead] = useState<LeadData | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // Diálogo de outcome (LOST/DESQUALIFICADO): lead alvo + modo.
+  const [outcomeLead, setOutcomeLead] = useState<{ id: string; mode: 'lost' | 'disqualified' } | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useAllLeads({
     status: SALES_STATUSES,
@@ -698,38 +699,17 @@ export function KanbanBoard() {
     setFeedbackOpen(true);
   }, []);
 
-  // LOST exige motivo; DESQUALIFICADO registra motivo quando informado.
-  // Outcomes distintos — nunca equivalentes (alimentam aprendizados futuros
-  // diferentes).
+  // Abrir diálogo de outcome. Estável para o memo; a submissão acontece no
+  // OutcomeDialog (LOST exige motivo em select; DESQUALIFICADO é opcional).
   const onMarkLost = useCallback((lead: LeadData) => {
-    const motivo = window.prompt('Motivo da perda (PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO):', 'NAO_RESPONDEU');
-    if (!motivo || !lead.id) return;
-    const normalizado = motivo.trim().toUpperCase() as LostReasonOption;
-    const validos: LostReasonOption[] = ['PRECO', 'PRAZO', 'NAO_RESPONDEU', 'CONCORRENTE', 'OUTRO'];
-    if (!validos.includes(normalizado)) {
-      toast.error('Motivo inválido. Use PRECO, PRAZO, NAO_RESPONDEU, CONCORRENTE ou OUTRO.');
-      return;
-    }
-    markLost.mutate(
-      { id: lead.id, lost_reason: normalizado },
-      {
-        onSuccess: () => toast.success('Lead marcado como perdido.'),
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao marcar como perdido.'),
-      }
-    );
-  }, [markLost]);
+    if (!lead.id) return;
+    setOutcomeLead({ id: lead.id, mode: 'lost' });
+  }, []);
 
   const onMarkDisqualified = useCallback((lead: LeadData) => {
-    const motivo = window.prompt('Motivo da desqualificação (opcional):', '');
-    if (motivo === null || !lead.id) return;
-    markDisqualified.mutate(
-      { id: lead.id, reason: motivo.trim() || undefined },
-      {
-        onSuccess: () => toast.success('Lead desqualificado.'),
-        onError: (err) => toast.error(err instanceof Error ? err.message : 'Falha ao desqualificar.'),
-      }
-    );
-  }, [markDisqualified]);
+    if (!lead.id) return;
+    setOutcomeLead({ id: lead.id, mode: 'disqualified' });
+  }, []);
 
   const totalLeads = Object.values(visibleColumns).reduce((acc, col) => acc + col.length, 0);
 
@@ -926,6 +906,19 @@ export function KanbanBoard() {
           if (!open) setFeedbackLead(null);
         }}
       />
+
+      {/* Outcome (LOST/DESQUALIFICADO) — mesma semântica da página de detalhe. */}
+      {outcomeLead && (
+        <OutcomeDialog
+          key={`${outcomeLead.id}:${outcomeLead.mode}`}
+          leadId={outcomeLead.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setOutcomeLead(null);
+          }}
+          mode={outcomeLead.mode}
+        />
+      )}
     </div>
   );
 }
