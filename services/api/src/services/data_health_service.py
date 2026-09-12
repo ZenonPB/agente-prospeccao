@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.db.models import Company, CompanyRecord, EmailSuppression, Enrichment, Lead, LeadOpportunityRow, Person
+from src.db.models import Company, EmailSuppression, Enrichment, Lead, LeadOpportunityRow, Person, ProviderExecutionMetric
 from services.prospecting.freshness_policy import evaluate_freshness
 from services.prospecting.phone_verification_service import verify_phone
 
@@ -19,7 +20,7 @@ class DataHealthService:
 
     def _lead_freshness(self, lead: Lead, enrichment: Enrichment | None, person: Person | None) -> list[dict[str, Any]]:
         timestamps = lead.enrichment_timestamps if isinstance(lead.enrichment_timestamps, dict) else {}
-        checks = [
+        return [
             evaluate_freshness("website", timestamps.get("site") or (enrichment.updated_at if enrichment else None)),
             evaluate_freshness("company_registry", timestamps.get("business") or timestamps.get("registry")),
             evaluate_freshness("technographics", timestamps.get("technographics") or timestamps.get("site")),
@@ -29,7 +30,47 @@ class DataHealthService:
             evaluate_freshness("phone", person.last_verified_at if person and person.phone else None),
             evaluate_freshness("employment", person.last_verified_at if person else None),
         ]
-        return checks
+
+    def _provider_health(self, *, now: datetime) -> list[dict[str, Any]]:
+        """Agrega estados recentes sem carregar métricas individuais em memória."""
+        since = now - timedelta(days=7)
+        rows = (
+            self.db.query(
+                ProviderExecutionMetric.provider,
+                ProviderExecutionMetric.status,
+                func.count(ProviderExecutionMetric.id),
+                func.max(ProviderExecutionMetric.recorded_at),
+            )
+            .filter(
+                ProviderExecutionMetric.organization_id == self.organization_id,
+                ProviderExecutionMetric.recorded_at >= since,
+            )
+            .group_by(ProviderExecutionMetric.provider, ProviderExecutionMetric.status)
+            .all()
+        )
+        by_provider: dict[str, dict[str, Any]] = {}
+        for provider, status, count, last_seen in rows:
+            bucket = by_provider.setdefault(
+                str(provider),
+                {"provider": str(provider), "statuses": {}, "total": 0, "failures": 0, "last_seen_at": None},
+            )
+            bucket["statuses"][str(status)] = int(count)
+            bucket["total"] += int(count)
+            if str(status) in {"failed", "timeout", "quota_exceeded"}:
+                bucket["failures"] += int(count)
+            if last_seen and (bucket["last_seen_at"] is None or last_seen.isoformat() > bucket["last_seen_at"]):
+                bucket["last_seen_at"] = last_seen.isoformat()
+        for bucket in by_provider.values():
+            bucket["failure_rate"] = round(bucket["failures"] / bucket["total"] * 100.0, 1) if bucket["total"] else 0.0
+            if bucket["statuses"].get("quota_exceeded"):
+                bucket["health"] = "quota_exceeded"
+            elif bucket["failures"]:
+                bucket["health"] = "degraded"
+            elif bucket["statuses"].get("disabled") and len(bucket["statuses"]) == 1:
+                bucket["health"] = "disabled"
+            else:
+                bucket["health"] = "healthy"
+        return sorted(by_provider.values(), key=lambda item: (-item["failure_rate"], item["provider"]))
 
     def overview(self, *, limit: int = 100) -> dict[str, Any]:
         leads = (
@@ -140,6 +181,7 @@ class DataHealthService:
             "healthy": healthy,
             "health_rate": round((healthy / total * 100.0), 1) if total else 100.0,
             "issues": dict(counters),
+            "provider_health": self._provider_health(now=now),
             "items": items,
             "generated_at": now.isoformat(),
         }
