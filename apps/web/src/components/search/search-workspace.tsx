@@ -19,6 +19,7 @@ export function SearchWorkspace() {
   const [tab, setTab] = useState<SearchTarget>('companies');
   const [naturalQuery, setNaturalQuery] = useState('');
   const [intent, setIntent] = useState<SearchIntent | null>(null);
+  const [intentRevision, setIntentRevision] = useState(0);
   const interpret = useInterpretSearch();
 
   async function handleInterpret() {
@@ -26,6 +27,7 @@ export function SearchWorkspace() {
     try {
       const parsed = await interpret.mutateAsync({ query: naturalQuery, target: 'auto' });
       setIntent(parsed);
+      setIntentRevision((current) => current + 1);
       setTab(parsed.target);
       toast.success('Filtros preparados. Revise as opções antes de fazer a busca.');
     } catch (error) {
@@ -86,10 +88,16 @@ export function SearchWorkspace() {
           <TabsTrigger value="people"><Users aria-hidden="true" /> Pessoas</TabsTrigger>
         </TabsList>
         <TabsContent value="companies" className="pt-3">
-          <CompanySearchPanel interpretedFilters={intent?.target === 'companies' ? intent.company_filters : null} />
+          <CompanySearchPanel
+            key={`companies-${intentRevision}-${intent?.target === 'companies' ? 'interpreted' : 'manual'}`}
+            interpretedFilters={intent?.target === 'companies' ? intent.company_filters : null}
+          />
         </TabsContent>
         <TabsContent value="people" className="pt-3">
-          <PeopleSearchPanel interpretedFilters={intent?.target === 'people' ? intent.people_filters : null} />
+          <PeopleSearchPanel
+            key={`people-${intentRevision}-${intent?.target === 'people' ? 'interpreted' : 'manual'}`}
+            interpretedFilters={intent?.target === 'people' ? intent.people_filters : null}
+          />
         </TabsContent>
       </Tabs>
     </div>
