@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 
 from src.db.models import (
     User,
-    Organization,
     OrganizationMember,
     Invite,
     OrganizationRole,
@@ -31,26 +30,36 @@ def create_invite(
     sales_role: SalesRole = SalesRole.CONSULTOR,
 ) -> Invite:
     """Cria um convite para um e-mail na organização.
-    
+
     Se o e-mail já tiver um convite pendente (não aceito e não expirado),
-    retorna o existente. Convites expiram em 7 dias.
+    retorna o existente. Convites expiram em 7 dias. OWNER é proibido também
+    nesta camada para que callers internos não contornem a regra da API.
     """
+    if role == OrganizationRole.OWNER:
+        raise ValueError(
+            "OWNER não pode ser concedido por convite; use transferência de propriedade",
+        )
+
+    normalized_email = email.strip().lower()
     existing = db.query(Invite).filter(
         Invite.organization_id == organization_id,
-        Invite.email == email.lower(),
+        Invite.email == normalized_email,
         Invite.accepted_at.is_(None),
         Invite.expires_at > datetime.now(timezone.utc),
     ).first()
-    
+
     if existing:
-        logger.info("Convite pendente já existe para %s na org %s", email, organization_id)
+        logger.info(
+            "Convite pendente já existe para o e-mail mascarado na org %s",
+            organization_id,
+        )
         return existing
 
     token = secrets.token_urlsafe(32)
     invite = Invite(
         id=uuid.uuid4(),
         organization_id=organization_id,
-        email=email.lower(),
+        email=normalized_email,
         token=token,
         role=role,
         sales_role=sales_role,
@@ -59,49 +68,52 @@ def create_invite(
     )
     db.add(invite)
     db.flush()
-    logger.info("Convite criado: %s → org %s (token: %s...)", email, organization_id, token[:8])
+    logger.info("Convite criado para org %s", organization_id)
     return invite
 
 
 def accept_invite(db: Session, token: str, user: User) -> OrganizationMember:
     """Aceita um convite por token.
-    
-    Valida:
-    - Token existe e não expirou
-    - E-mail do token bate com o e-mail do usuário
-    - Usuário ainda não é membro da organização
-    
-    Retorna a membership criada ou levanta HTTPException.
+
+    Valida token, expiração, e-mail, ownership e membership no tenant alvo.
+    Convites OWNER antigos são recusados: propriedade só muda pelo fluxo de
+    transferência, que mantém a invariável de um owner principal por workspace.
     """
     from fastapi import HTTPException
-    
+
     invite = db.query(Invite).filter(Invite.token == token).first()
     if not invite:
         raise HTTPException(status_code=404, detail="Convite não encontrado")
-    
+
     if invite.accepted_at:
         raise HTTPException(status_code=400, detail="Convite já foi aceito")
-    
+
     if invite.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Convite expirado")
-    
+
+    if invite.role == OrganizationRole.OWNER:
+        raise HTTPException(
+            status_code=400,
+            detail="Convite de proprietário inválido. Use a transferência de propriedade.",
+        )
+
     if invite.email.lower() != user.email.lower():
         raise HTTPException(
             status_code=403,
-            detail="Este convite foi enviado para outro e-mail"
+            detail="Este convite foi enviado para outro e-mail",
         )
-    
+
     existing_member = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == invite.organization_id,
         OrganizationMember.user_id == user.id,
     ).first()
-    
+
     if existing_member:
         invite.accepted_at = datetime.now(timezone.utc)
         db.commit()
         logger.info("Convite %s aceito (usuário já era membro)", invite.id)
         return existing_member
-    
+
     member = OrganizationMember(
         organization_id=invite.organization_id,
         user_id=user.id,
@@ -112,7 +124,7 @@ def accept_invite(db: Session, token: str, user: User) -> OrganizationMember:
     invite.accepted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(member)
-    
+
     logger.info(
         "Convite %s aceito: user %s → org %s (role=%s, sales_role=%s)",
         invite.id,
