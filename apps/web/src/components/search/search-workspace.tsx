@@ -234,7 +234,42 @@ function Field({ id, label, value, onChange, placeholder, type = 'text' }: { id:
   );
 }
 
-function CompanyFilters({ values, setters, pending, onSearch }: any) {
+interface CompanyFiltersProps {
+  values: {
+    companyQuery: string; locations: string; industries: string; cnaes: string;
+    technologies: string; signals: string; employeeMin: string; employeeMax: string;
+    includeUnknown: boolean;
+  };
+  setters: {
+    setCompanyQuery: (value: string) => void; setLocations: (value: string) => void;
+    setIndustries: (value: string) => void; setCnaes: (value: string) => void;
+    setTechnologies: (value: string) => void; setSignals: (value: string) => void;
+    setEmployeeMin: (value: string) => void; setEmployeeMax: (value: string) => void;
+    setIncludeUnknown: (value: boolean) => void;
+  };
+  pending: boolean;
+  onSearch: () => void;
+}
+
+interface PeopleFiltersProps {
+  values: {
+    peopleQuery: string; peopleCompany: string; domain: string; titles: string;
+    seniorities: string; buyerRoles: string; peopleLocations: string;
+    emailStatus: PeopleSearchFilters['email_status']; minActionable: string;
+  };
+  setters: {
+    setPeopleQuery: (value: string) => void; setPeopleCompany: (value: string) => void;
+    setDomain: (value: string) => void; setTitles: (value: string) => void;
+    setSeniorities: (value: string) => void; setBuyerRoles: (value: string) => void;
+    setPeopleLocations: (value: string) => void;
+    setEmailStatus: (value: PeopleSearchFilters['email_status']) => void;
+    setMinActionable: (value: string) => void;
+  };
+  pending: boolean;
+  onSearch: () => void;
+}
+
+function CompanyFilters({ values, setters, pending, onSearch }: CompanyFiltersProps) {
   return (
     <Card>
       <CardHeader><CardTitle>Filtros de empresas</CardTitle><CardDescription>Combine critérios. Campos sem dados permanecem desconhecidos, não negativos.</CardDescription></CardHeader>
@@ -262,7 +297,7 @@ function CompanyFilters({ values, setters, pending, onSearch }: any) {
   );
 }
 
-function PeopleFilters({ values, setters, pending, onSearch }: any) {
+function PeopleFilters({ values, setters, pending, onSearch }: PeopleFiltersProps) {
   return (
     <Card>
       <CardHeader><CardTitle>Filtros de pessoas</CardTitle><CardDescription>Priorize decisores com identidade, papel e contato mais acionáveis.</CardDescription></CardHeader>
@@ -277,7 +312,7 @@ function PeopleFilters({ values, setters, pending, onSearch }: any) {
           <Field id="people-location" label="Localização" value={values.peopleLocations} onChange={setters.setPeopleLocations} placeholder="São Paulo, SP" />
           <div className="space-y-1.5">
             <Label htmlFor="email-status">E-mail</Label>
-            <select id="email-status" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={values.emailStatus} onChange={(event) => setters.setEmailStatus(event.target.value)}>
+            <select id="email-status" className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={values.emailStatus} onChange={(event) => setters.setEmailStatus(event.target.value as PeopleSearchFilters['email_status'])}>
               <option value="any">Qualquer</option><option value="present">Com e-mail</option><option value="verified">Verificado</option><option value="missing">Sem e-mail</option>
             </select>
           </div>
