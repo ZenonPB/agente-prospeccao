@@ -25,6 +25,8 @@ def _person(**kwargs):
         "raw_data": {},
         "email": "decisor@example.com",
         "source": "company_site",
+        "email_verified": False,
+        "verification_status": "needs_review",
         "email_verified_at": None,
         "last_verified_at": None,
     }
@@ -84,12 +86,21 @@ def test_role_change_is_distinct_from_employer_change():
     assert result["change"]["change_type"] == "role_changed"
 
 
+def _mx_domain_result():
+    return {
+        "verified": False,
+        "domain_valid": True,
+        "mx": "10 mx.example.com.",
+        "reason": "mx_present",
+    }
+
+
 def test_email_v2_keeps_mx_only_as_domain_validated(monkeypatch):
     async def scenario():
         service = EmailVerificationService()
 
         async def base(_email, client=None):
-            return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
+            return _mx_domain_result()
 
         monkeypatch.setattr(service, "verify_email", base)
         result = await service.verify_email_v2("user@example.com")
@@ -105,7 +116,7 @@ def test_email_v2_detects_catchall_and_blocks_auto_send(monkeypatch):
         service = EmailVerificationService()
 
         async def base(_email, client=None):
-            return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
+            return _mx_domain_result()
 
         async def probe(_domain, _mx, enable_catchall_probe=False):
             assert enable_catchall_probe is True
@@ -121,12 +132,12 @@ def test_email_v2_detects_catchall_and_blocks_auto_send(monkeypatch):
     asyncio.run(scenario())
 
 
-def test_email_v2_non_catchall_can_be_deliverable(monkeypatch):
+def test_email_v2_non_catchall_does_not_prove_mailbox(monkeypatch):
     async def scenario():
         service = EmailVerificationService()
 
         async def base(_email, client=None):
-            return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
+            return _mx_domain_result()
 
         async def probe(_domain, _mx, enable_catchall_probe=False):
             return {"is_catchall": False, "probed": True}
@@ -134,9 +145,9 @@ def test_email_v2_non_catchall_can_be_deliverable(monkeypatch):
         monkeypatch.setattr(service, "verify_email", base)
         monkeypatch.setattr(service, "probe_smtp_catchall", probe)
         result = await service.verify_email_v2("user@example.com", enable_catchall_probe=True)
-        assert result["status"] == "deliverable"
-        assert result["verified"] is True
-        assert result["auto_send_eligible"] is True
+        assert result["status"] == "non_catch_all"
+        assert result["verified"] is False
+        assert result["auto_send_eligible"] is False
 
     asyncio.run(scenario())
 
@@ -147,7 +158,7 @@ def test_contact_verifier_persists_bounded_history():
             return {
                 "verified": False,
                 "status": "domain_validated",
-                "confidence": 70,
+                "confidence": 65,
                 "catch_all": None,
                 "mx": "mx.example.com",
                 "reason": "mx_valid_catchall_not_checked",
@@ -163,6 +174,34 @@ def test_contact_verifier_persists_bounded_history():
         assert len(history) == 1
         assert history[-1]["status"] == "domain_validated"
         assert ContactVerifier.latest_verified_at(person) is not None
+
+    asyncio.run(scenario())
+
+
+def test_passive_observation_does_not_erase_authoritative_mailbox_verification():
+    class Service:
+        async def verify_email_v2(self, email, enable_catchall_probe=False):
+            return {
+                "verified": False,
+                "status": "non_catch_all",
+                "confidence": 75,
+                "catch_all": False,
+                "mx": "mx.example.com",
+                "reason": "mx_valid_non_catch_all_mailbox_unconfirmed",
+                "auto_send_eligible": False,
+            }
+
+    async def scenario():
+        verified_at = datetime(2026, 9, 10, tzinfo=UTC)
+        person = _person(
+            email_verified=True,
+            verification_status="provider_verified",
+            email_verified_at=verified_at,
+        )
+        result = await ContactVerifier(Service()).verify_email(person)
+        assert result["email_verified"] is True
+        assert result["passive_observation"] is True
+        assert ContactVerifier.has_authoritative_verification(person) is True
 
     asyncio.run(scenario())
 
