@@ -28,7 +28,7 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
     for row in rows:
         snapshot = dict(row.profile_snapshot or {})
         profile = OfferProfile.from_dict(snapshot)
-        problems = [problem for problem in validate_profile(profile) if not str(problem).startswith("warning:")]
+        problems = [problem for problem in validate_profile(profile) if not str(problem).startswith("aviso:")]
         if problems:
             # Publicações inválidas não entram silenciosamente no runtime.
             continue
