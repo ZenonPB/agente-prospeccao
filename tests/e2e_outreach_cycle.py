@@ -85,8 +85,6 @@ def fake_providers(monkeypatch):
     """Stub das fronteiras externas: LLM (scoring e outreach) e SMTP (envio)."""
 
     async def fake_groq_json_chat(*args, **kwargs):
-        # Dispatch pela config centralizada: geração (outreach) vs classificação
-        # (scoring) — evita dependência da string hardcoded do modelo.
         from config.settings import settings
         if kwargs.get("model") == settings.GROQ_MODEL_GENERATION:
             return _canned_sequence()
@@ -102,8 +100,6 @@ def fake_providers(monkeypatch):
 
 
 def _cleanup(db, org: Organization, user: User) -> None:
-    # Falhas no meio do ciclo deixam a sessão pendente de rollback —
-    # recupera antes de tocar nos objetos para não mascarar o erro original.
     db.rollback()
     org_id = org.id
     lead_ids = [r[0] for r in db.query(Lead.id).filter(Lead.organization_id == org_id).all()]
@@ -151,7 +147,6 @@ async def _run_cycle() -> None:
     db.commit()
 
     try:
-        # 1) Enriquecimento + scoring (lead sem site → path business; LLM stub).
         enrichment, scoring_data = await process_single_lead(
             lead,
             enrichment_service=TechnicalEnrichmentService(),
@@ -159,14 +154,13 @@ async def _run_cycle() -> None:
             db=db,
             campaign_target_service="Criação de Sites",
         )
-        assert enrichment is None  # sem website → sem relatório técnico
+        assert enrichment is None
         assert scoring_data and scoring_data.get("qualification_score", 0) >= 60
 
         db.commit()
         db.refresh(lead)
         assert lead.status == LeadStatus.QUALIFICADO
 
-        # 2) Geração de mensagens + cadência (dia 0/3/7/14).
         lead_dict = {
             "company_name": lead.company_name,
             "category": "Comércio",
@@ -188,7 +182,6 @@ async def _run_cycle() -> None:
         assert all(fu.status == FollowUpStatus.PENDING for fu in follow_ups)
         db.commit()
 
-        # 3) Envio da etapa de abertura (SMTP stubado).
         opening = next(fu for fu in follow_ups if fu.step == FollowUpStep.OPENING)
         sent = send_step(db, opening, user_id=None)
         db.refresh(opening)
@@ -196,9 +189,11 @@ async def _run_cycle() -> None:
         assert opening.status == FollowUpStatus.SENT
         assert opening.message_id is not None
 
-        # 4) Resposta do decisor (inbound) → RESPONDIDO e cadência cancelada.
+        # O tenant faz parte do contrato obrigatório do inbound. O E2E precisa
+        # exercitar a mesma fronteira de segurança usada em produção.
         result = process_inbound_email(
             db,
+            organization_id=org.id,
             from_email="decisor@e2e-teste.local",
             subject="Re: proposta",
             body="Podemos marcar uma reunião na semana que vem?",
@@ -210,12 +205,11 @@ async def _run_cycle() -> None:
 
         remaining = db.query(FollowUp).filter(FollowUp.lead_id == lead.id).all()
         statuses = [fu.status for fu in remaining]
-        assert FollowUpStatus.SENT in statuses  # etapa já enviada permanece
+        assert FollowUpStatus.SENT in statuses
         assert all(
             fu.status in (FollowUpStatus.SENT, FollowUpStatus.CANCELLED) for fu in remaining
         )
 
-        # 5) Venda registrada no mesmo banco da cadência.
         conversion = Conversion(
             lead_id=lead.id,
             service_sold="Criação de Sites",
