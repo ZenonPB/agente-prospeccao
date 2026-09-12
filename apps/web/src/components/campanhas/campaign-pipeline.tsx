@@ -61,6 +61,7 @@ export function CampaignPipeline({
   const [hasStarted, setHasStarted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+  const autoStartTriggeredRef = useRef(false);
   const startPipeline = useStartPipeline();
   const reanalyzeCampaign = useReanalyzeCampaign();
   const discoverEvents = useDiscoverEvents();
@@ -164,14 +165,19 @@ export function CampaignPipeline({
   }, [campaignId, startPipeline, reanalyzeCampaign, invalidateJobs, connect]);
 
   useEffect(() => {
-    // Auto-start intencional: navegação com ?start=true dispara a coleta uma
-    // única vez. Dispara via microtask para não sincronizar estado no effect.
-    if (autoStart && !hasStarted && !isRunning) {
-      const t = setTimeout(() => handleStart('collect'), 0);
-      return () => clearTimeout(t);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart]);
+    // `?start=true` é uma intenção one-shot. O ref é marcado dentro do
+    // callback (e não antes) para continuar correto no ciclo extra de
+    // setup/cleanup do StrictMode em desenvolvimento sem disparar duas jobs.
+    if (!autoStart || autoStartTriggeredRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      if (autoStartTriggeredRef.current) return;
+      autoStartTriggeredRef.current = true;
+      void handleStart('collect');
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [autoStart, handleStart]);
 
   const handleStop = () => {
     disconnect();
