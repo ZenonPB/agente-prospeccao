@@ -48,6 +48,23 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "offer_profile_activations",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("organization_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("offer_key", sa.String(64), nullable=False),
+        sa.Column("action", sa.String(16), nullable=False),
+        sa.Column("version_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("offer_profile_versions.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column("previous_version_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("offer_profile_versions.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("actor_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+    )
+    op.create_index(
+        "ix_offer_profile_activations_org_offer_created",
+        "offer_profile_activations",
+        ["organization_id", "offer_key", "created_at"],
+    )
+
+    op.create_table(
         "crm_certification_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("organization_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False),
@@ -69,6 +86,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_crm_certification_org_connection_created", table_name="crm_certification_runs")
     op.drop_table("crm_certification_runs")
+    op.drop_index("ix_offer_profile_activations_org_offer_created", table_name="offer_profile_activations")
+    op.drop_table("offer_profile_activations")
     op.drop_index("uq_offer_profile_versions_one_active", table_name="offer_profile_versions")
     op.drop_index("ix_offer_profile_versions_org_offer_active", table_name="offer_profile_versions")
     op.drop_table("offer_profile_versions")
