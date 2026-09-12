@@ -49,6 +49,16 @@ const segmentSuggestions = [
   'Farmácias',
 ];
 
+const brazilianStates = [
+  ['AC', 'Acre'], ['AL', 'Alagoas'], ['AP', 'Amapá'], ['AM', 'Amazonas'],
+  ['BA', 'Bahia'], ['CE', 'Ceará'], ['DF', 'Distrito Federal'], ['ES', 'Espírito Santo'],
+  ['GO', 'Goiás'], ['MA', 'Maranhão'], ['MT', 'Mato Grosso'], ['MS', 'Mato Grosso do Sul'],
+  ['MG', 'Minas Gerais'], ['PA', 'Pará'], ['PB', 'Paraíba'], ['PR', 'Paraná'],
+  ['PE', 'Pernambuco'], ['PI', 'Piauí'], ['RJ', 'Rio de Janeiro'], ['RN', 'Rio Grande do Norte'],
+  ['RS', 'Rio Grande do Sul'], ['RO', 'Rondônia'], ['RR', 'Roraima'], ['SC', 'Santa Catarina'],
+  ['SP', 'São Paulo'], ['SE', 'Sergipe'], ['TO', 'Tocantins'],
+] as const;
+
 type Mode = 'wizard' | 'agente';
 
 export default function NovaCampanhaPage() {
@@ -83,8 +93,6 @@ export default function NovaCampanhaPage() {
         exclude: excludedSuggestions,
       });
       setSuggestion(result);
-      // Preenche o input automaticamente e marca o segmento como sugerido
-      // para evitar repetição na próxima chamada.
       setFormData((prev) => ({ ...prev, segment: result.segment }));
       setExcludedSuggestions((prev) =>
         result.segment && !prev.includes(result.segment)
@@ -108,16 +116,12 @@ export default function NovaCampanhaPage() {
       return;
     }
 
-    if (currentStep < steps.length) {
-      setCurrentStep(currentStep + 1);
-    }
+    if (currentStep < steps.length) setCurrentStep(currentStep + 1);
   };
 
   const handlePrevious = () => {
     setError('');
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+    if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
   const handleSubmit = async () => {
@@ -178,8 +182,6 @@ export default function NovaCampanhaPage() {
         places_query: briefDraft.places_query || undefined,
         offer_profile_key: selectedOfferKey || briefDraft.offer_profile_key || undefined,
       });
-      // Vincula o template resolvido/gerado na sugestão (a menos que o
-      // usuário tenha escolhido outro manualmente no seletor).
       const templateId = selectedTemplateId || briefDraft.scoring_template_id;
       if (templateId) {
         await updateCampaign.mutateAsync({
@@ -187,11 +189,7 @@ export default function NovaCampanhaPage() {
           data: { scoring_template_id: templateId },
         });
       }
-      if (startCollection) {
-        router.push(`/campanhas/${campaign.id}`);
-      } else {
-        router.push('/campanhas');
-      }
+      router.push(startCollection ? `/campanhas/${campaign.id}?start=true` : '/campanhas');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
     }
@@ -221,7 +219,6 @@ export default function NovaCampanhaPage() {
         />
       </div>
 
-      {/* Mode toggle */}
       <div className="flex items-center gap-2 rounded-lg border bg-card p-1">
         <button
           type="button"
@@ -254,7 +251,7 @@ export default function NovaCampanhaPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -275,499 +272,290 @@ export default function NovaCampanhaPage() {
                     Escreva em português, do jeito que você falaria: serviço + público + (opcional) cidade.
                   </p>
                 </div>
-                <Button
-                  className="w-full"
-                  onClick={handleGenerateBrief}
-                  disabled={campaignFromBrief.isPending}
-                >
+                <Button className="w-full" onClick={handleGenerateBrief} disabled={campaignFromBrief.isPending}>
                   {campaignFromBrief.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Interpretando...
-                    </>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Interpretando...</>
                   ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Gerar campanha
-                    </>
+                    <><Sparkles className="mr-2 h-4 w-4" />Gerar campanha</>
                   )}
                 </Button>
               </>
-            ) : (
-              briefDraft && (
-                <div className="space-y-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Sugestão da IA — revise e edite
-                        </span>
-                      </div>
-                      {briefDraft.rationale && (
-                        <p className="text-sm text-muted-foreground">{briefDraft.rationale}</p>
-                      )}
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setBriefResult(null);
-                        setBriefDraft(null);
-                        setSelectedOfferKey(null);
-                        setBrief('');
-                      }}
-                    >
-                      Recomeçar
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-name">Nome da campanha</Label>
-                    <Input
-                      id="brief-name"
-                      value={briefDraft.name}
-                      onChange={(e) => updateBriefDraft({ name: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="brief-service">Serviço que você vende</Label>
-                      <Input
-                        id="brief-service"
-                        value={briefDraft.target_service}
-                        onChange={(e) => updateBriefDraft({ target_service: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="brief-segment">Segmento-alvo</Label>
-                      <Input
-                        id="brief-segment"
-                        value={briefDraft.target_segment}
-                        onChange={(e) => updateBriefDraft({ target_segment: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="brief-city">Cidade</Label>
-                      <Input
-                        id="brief-city"
-                        value={briefDraft.target_city}
-                        onChange={(e) => updateBriefDraft({ target_city: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="brief-state">Estado</Label>
-                      <Input
-                        id="brief-state"
-                        placeholder="UF (ex.: SP)"
-                        value={briefDraft.target_state}
-                        onChange={(e) => updateBriefDraft({ target_state: e.target.value.toUpperCase() })}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-profile">Perfil da prospecção</Label>
-                    <Select
-                      value={briefDraft.analysis_profile}
-                      onValueChange={(value) =>
-                        value && updateBriefDraft({ analysis_profile: value as 'web_presence' | 'business_opportunity' })
-                      }
-                    >
-                      <SelectTrigger id="brief-profile">
-                        <SelectValue>
-                          {(value) =>
-                            profiles.find((p) => p.id === value)?.title ?? 'Selecione o perfil'
-                          }
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="web_presence">Serviços digitais</SelectItem>
-                        <SelectItem value="business_opportunity">Serviços industriais/presenciais</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-query">Query do Google Maps (coleta)</Label>
-                    <Input
-                      id="brief-query"
-                      value={briefDraft.places_query}
-                      onChange={(e) => updateBriefDraft({ places_query: e.target.value })}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Como um cliente pesquisaria no Google Maps para encontrar o segmento.
-                    </p>
-                  </div>
-
-                  {briefDraft.scoring_template_label && (
-                    <div className="flex items-center gap-2 rounded-lg border bg-muted p-3 text-sm">
-                      <Badge variant="secondary">Critérios de avaliação</Badge>
-                      <span>
-                        {briefDraft.scoring_template_label === 'Genérico' &&
-                        briefDraft.template_route === 'GENERATE_NEW'
-                          ? 'Os critérios serão gerados pela IA no início da coleta'
-                          : briefDraft.scoring_template_label}
+            ) : briefDraft ? (
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                        Sugestão da IA — revise e edite
                       </span>
                     </div>
-                  )}
-
-                  <div className="space-y-2 rounded-lg border p-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Badge variant="secondary">O que você vende</Badge>
-                      <span className="font-medium">
-                        {offerProfileLabel(selectedOfferKey || briefDraft.offer_profile_key)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {offerOriginLabel(briefDraft.offer_resolved_from)} — confirme ou troque abaixo.
-                    </p>
-                    <Label htmlFor="brief-offer">Confirmar oferta</Label>
-                    <Select
-                      value={selectedOfferKey || briefDraft.offer_profile_key || ''}
-                      onValueChange={(value) => value && setSelectedOfferKey(value)}
-                    >
-                      <SelectTrigger id="brief-offer">
-                        <SelectValue>
-                          {(value) => (value ? offerProfileLabel(value) : 'Escolha a oferta')}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {OFFER_PROFILE_OPTIONS.map((option) => (
-                          <SelectItem key={option.key} value={option.key}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {briefDraft.rationale && <p className="text-sm text-muted-foreground">{briefDraft.rationale}</p>}
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setBriefResult(null);
+                      setBriefDraft(null);
+                      setSelectedOfferKey(null);
+                      setBrief('');
+                    }}
+                  >
+                    Recomeçar
+                  </Button>
+                </div>
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      variant="outline"
-                      onClick={() => handleConfirmBrief(false)}
-                      disabled={createCampaign.isPending}
-                    >
-                      {createCampaign.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Check className="mr-2 h-4 w-4" />
-                      )}
-                      Criar campanha
-                    </Button>
-                    <Button
-                      onClick={() => handleConfirmBrief(true)}
-                      disabled={createCampaign.isPending}
-                    >
-                      {createCampaign.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="mr-2 h-4 w-4" />
-                      )}
-                      Criar e iniciar coleta
-                    </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="brief-name">Nome da campanha</Label>
+                  <Input id="brief-name" value={briefDraft.name} onChange={(e) => updateBriefDraft({ name: e.target.value })} />
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-service">Serviço que você vende</Label>
+                    <Input id="brief-service" value={briefDraft.target_service} onChange={(e) => updateBriefDraft({ target_service: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-segment">Segmento-alvo</Label>
+                    <Input id="brief-segment" value={briefDraft.target_segment} onChange={(e) => updateBriefDraft({ target_segment: e.target.value })} />
                   </div>
                 </div>
-              )
-            )}
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-city">Cidade</Label>
+                    <Input id="brief-city" value={briefDraft.target_city} onChange={(e) => updateBriefDraft({ target_city: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="brief-state">Estado</Label>
+                    <Select value={briefDraft.target_state || ''} onValueChange={(value) => value && updateBriefDraft({ target_state: value })}>
+                      <SelectTrigger id="brief-state"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        {brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="brief-profile">Perfil da prospecção</Label>
+                  <Select
+                    value={briefDraft.analysis_profile}
+                    onValueChange={(value) => value && updateBriefDraft({ analysis_profile: value as 'web_presence' | 'business_opportunity' })}
+                  >
+                    <SelectTrigger id="brief-profile">
+                      <SelectValue>{(value) => profiles.find((p) => p.id === value)?.title ?? 'Selecione o perfil'}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="web_presence">Serviços digitais</SelectItem>
+                      <SelectItem value="business_opportunity">Serviços industriais/presenciais</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="brief-query">Query do Google Maps (coleta)</Label>
+                  <Input id="brief-query" value={briefDraft.places_query} onChange={(e) => updateBriefDraft({ places_query: e.target.value })} />
+                  <p className="text-xs text-muted-foreground">Como um cliente pesquisaria no Google Maps para encontrar o segmento.</p>
+                </div>
+
+                {briefDraft.scoring_template_label && (
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted p-3 text-sm">
+                    <Badge variant="secondary">Critérios de avaliação</Badge>
+                    <span>
+                      {briefDraft.scoring_template_label === 'Genérico' && briefDraft.template_route === 'GENERATE_NEW'
+                        ? 'Os critérios serão gerados pela IA no início da coleta'
+                        : briefDraft.scoring_template_label}
+                    </span>
+                  </div>
+                )}
+
+                <div className="space-y-2 rounded-lg border p-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Badge variant="secondary">O que você vende</Badge>
+                    <span className="font-medium">{offerProfileLabel(selectedOfferKey || briefDraft.offer_profile_key)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{offerOriginLabel(briefDraft.offer_resolved_from)} — confirme ou troque abaixo.</p>
+                  <Label htmlFor="brief-offer">Confirmar oferta</Label>
+                  <Select value={selectedOfferKey || briefDraft.offer_profile_key || ''} onValueChange={(value) => value && setSelectedOfferKey(value)}>
+                    <SelectTrigger id="brief-offer">
+                      <SelectValue>{(value) => (value ? offerProfileLabel(value) : 'Escolha a oferta')}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button variant="outline" onClick={() => handleConfirmBrief(false)} disabled={createCampaign.isPending}>
+                    {createCampaign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                    Criar campanha
+                  </Button>
+                  <Button onClick={() => handleConfirmBrief(true)} disabled={createCampaign.isPending}>
+                    {createCampaign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Criar e iniciar coleta
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : (
         <>
-      {/* Progress Steps */}
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => (
-          <div key={step.id} className="flex items-center">
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                currentStep > step.id
-                  ? 'bg-green-500 text-white'
-                  : currentStep === step.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              {currentStep > step.id ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                step.id
-              )}
-            </div>
-            {index < steps.length - 1 && (
-              <div
-                className={`ml-2 h-0.5 w-12 ${
-                  currentStep > step.id ? 'bg-green-500' : 'bg-muted'
-                }`}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Step Content */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{steps[currentStep - 1].title}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {currentStep === 1 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Escolha o tipo de prospecção que melhor se encaixa no seu serviço:
-              </p>
-              {profiles.map((profile) => {
-                const selected = formData.analysisProfile === profile.id;
-                const Icon = profile.icon;
-                return (
-                  <button
-                    key={profile.id}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, analysisProfile: profile.id })}
-                    className={cn(
-                      'flex w-full items-center gap-4 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md',
-                      selected
-                        ? 'border-primary bg-primary/5'
-                        : 'border-muted bg-card'
-                    )}
-                  >
-                    <div className={cn(
-                      'rounded-lg p-2.5',
-                      selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                    )}>
-                      <Icon className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{profile.title}</p>
-                      <p className="text-sm text-muted-foreground">{profile.description}</p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="segment">Segmento-alvo *</Label>
-                <Input
-                  id="segment"
-                  placeholder="Ex: Restaurantes, Clínicas, Academias..."
-                  value={formData.segment}
-                  onChange={(e) =>
-                    setFormData({ ...formData, segment: e.target.value })
-                  }
-                />
-                <div className="flex flex-wrap gap-2">
-                  {segmentSuggestions.map((suggestion) => (
-                    <Button
-                      key={suggestion}
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        setFormData({ ...formData, segment: suggestion })
-                      }
-                    >
-                      {suggestion}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleSuggestSegment}
-                disabled={suggestSegment.isPending}
-              >
-                {suggestSegment.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Gerando sugestão...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    Me sugira segmentos
-                  </>
-                )}
-              </Button>
-
-              {suggestion && (
-                <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-primary" />
-                        <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                          Sugestão da IA
-                        </span>
-                      </div>
-                      <p className="text-lg font-semibold">{suggestion.segment}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSuggestSegment}
-                      disabled={suggestSegment.isPending}
-                    >
-                      {suggestSegment.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        'Gerar outro'
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{suggestion.rationale}</p>
-                  {suggestion.hook && (
-                    <p className="text-sm italic text-foreground/80">
-                      “{suggestion.hook}”
-                    </p>
-                  )}
-                  {suggestion.subniches?.length > 0 && (
-                    <div className="space-y-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Subnichos (clique para usar):
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {suggestion.subniches.map((sub) => (
-                          <Badge
-                            key={sub}
-                            variant="secondary"
-                            className="cursor-pointer hover:bg-secondary/80 transition-colors"
-                            onClick={() =>
-                              setFormData({ ...formData, segment: sub })
-                            }
-                          >
-                            {sub}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {suggestion.cities_hint?.length > 0 && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span>Densidade em: {suggestion.cities_hint.join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {currentStep === 3 && (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="city">Cidade *</Label>
-                <Input
-                  id="city"
-                  placeholder="Ex: Araraquara"
-                  value={formData.city}
-                  onChange={(e) =>
-                    setFormData({ ...formData, city: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="state">Estado</Label>
-                <Select
-                  value={formData.state}
-                  onValueChange={(value) => value && setFormData({ ...formData, state: value })}
+          <div className="flex items-center justify-between">
+            {steps.map((step, index) => (
+              <div key={step.id} className="flex items-center">
+                <div
+                  className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                    currentStep > step.id
+                      ? 'bg-green-500 text-white'
+                      : currentStep === step.id
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground'
+                  }`}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SP">São Paulo</SelectItem>
-                    <SelectItem value="RJ">Rio de Janeiro</SelectItem>
-                    <SelectItem value="MG">Minas Gerais</SelectItem>
-                    <SelectItem value="PR">Paraná</SelectItem>
-                    <SelectItem value="SC">Santa Catarina</SelectItem>
-                    <SelectItem value="RS">Rio Grande do Sul</SelectItem>
-                  </SelectContent>
-                </Select>
+                  {currentStep > step.id ? <Check className="h-4 w-4" /> : step.id}
+                </div>
+                {index < steps.length - 1 && (
+                  <div className={`ml-2 h-0.5 w-12 ${currentStep > step.id ? 'bg-green-500' : 'bg-muted'}`} />
+                )}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
 
-          {currentStep === 4 && (
-            <div className="space-y-4">
-              <div className="rounded-lg border p-4">
-                <h4 className="font-medium">Resumo da Campanha</h4>
-                <dl className="mt-2 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Perfil:</dt>
-                    <dd className="font-medium">{profileLabel}</dd>
+          <Card>
+            <CardHeader><CardTitle>{steps[currentStep - 1].title}</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+                  <AlertCircle className="h-4 w-4 shrink-0" /><span>{error}</span>
+                </div>
+              )}
+
+              {currentStep === 1 && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Escolha o tipo de prospecção que melhor se encaixa no seu serviço:</p>
+                  {profiles.map((profile) => {
+                    const selected = formData.analysisProfile === profile.id;
+                    const Icon = profile.icon;
+                    return (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, analysisProfile: profile.id })}
+                        className={cn(
+                          'flex w-full items-center gap-4 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md',
+                          selected ? 'border-primary bg-primary/5' : 'border-muted bg-card'
+                        )}
+                      >
+                        <div className={cn('rounded-lg p-2.5', selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
+                          <Icon className="h-6 w-6" />
+                        </div>
+                        <div><p className="font-medium">{profile.title}</p><p className="text-sm text-muted-foreground">{profile.description}</p></div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {currentStep === 2 && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="segment">Segmento-alvo *</Label>
+                    <Input id="segment" placeholder="Ex: Restaurantes, Clínicas, Academias..." value={formData.segment} onChange={(e) => setFormData({ ...formData, segment: e.target.value })} />
+                    <div className="flex flex-wrap gap-2">
+                      {segmentSuggestions.map((item) => (
+                        <Button key={item} variant="outline" size="sm" onClick={() => setFormData({ ...formData, segment: item })}>{item}</Button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Segmento:</dt>
-                    <dd className="font-medium">{formData.segment || 'Não informado'}</dd>
+
+                  <Button variant="outline" className="w-full" onClick={handleSuggestSegment} disabled={suggestSegment.isPending}>
+                    {suggestSegment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Gerando sugestão...</> : <><Sparkles className="mr-2 h-4 w-4" />Me sugira segmentos</>}
+                  </Button>
+
+                  {suggestion && (
+                    <div className="space-y-3 rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><span className="text-xs uppercase tracking-wide text-muted-foreground">Sugestão da IA</span></div>
+                          <p className="text-lg font-semibold">{suggestion.segment}</p>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={handleSuggestSegment} disabled={suggestSegment.isPending}>
+                          {suggestSegment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Gerar outro'}
+                        </Button>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{suggestion.rationale}</p>
+                      {suggestion.hook && <p className="text-sm italic text-foreground/80">“{suggestion.hook}”</p>}
+                      {suggestion.subniches?.length > 0 && (
+                        <div className="space-y-1.5">
+                          <p className="text-xs font-medium text-muted-foreground">Subnichos (clique para usar):</p>
+                          <div className="flex flex-wrap gap-2">
+                            {suggestion.subniches.map((sub) => (
+                              <Badge key={sub} variant="secondary" className="cursor-pointer transition-colors hover:bg-secondary/80" onClick={() => setFormData({ ...formData, segment: sub })}>{sub}</Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {suggestion.cities_hint?.length > 0 && <div className="flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-3.5 w-3.5" /><span>Densidade em: {suggestion.cities_hint.join(', ')}</span></div>}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {currentStep === 3 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">Cidade *</Label>
+                    <Input id="city" placeholder="Ex: Araraquara" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
                   </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Localização:</dt>
-                    <dd className="font-medium">
-                      {formData.city && formData.state
-                        ? `${formData.city}, ${formData.state}`
-                        : formData.city || 'Não informado'}
-                    </dd>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">Estado</Label>
+                    <Select value={formData.state} onValueChange={(value) => value && setFormData({ ...formData, state: value })}>
+                      <SelectTrigger id="state"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        {brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </dl>
-              </div>
+                </div>
+              )}
+
+              {currentStep === 4 && (
+                <div className="space-y-4">
+                  <div className="rounded-lg border p-4">
+                    <h4 className="font-medium">Resumo da Campanha</h4>
+                    <dl className="mt-2 space-y-2 text-sm">
+                      <div className="flex justify-between"><dt className="text-muted-foreground">Perfil:</dt><dd className="font-medium">{profileLabel}</dd></div>
+                      <div className="flex justify-between"><dt className="text-muted-foreground">Segmento:</dt><dd className="font-medium">{formData.segment || 'Não informado'}</dd></div>
+                      <div className="flex justify-between"><dt className="text-muted-foreground">Localização:</dt><dd className="font-medium">{formData.city && formData.state ? `${formData.city}, ${formData.state}` : formData.city || 'Não informado'}</dd></div>
+                    </dl>
+                  </div>
                   <div className="rounded-lg bg-muted p-4 text-sm">
                     <p className="font-medium">Próximos passos</p>
-                    <p className="text-muted-foreground">
-                      Ao criar a campanha, o sistema iniciará a busca por empresas que correspondem ao segmento selecionado.
-                      Os leads encontrados serão automaticamente analisados e qualificados pela IA.
-                    </p>
+                    <p className="text-muted-foreground">Ao criar a campanha, você poderá iniciar a coleta, acompanhar o progresso e revisar as oportunidades encontradas.</p>
                   </div>
-
-                  <TemplateSelector
-                    value={selectedTemplateId}
-                    onChange={(id) => setSelectedTemplateId(id)}
-                  />
+                  <TemplateSelector value={selectedTemplateId} onChange={(id) => setSelectedTemplateId(id)} />
                 </div>
               )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={handlePrevious}
-          disabled={currentStep === 1}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Anterior
-        </Button>
-        {currentStep < steps.length ? (
-          <Button onClick={handleNext}>
-            Próximo
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        ) : (
-          <Button onClick={handleSubmit} disabled={createCampaign.isPending}>
-            {createCampaign.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1}>
+              <ArrowLeft className="mr-2 h-4 w-4" />Anterior
+            </Button>
+            {currentStep < steps.length ? (
+              <Button onClick={handleNext}>Próximo<ArrowRight className="ml-2 h-4 w-4" /></Button>
             ) : (
-              <Check className="mr-2 h-4 w-4" />
+              <Button onClick={handleSubmit} disabled={createCampaign.isPending}>
+                {createCampaign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
+                Criar Campanha
+              </Button>
             )}
-            Criar Campanha
-          </Button>
-        )}
-      </div>
+          </div>
         </>
       )}
     </div>
