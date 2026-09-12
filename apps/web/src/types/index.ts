@@ -215,7 +215,7 @@ export interface EventOpportunity {
   registration_status: string;
   status?: 'upcoming' | 'expired' | 'cancelled' | 'unknown';
   provider?: string | null;
-  provider_status?: 'ok' | 'empty' | 'failed' | 'skipped' | null;
+  provider_status?: 'ok' | 'success' | 'empty' | 'failed' | 'disabled' | 'quota_exceeded' | 'skipped' | null;
   source_identifier?: string | null;
   provenance?: Record<string, unknown>;
   lead_id?: string | null;
