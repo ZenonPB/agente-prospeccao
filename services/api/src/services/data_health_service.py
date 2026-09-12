@@ -9,6 +9,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.db.models import Company, EmailSuppression, Enrichment, Lead, LeadOpportunityRow, Person, ProviderExecutionMetric
+from services.prospecting.contact_verifier import ContactVerifier
+from services.prospecting.employment_history_service import EmploymentHistoryService
 from services.prospecting.freshness_policy import evaluate_freshness
 from services.prospecting.phone_verification_service import verify_phone
 
@@ -26,13 +28,12 @@ class DataHealthService:
             evaluate_freshness("technographics", timestamps.get("technographics") or timestamps.get("site")),
             evaluate_freshness("intent", timestamps.get("intent")),
             evaluate_freshness("jobs", timestamps.get("jobs")),
-            evaluate_freshness("email", person.last_verified_at if person and person.email else None),
+            evaluate_freshness("email", ContactVerifier.latest_verified_at(person) if person and person.email else None),
             evaluate_freshness("phone", person.last_verified_at if person and person.phone else None),
-            evaluate_freshness("employment", person.last_verified_at if person else None),
+            evaluate_freshness("employment", EmploymentHistoryService.current_observed_at(person) if person else None),
         ]
 
     def _provider_health(self, *, now: datetime) -> list[dict[str, Any]]:
-        """Agrega estados recentes sem carregar métricas individuais em memória."""
         since = now - timedelta(days=7)
         rows = (
             self.db.query(
@@ -130,8 +131,8 @@ class DataHealthService:
             freshness = self._lead_freshness(lead, enrichments.get(lead.id), person)
             stale_keys = [item["key"] for item in freshness if item["state"] == "stale"]
             unknown_keys = [item["key"] for item in freshness if item["state"] == "unknown"]
-            contact_email = (person.email if person and person.email else lead.email)
-            contact_phone = (person.phone if person and person.phone else (lead.phone or lead.whatsapp))
+            contact_email = person.email if person and person.email else lead.email
+            contact_phone = person.phone if person and person.phone else (lead.phone or lead.whatsapp)
             phone = verify_phone(contact_phone)
             email_invalid = bool(contact_email and contact_email.lower() in suppressed_emails)
             missing_decision_maker = person is None

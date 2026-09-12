@@ -1,8 +1,4 @@
-"""Intent v2 + technographics sobre evidências já coletadas.
-
-A engine é determinística, sem I/O e sem inferir ausência como falso. Providers
-externos podem alimentar as mesmas evidências no futuro sem alterar o contrato.
-"""
+"""Intent v2 + technographics sobre evidências observadas."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -23,6 +19,8 @@ class SignalRule:
 
 
 SIGNAL_RULES: tuple[SignalRule, ...] = (
+    SignalRule("JOB_CHANGE", (r"mudan[cç]a de empresa", r"mudan[cç]a de emprego", r"employer changed", r"job change"), 1.05, "people"),
+    SignalRule("ROLE_CHANGE", (r"mudan[cç]a de cargo", r"novo cargo", r"role changed", r"promotion"), 0.8, "people"),
     SignalRule("HIRING_MECHANICAL_ENGINEER", (r"engenheir[oa] mec[aâ]nic", r"mechanical engineer"), 1.25, "jobs"),
     SignalRule("HIRING_PROJECT_DESIGNER", (r"projetista", r"desenhista t[eé]cnic", r"cad designer"), 1.05, "jobs"),
     SignalRule("HIRING_MAINTENANCE", (r"manuten[cç][aã]o", r"maintenance"), 0.9, "jobs"),
@@ -64,6 +62,8 @@ SOURCE_RELIABILITY: dict[str, float] = {
     "company_site": 0.90,
     "website": 0.90,
     "job_posting": 0.85,
+    "job_postings": 0.85,
+    "employment_change": 0.88,
     "company_news": 0.78,
     "event": 0.85,
     "social": 0.55,
@@ -139,7 +139,6 @@ def extract_intent_signals(evidence: Iterable[dict[str, Any]], *, now: datetime 
 
 
 def intent_score(signals: Iterable[dict[str, Any]]) -> int:
-    """Saturação suave: vários sinais fortes aumentam score sem explodir linearmente."""
     total = sum(max(0.0, float(item.get("contribution", 0.0))) for item in signals)
     return int(round(100.0 * (1.0 - math.exp(-total / 2.5))))
 

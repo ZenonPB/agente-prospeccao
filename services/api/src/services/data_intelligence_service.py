@@ -1,4 +1,4 @@
-"""Orquestra technographics, intent e Opportunity Vector em dados já persistidos."""
+"""Orquestra technographics, intent e Opportunity Vector em dados persistidos."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, Person
+from services.prospecting.employment_history_service import EmploymentHistoryService
 from services.prospecting.intent_engine import build_opportunity_vector, extract_intent_signals, intent_score
 from services.prospecting.intent_provider_registry import IntentProviderRegistry
 from services.prospecting.phone_verification_service import verify_phone
@@ -44,6 +45,20 @@ class DataIntelligenceService:
         elif isinstance(lead.discovery_provenance, dict):
             evidence.append({"source": "discovery", **lead.discovery_provenance})
 
+        employment_change = EmploymentHistoryService.latest_change_evidence(person) if person else None
+        if employment_change:
+            signature = (
+                employment_change.get("source"),
+                employment_change.get("observed_at"),
+                employment_change.get("description"),
+            )
+            known = {
+                (item.get("source"), item.get("observed_at"), item.get("description"))
+                for item in evidence
+            }
+            if signature not in known:
+                evidence.append(employment_change)
+
         events = (
             self.db.query(EventOpportunityRow)
             .filter(
@@ -74,10 +89,6 @@ class DataIntelligenceService:
         ]
         tech_result = TechnologyStackProvider().detect(*technical_payloads)
         technologies = tech_result["technologies"]
-
-        # O registry oferece telemetria por família/provider e o agregador geral
-        # continua lendo toda evidência conhecida. Assim uma fonte legada com
-        # `source=discovery` não perde sinais por não pertencer a uma família.
         intent_provider_result = IntentProviderRegistry().run(evidence)
         signals = extract_intent_signals(evidence)
         calculated_intent = intent_score(signals)
@@ -129,6 +140,9 @@ class DataIntelligenceService:
             commercial_fit=existing_vector.get("commercial_fit", best_opportunity),
         )
 
+        current_employment = None
+        if person and isinstance(person.raw_data, dict):
+            current_employment = person.raw_data.get("current_employment")
         result = {
             "lead_id": str(lead.id),
             "technologies": technologies,
@@ -141,6 +155,8 @@ class DataIntelligenceService:
             "intent_signals": signals,
             "intent_score": calculated_intent if signals else None,
             "intent_providers": intent_provider_result["providers"],
+            "current_employment": current_employment,
+            "employment_change": employment_change,
             "phone_verification": phone,
             "opportunity_vector": vector,
             "evidence_count": len(evidence),
@@ -157,14 +173,14 @@ class DataIntelligenceService:
                     "intent_signals": signals,
                     "intent_score": result["intent_score"],
                     "intent_providers": result["intent_providers"],
+                    "current_employment": current_employment,
+                    "employment_change": employment_change,
                     "phone_verification": phone,
                     "formula_version": "intent-v2",
                     "generated_at": result["generated_at"],
                 },
             }
             lead.score_vector = {**existing_vector, **vector}
-            # Recomputar inteligência não renova a idade da evidência. Freshness
-            # só muda quando um collector/enricher observa informação nova.
             self.db.add(lead)
             self.db.commit()
             self.db.refresh(lead)

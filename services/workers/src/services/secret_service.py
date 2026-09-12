@@ -1,17 +1,4 @@
-"""SecretService — chaves de API por organização (BYOK).
-
-Responsabilidades:
-- Criptografar/descriptografar valores de `organization_secrets` em repouso
-  usando Fernet (cryptography), com `SECRETS_ENCRYPTION_KEY` do settings.
-  Se a chave mestre não estiver configurada, deriva uma chave determinística
-  do DATABASE_URL (adequado apenas para desenvolvimento).
-- Resolver a chave de um provedor para uma organização:
-  1. Se a org tem `organization_secrets` com a chave → usa (BYOK).
-  2. Senão → fallback para o pool global (`settings.GROQ_API_KEY`,
-     `settings.GOOGLE_API_KEY` ou `settings.HUNTER_API_KEY`).
-
-Sempre async (padrão do projeto). Nunca loga valores de chave.
-"""
+"""SecretService — chaves de API por organização (BYOK)."""
 import base64
 import hashlib
 import logging
@@ -28,20 +15,23 @@ from database.models import OrganizationSecret  # noqa: E402
 logger = logging.getLogger(__name__)
 
 KEY_NAMES = ("GOOGLE_API_KEY", "GROQ_API_KEY", "HUNTER_API_KEY")
-# Chaves aceitas em `organizations.api_quota`. O provider de site e o HTTP
-# especializado não são segredos, mas precisam de quota explícita para
-# habilitar I/O externo opt-in.
-QUOTA_KEY_NAMES = KEY_NAMES + ("WEBSITE_PEOPLE_PROVIDER", "PEOPLE_DISCOVERY_HTTP")
+QUOTA_KEY_NAMES = KEY_NAMES + (
+    "WEBSITE_PEOPLE_PROVIDER",
+    "PEOPLE_DISCOVERY_HTTP",
+    "CONTINUOUS_INTELLIGENCE",
+    "JOB_INTENT_HTTP",
+    "NEWS_INTENT_HTTP",
+    "SOCIAL_INTENT_HTTP",
+    "EMAIL_CATCHALL_PROBE",
+)
 
 
 def _derive_fernet_key() -> bytes:
-    """Gera uma chave Fernet determinística (dev fallback) a partir do DATABASE_URL."""
     digest = hashlib.sha256(settings.DATABASE_URL.encode("utf-8")).digest()
     return base64.urlsafe_b64encode(digest)
 
 
 def _fernet() -> Fernet:
-    key: bytes
     if settings.SECRETS_ENCRYPTION_KEY:
         key = settings.SECRETS_ENCRYPTION_KEY.encode("utf-8")
     else:
@@ -70,14 +60,10 @@ class SecretService:
     """Resolve chaves por organização com fallback para o pool global."""
 
     @staticmethod
-    async def set_org_secret(
-        db, organization_id: str, key_name: str, value: str,
-    ) -> OrganizationSecret:
-        """Grava (upsert) uma chave criptografada para a organização."""
+    async def set_org_secret(db, organization_id: str, key_name: str, value: str) -> OrganizationSecret:
         normalized = key_name.upper().strip()
         if normalized not in KEY_NAMES:
             raise ValueError(f"key_name inválido: {normalized}")
-
         secret = (
             db.query(OrganizationSecret)
             .filter(
@@ -101,10 +87,7 @@ class SecretService:
         return secret
 
     @staticmethod
-    async def delete_org_secret(
-        db, organization_id: str, key_name: str,
-    ) -> bool:
-        """Remove uma chave da organização (volta a usar o pool global)."""
+    async def delete_org_secret(db, organization_id: str, key_name: str) -> bool:
         normalized = key_name.upper().strip()
         secret = (
             db.query(OrganizationSecret)
@@ -121,13 +104,7 @@ class SecretService:
         return True
 
     @staticmethod
-    async def resolve_key(
-        db, organization_id: Optional[str], key_name: str,
-    ) -> Optional[str]:
-        """Resolve a chave de um provedor para a org (BYOK) ou o pool global.
-
-        Ordem: organization_secrets → settings (pool).
-        """
+    async def resolve_key(db, organization_id: Optional[str], key_name: str) -> Optional[str]:
         normalized = key_name.upper().strip()
         if organization_id:
             try:
@@ -143,20 +120,14 @@ class SecretService:
                     value = decrypt_value(secret.encrypted_value)
                     if value:
                         return value
-            except Exception as e:
-                logger.warning("Falha ao resolver secret %s da org %s: %s",
-                               normalized, organization_id, e)
-
-        # Fallback para o pool global
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Falha ao resolver secret %s da org %s: %s", normalized, organization_id, exc)
         pool_value = getattr(settings, normalized, "")
         return pool_value or None
 
     @staticmethod
     async def resolve_all(db, organization_id: Optional[str]) -> Dict[str, Any]:
-        """Resolve todas as chaves suportadas de uma vez (pool ou BYOK)."""
         result: Dict[str, Any] = {}
         for key_name in KEY_NAMES:
-            result[key_name] = await SecretService.resolve_key(
-                db, organization_id, key_name,
-            )
+            result[key_name] = await SecretService.resolve_key(db, organization_id, key_name)
         return result
