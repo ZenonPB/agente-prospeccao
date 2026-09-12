@@ -14,54 +14,39 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = Field("", description='Usuário do banco de dados PostgreSQL')
     POSTGRES_PASSWORD: str = Field("", description='Senha do banco de dados PostgreSQL')
     POSTGRES_DB: str = Field("", description='Nome do banco de dados PostgreSQL')
-
     DATABASE_URL: str = Field(..., description='URL de conexão com o banco de dados PostgreSQL')
-
-    # Ambiente de execução. Em produção, secrets BYOK exigem uma chave Fernet
-    # explícita; a derivação pelo DATABASE_URL fica restrita a desenvolvimento.
     ENVIRONMENT: str = Field("development", description="development | test | production")
-
     PGADMIN_EMAIL: str = Field("", description='Email de login do pgAdmin')
     PGADMIN_PASSWORD: str = Field("", description='Senha de login do pgAdmin')
 
     GROQ_API_KEY: str = Field(..., description='Chave de API da Groq')
     GOOGLE_API_KEY: str = Field(..., description='Chave de API do Google')
-    # Opcional — Hunter.io para descoberta de pessoas (opt-in por quota da org).
     HUNTER_API_KEY: str = Field("", description='Chave opcional da API Hunter.io')
 
-    # Coletor HTTP especializado de pessoas (federado, opt-in por quota da
-    # org via `PEOPLE_DISCOVERY_HTTP`). Endpoint JSON próprio da fonte
-    # (Apollo/Clay/Snov/base interna); vazio mantém o provider desabilitado.
     PEOPLE_DISCOVERY_URL: str = Field("", description='Endpoint JSON externo de pessoas (opt-in)')
     PEOPLE_DISCOVERY_TOKEN: str = Field("", description='Token opcional Bearer do provider de pessoas')
     PEOPLE_DISCOVERY_MAX_RETRIES: int = Field(1, ge=0, le=5, description='Retentativas do provider de pessoas')
 
-    # Chave mestre para criptografia dos secrets BYOK.
-    # Deve ser um token Fernet (base64 de 32 bytes). Se vazio, deriva-se uma
-    # chave determinística do DATABASE_URL (adequado só para desenvolvimento).
     SECRETS_ENCRYPTION_KEY: str = Field("", description='Chave Fernet para organization_secrets')
 
-    # Teto diário de chamadas por provedor (default do pool global).
-    # A org pode sobrescrever por provedor via `organizations.api_quota`.
     PROVIDER_DAILY_QUOTA: dict = Field(
         default_factory=lambda: {
             "GOOGLE_API_KEY": 100,
             "GROQ_API_KEY": 2000,
             "HUNTER_API_KEY": 50,
-            # Provider gratuito, mas opt-in por organização para limitar I/O
-            # passivo em sites oficiais.
             "WEBSITE_PEOPLE_PROVIDER": 0,
-            # Fonte especializada via endpoint próprio; opt-in por org.
             "PEOPLE_DISCOVERY_HTTP": 0,
+            # Inteligência contínua e feeds externos são sempre opt-in por org.
+            "CONTINUOUS_INTELLIGENCE": 0,
+            "JOB_INTENT_HTTP": 0,
+            "NEWS_INTENT_HTTP": 0,
+            "SOCIAL_INTENT_HTTP": 0,
+            # Probe SMTP é ativo; não recebe cota global implícita.
+            "EMAIL_CATCHALL_PROBE": 0,
         },
         description='Teto diário de chamadas por provedor (key_name → limite)',
     )
 
-    # Resiliência a rate-limit da Groq (HTTP 429 / janela de ~60s do tier free).
-    # Pacing: intervalo mínimo entre o INÍCIO de chamadas Groq no processo
-    # (evita estourar a janela de TPM/RPM em batches). Retry: em 429 a Groq
-    # informa `Retry-After`; sem ele, usa backoff exponencial base*2^tentativa
-    # limitado a GROQ_RETRY_MAX_SECONDS.
     GROQ_MIN_INTERVAL_SECONDS: float = Field(
         20.0,
         description='Intervalo mínimo entre chamadas Groq (pacing, em segundos)',
@@ -78,11 +63,6 @@ class Settings(BaseSettings):
         60.0,
         description='Teto do backoff (s) para retry sem header Retry-After',
     )
-
-    # Modelos Groq — config centralizada para trocar de modelo sem editar os
-    # serviços individualmente. CLASSIFY = tarefas de classificação (scoring e
-    # router de template, respostas curtas); GENERATION = texto client-facing
-    # (outreach, segmentos, brief, templates gerados).
     GROQ_MODEL_CLASSIFY: str = Field(
         "openai/gpt-oss-20b",
         description='Modelo Groq de classificação (scoring/router)',
