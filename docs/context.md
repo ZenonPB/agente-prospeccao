@@ -3,10 +3,10 @@
 > Leia este arquivo primeiro. Ele contém o estado atual; o histórico detalhado
 > está em `docs/consolidacao.md` e `docs/roadmap-vendas.md`.
 >
-> **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·
-> Alembic head `4a6b8c9d1e2f` (propostas de learning controlado pendentes de
-> publicação manual; matcher ponderado `matcher-v2`, narrativa de oportunidade
-> e golden patterns por oferta).
+> **Snapshot:** 2026-09-12 · branch `feat/phase-2-company-people-search` ·
+> foundation multi-workspace da Fase 1 integrada à `main`; Fase 2 adiciona Company Search,
+> People Search, interpretação de `SearchIntent` e `ActionableContactScore` sobre as entidades canônicas.
+> O Alembic head permanece `4a6b8c9d1e2f` porque esta fase não altera schema.
 >
 > **Nota de banco (onda 3 — auditoria):** o banco local foi resetado
 > (drop/recreate do schema) e reconstruído com `alembic upgrade head`;
@@ -48,6 +48,8 @@ nunca o contrário.
   ausente no modelo — sem efeito operacional).
 
 ## Estado atual
+
+**Fase 2 — busca comercial:** Company Search e People Search operam sobre dados canônicos do workspace, com filtros tenant-aware, semântica ternária para dados ausentes e interpretação de linguagem natural separada da execução. A UI `/buscar` exige revisão humana dos filtros antes da consulta. `ActionableContactScore` prioriza contatos sem esconder dimensões desconhecidas. Detalhes em `docs/phase-2-company-people-search.md`.
 
 O produto opera como plataforma multi-tenant em Web Next.js, API FastAPI,
 workers Python async e PostgreSQL. O pipeline de empresas é orientado por

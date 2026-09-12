@@ -36,7 +36,7 @@ interface RequestOptions extends RequestInit {
 }
 
 
-async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { params, responseType = "json", ...fetchOptions } = options;
 
   const url = new URL(`${API_BASE_URL}${endpoint}`);

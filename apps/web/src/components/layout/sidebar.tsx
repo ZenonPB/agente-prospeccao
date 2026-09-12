@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Megaphone,
   Target,
+  Search as SearchIcon,
   DollarSign,
   Settings,
   Users,
@@ -44,6 +45,7 @@ const navGroups: NavGroup[] = [
     label: 'Operação',
     items: [
       { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
+      { name: 'Buscar', href: '/buscar', icon: SearchIcon },
       { name: 'Oportunidades', href: '/oportunidades', icon: Target },
       { name: 'Negociações', href: '/vendas', icon: DollarSign },
     ],
