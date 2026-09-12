@@ -27,17 +27,17 @@ def test_phase5_profiles_are_registered_and_semantically_valid():
     assert validate_registry(registry) == {}
 
 
-def test_existing_profiles_receive_phase5_offer_specific_signals():
+def test_existing_profiles_receive_phase5_signals_without_penalizing_unknowns():
     registry = build_default_registry()
     landing = registry.get("landing_page")
     mechanical = registry.get("mechanical_project")
     drawing = registry.get("technical_drawing")
     manual = registry.get("machine_manual")
 
-    assert landing is not None and "WEAK_CTA" in landing.signals["positive"]
-    assert mechanical is not None and "EXPANDING_FACTORY" in mechanical.signals["positive"]
-    assert drawing is not None and "REVERSE_ENGINEERING" in drawing.signals["positive"]
-    assert manual is not None and "NR12" in manual.signals["positive"]
+    assert landing is not None and "WEAK_CTA" in landing.signals["optional_positive"]
+    assert mechanical is not None and "EXPANDING_FACTORY" in mechanical.signals["optional_positive"]
+    assert drawing is not None and "REVERSE_ENGINEERING" in drawing.signals["optional_positive"]
+    assert manual is not None and "NR12" in manual.signals["optional_positive"]
     assert all(profile.version == "1.1" for profile in (landing, mechanical, drawing, manual))
 
 
@@ -56,18 +56,8 @@ def test_phase5_signal_registry_contains_offer_specific_vocabulary():
 
 
 def test_event_series_key_ignores_year_and_edition_noise():
-    first = SimpleNamespace(
-        id="a",
-        organizer="MEJ Sudeste",
-        name="Prêmio MEJ 2025 - Edição 12",
-        event_type="awards",
-    )
-    second = SimpleNamespace(
-        id="b",
-        organizer="MEJ Sudeste",
-        name="Prêmio MEJ 2026 - Edição 13",
-        event_type="awards",
-    )
+    first = SimpleNamespace(id="a", organizer="MEJ Sudeste", name="Prêmio MEJ 2025 - Edição 12", event_type="awards")
+    second = SimpleNamespace(id="b", organizer="MEJ Sudeste", name="Prêmio MEJ 2026 - Edição 13", event_type="awards")
     assert event_series_key(first) == event_series_key(second)
 
 
