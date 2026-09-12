@@ -2,7 +2,9 @@ from datetime import datetime, timedelta, timezone
 
 from services.prospecting.freshness_policy import FreshnessState, evaluate_freshness
 from services.prospecting.intent_engine import build_opportunity_vector, detect_technologies, extract_intent_signals, intent_score
+from services.prospecting.intent_provider_registry import IntentProviderRegistry
 from services.prospecting.phone_verification_service import PhoneVerificationState, verify_phone
+from services.prospecting.technology_stack_provider import TechnologyStackProvider
 
 
 def test_freshness_preserves_unknown():
@@ -33,6 +35,16 @@ def test_technographics_detects_known_stack_without_network():
     assert "Google Analytics" in names
 
 
+def test_technology_provider_is_free_and_distinguishes_empty_from_success():
+    provider = TechnologyStackProvider()
+    empty = provider.detect({"html": "<main>site simples</main>"})
+    detected = provider.detect({"html": "<div class='wp-content'>"})
+    assert empty["status"] == "empty"
+    assert empty["cost_units"] == 0
+    assert detected["status"] == "success"
+    assert detected["cost_units"] == 0
+
+
 def test_intent_v2_combines_confidence_reliability_and_recency():
     now = datetime(2026, 9, 12, tzinfo=timezone.utc)
     evidence = [
@@ -55,6 +67,20 @@ def test_intent_v2_combines_confidence_reliability_and_recency():
     assert "HIRING_MECHANICAL_ENGINEER" in keys
     assert "SOFTWARE_PROCUREMENT" in keys
     assert 0 < intent_score(signals) <= 100
+
+
+def test_intent_registry_exposes_provider_states_without_hidden_io():
+    registry = IntentProviderRegistry()
+    result = registry.run([
+        {"source": "pncp", "title": "Edital para aquisição de software", "confidence": 0.9},
+        {"source": "company_news", "title": "Nova fábrica anunciada", "confidence": 0.8},
+    ])
+    statuses = {item["provider"]: item["status"] for item in result["providers"]}
+    assert statuses["procurement"] == "success"
+    assert statuses["company_news"] == "success"
+    assert statuses["job_postings"] == "empty"
+    assert statuses["social"] == "empty"
+    assert statuses["events"] == "empty"
 
 
 def test_opportunity_vector_does_not_treat_unknown_as_zero_dimension():
