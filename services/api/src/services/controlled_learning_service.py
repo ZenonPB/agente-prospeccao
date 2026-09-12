@@ -1,75 +1,36 @@
-"""Recomendações de learning comercial com aprovação humana explícita.
-
-Este serviço só transforma uma comparação A/B já aprovada em uma proposta
-auditável. Publicar a proposta continua sendo uma operação separada porque os
-perfis de oferta ainda não possuem publicação dinâmica segura.
-"""
+"""Learning comercial controlado com publicação e rollback auditáveis."""
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, TYPE_CHECKING
 from uuid import UUID
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from src.db.models import ControlledLearningProposal
 
-
-_EVIDENCE_FIELDS = frozenset({
-    "verdict",
-    "recommendation",
-    "delta",
-    "v1",
-    "v2",
-})
+_EVIDENCE_FIELDS = frozenset({"verdict", "recommendation", "delta", "v1", "v2"})
 
 
 def build_learning_proposal(comparison: Any) -> dict[str, Any]:
-    """Cria uma proposta de learning a partir de uma comparação aprovada.
-
-    Args:
-        comparison: Comparação persistida com aprovação humana e resultado
-            estatisticamente conclusivo.
-
-    Returns:
-        Dicionário pronto para persistência com estado ``PROPOSED``. O payload
-        não contém pesos ou thresholds e nunca representa publicação automática.
-
-    Raises:
-        ValueError: Se a comparação não tiver aprovação válida/conclusiva.
-    """
     approved_version = getattr(comparison, "approved_version", None)
     if not approved_version:
         raise ValueError("comparação ainda não foi aprovada")
-
     version_a = getattr(comparison, "version_a", None)
     version_b = getattr(comparison, "version_b", None)
     if approved_version not in (version_a, version_b):
         raise ValueError("versão aprovada não pertence à comparação")
-
     comparison_id = getattr(comparison, "id", None)
     offer_key = getattr(comparison, "offer_key", None)
     if not comparison_id or not offer_key:
         raise ValueError("comparação sem identidade ou oferta")
-
     result = getattr(comparison, "result", None)
     if not isinstance(result, dict):
         raise ValueError("comparação sem resultado estatístico")
     expected_verdict = "v1" if approved_version == version_a else "v2"
     recommendation = result.get("recommendation")
-    if (
-        result.get("verdict") != expected_verdict
-        or not isinstance(recommendation, str)
-        or not recommendation.strip()
-    ):
+    if result.get("verdict") != expected_verdict or not isinstance(recommendation, str) or not recommendation.strip():
         raise ValueError("somente uma recomendação conclusiva pode gerar learning")
-
-    evidence_snapshot = {
-        key: deepcopy(result[key])
-        for key in _EVIDENCE_FIELDS
-        if key in result
-    }
     return {
         "organization_id": getattr(comparison, "organization_id", None),
         "offer_key": offer_key,
@@ -77,24 +38,47 @@ def build_learning_proposal(comparison: Any) -> dict[str, Any]:
         "approved_version": approved_version,
         "approved_by_id": getattr(comparison, "approved_by_id", None),
         "status": "PROPOSED",
-        "evidence_snapshot": evidence_snapshot,
+        "evidence_snapshot": {key: deepcopy(result[key]) for key in _EVIDENCE_FIELDS if key in result},
         "requires_manual_publication": True,
     }
 
 
-class ControlledLearningService:
-    """Persiste propostas sem publicar ou alterar configuração ativa."""
+def validate_profile_publication(
+    profile_snapshot: dict[str, Any],
+    *,
+    offer_key: str,
+    approved_version: str,
+    current_version: str | None,
+) -> Any:
+    """Valida uma publicação sem efeitos colaterais.
 
-    def create_from_comparison(
-        self,
-        db: Any,
-        organization_id: UUID,
-        comparison_id: UUID,
-        actor: Any = None,
-    ) -> ControlledLearningProposal:
+    A publicação precisa ser uma versão nova, semanticamente válida e exatamente
+    a versão que foi aprovada. Isso garante que sempre exista um estado anterior
+    distinto para rollback e impede sobrescrever silenciosamente uma versão.
+    """
+    from services.prospecting.offer_profile import OfferProfile
+    from services.prospecting.offer_profile_validator import validate_profile
+
+    snapshot = deepcopy(profile_snapshot or {})
+    if snapshot.get("key") != offer_key:
+        raise ValueError("O OfferProfile não pertence à oferta aprovada")
+    if snapshot.get("version") != approved_version:
+        raise ValueError("A versão publicada deve ser exatamente a versão aprovada")
+    if current_version and snapshot.get("version") == current_version:
+        raise ValueError("A publicação deve criar uma nova versão de OfferProfile")
+    profile = OfferProfile.from_dict(snapshot)
+    errors = [item for item in validate_profile(profile) if not str(item).startswith("aviso:")]
+    if errors:
+        raise ValueError("OfferProfile inválido: " + "; ".join(errors))
+    return profile
+
+
+class ControlledLearningService:
+    """Fecha observe → recommend → approve → publish → rollback."""
+
+    def create_from_comparison(self, db: Any, organization_id: UUID, comparison_id: UUID, actor: Any = None) -> ControlledLearningProposal:
         from sqlalchemy import func, select
-        from src.db.models import CommercialComparison, ControlledLearningProposal
-        from src.db.models import OrgAuditEvent
+        from src.db.models import CommercialComparison, ControlledLearningProposal, OrgAuditEvent
         from src.services.org_audit_service import log_org_event
 
         comparison = db.scalars(select(CommercialComparison).where(
@@ -103,14 +87,12 @@ class ControlledLearningService:
         )).first()
         if comparison is None:
             raise ValueError("Comparação não encontrada nesta organização")
-
         existing = db.scalars(select(ControlledLearningProposal).where(
             ControlledLearningProposal.organization_id == organization_id,
             ControlledLearningProposal.source_comparison_id == comparison_id,
         )).first()
         if existing is not None:
             return existing
-
         payload = build_learning_proposal(comparison)
         latest = db.scalar(select(func.max(ControlledLearningProposal.proposal_version)).where(
             ControlledLearningProposal.organization_id == organization_id,
@@ -129,31 +111,153 @@ class ControlledLearningService:
         db.add(proposal)
         db.flush()
         log_org_event(
-            db,
-            organization_id,
-            OrgAuditEvent.CONTROLLED_LEARNING_PROPOSED,
-            actor=actor,
-            target_type="controlled_learning_proposal",
+            db, organization_id, OrgAuditEvent.CONTROLLED_LEARNING_PROPOSED,
+            actor=actor, target_type="controlled_learning_proposal",
             target_id=str(proposal.id),
-            detail=(
-                f"comparison={comparison.id}; offer={comparison.offer_key}; "
-                f"proposal_version={proposal.proposal_version}; status=PROPOSED"
-            ),
+            detail=f"comparison={comparison.id}; offer={comparison.offer_key}; proposal_version={proposal.proposal_version}; status=PROPOSED",
         )
         return proposal
 
-    def list_for_organization(
-        self,
-        db: Any,
-        organization_id: UUID,
-        offer_key: str | None = None,
-    ) -> list[ControlledLearningProposal]:
+    def publish_profile(self, db: Any, organization_id: UUID, proposal_id: UUID, profile_snapshot: dict[str, Any], actor: Any) -> Any:
+        """Publica exatamente a versão aprovada, com lock e snapshot imutável."""
+        from sqlalchemy import select
+        from database.learning_models import OfferProfileActivation, OfferProfileVersion
+        from src.db.models import ControlledLearningProposal
+        from services.prospecting.default_profiles import get_default_registry
+
+        proposal = db.scalars(select(ControlledLearningProposal).where(
+            ControlledLearningProposal.id == proposal_id,
+            ControlledLearningProposal.organization_id == organization_id,
+        ).with_for_update()).first()
+        if proposal is None:
+            raise ValueError("Proposta de learning não encontrada")
+        if proposal.status == "PUBLISHED":
+            existing = db.scalars(select(OfferProfileVersion).where(
+                OfferProfileVersion.organization_id == organization_id,
+                OfferProfileVersion.source_proposal_id == proposal.id,
+            )).first()
+            if existing is not None:
+                return existing
+        if proposal.status != "PROPOSED":
+            raise ValueError("Proposta não está disponível para publicação")
+
+        existing_version = db.scalars(select(OfferProfileVersion).where(
+            OfferProfileVersion.organization_id == organization_id,
+            OfferProfileVersion.offer_key == proposal.offer_key,
+            OfferProfileVersion.version == proposal.approved_version,
+        )).first()
+        if existing_version is not None:
+            raise ValueError("Esta versão de OfferProfile já existe")
+
+        current = db.scalars(select(OfferProfileVersion).where(
+            OfferProfileVersion.organization_id == organization_id,
+            OfferProfileVersion.offer_key == proposal.offer_key,
+            OfferProfileVersion.is_active.is_(True),
+        ).with_for_update()).first()
+        baseline = get_default_registry().get(proposal.offer_key)
+        if baseline is None:
+            raise ValueError("Oferta base não existe no catálogo")
+        current_version = current.version if current is not None else baseline.version
+        profile = validate_profile_publication(
+            profile_snapshot,
+            offer_key=proposal.offer_key,
+            approved_version=proposal.approved_version,
+            current_version=current_version,
+        )
+
+        # Primeira publicação persiste o catálogo padrão como baseline exato.
+        any_version = db.scalars(select(OfferProfileVersion).where(
+            OfferProfileVersion.organization_id == organization_id,
+            OfferProfileVersion.offer_key == proposal.offer_key,
+        ).limit(1)).first()
+        if any_version is None:
+            baseline_row = OfferProfileVersion(
+                organization_id=organization_id,
+                offer_key=baseline.key,
+                version=baseline.version,
+                profile_snapshot=baseline.to_dict(),
+                is_active=False,
+            )
+            db.add(baseline_row)
+            db.flush()
+
+        now = datetime.now(timezone.utc)
+        if current is not None:
+            current.is_active = False
+            current.deactivated_at = now
+
+        row = OfferProfileVersion(
+            organization_id=organization_id,
+            offer_key=proposal.offer_key,
+            version=profile.version,
+            profile_snapshot=profile.to_dict(),
+            source_proposal_id=proposal.id,
+            is_active=True,
+            activated_by_id=getattr(actor, "id", None),
+            activated_at=now,
+        )
+        db.add(row)
+        db.flush()
+        db.add(OfferProfileActivation(
+            organization_id=organization_id,
+            offer_key=proposal.offer_key,
+            action="PUBLISH",
+            version_id=row.id,
+            previous_version_id=current.id if current else baseline_row.id if any_version is None else None,
+            actor_id=getattr(actor, "id", None),
+        ))
+        proposal.status = "PUBLISHED"
+        proposal.published_by_id = getattr(actor, "id", None)
+        proposal.published_at = now
+        db.flush()
+        return row
+
+    def rollback_profile(self, db: Any, organization_id: UUID, offer_key: str, target_version: str, actor: Any) -> Any:
+        """Reativa snapshot histórico sem reescrever seu conteúdo."""
+        from sqlalchemy import select
+        from database.learning_models import OfferProfileActivation, OfferProfileVersion
+
+        rows = db.scalars(select(OfferProfileVersion).where(
+            OfferProfileVersion.organization_id == organization_id,
+            OfferProfileVersion.offer_key == offer_key,
+        ).with_for_update()).all()
+        target = next((row for row in rows if row.version == target_version), None)
+        if target is None:
+            raise ValueError("Versão de rollback não encontrada")
+        current = next((row for row in rows if row.is_active), None)
+        if current is not None and current.id == target.id:
+            return target
+        now = datetime.now(timezone.utc)
+        if current is not None:
+            current.is_active = False
+            current.deactivated_at = now
+        target.is_active = True
+        target.activated_by_id = getattr(actor, "id", None)
+        target.activated_at = now
+        target.deactivated_at = None
+        db.add(OfferProfileActivation(
+            organization_id=organization_id,
+            offer_key=offer_key,
+            action="ROLLBACK",
+            version_id=target.id,
+            previous_version_id=current.id if current else None,
+            actor_id=getattr(actor, "id", None),
+        ))
+        db.flush()
+        return target
+
+    def list_versions(self, db: Any, organization_id: UUID, offer_key: str | None = None) -> list[Any]:
+        from sqlalchemy import select
+        from database.learning_models import OfferProfileVersion
+        query = select(OfferProfileVersion).where(OfferProfileVersion.organization_id == organization_id)
+        if offer_key:
+            query = query.where(OfferProfileVersion.offer_key == offer_key)
+        return db.scalars(query.order_by(OfferProfileVersion.created_at.desc())).all()
+
+    def list_for_organization(self, db: Any, organization_id: UUID, offer_key: str | None = None) -> list[ControlledLearningProposal]:
         from sqlalchemy import select
         from src.db.models import ControlledLearningProposal
-
-        query = select(ControlledLearningProposal).where(
-            ControlledLearningProposal.organization_id == organization_id,
-        )
+        query = select(ControlledLearningProposal).where(ControlledLearningProposal.organization_id == organization_id)
         if offer_key:
             query = query.where(ControlledLearningProposal.offer_key == offer_key)
         return db.scalars(query.order_by(ControlledLearningProposal.created_at.desc())).all()

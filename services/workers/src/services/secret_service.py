@@ -14,7 +14,14 @@ from database.models import OrganizationSecret  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-KEY_NAMES = ("GOOGLE_API_KEY", "GROQ_API_KEY", "HUNTER_API_KEY")
+KEY_NAMES = (
+    "GOOGLE_API_KEY",
+    "GROQ_API_KEY",
+    "HUNTER_API_KEY",
+    "PIPEDRIVE_API_TOKEN",
+    "HUBSPOT_ACCESS_TOKEN",
+    "SALESFORCE_ACCESS_TOKEN",
+)
 QUOTA_KEY_NAMES = KEY_NAMES + (
     "WEBSITE_PEOPLE_PROVIDER",
     "PEOPLE_DISCOVERY_HTTP",

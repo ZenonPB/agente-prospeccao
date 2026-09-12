@@ -1,15 +1,9 @@
 """LeadOpportunityService (oportunidades + histórico append-only).
 
-Persiste o resultado do OfferMatcher (1 lead -> N oportunidades) em uma tabela
-propria, com upsert idempotente por (lead_id, offer_key).
-
-Cada avaliação gera um snapshot append-only em
-`lead_opportunity_snapshots`, preservando versão do perfil, versão da
-fórmula e evidências do momento da avaliação. Vendas apontam para o snapshot.
-
-Troca de versão de OfferProfile não reescreve o histórico nem a linha
-atual sem `explicit_reanalyze=True`. Novas coletas usam a versão nova; a
-reavaliação de campanha ativa é explícita.
+Persiste o resultado do OfferMatcher em uma tabela própria. Para avaliações de
+enrichment/reanalyze, o serviço recalcula com o registry efetivo do workspace,
+garantindo que uma publicação/rollback de OfferProfile altere de fato novas
+avaliações sem reescrever histórico antigo.
 """
 import hashlib
 import json
@@ -38,19 +32,6 @@ def build_snapshot_hash(
     signals_missing: list,
     score_breakdown: Optional[dict] = None,
 ) -> str:
-    """Hash canônico de uma avaliação para idempotência do histórico.
-
-    Args:
-        offer_key: chave da oferta avaliada.
-        offer_version: versão do perfil no momento da avaliação.
-        score: score calculado pelo matcher.
-        evidence: evidências da avaliação.
-        signals_matched: sinais presentes.
-        signals_missing: sinais ausentes.
-
-    Returns:
-        Hex SHA-256 do payload canônico ordenado.
-    """
     payload = {
         "offer_key": offer_key,
         "offer_version": offer_version,
@@ -70,16 +51,6 @@ def should_apply_rescore(
     new_version: Optional[str],
     explicit_reanalyze: bool = False,
 ) -> bool:
-    """Política de re-scoring com preservação de versão.
-
-    Args:
-        existing_version: versão gravada na linha atual.
-        new_version: versão da nova avaliação.
-        explicit_reanalyze: True quando a campanha recebeu reavaliação explícita.
-
-    Returns:
-        True se a linha atual pode ser atualizada; False preserva a versão.
-    """
     if existing_version == new_version:
         return True
     if explicit_reanalyze:
@@ -88,7 +59,31 @@ def should_apply_rescore(
 
 
 class LeadOpportunityService:
-    """Persistencia, histórico e leitura das oportunidades de um lead."""
+    """Persistência, histórico e leitura das oportunidades de um lead."""
+
+    @staticmethod
+    def _effective_match(db: Session, lead: Lead) -> List[LeadOpportunity]:
+        """Recalcula o lead usando a versão ativa de OfferProfile da org."""
+        from services.prospecting.effective_offer_registry import build_effective_registry
+        from services.prospecting.offer_matcher import OfferMatcher
+
+        target_service = getattr(getattr(lead, "campaign", None), "target_service", None) or ""
+        lead_data = {
+            "company_name": lead.company_name,
+            "segment": getattr(lead, "category", None),
+            "cnae": getattr(lead, "cnae", None),
+            "company_size": None,
+            "has_cnpj": bool(getattr(lead, "cnpj", None)),
+            "has_phone": bool(getattr(lead, "phone", None)),
+            "has_own_website": bool(getattr(lead, "website", None)),
+            "has_instagram": bool(getattr(lead, "instagram_url", None)),
+            "google_rating": getattr(lead, "google_rating", None),
+            "google_rating_count": getattr(lead, "google_rating_count", None),
+            "hosts_events": any(token in target_service.lower() for token in ("trofé", "trofe", "evento")),
+        }
+        return OfferMatcher(build_effective_registry(db, lead.organization_id)).match(
+            lead_data, min_score=1, top_k=5,
+        )
 
     def persist_opportunities(
         self,
@@ -98,21 +93,8 @@ class LeadOpportunityService:
         reason: str = "enrichment",
         explicit_reanalyze: bool = False,
     ) -> List[LeadOpportunityRow]:
-        """Upsert idempotente com snapshot append-only do avaliado.
-
-        Args:
-            db: sessão SQLAlchemy (o caller controla commit).
-            lead: lead dono das oportunidades.
-            opportunities: resultado atual do OfferMatcher.
-            reason: origem da avaliação (enrichment|reanalyze|event|conversion).
-            explicit_reanalyze: autoriza atualizar linha com versão diferente.
-
-        Returns:
-            Linhas atuais do lead para as ofertas avaliadas.
-        """
         if not opportunities:
             return []
-
         offer_keys = [o.offer_key for o in opportunities]
         existing = {
             row.offer_key: row
@@ -123,7 +105,6 @@ class LeadOpportunityService:
                 )
             ).all()
         }
-
         results: List[LeadOpportunityRow] = []
         for opp in opportunities:
             row = existing.get(opp.offer_key)
@@ -167,11 +148,11 @@ class LeadOpportunityService:
         reason: str = "enrichment",
         explicit_reanalyze: bool = False,
     ) -> List[LeadOpportunityRow]:
-        """Substitui o conjunto atual preservando histórico das removidas.
-
-        Linhas obsoletas recebem um snapshot final antes da remoção; a
-        transação permanece sob controle do caller.
-        """
+        if reason in {"enrichment", "reanalyze"}:
+            try:
+                opportunities = self._effective_match(db, lead)
+            except Exception as exc:  # fail-safe: keep already computed result
+                logger.warning("Registry efetivo indisponível para lead %s: %s", lead.id, exc)
         keys = {item.offer_key for item in opportunities}
         current = self.list_for_lead(db, lead.id)
         stale = [row for row in current if row.offer_key not in keys]
@@ -184,18 +165,11 @@ class LeadOpportunityService:
             db, lead, opportunities, reason=reason, explicit_reanalyze=explicit_reanalyze,
         )
 
-    def _snapshot_row(
-        self,
-        db: Session,
-        row: LeadOpportunityRow,
-        reason: str = "enrichment",
-    ) -> LeadOpportunitySnapshot:
-        """Registra snapshot idempotente da linha atual (append-only)."""
+    def _snapshot_row(self, db: Session, row: LeadOpportunityRow, reason: str = "enrichment") -> LeadOpportunitySnapshot:
         snapshot_hash = build_snapshot_hash(
             row.offer_key, row.offer_version, row.score or 0,
             list(row.evidence or []), list(row.signals_matched or []),
-            list(row.signals_missing or []),
-            dict(row.score_breakdown or {}),
+            list(row.signals_missing or []), dict(row.score_breakdown or {}),
         )
         profile_snapshot_hash = hashlib.sha256(
             json.dumps(
@@ -234,12 +208,7 @@ class LeadOpportunityService:
         db.flush()
         return snapshot
 
-    def list_for_lead(
-        self,
-        db: Session,
-        lead_id: UUID,
-    ) -> List[LeadOpportunityRow]:
-        """Retorna as oportunidades do lead ordenadas por score desc."""
+    def list_for_lead(self, db: Session, lead_id: UUID) -> List[LeadOpportunityRow]:
         return list(
             db.scalars(
                 select(LeadOpportunityRow)
@@ -254,22 +223,16 @@ class LeadOpportunityService:
         lead_id: UUID,
         offer_key: Optional[str] = None,
     ) -> List[LeadOpportunitySnapshot]:
-        """Retorna o histórico append-only do lead (mais recente primeiro)."""
-        query = select(LeadOpportunitySnapshot).where(
-            LeadOpportunitySnapshot.lead_id == lead_id,
-        )
+        query = select(LeadOpportunitySnapshot).where(LeadOpportunitySnapshot.lead_id == lead_id)
         if offer_key:
             query = query.where(LeadOpportunitySnapshot.offer_key == offer_key)
-        return list(
-            db.scalars(query.order_by(LeadOpportunitySnapshot.created_at.desc())).all()
-        )
+        return list(db.scalars(query.order_by(LeadOpportunitySnapshot.created_at.desc())).all())
 
     def latest_snapshot_for_opportunity(
         self,
         db: Session,
         opportunity_id: UUID,
     ) -> Optional[LeadOpportunitySnapshot]:
-        """Snapshot mais recente de uma oportunidade atual."""
         return db.scalars(
             select(LeadOpportunitySnapshot)
             .where(LeadOpportunitySnapshot.lead_opportunity_id == opportunity_id)
