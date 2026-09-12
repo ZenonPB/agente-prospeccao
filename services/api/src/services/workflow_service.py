@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
-from src.db.models import Job, JobStatus, JobType, Lead
+from src.db.models import Lead
 from database.commercial_intelligence_models import ProspectingAlert
 from database.engagement_models import CommercialTask, WorkflowDefinition, WorkflowRun
 from src.services.engagement_service import SequenceService
@@ -49,7 +49,11 @@ ACTION_TYPES = {
 }
 
 
-def validate_workflow(trigger_type: str, conditions: list[dict[str, Any]], actions: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+def validate_workflow(
+    trigger_type: str,
+    conditions: list[dict[str, Any]],
+    actions: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
     trigger = str(trigger_type or "").strip().upper()
     if trigger not in TRIGGERS:
         raise ValueError("Trigger de workflow não suportado")
@@ -97,7 +101,11 @@ class WorkflowService:
         created_by_id=None,
         description: str | None = None,
     ) -> WorkflowDefinition:
-        trigger, clean_conditions, clean_actions = validate_workflow(trigger_type, conditions, actions)
+        trigger, clean_conditions, clean_actions = validate_workflow(
+            trigger_type,
+            conditions,
+            actions,
+        )
         latest = (
             self.db.query(WorkflowDefinition)
             .filter(
@@ -186,7 +194,15 @@ class WorkflowService:
             results: list[dict[str, Any]] = []
             try:
                 for index, action in enumerate(definition.actions or []):
-                    results.append(self._execute_action(run, index, action, context, webhook_dispatcher))
+                    results.append(
+                        self._execute_action(
+                            run,
+                            index,
+                            action,
+                            context,
+                            webhook_dispatcher,
+                        )
+                    )
                 run.status = "COMPLETED"
                 run.completed_at = datetime.now(timezone.utc)
             except Exception as exc:
@@ -214,25 +230,14 @@ class WorkflowService:
         if action_type == "CREATE_TASK":
             if not lead:
                 raise ValueError("CREATE_TASK requer lead_id tenant-aware")
-            task = self.db.query(CommercialTask).filter(
-                CommercialTask.organization_id == self.organization_id,
-                CommercialTask.idempotency_key == idempotency_key,
-            ).first()
-            if not task:
-                task = CommercialTask(
-                    organization_id=self.organization_id,
-                    lead_id=lead.id,
-                    owner_user_id=getattr(lead, "assigned_to_id", None),
-                    task_type=str(config.get("task_type") or "RESEARCH")[:32],
-                    title=str(config.get("title") or "Executar ação comercial")[:180],
-                    description=str(config.get("description") or "")[:4000] or None,
-                    source="workflow",
-                    source_ref=str(run.id),
-                    idempotency_key=idempotency_key,
-                    task_metadata={"workflow_run_id": str(run.id)},
-                )
-                self.db.add(task)
-                self.db.flush()
+            task = self._task(
+                lead=lead,
+                idempotency_key=idempotency_key,
+                task_type=str(config.get("task_type") or "RESEARCH")[:32],
+                title=str(config.get("title") or "Executar ação comercial")[:180],
+                description=str(config.get("description") or "")[:4000] or None,
+                run=run,
+            )
             return {"type": action_type, "status": "ok", "task_id": str(task.id)}
 
         if action_type == "ENROLL_SEQUENCE":
@@ -244,7 +249,11 @@ class WorkflowService:
                 person_id=config.get("person_id"),
                 enrolled_by_id=getattr(lead, "assigned_to_id", None),
             )
-            return {"type": action_type, "status": "ok", "enrollment_id": str(enrollment.id)}
+            return {
+                "type": action_type,
+                "status": "ok",
+                "enrollment_id": str(enrollment.id),
+            }
 
         if action_type == "NOTIFY":
             if not lead:
@@ -271,68 +280,104 @@ class WorkflowService:
         if action_type in {"ENRICH", "RERANK"}:
             if not lead:
                 raise ValueError(f"{action_type} requer lead_id")
-            job_type = JobType.LEAD_ENRICHMENT if action_type == "ENRICH" else JobType.LEAD_SCORING
-            pending = self.db.query(Job).filter(
-                Job.organization_id == self.organization_id,
-                Job.campaign_id == lead.campaign_id,
-                Job.job_type == job_type,
-                Job.status.in_([JobStatus.PENDING, JobStatus.IN_PROGRESS]),
-            ).first()
-            if pending:
-                return {"type": action_type, "status": "already_pending", "job_id": str(pending.id)}
-            job = Job(
-                organization_id=self.organization_id,
-                campaign_id=lead.campaign_id,
-                job_type=job_type,
-                status=JobStatus.PENDING,
-                payload={
-                    "campaign_id": str(lead.campaign_id) if lead.campaign_id else None,
-                    "reanalyze_only": True,
-                    "unscored_only": action_type == "RERANK",
-                    "max_leads": 1,
-                    "workflow_lead_id": str(lead.id),
-                    "workflow_run_id": str(run.id),
-                },
+            # O pipeline legado reanalisa campanhas em lote e ainda não possui
+            # um contrato de job por lead. Enfileirar max_leads=1 aqui poderia
+            # atualizar OUTRO lead da campanha. Até existir targeting canônico,
+            # materializamos uma tarefa explícita em vez de declarar sucesso
+            # para uma automação semanticamente incorreta.
+            task = self._task(
+                lead=lead,
+                idempotency_key=idempotency_key,
+                task_type="DATA_ENRICHMENT" if action_type == "ENRICH" else "RERANK",
+                title=(
+                    "Atualizar dados desta oportunidade"
+                    if action_type == "ENRICH"
+                    else "Reavaliar prioridade desta oportunidade"
+                ),
+                description=(
+                    "A atualização deve permanecer vinculada a este lead; "
+                    "o job em lote não é usado para evitar reprocessar outra oportunidade."
+                ),
+                run=run,
+                metadata={"requested_action": action_type},
             )
-            self.db.add(job)
-            self.db.flush()
-            return {"type": action_type, "status": "queued", "job_id": str(job.id)}
+            return {
+                "type": action_type,
+                "status": "manual_required",
+                "task_id": str(task.id),
+            }
 
         if action_type == "WEBHOOK":
             if webhook_dispatcher is None:
                 return {"type": action_type, "status": "not_dispatched"}
-            sent = webhook_dispatcher("workflow.triggered", {
-                "workflow_run_id": str(run.id),
-                "trigger_type": run.trigger_type,
-                "context": context,
-            })
-            return {"type": action_type, "status": "queued" if sent else "disabled"}
+            sent = webhook_dispatcher(
+                "workflow.triggered",
+                {
+                    "workflow_run_id": str(run.id),
+                    "trigger_type": run.trigger_type,
+                    "context": context,
+                },
+            )
+            return {
+                "type": action_type,
+                "status": "queued" if sent else "disabled",
+            }
 
         if action_type == "CRM_SYNC":
             if not lead:
                 raise ValueError("CRM_SYNC requer lead_id")
-            task = self.db.query(CommercialTask).filter(
-                CommercialTask.organization_id == self.organization_id,
-                CommercialTask.idempotency_key == idempotency_key,
-            ).first()
-            if not task:
-                task = CommercialTask(
-                    organization_id=self.organization_id,
-                    lead_id=lead.id,
-                    owner_user_id=getattr(lead, "assigned_to_id", None),
-                    task_type="CRM_SYNC",
-                    title="Sincronizar oportunidade com CRM",
-                    description="A integração externa depende de um adapter CRM configurado para o workspace.",
-                    source="workflow",
-                    source_ref=str(run.id),
-                    idempotency_key=idempotency_key,
-                    task_metadata={"provider": config.get("provider")},
-                )
-                self.db.add(task)
-                self.db.flush()
-            return {"type": action_type, "status": "manual_required", "task_id": str(task.id)}
+            task = self._task(
+                lead=lead,
+                idempotency_key=idempotency_key,
+                task_type="CRM_SYNC",
+                title="Sincronizar oportunidade com CRM",
+                description=(
+                    "A integração externa depende de um adapter CRM configurado "
+                    "para o workspace."
+                ),
+                run=run,
+                metadata={"provider": config.get("provider")},
+            )
+            return {
+                "type": action_type,
+                "status": "manual_required",
+                "task_id": str(task.id),
+            }
 
         raise ValueError("Ação de workflow não suportada")
+
+    def _task(
+        self,
+        *,
+        lead: Lead,
+        idempotency_key: str,
+        task_type: str,
+        title: str,
+        description: str | None,
+        run: WorkflowRun,
+        metadata: dict[str, Any] | None = None,
+    ) -> CommercialTask:
+        task = self.db.query(CommercialTask).filter(
+            CommercialTask.organization_id == self.organization_id,
+            CommercialTask.idempotency_key == idempotency_key,
+        ).first()
+        if task:
+            return task
+        task = CommercialTask(
+            organization_id=self.organization_id,
+            lead_id=lead.id,
+            owner_user_id=getattr(lead, "assigned_to_id", None),
+            task_type=task_type,
+            title=title,
+            description=description,
+            source="workflow",
+            source_ref=str(run.id),
+            idempotency_key=idempotency_key,
+            task_metadata={"workflow_run_id": str(run.id), **(metadata or {})},
+        )
+        self.db.add(task)
+        self.db.flush()
+        return task
 
     def _tenant_lead(self, lead_id):
         lead = self.db.query(Lead).filter(
@@ -344,13 +389,18 @@ class WorkflowService:
         return lead
 
     @staticmethod
-    def _conditions_match(conditions: list[dict[str, Any]], context: dict[str, Any]) -> bool:
+    def _conditions_match(
+        conditions: list[dict[str, Any]],
+        context: dict[str, Any],
+    ) -> bool:
         for condition in conditions:
             actual = context.get(condition.get("field"))
             expected = condition.get("value")
             operator = condition.get("operator", "eq")
             if operator == "exists":
-                if bool(actual is not None) != bool(expected if expected is not None else True):
+                if bool(actual is not None) != bool(
+                    expected if expected is not None else True
+                ):
                     return False
             elif operator == "eq" and actual != expected:
                 return False
