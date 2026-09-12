@@ -1,0 +1,65 @@
+name: Phase56 wiring patch
+
+on:
+  push:
+    branches:
+      - feat/phase-5-6-offer-excellence-continuous-agent
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-5-6-offer-excellence-continuous-agent
+      - name: Apply idempotent wiring
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          profiles = Path('services/workers/src/services/prospecting/default_profiles.py')
+          text = profiles.read_text()
+          marker = '    from services.prospecting.phase5_profiles import register_phase5_profiles\n'
+          if marker not in text:
+              needle = '    from services.prospecting.offer_profile_validator import validate_registry\n'
+              replacement = (
+                  '    from services.prospecting.phase5_profiles import register_phase5_profiles\n'
+                  '    register_phase5_profiles(registry)\n\n'
+                  + needle
+              )
+              if needle not in text:
+                  raise SystemExit('default_profiles wiring anchor not found')
+              profiles.write_text(text.replace(needle, replacement, 1))
+
+          registry = Path('services/workers/src/services/signal_registry.py')
+          text = registry.read_text()
+          constant_anchor = '    ONLINE_ONLY_RESALE = "ONLINE_ONLY_RESALE"\n'
+          if '    MANUAL_PROCESS = "MANUAL_PROCESS"\n' not in text:
+              constants = '''    MANUAL_PROCESS = "MANUAL_PROCESS"\n    MULTI_UNIT = "MULTI_UNIT"\n    USES_SPREADSHEETS = "USES_SPREADSHEETS"\n    SAAS_LIMITATION = "SAAS_LIMITATION"\n    VERY_SMALL_LOW_COMPLEXITY = "VERY_SMALL_LOW_COMPLEXITY"\n    HIRING_OPERATIONS = "HIRING_OPERATIONS"\n    HIRING_IT = "HIRING_IT"\n    NEW_PRODUCT = "NEW_PRODUCT"\n    PROTOTYPE = "PROTOTYPE"\n    R_AND_D = "R_AND_D"\n    CUSTOM_PARTS = "CUSTOM_PARTS"\n    USINAGEM = "USINAGEM"\n    CUSTOM_MANUFACTURING = "CUSTOM_MANUFACTURING"\n    EVENT_SCHEDULED = "EVENT_SCHEDULED"\n    SEASONAL_DEMAND = "SEASONAL_DEMAND"\n    CUSTOM_PRODUCTS = "CUSTOM_PRODUCTS"\n    HAS_PRODUCTION_LINE = "HAS_PRODUCTION_LINE"\n    CUSTOM_MACHINERY = "CUSTOM_MACHINERY"\n    AUTOMATION = "AUTOMATION"\n    EXPANDING_FACTORY = "EXPANDING_FACTORY"\n    HIRING_MECHANICAL_ENGINEER = "HIRING_MECHANICAL_ENGINEER"\n    REPLACEMENT_PARTS = "REPLACEMENT_PARTS"\n    REVERSE_ENGINEERING = "REVERSE_ENGINEERING"\n    MACHINE_MANUFACTURER = "MACHINE_MANUFACTURER"\n    NR12 = "NR12"\n    INDUSTRIAL_SAFETY = "INDUSTRIAL_SAFETY"\n    TECHNICAL_DOCUMENTATION = "TECHNICAL_DOCUMENTATION"\n    NEW_MACHINE = "NEW_MACHINE"\n    HAS_ADS = "HAS_ADS"\n    WEAK_CTA = "WEAK_CTA"\n    NO_CONTACT_FORM = "NO_CONTACT_FORM"\n    WEAK_CONVERSION_FLOW = "WEAK_CONVERSION_FLOW"\n'''
+              if constant_anchor not in text:
+                  raise SystemExit('signal constants anchor not found')
+              text = text.replace(constant_anchor, constant_anchor + constants, 1)
+
+          registry_anchor = '''    SignalKey.ONLINE_ONLY_RESALE: {\n        "type": "bool", "description": "revenda exclusivamente online"},\n}'''
+          if 'SignalKey.MANUAL_PROCESS:' not in text:
+              entries = '''    SignalKey.ONLINE_ONLY_RESALE: {\n        "type": "bool", "description": "revenda exclusivamente online"},\n    SignalKey.MANUAL_PROCESS: {"type": "bool", "description": "processo operacional manual ou repetitivo"},\n    SignalKey.MULTI_UNIT: {"type": "bool", "description": "opera múltiplas unidades ou filiais"},\n    SignalKey.USES_SPREADSHEETS: {"type": "bool", "description": "uso relevante de planilhas na operação"},\n    SignalKey.SAAS_LIMITATION: {"type": "bool", "description": "limitação observada ou declarada do SaaS atual"},\n    SignalKey.VERY_SMALL_LOW_COMPLEXITY: {"type": "bool", "description": "operação pequena e de baixa complexidade"},\n    SignalKey.HIRING_OPERATIONS: {"type": "bool", "description": "contratação ativa para operações"},\n    SignalKey.HIRING_IT: {"type": "bool", "description": "contratação ativa para tecnologia/TI"},\n    SignalKey.NEW_PRODUCT: {"type": "bool", "description": "lançamento ou desenvolvimento de novo produto"},\n    SignalKey.PROTOTYPE: {"type": "bool", "description": "atividade de prototipagem observada"},\n    SignalKey.R_AND_D: {"type": "bool", "description": "atividade de pesquisa e desenvolvimento"},\n    SignalKey.CUSTOM_PARTS: {"type": "bool", "description": "necessidade ou produção de peças customizadas"},\n    SignalKey.USINAGEM: {"type": "bool", "description": "atividade de usinagem"},\n    SignalKey.CUSTOM_MANUFACTURING: {"type": "bool", "description": "manufatura sob encomenda"},\n    SignalKey.EVENT_SCHEDULED: {"type": "bool", "description": "evento futuro com data observada"},\n    SignalKey.SEASONAL_DEMAND: {"type": "bool", "description": "demanda sazonal recorrente"},\n    SignalKey.CUSTOM_PRODUCTS: {"type": "bool", "description": "demanda por produtos personalizados"},\n    SignalKey.HAS_PRODUCTION_LINE: {"type": "bool", "description": "opera linha de produção"},\n    SignalKey.CUSTOM_MACHINERY: {"type": "bool", "description": "opera ou demanda máquinas customizadas"},\n    SignalKey.AUTOMATION: {"type": "bool", "description": "sinal de automação industrial"},\n    SignalKey.EXPANDING_FACTORY: {"type": "bool", "description": "expansão física de planta/fábrica"},\n    SignalKey.HIRING_MECHANICAL_ENGINEER: {"type": "bool", "description": "contratação de engenharia mecânica"},\n    SignalKey.REPLACEMENT_PARTS: {"type": "bool", "description": "demanda por peças de reposição"},\n    SignalKey.REVERSE_ENGINEERING: {"type": "bool", "description": "necessidade de engenharia reversa"},\n    SignalKey.MACHINE_MANUFACTURER: {"type": "bool", "description": "fabricante de máquinas ou equipamentos"},\n    SignalKey.NR12: {"type": "bool", "description": "necessidade ou contexto de conformidade NR-12"},\n    SignalKey.INDUSTRIAL_SAFETY: {"type": "bool", "description": "sinal de segurança industrial"},\n    SignalKey.TECHNICAL_DOCUMENTATION: {"type": "bool", "description": "necessidade de documentação técnica"},\n    SignalKey.NEW_MACHINE: {"type": "bool", "description": "máquina nova ou comissionamento recente"},\n    SignalKey.HAS_ADS: {"type": "bool", "description": "atividade de mídia paga detectada"},\n    SignalKey.WEAK_CTA: {"type": "bool", "description": "call-to-action fraco ou ausente"},\n    SignalKey.NO_CONTACT_FORM: {"type": "bool", "description": "site sem formulário de contato/conversão"},\n    SignalKey.WEAK_CONVERSION_FLOW: {"type": "bool", "description": "fluxo de conversão digital fraco"},\n}'''
+              if registry_anchor not in text:
+                  raise SystemExit('signal registry anchor not found')
+              text = text.replace(registry_anchor, entries, 1)
+          registry.write_text(text)
+          PY
+      - name: Commit wiring
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/workers/src/services/prospecting/default_profiles.py services/workers/src/services/signal_registry.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "feat(offers): integra perfis e sinais avançados"
+          git push
