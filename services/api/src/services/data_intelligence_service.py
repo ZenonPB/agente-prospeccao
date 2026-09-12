@@ -163,13 +163,8 @@ class DataIntelligenceService:
                 },
             }
             lead.score_vector = {**existing_vector, **vector}
-            timestamps = lead.enrichment_timestamps if isinstance(lead.enrichment_timestamps, dict) else {}
-            now_iso = result["generated_at"]
-            lead.enrichment_timestamps = {
-                **timestamps,
-                "technographics": now_iso,
-                "intent": now_iso,
-            }
+            # Recomputar inteligência não renova a idade da evidência. Freshness
+            # só muda quando um collector/enricher observa informação nova.
             self.db.add(lead)
             self.db.commit()
             self.db.refresh(lead)
