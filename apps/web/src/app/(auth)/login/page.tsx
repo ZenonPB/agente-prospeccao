@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { signIn, getSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { setAccessToken } from '@/lib/api';
+import { resolveSafeCallbackUrl } from '@/lib/safe-redirect';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import { AuthShell } from '@/components/auth/auth-shell';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,12 +38,12 @@ export default function LoginPage() {
         return;
       }
 
-      // Cache do token para evitar getSession() em toda requisição
       const session = await getSession();
       const token = (session as { accessToken?: string } | null)?.accessToken;
       if (token) setAccessToken(token);
 
-      router.push('/dashboard');
+      router.replace(resolveSafeCallbackUrl(searchParams.get('callbackUrl')));
+      router.refresh();
     } catch {
       setError('Erro ao fazer login. Tente novamente.');
       setLoading(false);
@@ -66,6 +68,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -77,6 +80,7 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -90,7 +94,7 @@ export default function LoginPage() {
             </div>
 
             {error && (
-              <p className="text-sm text-red-500">{error}</p>
+              <p className="text-sm text-red-500" role="alert" aria-live="polite">{error}</p>
             )}
 
             <Button type="submit" className="h-12 w-full text-base" disabled={loading}>

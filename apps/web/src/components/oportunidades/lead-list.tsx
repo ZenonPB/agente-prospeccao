@@ -6,12 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, AlertCircle, RefreshCw, CheckCheck, X, Download, UserPlus, User, Target } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Search, AlertCircle, RefreshCw, CheckCheck, X, Download, UserPlus, User, Target, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import {
   useInfiniteLeads, useCampaigns, useAssignLead, useUpdateLeadStatus,
-  useOrgMembership, useOrgMembers,
+  useOrgMembership, useOrgMembers, useMarkLost, LOST_REASON_OPTIONS,
+  type LostReasonOption,
 } from '@/hooks/use-api';
 import type { Lead } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -64,6 +66,21 @@ const bulkStatusOptions = [
   { value: 'PERDIDO', label: 'Marcar como perdido' },
 ];
 
+const lostReasonLabels: Record<LostReasonOption, string> = {
+  PRECO: 'Preço / orçamento',
+  PRAZO: 'Prazo',
+  NAO_RESPONDEU: 'Sem resposta',
+  CONCORRENTE: 'Fechou com concorrente',
+  OUTRO: 'Outro motivo',
+};
+
+function escapeCsvCell(value: unknown): string {
+  let text = String(value ?? '');
+  // Evita formula injection ao abrir o CSV em Excel/Sheets.
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
 function exportSelectedCsv(leads: Lead[], name: string) {
   const headers = [
     'Empresa', 'Website', 'Telefone', 'WhatsApp', 'Email', 'Cidade', 'UF',
@@ -81,7 +98,9 @@ function exportSelectedCsv(leads: Lead[], name: string) {
     lead.qualification_score ?? '',
     lead.priority ?? '',
   ]);
-  const csv = [headers.join(';'), ...rows.map((r) => r.join(';'))].join('\n');
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(';'))
+    .join('\n');
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -128,6 +147,7 @@ export function LeadList() {
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const assignLead = useAssignLead();
   const updateStatus = useUpdateLeadStatus();
+  const markLost = useMarkLost();
   const { data: membership } = useOrgMembership();
   const orgId = membership?.organization?.id;
   const myRole = membership?.membership?.role;
@@ -144,8 +164,10 @@ export function LeadList() {
   const [priorityFilter, setPriorityFilter] = useState<string | undefined>(undefined);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const [myLeadsOnly, setMyLeadsOnly] = useState<boolean>(false);
+  const [bulkLostOpen, setBulkLostOpen] = useState(false);
+  const [bulkLostReason, setBulkLostReason] = useState<LostReasonOption>('NAO_RESPONDEU');
+  const [bulkActionPending, setBulkActionPending] = useState(false);
 
-  // Quick preset handler
   const handlePreset = (preset: 'all' | 'hot' | 'qualified' | 'my_leads') => {
     setPresetFilter(preset);
     if (preset === 'hot') {
@@ -171,7 +193,6 @@ export function LeadList() {
     }
   };
 
-  // Debounce (300ms) para não disparar uma query por tecla digitada (item 4.9).
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(t);
@@ -180,9 +201,6 @@ export function LeadList() {
   const { data: campaignsData } = useCampaigns();
   const campaigns = campaignsData?.campaigns || [];
 
-  // Paginação server-side (item 4.16): `useInfiniteLeads` busca 50 por vez e
-  // acumula as páginas via useInfiniteQuery — o "Carregar mais" chama
-  // `fetchNextPage` e anexa a próxima leva.
   const {
     data, isLoading, isError, error, refetch,
     fetchNextPage, hasNextPage, isFetchingNextPage,
@@ -192,7 +210,7 @@ export function LeadList() {
     min_score: minScoreFilter,
     priority: priorityFilter,
     status: statusFilter,
-    assigned: myLeadsOnly && currentUserId ? currentUserId : undefined,
+    assigned: myLeadsOnly ? 'me' : undefined,
   });
 
   const leads = data?.pages.flatMap((p) => p.leads) ?? [];
@@ -200,10 +218,6 @@ export function LeadList() {
   const hasMore = hasNextPage ?? false;
   const loadingMore = isFetchingNextPage;
 
-  // Ordem do servidor (aptidão desc, válida para o total). Sem re-ordenação
-  // client-side: ela só reordenaria a página carregada e confundiria o total.
-  // No preset "Quentes", garante o filtro por prioridade mesmo se o servidor
-  // ainda não filtrar (fallback: lead sem prioridade usa nota >= 80).
   const visibleLeads = presetFilter === 'hot'
     ? leads.filter((l) => (l.priority ? l.priority === 'HOT' : (l.qualification_score ?? 0) >= 80))
     : leads;
@@ -251,21 +265,61 @@ export function LeadList() {
     );
   };
 
-  const bulkStatus = (status: string) => {
-    runBulk((id) =>
-      updateStatus.mutate(
-        { id, status },
-        {
-          onError: () => toast.error('Falha ao atualizar status.'),
-        }
-      )
-    );
-    toast.success(`${selectedLeads.length} lead(s) movido(s) para "${statusLabels[status] || status}".`);
+  const bulkStatus = async (status: string) => {
+    if (status === 'PERDIDO') {
+      setBulkLostReason('NAO_RESPONDEU');
+      setBulkLostOpen(true);
+      return;
+    }
+
+    const targets = [...selectedLeads];
+    if (targets.length === 0 || bulkActionPending) return;
+    setBulkActionPending(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map((lead) => updateStatus.mutateAsync({ id: lead.id, status })),
+      );
+      const failedIds = targets
+        .filter((_, index) => results[index].status === 'rejected')
+        .map((lead) => lead.id);
+      const successCount = targets.length - failedIds.length;
+      setSelected(new Set(failedIds));
+      if (successCount > 0) {
+        toast.success(`${successCount} lead(s) movido(s) para "${statusLabels[status] || status}".`);
+      }
+      if (failedIds.length > 0) {
+        toast.error(`${failedIds.length} lead(s) não puderam ser atualizados. Eles continuam selecionados.`);
+      }
+    } finally {
+      setBulkActionPending(false);
+    }
+  };
+
+  const confirmBulkLost = async () => {
+    const targets = [...selectedLeads];
+    if (targets.length === 0 || bulkActionPending) return;
+    setBulkActionPending(true);
+    try {
+      const results = await Promise.allSettled(
+        targets.map((lead) => markLost.mutateAsync({ id: lead.id, lost_reason: bulkLostReason })),
+      );
+      const failedIds = targets
+        .filter((_, index) => results[index].status === 'rejected')
+        .map((lead) => lead.id);
+      const successCount = targets.length - failedIds.length;
+      setSelected(new Set(failedIds));
+      setBulkLostOpen(false);
+      if (successCount > 0) toast.success(`${successCount} lead(s) marcado(s) como perdido(s).`);
+      if (failedIds.length > 0) {
+        toast.error(`${failedIds.length} lead(s) falharam e continuam selecionados para nova tentativa.`);
+      }
+    } finally {
+      setBulkActionPending(false);
+    }
   };
 
   return (
     <div className="space-y-4" data-tour="oportunidades-lista">
-      {/* Presets Rápidos */}
       <div data-tour="oportunidades-filtros" className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mr-1">
           Filtros Rápidos:
@@ -351,14 +405,14 @@ export function LeadList() {
             size="sm"
             className="h-9 sm:h-8"
             onClick={() => bulkAssign(currentUserId!, 'você')}
-            disabled={!currentUserId}
+            disabled={!currentUserId || bulkActionPending}
           >
             <UserPlus className="mr-1.5 h-3.5 w-3.5" />
             Atribuir a mim
           </Button>
           {canAssignOthers && (
             <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-9 sm:h-8" />}>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" className="h-9 sm:h-8" disabled={bulkActionPending} />}>
                 <User className="mr-1.5 h-3.5 w-3.5" />
                 Atribuir para
               </DropdownMenuTrigger>
@@ -378,7 +432,7 @@ export function LeadList() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Select onValueChange={(v) => v && bulkStatus(v as string)}>
+          <Select onValueChange={(v) => { if (v) void bulkStatus(v as string); }} disabled={bulkActionPending}>
             <SelectTrigger className="h-9 w-auto sm:h-8">
               <SelectValue>
                 {(value) => bulkStatusOptions.find((o) => o.value === value)?.label ?? 'Mover para...'}
@@ -398,11 +452,12 @@ export function LeadList() {
               exportSelectedCsv(selectedLeads, 'leads-selecionados.csv');
               clearSelection();
             }}
+            disabled={bulkActionPending}
           >
             <Download className="mr-1.5 h-3.5 w-3.5" />
             Exportar CSV
           </Button>
-          <Button variant="ghost" size="sm" className="h-9 sm:h-8" onClick={clearSelection}>
+          <Button variant="ghost" size="sm" className="h-9 sm:h-8" onClick={clearSelection} disabled={bulkActionPending}>
             <X className="mr-1.5 h-3.5 w-3.5" />
             Limpar
           </Button>
@@ -434,8 +489,15 @@ export function LeadList() {
       ) : sortedLeads.length === 0 ? (
         <EmptyState
           icon={<Target className="h-5 w-5" aria-hidden="true" />}
-          title="Nenhum lead encontrado"
-          description="Nenhuma oportunidade atende aos filtros selecionados. Tente ajustar a busca ou os status."
+          title={myLeadsOnly ? 'Nenhum lead atribuído a você' : 'Nenhum lead encontrado'}
+          description={myLeadsOnly
+            ? 'Sua carteira está vazia com os filtros atuais. Veja todos os leads ou peça uma atribuição ao gestor.'
+            : 'Nenhuma oportunidade atende aos filtros selecionados. Tente ajustar a busca ou os status.'}
+          action={myLeadsOnly ? (
+            <Button variant="outline" size="sm" onClick={() => handlePreset('all')}>
+              Ver todos os leads
+            </Button>
+          ) : undefined}
         />
       ) : (
         <>
@@ -463,7 +525,7 @@ export function LeadList() {
                     }`}
                   >
                     <CardHeader className="pb-3">
-<div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="flex min-w-0 items-start gap-2 pr-2">
                           <input
                             type="checkbox"
@@ -541,6 +603,47 @@ export function LeadList() {
           )}
         </>
       )}
+
+      <Dialog
+        open={bulkLostOpen}
+        onOpenChange={(open) => {
+          if (!bulkActionPending) setBulkLostOpen(open);
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle>Marcar {selectedLeads.length} lead(s) como perdido(s)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              A perda é um resultado comercial e exige motivo. O mesmo motivo será aplicado a todos os leads selecionados.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="bulkLostReason" className="text-sm font-medium">Motivo da perda</label>
+              <select
+                id="bulkLostReason"
+                value={bulkLostReason}
+                onChange={(event) => setBulkLostReason(event.target.value as LostReasonOption)}
+                className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                disabled={bulkActionPending}
+              >
+                {LOST_REASON_OPTIONS.map((reason) => (
+                  <option key={reason} value={reason}>{lostReasonLabels[reason]}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-11" onClick={() => setBulkLostOpen(false)} disabled={bulkActionPending}>
+              Cancelar
+            </Button>
+            <Button className="h-11" onClick={() => void confirmBulkLost()} disabled={bulkActionPending || selectedLeads.length === 0}>
+              {bulkActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Confirmar perda
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

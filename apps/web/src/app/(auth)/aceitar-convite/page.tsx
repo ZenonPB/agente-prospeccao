@@ -10,6 +10,7 @@ import { Loader2, CheckCircle2, XCircle, Building2, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useAcceptInvite, useCheckInvite, useAcceptRegister } from '@/hooks/use-api';
 import { setAccessToken } from '@/lib/api';
+import { resolveSafeCallbackUrl } from '@/lib/safe-redirect';
 import { AuthShell } from '@/components/auth/auth-shell';
 
 export default function AcceptInvitePage(props: { searchParams: Promise<{ token?: string }> }) {
@@ -28,10 +29,8 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
 
   const invite = check.data;
 
-  // Sem token → link inválido.
   if (!token) return invalidCard('Link inválido', 'O link de convite não contém um token válido.');
 
-  // Resolvendo convite.
   if (check.isLoading || status === 'loading') {
     return loadingCard('Verificando convite...');
   }
@@ -43,7 +42,6 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
 
   if (!invite) return null;
 
-  // Já aceito.
   if (invite.accepted) {
     return successCard(invite.organization?.name || 'Organização', false);
   }
@@ -51,9 +49,11 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
     return invalidCard('Convite expirado', 'Este convite expirou e não pode mais ser aceito.');
   }
 
-  const callbackUrl = encodeURIComponent(`/aceitar-convite?token=${token}`);
+  const invitePath = resolveSafeCallbackUrl(
+    `/aceitar-convite?token=${encodeURIComponent(token)}`,
+  );
+  const loginHref = `/login?callbackUrl=${encodeURIComponent(invitePath)}`;
 
-  // Usuário autenticado.
   if (session) {
     if ((session.user?.email || '').toLowerCase() !== invite.email.toLowerCase()) {
       return (
@@ -68,7 +68,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-center">
-              <Link href={`/api/auth/signout?callbackUrl=${encodeURIComponent('/login')}`}>
+              <Link href={`/api/auth/signout?callbackUrl=${encodeURIComponent(loginHref)}`}>
                 <Button variant="outline" className="h-11 w-full">Trocar de conta</Button>
               </Link>
               <Link href="/dashboard">
@@ -118,12 +118,10 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
     );
   }
 
-  // Não autenticado.
   if (acceptRegister.isSuccess || done?.viaRegister) {
     return successCard(done?.orgName || invite.organization?.name || 'Organização', true);
   }
 
-  // Já existe conta → pedir login.
   if (invite.has_account) {
     return (
       <AuthShell>
@@ -136,7 +134,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-center">
-            <Link href={`/login?callbackUrl=${callbackUrl}`}>
+            <Link href={loginHref}>
               <Button className="h-11 w-full">Fazer login</Button>
             </Link>
           </CardContent>
@@ -145,7 +143,6 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
     );
   }
 
-  // Sem conta → cadastro no mesmo fluxo.
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -186,7 +183,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="invite-name">Nome</Label>
-              <Input id="invite-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" required />
+              <Input id="invite-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="invite-email">E-mail</Label>
@@ -197,6 +194,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
               <Input
                 id="invite-password"
                 type="password"
+                autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Mínimo 8 caracteres"
@@ -204,7 +202,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
                 required
               />
             </div>
-            {formError && <p className="text-sm text-red-500">{formError}</p>}
+            {formError && <p className="text-sm text-red-500" role="alert" aria-live="polite">{formError}</p>}
             <Button type="submit" className="h-11 w-full" disabled={acceptRegister.isPending}>
               {acceptRegister.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
               Criar conta e aceitar convite
@@ -212,7 +210,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Já tem conta?{' '}
-            <Link href={`/login?callbackUrl=${callbackUrl}`} className="font-medium text-primary hover:underline">
+            <Link href={loginHref} className="font-medium text-primary hover:underline">
               Faça login
             </Link>
           </p>
@@ -265,13 +263,13 @@ function successCard(orgName: string, viaRegister = false) {
           </CardTitle>
           <CardDescription>
             {viaRegister
-              ? `Você criou sua conta e já faz parte de ` 
-              : `Você agora é membro de `}
+              ? 'Você criou sua conta e já faz parte de '
+              : 'Você agora é membro de '}
             <strong>{orgName}</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-center">
-            <Button className="h-11 w-full" onClick={() => (window.location.href = '/dashboard')}>
+          <Button className="h-11 w-full" onClick={() => (window.location.href = '/dashboard')}>
             Ir para o painel
           </Button>
         </CardContent>
