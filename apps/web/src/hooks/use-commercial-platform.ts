@@ -1,0 +1,50 @@
+'use client';
+
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { commercialPlatformApi, type CRMProvider, type CRMSyncMode } from '@/lib/commercial-platform-api';
+
+const keys = {
+  connections: ['commercial-platform', 'connections'] as const,
+  runs: ['commercial-platform', 'sync-runs'] as const,
+  intelligence: ['commercial-platform', 'intelligence'] as const,
+};
+
+export function useCRMConnections() {
+  return useQuery({ queryKey: keys.connections, queryFn: commercialPlatformApi.connections, staleTime: 30_000 });
+}
+
+export function useSaveCRMConnection() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { provider: CRMProvider; sync_mode: CRMSyncMode; token?: string; base_url?: string; enabled: boolean }) => commercialPlatformApi.saveConnection(body),
+    onSuccess: async () => client.invalidateQueries({ queryKey: keys.connections }),
+  });
+}
+
+export function useCRMHealth() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: commercialPlatformApi.health,
+    onSuccess: async () => client.invalidateQueries({ queryKey: keys.connections }),
+  });
+}
+
+export function usePullCRMChanges() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: commercialPlatformApi.pull,
+    onSuccess: async () => Promise.all([
+      client.invalidateQueries({ queryKey: keys.connections }),
+      client.invalidateQueries({ queryKey: keys.runs }),
+      client.invalidateQueries({ queryKey: keys.intelligence }),
+    ]),
+  });
+}
+
+export function useCRMSyncRuns() {
+  return useQuery({ queryKey: keys.runs, queryFn: commercialPlatformApi.syncRuns, staleTime: 15_000 });
+}
+
+export function useCommercialIntelligence() {
+  return useQuery({ queryKey: keys.intelligence, queryFn: commercialPlatformApi.intelligence, staleTime: 60_000 });
+}
