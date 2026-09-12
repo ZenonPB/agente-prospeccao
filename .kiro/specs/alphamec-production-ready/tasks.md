@@ -152,7 +152,7 @@ Restrições verificadas no repositório antes deste plano:
     - _Requirements: 5.5, 21.1_
     - _Properties: P10, P11, P13_
 
-  - [~] 5.2 Exigir o motivo no schema de atualização de status
+  - [-] 5.2 Exigir o motivo no schema de atualização de status
     - Em `services/api/src/routes/leads.py`, adicionar `model_validator(mode="after")` em `UpdateLeadStatusRequest` que rejeita `status=PERDIDO` com `lost_reason` nulo
     - Confirmar que a rejeição ocorre antes de qualquer acesso ao banco
     - _Requirements: 5.1_
