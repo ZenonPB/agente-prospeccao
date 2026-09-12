@@ -37,7 +37,7 @@ import {
 } from '@/hooks/use-prospecting-automation';
 import { filterLabel, filterValueLabel } from '@/lib/commercial-labels';
 import { OFFER_PROFILE_OPTIONS, offerProfileLabel } from '@/lib/offers';
-import type { AgentState, ProspectingAlert } from '@/lib/prospecting-automation-api';
+import type { AgentState, ProspectingAlert, SavedSearchFilters } from '@/lib/prospecting-automation-api';
 
 const STATE_LABELS: Record<AgentState, string> = {
   DISCOVERED: 'Novo no radar',
@@ -68,7 +68,7 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function filtersSummary(filters: Record<string, unknown>) {
+function filtersSummary(filters: SavedSearchFilters) {
   const entries = Object.entries(filters);
   if (!entries.length) return 'Sem filtros adicionais';
   return entries.map(([key, value]) => `${filterLabel(key)}: ${filterValueLabel(key, value)}`).join(' · ');
@@ -129,7 +129,7 @@ export function ProspectingRadar() {
         notification_policy: { create_alert: true },
       });
       setName('');
-      toast.success('Busca salva. Você pode executá-la agora usando apenas os dados já disponíveis.');
+      toast.success('Busca salva criada. Ela pode ser executada sem consultar fontes externas.');
     } catch (error) {
       toast.error(errorMessage(error, 'Não foi possível salvar a busca.'));
     }
@@ -138,7 +138,7 @@ export function ProspectingRadar() {
   async function executeSavedSearch(id: string) {
     try {
       const result = await runSearch.mutateAsync(id);
-      toast.success(`${result.matches.length} resultado${result.matches.length === 1 ? '' : 's'} compatível${result.matches.length === 1 ? '' : 'eis'} · ${result.created_alerts} novo${result.created_alerts === 1 ? '' : 's'} alerta${result.created_alerts === 1 ? '' : 's'}.`);
+      toast.success(`${result.matches.length} resultado(s) encontrado(s) · ${result.created_alerts} novo(s) alerta(s).`);
     } catch (error) {
       toast.error(errorMessage(error, 'Não foi possível executar a busca.'));
     }
@@ -148,14 +148,10 @@ export function ProspectingRadar() {
     try {
       const result = await runWatch.mutateAsync();
       if (result.status === 'disabled') {
-        toast.info('O monitoramento por fontes externas está desativado para esta organização.');
+        toast.info('Monitoramento externo desativado neste workspace. Nenhuma fonte externa foi consultada.');
         return;
       }
-      if (result.status === 'quota_exceeded') {
-        toast.info('O limite de consultas desta organização foi atingido hoje.');
-        return;
-      }
-      toast.success(`Monitoramento concluído: ${result.processed} oportunidade${result.processed === 1 ? '' : 's'} revisada${result.processed === 1 ? '' : 's'}, ${result.changed} com novidade${result.changed === 1 ? '' : 'es'}.`);
+      toast.success(`Monitoramento concluído: ${result.processed} lead(s), ${result.changed} alteração(ões).`);
     } catch (error) {
       toast.error(errorMessage(error, 'Não foi possível executar o monitoramento.'));
     }
@@ -164,9 +160,9 @@ export function ProspectingRadar() {
   async function materializeEventSeries() {
     try {
       const result = await refreshSeries.mutateAsync();
-      toast.success(`${result.series} série${result.series === 1 ? '' : 's'} de evento analisada${result.series === 1 ? '' : 's'} · ${result.rebuy_alerts_created} alerta${result.rebuy_alerts_created === 1 ? '' : 's'} de recompra.`);
+      toast.success(`${result.series} série(s) analisada(s) · ${result.rebuy_alerts_created} alerta(s) de recompra criado(s).`);
     } catch (error) {
-      toast.error(errorMessage(error, 'Não foi possível atualizar as recorrências.'));
+      toast.error(errorMessage(error, 'Não foi possível atualizar recorrências.'));
     }
   }
 
@@ -174,9 +170,9 @@ export function ProspectingRadar() {
     try {
       const result = await refreshStates.mutateAsync();
       const total = Object.values(result.states).reduce((sum, value) => sum + value, 0);
-      toast.success(`Situação comercial atualizada para ${total} oportunidade${total === 1 ? '' : 's'}.`);
+      toast.success(`Estado operacional recalculado para ${total} lead(s).`);
     } catch (error) {
-      toast.error(errorMessage(error, 'Não foi possível atualizar a situação das oportunidades.'));
+      toast.error(errorMessage(error, 'Não foi possível atualizar o estado do agente.'));
     }
   }
 
@@ -192,7 +188,7 @@ export function ProspectingRadar() {
     return (
       <div className="flex min-h-64 items-center justify-center" role="status" aria-live="polite">
         <Loader2 className="size-5 animate-spin" aria-hidden="true" />
-        <span className="ml-2 text-sm text-muted-foreground">Carregando o radar comercial...</span>
+        <span className="ml-2 text-sm text-muted-foreground">Carregando radar comercial...</span>
       </div>
     );
   }
@@ -211,11 +207,23 @@ export function ProspectingRadar() {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do radar comercial">
-        <SummaryCard label="Buscas salvas" value={saved.data?.items.length ?? 0} description="Filtros que você pode reutilizar sem refazer a configuração." />
-        <SummaryCard label="Alertas novos" value={unreadAlerts} description="Novos resultados e oportunidades de recompra ainda não revisados." />
-        <SummaryCard label="Séries de eventos" value={series.data?.items.length ?? 0} description="Eventos recorrentes identificados a partir do histórico." />
-        <SummaryCard label="Prontos para contato" value={agentCounts.get('READY_FOR_CONTACT') ?? 0} description="Oportunidades com informação suficiente para uma abordagem." />
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do radar">
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Buscas salvas</CardDescription><CardTitle className="text-3xl">{saved.data?.items.length ?? 0}</CardTitle></CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Critérios reutilizáveis e isolados por workspace.</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Alertas novos</CardDescription><CardTitle className="text-3xl">{unreadAlerts}</CardTitle></CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Oportunidades e janelas de recompra ainda não revisadas.</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Séries de eventos</CardDescription><CardTitle className="text-3xl">{series.data?.items.length ?? 0}</CardTitle></CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Recorrência estimada somente a partir do histórico observado.</CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardDescription>Prontos para contato</CardDescription><CardTitle className="text-3xl">{agentCounts.get('READY_FOR_CONTACT') ?? 0}</CardTitle></CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Leads com oportunidade, contato e próxima ação disponíveis.</CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.05fr_1.35fr]" aria-labelledby="saved-searches-heading">
@@ -234,7 +242,7 @@ export function ProspectingRadar() {
                 <div className="space-y-2"><Label htmlFor="search-query">Empresa ou termo</Label><Input id="search-query" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Metalúrgica" /></div>
                 <div className="space-y-2">
                   <Label htmlFor="offer-key">Oferta</Label>
-                  <Select value={offerKey || 'any'} onValueChange={(value) => setOfferKey(value === 'any' ? '' : value)}>
+                  <Select value={offerKey || 'any'} onValueChange={(value) => setOfferKey(value === 'any' || value == null ? '' : value)}>
                     <SelectTrigger id="offer-key" className="w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Qualquer oferta</SelectItem>
@@ -289,15 +297,15 @@ export function ProspectingRadar() {
 
       <section className="grid gap-6 xl:grid-cols-2" aria-label="Alertas e recorrência">
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><BellRing className="size-5" aria-hidden="true" />Alertas comerciais</CardTitle><CardDescription>Resultados repetidos são agrupados para evitar notificações desnecessárias.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><BellRing className="size-5" aria-hidden="true" />Alertas comerciais</CardTitle><CardDescription>Resultados repetidos são agrupados para reduzir ruído operacional.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
-            {(alerts.data?.items.length ?? 0) === 0 ? <EmptyState title="Nenhum alerta" description="Execute uma busca salva ou atualize eventos recorrentes para começar a receber alertas." /> : alerts.data?.items.slice(0, 12).map((alert) => (
+            {(alerts.data?.items.length ?? 0) === 0 ? <EmptyState title="Nenhum alerta" description="Execute uma busca salva ou atualize eventos recorrentes para gerar alertas fundamentados." /> : alerts.data?.items.slice(0, 12).map((alert) => (
               <article key={alert.id} className="rounded-xl border p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{alert.title}</h3><Badge variant={alert.status === 'new' ? 'default' : 'outline'}>{ALERT_STATUS_LABELS[alert.status] ?? 'Revisado'}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><h3 className="font-medium">{alert.title}</h3><Badge variant={alert.status === 'new' ? 'default' : 'outline'}>{ALERT_STATUS_LABELS[alert.status] ?? 'Atualizado'}</Badge></div>
                     <p className="mt-1 text-sm text-muted-foreground">{alert.reason}</p>
-                    {typeof alert.score === 'number' ? <p className="mt-2 text-xs text-muted-foreground">Confiança: {Math.round(alert.score)}</p> : null}
+                    {typeof alert.score === 'number' ? <p className="mt-2 text-xs text-muted-foreground">Indicador de oportunidade: {Math.round(alert.score)}</p> : null}
                   </div>
                   {alert.status === 'new' ? <Button variant="ghost" size="sm" onClick={() => void setAlertStatus(alert, 'read')}>Marcar como revisado</Button> : null}
                 </div>
@@ -307,59 +315,40 @@ export function ProspectingRadar() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><CalendarClock className="size-5" aria-hidden="true" />Eventos recorrentes</CardTitle><CardDescription>O sistema usa somente o histórico observado para estimar quando um evento pode voltar a comprar.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><CalendarClock className="size-5" aria-hidden="true" />Eventos recorrentes</CardTitle><CardDescription>O histórico observado ajuda a estimar quando vale retomar uma oportunidade sazonal.</CardDescription></CardHeader>
           <CardContent className="space-y-3">
             <Button variant="outline" disabled={refreshSeries.isPending} onClick={() => void materializeEventSeries()}><RefreshCw className={refreshSeries.isPending ? 'size-4 animate-spin' : 'size-4'} aria-hidden="true" />Atualizar recorrências</Button>
-            {(series.data?.items.length ?? 0) === 0 ? <EmptyState title="Sem recorrências identificadas" description="Eventos repetidos com histórico consistente aparecerão aqui." /> : series.data?.items.slice(0, 10).map((item) => (
-              <article key={item.id} className="flex items-start justify-between gap-4 rounded-xl border p-4">
-                <div>
-                  <h3 className="font-medium">{item.name}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.family || 'Evento'} · confiança {Math.round(item.recurrence_confidence * 100)}%</p>
-                  {item.expected_next_window?.start ? <p className="mt-2 text-sm">Próxima janela provável: {item.expected_next_window.start} a {item.expected_next_window.end}</p> : null}
-                </div>
-                <ShieldCheck className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
-              </article>
+            {(series.data?.items.length ?? 0) === 0 ? <EmptyState title="Sem recorrências detectadas" description="Eventos repetidos com histórico compatível aparecerão aqui." /> : series.data?.items.slice(0, 10).map((item) => (
+              <article key={item.id} className="flex items-start justify-between gap-4 rounded-xl border p-4"><div><h3 className="font-medium">{item.name}</h3><p className="mt-1 text-xs text-muted-foreground">{item.family || 'Evento'} · confiança {Math.round(item.recurrence_confidence * 100)}%</p>{item.expected_next_window?.start ? <p className="mt-2 text-sm">Próxima janela: {item.expected_next_window.start} → {item.expected_next_window.end}</p> : null}</div><ShieldCheck className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /></article>
             ))}
           </CardContent>
         </Card>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]" aria-label="Situação e monitoramento">
+      <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]" aria-label="Estado operacional">
         <Card>
-          <CardHeader><CardTitle>Situação das oportunidades</CardTitle><CardDescription>Uma classificação ajuda a organizar o trabalho, mas não dispara contato automaticamente.</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Fila operacional</CardTitle><CardDescription>Classificação auditável para ajudar a equipe a decidir o próximo trabalho. Ela não executa contato comercial sozinha.</CardDescription></CardHeader>
           <CardContent>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(Object.keys(STATE_LABELS) as AgentState[]).map((key) => <div key={key} className="rounded-xl border p-4"><p className="text-sm text-muted-foreground">{STATE_LABELS[key]}</p><p className="mt-1 text-2xl font-semibold">{agentCounts.get(key) ?? 0}</p></div>)}
             </div>
-            <Button className="mt-4" variant="outline" disabled={refreshStates.isPending} onClick={() => void materializeAgentStates()}><RefreshCw className={refreshStates.isPending ? 'size-4 animate-spin' : 'size-4'} aria-hidden="true" />Atualizar situações</Button>
+            <Button className="mt-4" variant="outline" disabled={refreshStates.isPending} onClick={() => void materializeAgentStates()}><RefreshCw className={refreshStates.isPending ? 'size-4 animate-spin' : 'size-4'} aria-hidden="true" />Atualizar classificação</Button>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Radar className="size-5" aria-hidden="true" />Monitoramento por fontes externas</CardTitle><CardDescription>Consulta sinais novos apenas quando a organização habilita explicitamente cada fonte e possui limite disponível.</CardDescription></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">Executar agora antecipa somente o horário da verificação. As proteções de custo e uso continuam valendo.</div>
-            <Button onClick={() => void executeWatch()} disabled={runWatch.isPending}>{runWatch.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Radar className="size-4" aria-hidden="true" />}Verificar novidades agora</Button>
-          </CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Radar className="size-5" aria-hidden="true" />Atualização por fontes externas</CardTitle><CardDescription>Consulta manual protegida pelas permissões e limites configurados para este workspace.</CardDescription></CardHeader>
+          <CardContent className="space-y-4"><div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">Vagas, notícias e sinais sociais só são consultados quando a fonte estiver habilitada e houver cota disponível.</div><Button onClick={() => void executeWatch()} disabled={runWatch.isPending}>{runWatch.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Radar className="size-4" aria-hidden="true" />}Atualizar sinais agora</Button></CardContent>
         </Card>
       </section>
     </div>
   );
 }
 
-function SummaryCard({ label, value, description }: { label: string; value: number; description: string }) {
+function ToggleLine({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <Card>
-      <CardHeader className="pb-2"><CardDescription>{label}</CardDescription><CardTitle className="text-3xl">{value}</CardTitle></CardHeader>
-      <CardContent className="text-sm text-muted-foreground">{description}</CardContent>
-    </Card>
-  );
-}
-
-function ToggleLine({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <Label htmlFor={id}>{label}</Label>
+    <div className="flex items-center justify-between gap-3">
+      <Label htmlFor={id} className="font-normal">{label}</Label>
       <Switch id={id} checked={checked} onCheckedChange={(value) => onChange(value === true)} />
     </div>
   );
