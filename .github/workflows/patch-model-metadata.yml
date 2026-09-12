@@ -1,0 +1,60 @@
+name: Temporary model metadata patch
+
+on:
+  push:
+    branches:
+      - fix/alphamec-production-ready-completion
+
+permissions:
+  contents: write
+
+jobs:
+  patch-conversion-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/alphamec-production-ready-completion
+      - name: Patch Conversion metadata
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('services/workers/src/database/models.py')
+          text = path.read_text(encoding='utf-8')
+          if 'uq_conversions_lead_offer' in text:
+              print('Index already declared; nothing to do.')
+              raise SystemExit(0)
+
+          old = '''class Conversion(Base):
+              __tablename__ = "conversions"
+              __table_args__ = (
+                  Index("ix_conversions_lead_id", "lead_id"),
+              )'''
+          new = '''class Conversion(Base):
+              __tablename__ = "conversions"
+              __table_args__ = (
+                  Index("ix_conversions_lead_id", "lead_id"),
+                  Index(
+                      "uq_conversions_lead_offer",
+                      "lead_id",
+                      func.coalesce(text("offer_key"), "unknown"),
+                      unique=True,
+                  ),
+              )'''
+          if old not in text:
+              raise SystemExit('Expected Conversion block not found; refusing broad rewrite.')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit exact model change
+        shell: bash
+        run: |
+          if git diff --quiet -- services/workers/src/database/models.py; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/workers/src/database/models.py
+          git commit -m "fix(db): declara unicidade de conversão no modelo"
+          git push origin HEAD:fix/alphamec-production-ready-completion
