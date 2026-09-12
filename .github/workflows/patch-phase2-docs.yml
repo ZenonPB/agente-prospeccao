@@ -1,0 +1,93 @@
+name: Patch phase2 docs
+
+on:
+  push:
+    branches:
+      - feat/phase-2-company-people-search
+
+permissions:
+  contents: write
+
+jobs:
+  patch-docs:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-2-company-people-search
+      - name: Reconcile roadmap and context
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          roadmap = Path('docs/roadmap.md')
+          text = roadmap.read_text(encoding='utf-8')
+          replacements = {
+            '## 4.1 Advanced Company Search\n': '## 4.1 Advanced Company Search — ✅ operacional\n',
+            '## 4.2 Natural Language Search\n': '## 4.2 Natural Language Search — ✅ operacional\n',
+            '## 4.3 People Search\n': '## 4.3 People Search — ✅ operacional\n',
+            '## 4.7 ActionableContactScore\n': '## 4.7 ActionableContactScore — ✅ operacional\n',
+          }
+          for old, new in replacements.items():
+              if new not in text:
+                  if old not in text:
+                      raise SystemExit(f'roadmap anchor not found: {old!r}')
+                  text = text.replace(old, new, 1)
+
+          needle = 'Suportar `AND`, `OR`, `NOT`.\n'
+          paragraph = needle + '\n**Entregue na Fase 2:** DSL com allowlist, lógica ternária `MATCH`/`NO_MATCH`/`UNKNOWN`, limites de profundidade/payload e varredura tenant-aware limitada com sinalização de truncamento. A busca reutiliza `Company`, `CompanyRecord`, `Enrichment` e oportunidades sem disparar providers.\n'
+          if '**Entregue na Fase 2:** DSL com allowlist' not in text:
+              if needle not in text:
+                  raise SystemExit('company search paragraph anchor not found')
+              text = text.replace(needle, paragraph, 1)
+
+          needle = 'LLM apenas traduz linguagem natural para `SearchIntent` validado. Não chama provider diretamente.\n'
+          paragraph = needle + '\n**Entregue na Fase 2:** `POST /api/search/interpret` usa BYOK/quota já existentes, valida o JSON por Pydantic e exige revisão/execução explícita no frontend.\n'
+          if '**Entregue na Fase 2:** `POST /api/search/interpret`' not in text:
+              if needle not in text:
+                  raise SystemExit('nl search paragraph anchor not found')
+              text = text.replace(needle, paragraph, 1)
+
+          needle = '- LinkedIn.\n\n## 4.4 BuyerPersona'
+          paragraph = '- LinkedIn.\n\n**Entregue na Fase 2:** `POST /api/search/people` consulta `Person` canônica por workspace, aplica filtros comerciais e ordena resultados com `ActionableContactScore` explicável.\n\n## 4.4 BuyerPersona'
+          if '**Entregue na Fase 2:** `POST /api/search/people`' not in text:
+              if needle not in text:
+                  raise SystemExit('people search paragraph anchor not found')
+              text = text.replace(needle, paragraph, 1)
+
+          needle = 'Dimensões:\n`identity_confidence`, `role_fit`, `email_confidence`, `phone_confidence`, `freshness`, `routability`.\n'
+          paragraph = needle + '\n**Entregue na Fase 2:** score determinístico 0–100 com breakdown por dimensão, origem, estado `known`/`unknown` e cobertura; ausência de evidência não é convertida silenciosamente em fato negativo.\n'
+          if '**Entregue na Fase 2:** score determinístico 0–100' not in text:
+              if needle not in text:
+                  raise SystemExit('actionable score paragraph anchor not found')
+              text = text.replace(needle, paragraph, 1)
+          roadmap.write_text(text, encoding='utf-8')
+
+          context = Path('docs/context.md')
+          text = context.read_text(encoding='utf-8')
+          old_snapshot = '> **Snapshot:** 2026-09-10 · branch `feat/controlled-learning-aprovacao` ·\n> Alembic head `4a6b8c9d1e2f` (propostas de learning controlado pendentes de\n> publicação manual; matcher ponderado `matcher-v2`, narrativa de oportunidade\n> e golden patterns por oferta).'
+          new_snapshot = '> **Snapshot:** 2026-09-12 · branch `feat/phase-2-company-people-search` ·\n> foundation multi-workspace da Fase 1 integrada à `main`; Fase 2 adiciona Company Search,\n> People Search, interpretação de `SearchIntent` e `ActionableContactScore` sobre as entidades canônicas.\n> O Alembic head permanece `4a6b8c9d1e2f` porque esta fase não altera schema.'
+          if old_snapshot in text:
+              text = text.replace(old_snapshot, new_snapshot, 1)
+          elif new_snapshot not in text:
+              raise SystemExit('context snapshot anchor not found')
+
+          state_anchor = '## Estado atual\n\n'
+          state_note = state_anchor + '**Fase 2 — busca comercial:** Company Search e People Search operam sobre dados canônicos do workspace, com filtros tenant-aware, semântica ternária para dados ausentes e interpretação de linguagem natural separada da execução. A UI `/buscar` exige revisão humana dos filtros antes da consulta. `ActionableContactScore` prioriza contatos sem esconder dimensões desconhecidas. Detalhes em `docs/phase-2-company-people-search.md`.\n\n'
+          if '**Fase 2 — busca comercial:**' not in text:
+              if state_anchor not in text:
+                  raise SystemExit('context state anchor not found')
+              text = text.replace(state_anchor, state_note, 1)
+          context.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/patch-phase2-docs.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+ZenonPB@users.noreply.github.com"
+          git add docs/roadmap.md docs/context.md .github/workflows/patch-phase2-docs.yml
+          git commit -m "docs(search): atualiza roadmap e contexto vivo"
+          git push origin HEAD:feat/phase-2-company-people-search
