@@ -2,6 +2,7 @@ import { getSession } from "next-auth/react";
 import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult, LeadOpportunity, EventOpportunity, CommercialOutcome, CommercialOutcomeMetric, CommercialComparison } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
+import { getActiveOrganizationId } from "@/lib/active-organization";
 
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -27,13 +28,6 @@ async function resolveToken(): Promise<string | null> {
   const token = (session as SessionWithToken | null)?.accessToken;
   if (token) _cachedToken = token;
   return token ?? null;
-}
-
-// Organização ativa gravada pelo OrgSwitcher (chave em `org-switcher.tsx`).
-// Quando presente, define o workspace multi-org nas chamadas à API.
-function getActiveOrganizationId(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("active_organization_id");
 }
 
 interface RequestOptions extends RequestInit {
