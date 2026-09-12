@@ -6,7 +6,6 @@ O convite gera um token que o convidado usa para aceitar.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from typing import List
 from datetime import datetime, timezone
 
 from src.db.dependencies import get_db
@@ -37,29 +36,42 @@ class CreateInviteRequest(BaseModel):
     email: EmailStr = Field(..., description="E-mail do convidado")
     role: OrganizationRole = Field(
         OrganizationRole.MEMBER,
-        description="Papel administrativo (OWNER/ADMIN/MEMBER)"
+        description="Papel administrativo (ADMIN/MEMBER)",
     )
     sales_role: SalesRole = Field(
         SalesRole.CONSULTOR,
-        description="Papel de venda (CONSULTOR/ANALYST/MANAGER)"
+        description="Papel de venda (CONSULTOR/ANALYST/MANAGER)",
     )
 
     @field_validator("role", mode="before")
     @classmethod
-    def _coerce_org_role(cls, v):
-        """Aceita tanto o valor do enum no banco (owner/admin/member) quanto o
-        nome (OWNER/ADMIN/MEMBER) — o frontend envia maiúsculo (tipo OrgRole)."""
-        if isinstance(v, str):
-            v = v.strip()
+    def _coerce_org_role(cls, value):
+        """Normaliza o papel e preserva a invariável de owner único.
+
+        Ownership nunca é concedido por convite. O fluxo oficial para isso é
+        `/orgs/{org_id}/transfer-owner`, que rebaixa o owner anterior na mesma
+        transação e mantém uma única autoridade principal por workspace.
+        """
+        role = value
+        if isinstance(value, str):
+            normalized = value.strip()
             try:
-                return OrganizationRole(v.lower())
+                role = OrganizationRole(normalized.lower())
             except ValueError:
-                return OrganizationRole[v.upper()]
-        return v
+                try:
+                    role = OrganizationRole[normalized.upper()]
+                except KeyError as exc:
+                    raise ValueError("Papel administrativo inválido") from exc
+
+        if role == OrganizationRole.OWNER:
+            raise ValueError(
+                "OWNER não pode ser concedido por convite; transfira a propriedade do workspace",
+            )
+        return role
 
 
 class AcceptInviteRequest(BaseModel):
-    token: str = Field(..., description="Token do convite")
+    token: str = Field(..., min_length=16, description="Token do convite")
 
 
 class AcceptRegisterRequest(BaseModel):
@@ -68,7 +80,8 @@ class AcceptRegisterRequest(BaseModel):
     Para quem ainda não tem conta: cria o usuário com o e-mail do convite e já
     o adiciona à organização em um único passo.
     """
-    token: str = Field(..., description="Token do convite")
+
+    token: str = Field(..., min_length=16, description="Token do convite")
     name: str = Field(..., min_length=2, max_length=255)
     password: str = Field(..., min_length=8, max_length=128)
 
@@ -95,14 +108,14 @@ def create_invite(
     org: Organization = Depends(get_user_organization),
     actor: OrganizationMember = Depends(require_org_admin),
 ):
-    """Cria um convite para um e-mail na organização (owner/admin only).
-    
-    Envia e-mail com token de aceitação. Se o convite já existe (pendente e
-    não expirado), retorna o existente sem duplicar.
+    """Cria um convite na organização ativa (owner/admin only).
+
+    O endpoint nunca concede OWNER. Transferência de propriedade é uma operação
+    separada e auditável. Convites pendentes válidos são reaproveitados.
     """
     if str(org.id) != org_id or str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
-    
+
     existing_user = db.query(User).filter(User.email == body.email.lower()).first()
     if existing_user:
         existing_member = db.query(OrganizationMember).filter(
@@ -112,9 +125,9 @@ def create_invite(
         if existing_member:
             raise HTTPException(
                 status_code=400,
-                detail="Este usuário já é membro da organização"
+                detail="Este usuário já é membro da organização",
             )
-    
+
     invite = invite_service.create_invite(
         db=db,
         organization_id=org.id,
@@ -124,8 +137,12 @@ def create_invite(
         sales_role=body.sales_role,
     )
     log_org_event(
-        db, org.id, OrgAuditEvent.INVITE_CREATED, actor=actor,
-        target_type="invite", target_id=body.email.lower(),
+        db,
+        org.id,
+        OrgAuditEvent.INVITE_CREATED,
+        actor=actor,
+        target_type="invite",
+        target_id=body.email.lower(),
         detail=f"role={body.role.value} sales_role={body.sales_role.value}",
     )
     db.commit()
@@ -139,7 +156,7 @@ def create_invite(
         accept_link=accept_link,
         invited_by_name=invited_by.name if invited_by else "",
     )
-    
+
     return _invite_dict(invite)
 
 
@@ -153,7 +170,7 @@ def list_invites(
     """Lista convites pendentes da organização (owner/admin only)."""
     if str(org.id) != org_id or str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
-    
+
     invites = invite_service.list_pending_invites(db, org.id)
     return {"invites": [_invite_dict(inv) for inv in invites]}
 
@@ -164,15 +181,15 @@ def accept_invite(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Aceita um convite por token.
-    
-    O usuário deve estar autenticado e o e-mail do convite deve bater com
-    o e-mail do usuário. Cria a membership na organização do convite.
-    """
+    """Aceita convite autenticado e cria membership na organização alvo."""
     member = invite_service.accept_invite(db, body.token, user)
     log_org_event(
-        db, member.organization_id, OrgAuditEvent.INVITE_ACCEPTED, actor=user,
-        target_type="invite", target_id=user.email,
+        db,
+        member.organization_id,
+        OrgAuditEvent.INVITE_ACCEPTED,
+        actor=user,
+        target_type="invite",
+        target_id=user.email,
     )
     db.commit()
     return {
@@ -200,19 +217,23 @@ def revoke_invite(
     """Revoga um convite pendente (owner/admin only)."""
     if str(org.id) != org_id or str(actor.organization_id) != org_id:
         raise HTTPException(status_code=404, detail="Organização não encontrada")
-    
+
     invite = db.query(Invite).filter(
         Invite.id == invite_id,
         Invite.organization_id == org.id,
     ).first()
-    
+
     if not invite:
         raise HTTPException(status_code=404, detail="Convite não encontrado")
-    
+
     invite_service.revoke_invite(db, invite.id)
     log_org_event(
-        db, org.id, OrgAuditEvent.INVITE_REVOKED, actor=actor,
-        target_type="invite", target_id=invite.email,
+        db,
+        org.id,
+        OrgAuditEvent.INVITE_REVOKED,
+        actor=actor,
+        target_type="invite",
+        target_id=invite.email,
     )
     db.commit()
     return {"message": "Convite revogado com sucesso"}
@@ -220,13 +241,14 @@ def revoke_invite(
 
 @router.get("/invites/check")
 def check_invite(
-    token: str = Query(...),
+    token: str = Query(..., min_length=16, max_length=255),
     db: Session = Depends(get_db),
 ):
-    """Resolve um convite por token (público, sem auth) para a página de aceite.
+    """Resolve metadados mínimos de um convite para a página pública de aceite.
 
-    Informa o e-mail do convite, a organização e se já existe conta — o
-    frontend decide entre login ou cadastro no próprio aceite.
+    O e-mail completo não é exposto antes de autenticação/aceite: a resposta
+    contém apenas uma versão mascarada, o nome da organização e estados do
+    convite suficientes para decidir entre login e cadastro.
     """
     invite = db.query(Invite).filter(Invite.token == token).first()
     if not invite:
@@ -292,8 +314,12 @@ def accept_register(
 
     member = invite_service.accept_invite(db, body.token, user)
     log_org_event(
-        db, member.organization_id, OrgAuditEvent.INVITE_ACCEPTED, actor=user,
-        target_type="invite", target_id=user.email,
+        db,
+        member.organization_id,
+        OrgAuditEvent.INVITE_ACCEPTED,
+        actor=user,
+        target_type="invite",
+        target_id=user.email,
     )
     db.commit()
     token = create_access_token({"sub": str(user.id), "email": user.email})

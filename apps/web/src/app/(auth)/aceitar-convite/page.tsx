@@ -10,6 +10,7 @@ import { Loader2, CheckCircle2, XCircle, Building2, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useAcceptInvite, useCheckInvite, useAcceptRegister } from '@/hooks/use-api';
 import { setAccessToken } from '@/lib/api';
+import { setActiveOrganizationId } from '@/lib/active-organization';
 import { resolveSafeCallbackUrl } from '@/lib/safe-redirect';
 import { AuthShell } from '@/components/auth/auth-shell';
 
@@ -54,38 +55,27 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
   );
   const loginHref = `/login?callbackUrl=${encodeURIComponent(invitePath)}`;
 
-  if (session) {
-    if ((session.user?.email || '').toLowerCase() !== invite.email.toLowerCase()) {
-      return (
-        <AuthShell>
-          <Card className="w-full border-border/60 shadow-sm">
-            <CardHeader className="space-y-2 text-center">
-              <XCircle className="mx-auto h-12 w-12 text-destructive" aria-hidden="true" />
-              <CardTitle className="font-heading text-2xl font-semibold tracking-tight">E-mail diferente</CardTitle>
-              <CardDescription>
-                Este convite foi enviado para <strong>{invite.email}</strong>, mas você está logado com{' '}
-                <strong>{session.user?.email}</strong>.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-center">
-              <Link href={`/api/auth/signout?callbackUrl=${encodeURIComponent(loginHref)}`}>
-                <Button variant="outline" className="h-11 w-full">Trocar de conta</Button>
-              </Link>
-              <Link href="/dashboard">
-                <Button className="h-11 w-full">Ir para o dashboard</Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </AuthShell>
-      );
+  const handleAcceptExistingAccount = async () => {
+    try {
+      const accepted = await acceptInvite.mutateAsync(token);
+      const organizationId = accepted.organization?.id || invite.organization?.id;
+      if (organizationId) setActiveOrganizationId(organizationId);
+      setDone({
+        orgName: accepted.organization?.name || invite.organization?.name || 'Organização',
+        viaRegister: false,
+      });
+    } catch {
+      // O estado de erro da mutation é renderizado abaixo.
     }
+  };
 
+  if (session) {
     if (acceptInvite.isSuccess || done) {
       return successCard(done?.orgName || invite.organization?.name || 'Organização');
     }
     if (acceptInvite.isError) {
       const msg = acceptInvite.error instanceof Error ? acceptInvite.error.message : 'Erro ao aceitar convite';
-      return invalidCard('Erro no convite', msg);
+      return invalidCard('Não foi possível aceitar o convite', msg);
     }
 
     return (
@@ -97,17 +87,20 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
               Convite para {invite.organization?.name || 'organização'}
             </CardTitle>
             <CardDescription>
-              Você está logado como <strong>{session.user?.email}</strong> e foi convidado para esta organização.
+              O convite foi enviado para <strong>{invite.email}</strong>. Você está logado como{' '}
+              <strong>{session.user?.email}</strong>. A conta será validada com segurança ao aceitar.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-center">
             <Button
               className="h-11 w-full"
               disabled={acceptInvite.isPending}
-              onClick={() => acceptInvite.mutate(token)}
+              onClick={() => void handleAcceptExistingAccount()}
             >
-              {acceptInvite.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Aceitar convite
+              {acceptInvite.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : null}
+              {acceptInvite.isPending ? 'Aceitando...' : 'Aceitar convite'}
             </Button>
             <Link href="/dashboard">
               <Button variant="ghost" className="h-11 w-full">Cancelar</Button>
@@ -130,7 +123,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
             <Building2 className="mx-auto h-12 w-12 text-primary" aria-hidden="true" />
             <CardTitle className="font-heading text-2xl font-semibold tracking-tight">Convite para {invite.organization?.name || 'organização'}</CardTitle>
             <CardDescription>
-              Você já tem uma conta com este e-mail. Faça login para aceitar o convite.
+              Já existe uma conta para <strong>{invite.email}</strong>. Faça login para aceitar o convite.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-center">
@@ -151,16 +144,28 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
       return;
     }
     try {
-      await acceptRegister.mutateAsync({ token, name, password });
-      const result = await signIn('credentials', { email: invite.email, password, redirect: false });
+      const accepted = await acceptRegister.mutateAsync({ token, name, password });
+      // O endpoint público de check retorna apenas o e-mail mascarado. O e-mail
+      // completo só volta depois do aceite autenticado pelo token do convite.
+      const result = await signIn('credentials', {
+        email: accepted.user.email,
+        password,
+        redirect: false,
+      });
       if (result?.error) {
-        setFormError('Conta criada, mas erro no login automático.');
+        setFormError('Conta criada, mas ocorreu um erro no login automático. Faça login para continuar.');
         return;
       }
       const sess = await getSession();
       const access = (sess as { accessToken?: string } | null)?.accessToken;
       if (access) setAccessToken(access);
-      setDone({ orgName: invite.organization?.name || 'Organização', viaRegister: true });
+
+      const organizationId = accepted.organization?.id || invite.organization?.id;
+      if (organizationId) setActiveOrganizationId(organizationId);
+      setDone({
+        orgName: accepted.organization?.name || invite.organization?.name || 'Organização',
+        viaRegister: true,
+      });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Erro ao criar conta e aceitar convite.');
     }
@@ -175,7 +180,7 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
             Entrar em {invite.organization?.name || 'organização'}
           </CardTitle>
           <CardDescription>
-            Você foi convidado para {invite.organization?.name || 'uma organização'}. Crie sua conta com o e-mail{' '}
+            Você foi convidado para {invite.organization?.name || 'uma organização'}. Crie sua conta para{' '}
             <strong>{invite.email}</strong> — o convite é aceito na hora.
           </CardDescription>
         </CardHeader>
@@ -186,8 +191,11 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
               <Input id="invite-name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invite-email">E-mail</Label>
-              <Input id="invite-email" type="email" value={invite.email} disabled />
+              <Label htmlFor="invite-email">E-mail do convite</Label>
+              <Input id="invite-email" value={invite.email} disabled aria-describedby="invite-email-help" />
+              <p id="invite-email-help" className="text-xs text-muted-foreground">
+                Por segurança, o endereço completo só é utilizado pelo servidor depois da validação do convite.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="invite-password">Senha</Label>
@@ -204,8 +212,12 @@ export default function AcceptInvitePage(props: { searchParams: Promise<{ token?
             </div>
             {formError && <p className="text-sm text-red-500" role="alert" aria-live="polite">{formError}</p>}
             <Button type="submit" className="h-11 w-full" disabled={acceptRegister.isPending}>
-              {acceptRegister.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
-              Criar conta e aceitar convite
+              {acceptRegister.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Lock className="mr-2 h-4 w-4" aria-hidden="true" />
+              )}
+              {acceptRegister.isPending ? 'Criando conta...' : 'Criar conta e aceitar convite'}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">

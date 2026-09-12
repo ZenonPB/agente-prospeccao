@@ -69,21 +69,14 @@ def _member_dict(m: OrganizationMember) -> dict:
 @router.get("/me")
 def get_my_org(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Retorna a organização do usuário autenticado + seu papel de venda.
+    """Retorna o workspace ativo e o papel do usuário nele.
 
-    O frontend precisa do `organization_id` e do `sales_role` do usuário
-    atual para: (a) montar a tela de membros; (b) decidir se pode gerenciar
-    papéis; (c) exibir o badge de papel de venda. Rota declarada antes de
-    `/{org_id}/...` para não colidir com o path matching.
+    `get_user_membership` resolve `X-Organization-Id` e valida membership.
+    A rota não faz um segundo lookup global: isso evita retornar a primeira
+    organização do usuário depois de ele trocar de workspace no frontend.
     """
-    member = db.query(OrganizationMember).filter(
-        OrganizationMember.user_id == user.id,
-    ).first()
-    if not member:
-        raise HTTPException(status_code=404, detail="Usuário sem organização")
-
     return {
         "organization": {
             "id": str(member.organization_id),
