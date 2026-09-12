@@ -43,6 +43,36 @@ def build_learning_proposal(comparison: Any) -> dict[str, Any]:
     }
 
 
+def validate_profile_publication(
+    profile_snapshot: dict[str, Any],
+    *,
+    offer_key: str,
+    approved_version: str,
+    current_version: str | None,
+) -> Any:
+    """Valida uma publicação sem efeitos colaterais.
+
+    A publicação precisa ser uma versão nova, semanticamente válida e exatamente
+    a versão que foi aprovada. Isso garante que sempre exista um estado anterior
+    distinto para rollback e impede sobrescrever silenciosamente uma versão.
+    """
+    from services.prospecting.offer_profile import OfferProfile
+    from services.prospecting.offer_profile_validator import validate_profile
+
+    snapshot = deepcopy(profile_snapshot or {})
+    if snapshot.get("key") != offer_key:
+        raise ValueError("O OfferProfile não pertence à oferta aprovada")
+    if snapshot.get("version") != approved_version:
+        raise ValueError("A versão publicada deve ser exatamente a versão aprovada")
+    if current_version and snapshot.get("version") == current_version:
+        raise ValueError("A publicação deve criar uma nova versão de OfferProfile")
+    profile = OfferProfile.from_dict(snapshot)
+    errors = [item for item in validate_profile(profile) if not str(item).startswith("aviso:")]
+    if errors:
+        raise ValueError("OfferProfile inválido: " + "; ".join(errors))
+    return profile
+
+
 class ControlledLearningService:
     """Fecha observe → recommend → approve → publish → rollback."""
 
@@ -94,8 +124,6 @@ class ControlledLearningService:
         from database.learning_models import OfferProfileActivation, OfferProfileVersion
         from src.db.models import ControlledLearningProposal
         from services.prospecting.default_profiles import get_default_registry
-        from services.prospecting.offer_profile import OfferProfile
-        from services.prospecting.offer_profile_validator import validate_profile
 
         proposal = db.scalars(select(ControlledLearningProposal).where(
             ControlledLearningProposal.id == proposal_id,
@@ -113,48 +141,46 @@ class ControlledLearningService:
         if proposal.status != "PROPOSED":
             raise ValueError("Proposta não está disponível para publicação")
 
-        snapshot = deepcopy(profile_snapshot or {})
-        if snapshot.get("key") != proposal.offer_key:
-            raise ValueError("O OfferProfile não pertence à oferta aprovada")
-        if snapshot.get("version") != proposal.approved_version:
-            raise ValueError("A versão publicada deve ser exatamente a versão aprovada")
-        profile = OfferProfile.from_dict(snapshot)
-        errors = [item for item in validate_profile(profile) if not str(item).startswith("aviso:")]
-        if errors:
-            raise ValueError("OfferProfile inválido: " + "; ".join(errors))
-
         existing_version = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
             OfferProfileVersion.offer_key == proposal.offer_key,
-            OfferProfileVersion.version == profile.version,
+            OfferProfileVersion.version == proposal.approved_version,
         )).first()
         if existing_version is not None:
             raise ValueError("Esta versão de OfferProfile já existe")
-
-        # Primeira publicação ganha um baseline persistido para rollback exato.
-        any_version = db.scalars(select(OfferProfileVersion).where(
-            OfferProfileVersion.organization_id == organization_id,
-            OfferProfileVersion.offer_key == proposal.offer_key,
-        ).limit(1)).first()
-        if any_version is None:
-            baseline = get_default_registry().get(proposal.offer_key)
-            if baseline is None:
-                raise ValueError("Oferta base não existe no catálogo")
-            if baseline.version != profile.version:
-                db.add(OfferProfileVersion(
-                    organization_id=organization_id,
-                    offer_key=baseline.key,
-                    version=baseline.version,
-                    profile_snapshot=baseline.to_dict(),
-                    is_active=False,
-                ))
-                db.flush()
 
         current = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
             OfferProfileVersion.offer_key == proposal.offer_key,
             OfferProfileVersion.is_active.is_(True),
         ).with_for_update()).first()
+        baseline = get_default_registry().get(proposal.offer_key)
+        if baseline is None:
+            raise ValueError("Oferta base não existe no catálogo")
+        current_version = current.version if current is not None else baseline.version
+        profile = validate_profile_publication(
+            profile_snapshot,
+            offer_key=proposal.offer_key,
+            approved_version=proposal.approved_version,
+            current_version=current_version,
+        )
+
+        # Primeira publicação persiste o catálogo padrão como baseline exato.
+        any_version = db.scalars(select(OfferProfileVersion).where(
+            OfferProfileVersion.organization_id == organization_id,
+            OfferProfileVersion.offer_key == proposal.offer_key,
+        ).limit(1)).first()
+        if any_version is None:
+            baseline_row = OfferProfileVersion(
+                organization_id=organization_id,
+                offer_key=baseline.key,
+                version=baseline.version,
+                profile_snapshot=baseline.to_dict(),
+                is_active=False,
+            )
+            db.add(baseline_row)
+            db.flush()
+
         now = datetime.now(timezone.utc)
         if current is not None:
             current.is_active = False
@@ -177,7 +203,7 @@ class ControlledLearningService:
             offer_key=proposal.offer_key,
             action="PUBLISH",
             version_id=row.id,
-            previous_version_id=current.id if current else None,
+            previous_version_id=current.id if current else baseline_row.id if any_version is None else None,
             actor_id=getattr(actor, "id", None),
         ))
         proposal.status = "PUBLISHED"
