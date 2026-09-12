@@ -51,8 +51,6 @@ class UpdateLeadStatusRequest(BaseModel):
     def validate_commercial_outcome(self):
         if self.status == LeadStatus.PERDIDO and self.lost_reason is None:
             raise ValueError("Informe o motivo da perda")
-        # Motivo de perda não tem semântica fora de PERDIDO. Ignorá-lo em vez de
-        # persistir evita colapsar DESQUALIFICADO e LOST em dados históricos.
         if self.status != LeadStatus.PERDIDO:
             self.lost_reason = None
         return self
@@ -67,11 +65,7 @@ class MarkDisqualifiedRequest(BaseModel):
 
 
 def find_duplicate_conversion(db, lead_id, offer_key, lead_opportunity_id=None):
-    """Usa exatamente a mesma chave lógica do índice único do banco.
-
-    ``lead_opportunity_id`` é mantido na assinatura por compatibilidade, porém
-    não estreita a unicidade: uma venda é única por lead + oferta.
-    """
+    """Usa exatamente a mesma chave lógica do índice único do banco."""
     del lead_opportunity_id
     normalized_offer = offer_key or "unknown"
     return (
@@ -86,26 +80,15 @@ def find_duplicate_conversion(db, lead_id, offer_key, lead_opportunity_id=None):
 
 
 def install_lead_mutations(leads_module) -> None:
-    """Instala os endpoints endurecidos no router público de leads.
-
-    A composição fica no pacote ``src.routes`` para preservar ``leads.router``
-    como contrato de import usado por testes e pela aplicação enquanto o router
-    monolítico é migrado gradualmente.
-    """
+    """Instala os endpoints endurecidos no router público de leads."""
     router = leads_module.router
-
     original_register_conversion = leads_module.register_conversion
 
     def _can_access(member: OrganizationMember, lead: Lead) -> bool:
         return leads_module._can_access_lead(member, lead)
 
     def _record_outcome(db: Session, lead: Lead, outcome: str, event_key: str) -> None:
-        leads_module._record_commercial_outcome(
-            db,
-            lead,
-            outcome,
-            event_key=event_key,
-        )
+        leads_module._record_commercial_outcome(db, lead, outcome, event_key=event_key)
 
     def update_lead_status(
         lead_id: str,
@@ -255,8 +238,6 @@ def install_lead_mutations(leads_module) -> None:
                 member,
             )
         except IntegrityError:
-            # Corrida entre check e insert é esperada sob concorrência. A
-            # constraint do banco decide; a API traduz para conflito de domínio.
             db.rollback()
             logger.info(
                 "Conversão duplicada recusada por constraint",
@@ -264,13 +245,8 @@ def install_lead_mutations(leads_module) -> None:
             )
             raise HTTPException(status_code=409, detail=_CONVERSION_CONFLICT)
 
-    # A função acima é criada dinamicamente porque o schema original vive no
-    # router legado. Antes de registrar o endpoint, devolvemos a anotação real
-    # do body para o FastAPI construir exatamente o mesmo contrato OpenAPI.
     register_conversion.__annotations__["body"] = leads_module.RegisterConversionRequest
 
-    # Funções públicas continuam importáveis pelo nome antigo. Isso preserva os
-    # testes e consumidores internos que chamam diretamente a função de rota.
     leads_module.UpdateLeadStatusRequest = UpdateLeadStatusRequest
     leads_module.MarkLostRequest = MarkLostRequest
     leads_module.MarkDisqualifiedRequest = MarkDisqualifiedRequest
@@ -280,15 +256,15 @@ def install_lead_mutations(leads_module) -> None:
     leads_module.mark_lead_disqualified = mark_lead_disqualified
     leads_module.register_conversion = register_conversion
 
+    # APIRouter armazena o prefixo (`/leads`) em cada rota concreta. Usar os
+    # paths completos aqui evita deixar a implementação antiga ativa em paralelo.
     replacements = {
-        ("/{lead_id}/status", "PATCH"): update_lead_status,
-        ("/{lead_id}/mark-lost", "POST"): mark_lead_lost,
-        ("/{lead_id}/mark-disqualified", "POST"): mark_lead_disqualified,
-        ("/{lead_id}/conversion", "POST"): register_conversion,
+        ("/leads/{lead_id}/status", "PATCH"): update_lead_status,
+        ("/leads/{lead_id}/mark-lost", "POST"): mark_lead_lost,
+        ("/leads/{lead_id}/mark-disqualified", "POST"): mark_lead_disqualified,
+        ("/leads/{lead_id}/conversion", "POST"): register_conversion,
     }
 
-    # Remover os APIRoutes antigos evita rotas duplicadas no runtime e no
-    # OpenAPI. Em seguida os contratos endurecidos entram no mesmo router.
     router.routes[:] = [
         route
         for route in router.routes
