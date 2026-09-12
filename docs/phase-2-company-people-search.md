@@ -51,6 +51,10 @@ Esse limite é deliberado: a próxima evolução de escala pode materializar um 
 - o JSON da LLM é validado por Pydantic antes de chegar à UI;
 - providers externos não são disparados por nenhum endpoint de busca.
 
+## Gate de release
+
+A fase só pode entrar em `main` quando o mesmo HEAD do PR comprovar: suíte backend com warnings como erro, migrations idempotentes + schema contract, E2E em PostgreSQL real, invariante de concorrência, lint, TypeScript e build de produção do Next.js. UAT com providers/LLM reais é registrado separadamente e nunca é substituído por mocks.
+
 ## Limites intencionais
 
 A busca consulta dados já conhecidos. Encontrar empresas ou decisores novos continua responsabilidade do pipeline/provider waterfall. Saved Searches, AccountWatch, TAM, Data Health avançado e integrações externas permanecem fora desta fase.
