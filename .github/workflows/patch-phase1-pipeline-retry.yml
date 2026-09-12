@@ -25,24 +25,14 @@ jobs:
           path = Path('apps/web/src/components/campanhas/campaign-pipeline.tsx')
           text = path.read_text(encoding='utf-8')
 
-          first = '''    } catch (e) {
-              setIsRunning(false);
-              const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';'''
-          first_new = '''    } catch (e) {
-              setIsRunning(false);
-              setHasStarted(false);
-              const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';'''
+          first = "setIsRunning(false);\n      const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';"
+          first_new = "setIsRunning(false);\n      setHasStarted(false);\n      const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';"
           if first not in text:
               raise SystemExit('Pipeline start catch not found')
           text = text.replace(first, first_new, 1)
 
-          second = '''    } catch (error) {
-              setIsRunning(false);
-              const message = error instanceof Error ? error.message : 'Erro ao descobrir eventos';'''
-          second_new = '''    } catch (error) {
-              setIsRunning(false);
-              setHasStarted(false);
-              const message = error instanceof Error ? error.message : 'Erro ao descobrir eventos';'''
+          second = "setIsRunning(false);\n      const message = error instanceof Error ? error.message : 'Erro ao descobrir eventos';"
+          second_new = "setIsRunning(false);\n      setHasStarted(false);\n      const message = error instanceof Error ? error.message : 'Erro ao descobrir eventos';"
           if second not in text:
               raise SystemExit('Event discovery catch not found')
           text = text.replace(second, second_new, 1)
