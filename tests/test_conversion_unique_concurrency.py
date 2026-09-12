@@ -271,6 +271,10 @@ def cenario(fabrica_sessao):
         LeadActivity,
         LeadStatus,
         Organization,
+        OrganizationMember,
+        OrganizationRole,
+        SalesRole,
+        User,
     )
 
     sessao = fabrica_sessao()
@@ -280,8 +284,22 @@ def cenario(fabrica_sessao):
         name=f"Conversao Concorrente {sufixo}",
         slug=f"conversao-concorrente-{sufixo}",
     )
-    sessao.add(org)
+    user = User(
+        id=uuid.uuid4(),
+        email=f"concorrencia-{sufixo}@test.local",
+        password_hash="test-only-not-a-real-password-hash",
+        name="Consultor Concorrente",
+        role="SALES",
+    )
+    sessao.add_all([org, user])
     sessao.flush()
+    member = OrganizationMember(
+        organization_id=org.id,
+        user_id=user.id,
+        role=OrganizationRole.OWNER,
+        sales_role=SalesRole.MANAGER,
+    )
+    sessao.add(member)
     lead = Lead(
         id=uuid.uuid4(),
         organization_id=org.id,
@@ -291,7 +309,12 @@ def cenario(fabrica_sessao):
     )
     sessao.add(lead)
     sessao.commit()
-    dados = SimpleNamespace(org_id=org.id, lead_id=lead.id, sessao=sessao)
+    dados = SimpleNamespace(
+        org_id=org.id,
+        user_id=user.id,
+        lead_id=lead.id,
+        sessao=sessao,
+    )
     try:
         yield dados
     finally:
@@ -301,6 +324,11 @@ def cenario(fabrica_sessao):
                 modelo.lead_id == lead.id,
             ).delete(synchronize_session=False)
         sessao.query(Lead).filter(Lead.id == lead.id).delete(synchronize_session=False)
+        sessao.query(OrganizationMember).filter(
+            OrganizationMember.organization_id == org.id,
+            OrganizationMember.user_id == user.id,
+        ).delete(synchronize_session=False)
+        sessao.query(User).filter(User.id == user.id).delete(synchronize_session=False)
         sessao.query(Organization).filter(
             Organization.id == org.id,
         ).delete(synchronize_session=False)
@@ -308,7 +336,7 @@ def cenario(fabrica_sessao):
         sessao.close()
 
 
-def _app_com_sessoes_reais(fabrica_sessao, org_id, monkeypatch):
+def _app_com_sessoes_reais(fabrica_sessao, org_id, user_id, monkeypatch):
     """App mínimo com a rota real e uma sessão de banco por requisição.
 
     Sessão por requisição é o ponto: transações paralelas de verdade, não n
@@ -325,8 +353,6 @@ def _app_com_sessoes_reais(fabrica_sessao, org_id, monkeypatch):
     from src.routes.leads import router as leads_router
 
     monkeypatch.setattr(limiter, "enabled", False)
-    user_id = uuid.uuid4()
-
     app = FastAPI()
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -420,7 +446,7 @@ def test_conversoes_concorrentes_geram_um_unico_registro(
     fabrica_sessao, cenario, monkeypatch, n,
 ):
     """n transações paralelas do mesmo lead+oferta ⇒ contagem final igual a 1."""
-    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, monkeypatch)
+    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, cenario.user_id, monkeypatch)
     _forcar_corrida(monkeypatch, n)
 
     _disparar(app, cenario.lead_id, n, offer_key="trophies")
@@ -439,7 +465,7 @@ def test_concorrencia_tem_exatamente_um_sucesso_e_o_resto_409(
     fabrica_sessao, cenario, monkeypatch, n,
 ):
     """Distribuição de status: um sucesso, n-1 conflitos — nada de 500."""
-    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, monkeypatch)
+    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, cenario.user_id, monkeypatch)
     _forcar_corrida(monkeypatch, n)
 
     respostas = _disparar(app, cenario.lead_id, n, offer_key="trophies")
@@ -457,7 +483,7 @@ def test_concorrencia_tem_exatamente_um_sucesso_e_o_resto_409(
 def test_conflito_nao_expoe_detalhe_do_banco(fabrica_sessao, cenario, monkeypatch):
     """A recusa é frase de domínio: o detalhe técnico fica no log."""
     n = 3
-    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, monkeypatch)
+    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, cenario.user_id, monkeypatch)
     _forcar_corrida(monkeypatch, n)
 
     respostas = _disparar(app, cenario.lead_id, n, offer_key="trophies")
@@ -484,7 +510,7 @@ def test_conversao_com_oferta_nula_nao_duplica(
     cenario.sessao.add(legado)
     cenario.sessao.commit()
 
-    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, monkeypatch)
+    app = _app_com_sessoes_reais(fabrica_sessao, cenario.org_id, cenario.user_id, monkeypatch)
     if n > 1:
         _forcar_corrida(monkeypatch, n)
 
