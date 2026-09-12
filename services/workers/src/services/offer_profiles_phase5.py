@@ -98,7 +98,7 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
             icp={"company_sizes": ["ME", "EPP", "GE"], "segments": ["serviços", "indústria", "distribuição", "operações multiunidade"]},
             discovery={"providers": ["google_places", "cnae_discovery", "job_search"], "target_candidates": 250, "query_strategy": "segment+operations+city"},
             prescoring={"weights": {"MULTI_UNIT": 18, "MANUAL_PROCESS": 20, "HIRING_OPERATIONS": 18, "HIRING_IT": 18, "EXPANDING": 14}, "threshold": 38, "top_k": 35, "on_insufficient_data": "promote"},
-            enrichment={"steps": ["cnpj_receita", "technical_site", "business_social"], "max_cost": 5, "people_discovery": {"max_cost": 3, "max_steps": 3, "min_role_fit": 70}},
+            enrichment={"steps": ["cnpj_receita", "technical_site", "business_social"], "max_cost": 5, "people_discovery": {"max_cost": 3, "max_steps": 2, "min_role_fit": 70}},
             signals={"positive": ["MULTI_UNIT", "MANUAL_PROCESS", "HIRING_OPERATIONS", "HIRING_IT", "EXPANDING", "USES_SPREADSHEETS", "SAAS_LIMITATION"], "negative": ["VERY_SMALL_LOW_COMPLEXITY"], "weights": {"MANUAL_PROCESS": 1.3, "MULTI_UNIT": 1.2, "HIRING_OPERATIONS": 1.1, "HIRING_IT": 1.1, "EXPANDING": 1.0}},
             intent={"event_weights": {"HIRING_OPERATIONS": 0.9, "HIRING_IT": 0.85, "EXPANDING": 0.8, "NEW_BRANCH": 0.8}, "decay_days": 75, "trigger_threshold": 0.5},
             decision_makers={"roles": ["founder", "operations_director", "finance_manager", "it_manager"], "buyer_types": ["ECONOMIC_BUYER", "TECHNICAL_BUYER", "CHAMPION"], "priority": ["operations_director", "founder", "it_manager", "finance_manager"]},

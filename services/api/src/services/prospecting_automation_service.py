@@ -314,7 +314,7 @@ class AgentStateService:
 
         if status.upper() in {"CONTATADO", "CONTACTED", "EM_CONTATO"}:
             return "WAITING", "contato_iniciado", {"score": opportunity.score}
-        if status.upper() in {"RESPONDEU", "RESPONDED", "NEGOCIANDO"}:
+        if status.upper() in {"RESPONDIDO", "RESPONDEU", "RESPONDED", "NEGOCIANDO"}:
             return "AWAITING_ACTION", "resposta_recebida", {"score": opportunity.score}
         return "READY_FOR_CONTACT", "oportunidade_sem_contato_roteavel", {"score": opportunity.score, "needs_contact_resolution": True}
 
