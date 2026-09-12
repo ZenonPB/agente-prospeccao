@@ -26,7 +26,7 @@ class DataHealthService:
             evaluate_freshness("technographics", timestamps.get("technographics") or timestamps.get("site")),
             evaluate_freshness("intent", timestamps.get("intent")),
             evaluate_freshness("jobs", timestamps.get("jobs")),
-            evaluate_freshness("email", person.last_verified_at if person else None),
+            evaluate_freshness("email", person.last_verified_at if person and person.email else None),
             evaluate_freshness("phone", person.last_verified_at if person and person.phone else None),
             evaluate_freshness("employment", person.last_verified_at if person else None),
         ]
@@ -106,8 +106,14 @@ class DataHealthService:
             ).all()
             opportunity_counts.update(row[0] for row in rows)
 
+        emails = {
+            email.lower()
+            for email in (
+                [person.email for person in persons.values() if person.email]
+                + [lead.email for lead in leads if lead.email]
+            )
+        }
         suppressed_emails = set()
-        emails = [person.email.lower() for person in persons.values() if person.email]
         if emails:
             rows = self.db.query(EmailSuppression.email).filter(
                 EmailSuppression.organization_id == self.organization_id,
@@ -124,12 +130,14 @@ class DataHealthService:
             freshness = self._lead_freshness(lead, enrichments.get(lead.id), person)
             stale_keys = [item["key"] for item in freshness if item["state"] == "stale"]
             unknown_keys = [item["key"] for item in freshness if item["state"] == "unknown"]
-            phone = verify_phone(person.phone if person else lead.phone)
-            email_invalid = bool(person and person.email and person.email.lower() in suppressed_emails)
+            contact_email = (person.email if person and person.email else lead.email)
+            contact_phone = (person.phone if person and person.phone else (lead.phone or lead.whatsapp))
+            phone = verify_phone(contact_phone)
+            email_invalid = bool(contact_email and contact_email.lower() in suppressed_emails)
             missing_decision_maker = person is None
             duplicate_risk = not bool(lead.cnpj or lead.normalized_domain or lead.place_id)
-            missing_phone = phone["state"] == "UNKNOWN" and not (person and person.phone) and not lead.phone
-            missing_email = not bool(person and person.email)
+            missing_phone = not bool(contact_phone)
+            missing_email = not bool(contact_email)
 
             if stale_keys:
                 counters["stale"] += 1
