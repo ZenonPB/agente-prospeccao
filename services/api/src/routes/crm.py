@@ -30,10 +30,8 @@ async def atualizar_planilha(
     member=Depends(get_user_membership),
     db=Depends(get_db),
 ):
-    """Preenche a aba selecionada do .xlsx com leads atribuídos ao consultor."""
     if not file.filename or not file.filename.lower().endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Envie um arquivo .xlsx")
-
     max_upload_bytes = 10 * 1024 * 1024
     content = await file.read()
     if len(content) > max_upload_bytes:
@@ -45,10 +43,7 @@ async def atualizar_planilha(
 
     user = member.user
     aba = aba_name.strip() if aba_name and aba_name.strip() else _resolve_aba_consultor(getattr(user, "name", None) or "Zenon")
-    leads = db.query(Lead).filter(
-        Lead.organization_id == member.organization_id,
-        Lead.assigned_to_id == member.user_id,
-    ).all()
+    leads = db.query(Lead).filter(Lead.organization_id == member.organization_id, Lead.assigned_to_id == member.user_id).all()
     lead_ids = [lead.id for lead in leads]
     contacts_by_lead: dict = {}
     followups_by_lead: dict = {}
@@ -64,14 +59,7 @@ async def atualizar_planilha(
         with os.fdopen(fd, "wb") as output:
             output.write(content)
         try:
-            result = complementa_planilha(
-                tmp_path,
-                aba,
-                leads,
-                contacts_by_lead,
-                followups_by_lead,
-                criar_aba_se_ausente=criar_aba,
-            )
+            result = complementa_planilha(tmp_path, aba, leads, contacts_by_lead, followups_by_lead, criar_aba_se_ausente=criar_aba)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         with open(tmp_path, "rb") as source:
@@ -80,11 +68,7 @@ async def atualizar_planilha(
         return StreamingResponse(
             io.BytesIO(output_content),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}",
-                "X-CRM-Inseridos": str(result["inseridos"]),
-                "X-CRM-Duplicados": str(result["duplicados"]),
-            },
+            headers={"Content-Disposition": f"attachment; filename={filename}", "X-CRM-Inseridos": str(result["inseridos"]), "X-CRM-Duplicados": str(result["duplicados"])},
         )
     finally:
         try:
@@ -93,10 +77,10 @@ async def atualizar_planilha(
             pass
 
 
-# Mantém o `main.py` estável: as novas capacidades comerciais vivem sob o
-# domínio CRM já montado em `/api/crm`, sem registrar routers por side effect.
 from src.routes.crm_sync import router as crm_sync_router  # noqa: E402
 from src.routes.commercial_intelligence import router as intelligence_router  # noqa: E402
+from src.routes.prospect_lists import router as prospect_lists_router  # noqa: E402
 
 router.include_router(crm_sync_router)
 router.include_router(intelligence_router)
+router.include_router(prospect_lists_router)
