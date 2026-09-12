@@ -23,6 +23,10 @@ export function getActiveOrganizationId(): string | null {
   return window.localStorage.getItem(ACTIVE_ORGANIZATION_STORAGE_KEY);
 }
 
+export function getServerActiveOrganizationId(): null {
+  return null;
+}
+
 export function setActiveOrganizationId(organizationId: string): void {
   if (typeof window === "undefined") return;
   ensureStorageVersion();
@@ -41,4 +45,26 @@ export function setActiveOrganizationId(organizationId: string): void {
 export function isActiveOrganizationStorageEvent(event: StorageEvent): boolean {
   return event.storageArea === window.localStorage
     && event.key === ACTIVE_ORGANIZATION_STORAGE_KEY;
+}
+
+/**
+ * Assina mudanças do workspace tanto na aba atual quanto em outras abas.
+ * Compatível com `useSyncExternalStore`, evitando duplicar estado React e
+ * localStorage no seletor.
+ */
+export function subscribeToActiveOrganization(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+
+  const handleCustomEvent = () => onStoreChange();
+  const handleStorage = (event: StorageEvent) => {
+    if (isActiveOrganizationStorageEvent(event)) onStoreChange();
+  };
+
+  window.addEventListener(ACTIVE_ORGANIZATION_CHANGED_EVENT, handleCustomEvent);
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    window.removeEventListener(ACTIVE_ORGANIZATION_CHANGED_EVENT, handleCustomEvent);
+    window.removeEventListener("storage", handleStorage);
+  };
 }
