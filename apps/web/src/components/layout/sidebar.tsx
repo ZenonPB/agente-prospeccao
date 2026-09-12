@@ -17,6 +17,7 @@ import {
   Layers,
   HelpCircle,
   DatabaseZap,
+  Radar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
@@ -54,6 +55,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Inteligência',
     items: [
+      { name: 'Radar comercial', href: '/monitoramento', icon: Radar, analystOnly: true },
       { name: 'Relatórios', href: '/relatorios', icon: BarChart3, analystOnly: true },
       { name: 'Data Health', href: '/data-health', icon: DatabaseZap, analystOnly: true },
     ],
@@ -63,9 +65,6 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Vertentes', href: '/configuracoes/vertentes', icon: Layers },
       { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
-      // Configurações é uma página própria, não o pai visual das telas de
-      // Vertentes/Equipe. O matching exato evita dois itens ativos ao mesmo
-      // tempo em `/configuracoes/vertentes` ou `/configuracoes/membros`.
       { name: 'Configurações', href: '/configuracoes', icon: Settings, exact: true },
     ],
   },
@@ -186,15 +185,15 @@ export function Sidebar() {
         <div className="border-t border-sidebar-border p-4">
           {sidebarOpen ? (
             <p className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
-              <span className="radar-dot inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary text-sidebar-primary" />
-              Radar operando em tempo real
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary text-sidebar-primary" />
+              Radar comercial disponível
             </p>
           ) : (
             <p
               className="mx-auto flex h-2 w-2 items-center justify-center text-sidebar-primary"
-              title="Radar operando em tempo real"
+              title="Radar comercial disponível"
             >
-              <span className="radar-dot inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary text-sidebar-primary" />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary text-sidebar-primary" />
             </p>
           )}
         </div>

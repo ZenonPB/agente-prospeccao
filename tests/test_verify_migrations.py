@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "6c8d0e2f4a5b"
+    assert verify_migrations.migration_head() == "7d9e1f3a5b6c"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -36,7 +36,6 @@ def test_person_canonica_tem_colunas_obrigatorias():
 
 
 def test_versions_de_follow_up_tem_unicidade_por_etapa():
-    """Uma etapa não pode ter duas versões com o mesmo número."""
     verify_migrations = _module()
 
     assert verify_migrations.REQUIRED_UNIQUES["follow_up_versions"] == {
@@ -91,11 +90,7 @@ def test_verify_database_rejeita_banco_fora_do_head(monkeypatch):
             return "old-revision"
 
     monkeypatch.setattr(verify_migrations, "create_engine", lambda _url: _Engine())
-    monkeypatch.setattr(
-        verify_migrations.MigrationContext,
-        "configure",
-        lambda _connection: _Context(),
-    )
+    monkeypatch.setattr(verify_migrations.MigrationContext, "configure", lambda _connection: _Context())
 
     with pytest.raises(RuntimeError, match="Banco em 'old-revision'"):
         verify_migrations.verify_database("postgresql://test")
@@ -136,11 +131,7 @@ def test_verify_database_rejeita_fk_essencial_ausente(monkeypatch):
             return []
 
     monkeypatch.setattr(verify_migrations, "create_engine", lambda _url: _Engine())
-    monkeypatch.setattr(
-        verify_migrations.MigrationContext,
-        "configure",
-        lambda _connection: _Context(),
-    )
+    monkeypatch.setattr(verify_migrations.MigrationContext, "configure", lambda _connection: _Context())
     monkeypatch.setattr(verify_migrations, "inspect", lambda _connection: _Inspector())
 
     with pytest.raises(RuntimeError, match="FKs ausentes"):
