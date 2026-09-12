@@ -47,7 +47,6 @@ class CRMSyncResult:
 class CRMAdapter(Protocol):
     provider: str
     version: str
-
     async def upsert(self, snapshot: CRMEntitySnapshot, *, idempotency_key: str) -> CRMSyncResult: ...
     async def fetch_changes(self, *, organization_id: str, cursor: str | None = None) -> tuple[list[CRMEntitySnapshot], str | None]: ...
     async def healthcheck(self) -> dict[str, Any]: ...
@@ -78,8 +77,6 @@ class BaseHTTPCRMAdapter:
         client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(20.0), follow_redirects=False)
         try:
             response = await client.request(method, f"{self.base_url}{path}", params=params, json=json, headers=dict(headers or {}))
-            # Redirects are intentionally not followed: a provider changing
-            # destination must be reviewed instead of bypassing egress policy.
             if 300 <= response.status_code < 400:
                 raise RuntimeError("CRM retornou redirecionamento inesperado")
             response.raise_for_status()
@@ -91,13 +88,7 @@ class BaseHTTPCRMAdapter:
 
 class PipedriveCRMAdapter(BaseHTTPCRMAdapter):
     provider = "pipedrive"
-
-    _entity_path = {
-        "company": "/api/v1/organizations",
-        "person": "/api/v1/persons",
-        "opportunity": "/api/v1/deals",
-        "activity": "/api/v1/activities",
-    }
+    _entity_path = {"company": "/v1/organizations", "person": "/v1/persons", "opportunity": "/v1/deals", "activity": "/v1/activities"}
 
     def __init__(self, token: str, *, base_url: str = "https://api.pipedrive.com", client: httpx.AsyncClient | None = None) -> None:
         super().__init__(token, base_url=base_url, client=client)
@@ -107,33 +98,26 @@ class PipedriveCRMAdapter(BaseHTTPCRMAdapter):
         if not path:
             return CRMSyncResult(self.provider, "upsert", snapshot.entity_id, None, "unsupported", "entidade não possui mapeamento Pipedrive")
         remote_id = str(snapshot.fields.get("_remote_id") or "").strip() or None
-        payload = {k: v for k, v in snapshot.fields.items() if not k.startswith("_")}
-        method = "PUT" if remote_id else "POST"
+        payload = {k: v for k, v in snapshot.fields.items() if not k.startswith("_") and v is not None}
         target = f"{path}/{remote_id}" if remote_id else path
-        response = await self._request(method, target, params={"api_token": self._token}, json=payload, headers=self._headers(idempotency_key))
+        response = await self._request("PUT" if remote_id else "POST", target, params={"api_token": self._token}, json=payload, headers=self._headers(idempotency_key))
         data = response.json().get("data") or {}
         resolved_id = str(data.get("id") or remote_id or "") or None
         return CRMSyncResult(self.provider, "update" if remote_id else "create", snapshot.entity_id, resolved_id, "success")
 
     async def fetch_changes(self, *, organization_id: str, cursor: str | None = None) -> tuple[list[CRMEntitySnapshot], str | None]:
-        # Pipedrive não oferece uma única stream homogênea para todos os objetos;
-        # mudanças realtime entram pelo webhook assinado. Polling programático fica
-        # restrito a deals para não inventar semântica entre endpoints distintos.
         params: dict[str, Any] = {"api_token": self._token, "limit": 100}
         if cursor:
             params["start"] = cursor
-        response = await self._request("GET", "/api/v1/deals", params=params, headers=self._headers())
+        response = await self._request("GET", "/v1/deals", params=params, headers=self._headers())
         body = response.json()
-        snapshots = [
-            CRMEntitySnapshot("opportunity", f"remote:{item['id']}", organization_id, fields={"_remote_id": item.get("id"), **item})
-            for item in (body.get("data") or []) if item.get("id") is not None
-        ]
+        snapshots = [CRMEntitySnapshot("opportunity", f"remote:{item['id']}", organization_id, fields={"_remote_id": item.get("id"), **item}) for item in (body.get("data") or []) if item.get("id") is not None]
         pagination = ((body.get("additional_data") or {}).get("pagination") or {})
         next_cursor = str(pagination.get("next_start")) if pagination.get("more_items_in_collection") else None
         return snapshots, next_cursor
 
     async def healthcheck(self) -> dict[str, Any]:
-        response = await self._request("GET", "/api/v1/users/me", params={"api_token": self._token}, headers=self._headers())
+        response = await self._request("GET", "/v1/users/me", params={"api_token": self._token}, headers=self._headers())
         return {"provider": self.provider, "status": "ok" if response.status_code == 200 else "failed"}
 
 
@@ -153,9 +137,8 @@ class HubSpotCRMAdapter(BaseHTTPCRMAdapter):
             return CRMSyncResult(self.provider, "upsert", snapshot.entity_id, None, "unsupported", "entidade não possui mapeamento HubSpot")
         remote_id = str(snapshot.fields.get("_remote_id") or "").strip() or None
         properties = {k: v for k, v in snapshot.fields.items() if not k.startswith("_") and v is not None}
-        method = "PATCH" if remote_id else "POST"
         path = f"/crm/v3/objects/{object_type}/{remote_id}" if remote_id else f"/crm/v3/objects/{object_type}"
-        response = await self._request(method, path, json={"properties": properties}, headers=self._headers(idempotency_key))
+        response = await self._request("PATCH" if remote_id else "POST", path, json={"properties": properties}, headers=self._headers(idempotency_key))
         data = response.json()
         return CRMSyncResult(self.provider, "update" if remote_id else "create", snapshot.entity_id, str(data.get("id") or remote_id or "") or None, "success", remote_version=data.get("updatedAt"))
 
@@ -165,10 +148,7 @@ class HubSpotCRMAdapter(BaseHTTPCRMAdapter):
             params["after"] = cursor
         response = await self._request("GET", "/crm/v3/objects/deals", params=params, headers=self._headers())
         body = response.json()
-        snapshots = [
-            CRMEntitySnapshot("opportunity", f"remote:{item['id']}", organization_id, fields={"_remote_id": item.get("id"), **(item.get("properties") or {})}, updated_at=item.get("updatedAt"))
-            for item in (body.get("results") or []) if item.get("id") is not None
-        ]
+        snapshots = [CRMEntitySnapshot("opportunity", f"remote:{item['id']}", organization_id, fields={"_remote_id": item.get("id"), **(item.get("properties") or {})}, updated_at=item.get("updatedAt")) for item in (body.get("results") or []) if item.get("id") is not None]
         next_cursor = (((body.get("paging") or {}).get("next") or {}).get("after"))
         return snapshots, str(next_cursor) if next_cursor is not None else None
 
@@ -194,8 +174,10 @@ class SalesforceCRMAdapter(BaseHTTPCRMAdapter):
             return CRMSyncResult(self.provider, "upsert", snapshot.entity_id, None, "unsupported", "entidade não possui mapeamento Salesforce")
         remote_id = str(snapshot.fields.get("_remote_id") or "").strip() or None
         payload = {k: v for k, v in snapshot.fields.items() if not k.startswith("_") and v is not None}
+        if snapshot.entity_type == "opportunity" and not remote_id and not {"StageName", "CloseDate"}.issubset(payload):
+            return CRMSyncResult(self.provider, "create", snapshot.entity_id, None, "unsupported", "Salesforce exige etapa e data de fechamento configuradas para criar oportunidade")
         if remote_id:
-            response = await self._request("PATCH", f"/services/data/{self.api_version}/sobjects/{object_type}/{remote_id}", json=payload, headers=self._headers(idempotency_key))
+            await self._request("PATCH", f"/services/data/{self.api_version}/sobjects/{object_type}/{remote_id}", json=payload, headers=self._headers(idempotency_key))
             resolved_id = remote_id
         else:
             response = await self._request("POST", f"/services/data/{self.api_version}/sobjects/{object_type}/", json=payload, headers=self._headers(idempotency_key))
@@ -203,9 +185,6 @@ class SalesforceCRMAdapter(BaseHTTPCRMAdapter):
         return CRMSyncResult(self.provider, "update" if remote_id else "create", snapshot.entity_id, resolved_id, "success")
 
     async def fetch_changes(self, *, organization_id: str, cursor: str | None = None) -> tuple[list[CRMEntitySnapshot], str | None]:
-        # Salesforce exige SOQL/campos customizados específicos do tenant. O
-        # adapter não presume schema: realtime deve entrar por webhook e o
-        # polling é habilitado quando `query` for configurada pelo serviço.
         return [], cursor
 
     async def healthcheck(self) -> dict[str, Any]:
