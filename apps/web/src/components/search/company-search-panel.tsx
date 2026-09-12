@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Building2, Database, Loader2, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -43,28 +43,16 @@ function Field({ id, label, value, onChange, placeholder, type = 'text' }: {
 
 export function CompanySearchPanel({ interpretedFilters }: { interpretedFilters?: CompanySearchFilters | null }) {
   const search = useCompanySearch();
-  const [query, setQuery] = useState('');
-  const [locations, setLocations] = useState('');
-  const [industries, setIndustries] = useState('');
-  const [cnaes, setCnaes] = useState('');
-  const [technologies, setTechnologies] = useState('');
-  const [signals, setSignals] = useState<string[]>([]);
-  const [employeeMin, setEmployeeMin] = useState('');
-  const [employeeMax, setEmployeeMax] = useState('');
-  const [includeUnknown, setIncludeUnknown] = useState(false);
-
-  useEffect(() => {
-    if (!interpretedFilters) return;
-    setQuery(interpretedFilters.query ?? '');
-    setLocations((interpretedFilters.locations ?? []).join(', '));
-    setIndustries((interpretedFilters.industries ?? []).join(', '));
-    setCnaes((interpretedFilters.cnaes ?? []).join(', '));
-    setTechnologies((interpretedFilters.technologies ?? []).join(', '));
-    setSignals(interpretedFilters.signals ?? []);
-    setEmployeeMin(interpretedFilters.employee_min?.toString() ?? '');
-    setEmployeeMax(interpretedFilters.employee_max?.toString() ?? '');
-    setIncludeUnknown(Boolean(interpretedFilters.include_unknown));
-  }, [interpretedFilters]);
+  const initial = interpretedFilters ?? {};
+  const [query, setQuery] = useState(initial.query ?? '');
+  const [locations, setLocations] = useState((initial.locations ?? []).join(', '));
+  const [industries, setIndustries] = useState((initial.industries ?? []).join(', '));
+  const [cnaes, setCnaes] = useState((initial.cnaes ?? []).join(', '));
+  const [technologies, setTechnologies] = useState((initial.technologies ?? []).join(', '));
+  const [signals, setSignals] = useState<string[]>(initial.signals ?? []);
+  const [employeeMin, setEmployeeMin] = useState(initial.employee_min?.toString() ?? '');
+  const [employeeMax, setEmployeeMax] = useState(initial.employee_max?.toString() ?? '');
+  const [includeUnknown, setIncludeUnknown] = useState(Boolean(initial.include_unknown));
 
   const filters = useMemo<CompanySearchFilters>(() => ({
     query: query || undefined,
