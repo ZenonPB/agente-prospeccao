@@ -33,60 +33,58 @@ jobs:
               text = text.replace(import_anchor, import_anchor + import_line, 1)
 
           anchor = '''  const invitePath = resolveSafeCallbackUrl(
-              `/aceitar-convite?token=${encodeURIComponent(token)}`,
-            );
-            const loginHref = `/login?callbackUrl=${encodeURIComponent(invitePath)}`;
+            `/aceitar-convite?token=${encodeURIComponent(token)}`,
+          );
+          const loginHref = `/login?callbackUrl=${encodeURIComponent(invitePath)}`;
 
-            if (session) {'''
+          if (session) {'''
           replacement = '''  const invitePath = resolveSafeCallbackUrl(
-              `/aceitar-convite?token=${encodeURIComponent(token)}`,
-            );
-            const loginHref = `/login?callbackUrl=${encodeURIComponent(invitePath)}`;
+            `/aceitar-convite?token=${encodeURIComponent(token)}`,
+          );
+          const loginHref = `/login?callbackUrl=${encodeURIComponent(invitePath)}`;
 
-            const handleAcceptExistingAccount = async () => {
-              try {
-                const accepted = await acceptInvite.mutateAsync(token);
-                const organizationId = accepted.organization?.id || invite.organization?.id;
-                if (organizationId) setActiveOrganizationId(organizationId);
-                setDone({
-                  orgName: accepted.organization?.name || invite.organization?.name || 'Organização',
-                  viaRegister: false,
-                });
-              } catch {
-                // O estado de erro da mutation já é renderizado abaixo.
-              }
-            };
+          const handleAcceptExistingAccount = async () => {
+            try {
+              const accepted = await acceptInvite.mutateAsync(token);
+              const organizationId = accepted.organization?.id || invite.organization?.id;
+              if (organizationId) setActiveOrganizationId(organizationId);
+              setDone({
+                orgName: accepted.organization?.name || invite.organization?.name || 'Organização',
+                viaRegister: false,
+              });
+            } catch {
+              // O estado de erro da mutation já é renderizado abaixo.
+            }
+          };
 
-            if (session) {'''
+          if (session) {'''
           if anchor not in text:
               raise SystemExit('Invite handler anchor not found')
           text = text.replace(anchor, replacement, 1)
 
-          old_click = '''              onClick={() => acceptInvite.mutate(token)}'''
-          new_click = '''              onClick={() => void handleAcceptExistingAccount()}'''
+          old_click = 'onClick={() => acceptInvite.mutate(token)}'
           if old_click not in text:
               raise SystemExit('Invite button click not found')
-          text = text.replace(old_click, new_click, 1)
+          text = text.replace(old_click, 'onClick={() => void handleAcceptExistingAccount()}', 1)
 
-          old_register = '''      await acceptRegister.mutateAsync({ token, name, password });
-              const result = await signIn('credentials', { email: invite.email, password, redirect: false });'''
-          new_register = '''      const accepted = await acceptRegister.mutateAsync({ token, name, password });
-              const result = await signIn('credentials', { email: invite.email, password, redirect: false });'''
+          old_register = 'await acceptRegister.mutateAsync({ token, name, password });'
           if old_register not in text:
               raise SystemExit('Invite register mutation not found')
-          text = text.replace(old_register, new_register, 1)
+          text = text.replace(
+              old_register,
+              'const accepted = await acceptRegister.mutateAsync({ token, name, password });',
+              1,
+          )
 
-          old_done = '''      if (access) setAccessToken(access);
-              setDone({ orgName: invite.organization?.name || 'Organização', viaRegister: true });'''
-          new_done = '''      if (access) setAccessToken(access);
-              const organizationId = accepted.organization?.id || invite.organization?.id;
+          old_done = "setDone({ orgName: invite.organization?.name || 'Organização', viaRegister: true });"
+          if old_done not in text:
+              raise SystemExit('Invite register completion block not found')
+          new_done = '''const organizationId = accepted.organization?.id || invite.organization?.id;
               if (organizationId) setActiveOrganizationId(organizationId);
               setDone({
                 orgName: accepted.organization?.name || invite.organization?.name || 'Organização',
                 viaRegister: true,
               });'''
-          if old_done not in text:
-              raise SystemExit('Invite register completion block not found')
           text = text.replace(old_done, new_done, 1)
 
           path.write_text(text, encoding='utf-8')
