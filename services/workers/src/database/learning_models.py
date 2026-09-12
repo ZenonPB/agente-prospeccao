@@ -10,12 +10,7 @@ from database.models import Base
 
 
 class OfferProfileVersion(Base):
-    """Snapshot imutável de uma versão de OfferProfile por organização.
-
-    `is_active` é o único estado mutável: publicação/rollback alternam qual
-    snapshot está efetivamente ativo. O conteúdo em `profile_snapshot` nunca é
-    alterado depois da criação.
-    """
+    """Snapshot imutável de uma versão de OfferProfile por organização."""
 
     __tablename__ = "offer_profile_versions"
     __table_args__ = (
@@ -53,6 +48,36 @@ class OfferProfileVersion(Base):
     )
     activated_at = Column(DateTime(timezone=True), nullable=True)
     deactivated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class OfferProfileActivation(Base):
+    """Log append-only de publicação e rollback de versões por workspace."""
+
+    __tablename__ = "offer_profile_activations"
+    __table_args__ = (
+        Index(
+            "ix_offer_profile_activations_org_offer_created",
+            "organization_id", "offer_key", "created_at",
+        ),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    offer_key = Column(String(64), nullable=False)
+    action = Column(String(16), nullable=False)
+    version_id = Column(
+        UUID(as_uuid=True), ForeignKey("offer_profile_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    previous_version_id = Column(
+        UUID(as_uuid=True), ForeignKey("offer_profile_versions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
