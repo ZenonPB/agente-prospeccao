@@ -95,6 +95,19 @@ export function filterValueLabel(key: string, value: unknown): string {
   return String(value);
 }
 
+const CONTACT_DIMENSION_LABELS: Record<string, string> = {
+  identity_confidence: 'identidade',
+  role_fit: 'adequação do cargo',
+  email_confidence: 'qualidade do e-mail',
+  phone_confidence: 'qualidade do telefone',
+  freshness: 'atualização dos dados',
+  routability: 'canal de contato direto',
+};
+
+export function contactDimensionLabel(value: string): string {
+  return CONTACT_DIMENSION_LABELS[value] ?? humanizeCode(value).toLocaleLowerCase('pt-BR');
+}
+
 export const SEARCH_SIGNAL_OPTIONS = [
   'HAS_CNC',
   'EXPANDING_FACTORY',
