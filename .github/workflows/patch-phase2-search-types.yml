@@ -1,0 +1,86 @@
+name: Patch phase2 search types
+
+on:
+  push:
+    branches:
+      - feat/phase-2-company-people-search
+
+permissions:
+  contents: write
+
+jobs:
+  patch-types:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-2-company-people-search
+      - name: Replace implicit any props
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/src/components/search/search-workspace.tsx')
+          text = path.read_text(encoding='utf-8')
+          anchor = "function CompanyFilters({ values, setters, pending, onSearch }: any) {"
+          replacement = '''interface CompanyFiltersProps {
+            values: {
+              companyQuery: string; locations: string; industries: string; cnaes: string;
+              technologies: string; signals: string; employeeMin: string; employeeMax: string;
+              includeUnknown: boolean;
+            };
+            setters: {
+              setCompanyQuery: (value: string) => void; setLocations: (value: string) => void;
+              setIndustries: (value: string) => void; setCnaes: (value: string) => void;
+              setTechnologies: (value: string) => void; setSignals: (value: string) => void;
+              setEmployeeMin: (value: string) => void; setEmployeeMax: (value: string) => void;
+              setIncludeUnknown: (value: boolean) => void;
+            };
+            pending: boolean;
+            onSearch: () => void;
+          }
+
+          interface PeopleFiltersProps {
+            values: {
+              peopleQuery: string; peopleCompany: string; domain: string; titles: string;
+              seniorities: string; buyerRoles: string; peopleLocations: string;
+              emailStatus: PeopleSearchFilters['email_status']; minActionable: string;
+            };
+            setters: {
+              setPeopleQuery: (value: string) => void; setPeopleCompany: (value: string) => void;
+              setDomain: (value: string) => void; setTitles: (value: string) => void;
+              setSeniorities: (value: string) => void; setBuyerRoles: (value: string) => void;
+              setPeopleLocations: (value: string) => void;
+              setEmailStatus: (value: PeopleSearchFilters['email_status']) => void;
+              setMinActionable: (value: string) => void;
+            };
+            pending: boolean;
+            onSearch: () => void;
+          }
+
+          function CompanyFilters({ values, setters, pending, onSearch }: CompanyFiltersProps) {'''
+          if anchor not in text:
+              raise SystemExit('CompanyFilters anchor not found')
+          text = text.replace(anchor, replacement, 1)
+          old = "function PeopleFilters({ values, setters, pending, onSearch }: any) {"
+          new = "function PeopleFilters({ values, setters, pending, onSearch }: PeopleFiltersProps) {"
+          if old not in text:
+              raise SystemExit('PeopleFilters anchor not found')
+          text = text.replace(old, new, 1)
+          old_select = "onChange={(event) => setters.setEmailStatus(event.target.value)}"
+          new_select = "onChange={(event) => setters.setEmailStatus(event.target.value as PeopleSearchFilters['email_status'])}"
+          if old_select not in text:
+              raise SystemExit('email select anchor not found')
+          text = text.replace(old_select, new_select, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/patch-phase2-search-types.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+ZenonPB@users.noreply.github.com"
+          git add apps/web/src/components/search/search-workspace.tsx .github/workflows/patch-phase2-search-types.yml
+          git commit -m "fix(web): tipa filtros da busca assistida"
+          git push origin HEAD:feat/phase-2-company-people-search
