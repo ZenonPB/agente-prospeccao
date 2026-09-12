@@ -1,10 +1,11 @@
 """Monitoramento contínuo de sinais comerciais, sempre opt-in e quota-aware."""
 from __future__ import annotations
 
-from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+import asyncio
 import logging
 import time
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -16,17 +17,17 @@ from services.email_verification_service import EmailVerificationService
 from services.provider_execution_metric_service import ProviderExecutionMetricService
 from services.prospecting.contact_verifier import ContactVerifier
 from services.prospecting.employment_history_service import EmploymentHistoryService
-from services.prospecting.external_intent_feed_provider import ExternalIntentFeedProvider
+from services.prospecting.external_intent_feed_provider import ExternalIntentFeedProvider, ExternalIntentResult
 from services.quota_service import QuotaService
 
 logger = logging.getLogger(__name__)
-
 
 _PROVIDER_CONFIG = (
     ("job_postings", "JOB_INTENT_HTTP", "JOB_INTENT_URL", "JOB_INTENT_TOKEN"),
     ("company_news", "NEWS_INTENT_HTTP", "NEWS_INTENT_URL", "NEWS_INTENT_TOKEN"),
     ("social", "SOCIAL_INTENT_HTTP", "SOCIAL_INTENT_URL", "SOCIAL_INTENT_TOKEN"),
 )
+_PROVIDER_CONCURRENCY = 3
 
 
 def _evidence_key(item: dict[str, Any]) -> tuple[str, str]:
@@ -36,7 +37,7 @@ def _evidence_key(item: dict[str, Any]) -> tuple[str, str]:
 
 
 class ContinuousIntelligenceService:
-    """Executa um ciclo por workspace sem ultrapassar opt-ins/cotas."""
+    """Executa ciclos curtos de persistência e I/O externo com concorrência limitada."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -53,9 +54,7 @@ class ContinuousIntelligenceService:
     def _is_due(self, org: Organization, *, force: bool) -> bool:
         if force:
             return True
-        cutoff = datetime.now(timezone.utc) - timedelta(
-            hours=settings.CONTINUOUS_INTELLIGENCE_MIN_INTERVAL_HOURS
-        )
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.CONTINUOUS_INTELLIGENCE_MIN_INTERVAL_HOURS)
         latest = (
             self.db.query(ProviderExecutionMetric.recorded_at)
             .filter(
@@ -80,11 +79,7 @@ class ContinuousIntelligenceService:
                 "instagram_url": lead.instagram_url,
             },
             "person": (
-                {
-                    "name": person.name,
-                    "role": person.role_label,
-                    "linkedin_url": person.linkedin_url,
-                }
+                {"name": person.name, "role": person.role_label, "linkedin_url": person.linkedin_url}
                 if person else None
             ),
         }
@@ -112,43 +107,69 @@ class ContinuousIntelligenceService:
             retryable=retryable,
         )
 
-    async def _collect_provider(
+    async def _run_provider(
+        self,
+        provider: ExternalIntentFeedProvider,
+        payload: dict[str, Any],
+        semaphore: asyncio.Semaphore,
+    ) -> tuple[ExternalIntentResult, int]:
+        started = time.perf_counter()
+        async with semaphore:
+            result = await provider.collect(payload)
+        return result, int((time.perf_counter() - started) * 1000)
+
+    async def _collect_enabled_providers(
         self,
         org: Organization,
         lead: Lead,
         person: Person | None,
-        *,
-        provider_name: str,
-        quota_key: str,
-        endpoint: str,
-        token: str,
-    ) -> list[dict[str, Any]]:
-        if not endpoint or not self._quota_enabled(org, quota_key):
-            return []
-        if not QuotaService.can_consume(self.db, str(org.id), quota_key):
-            self._record_metric(org, provider_name, "quota_exceeded", error_code="daily_quota")
-            return []
+    ) -> dict[str, list[dict[str, Any]]]:
+        runnable: list[tuple[str, str, ExternalIntentFeedProvider]] = []
+        for provider_name, quota_key, url_setting, token_setting in _PROVIDER_CONFIG:
+            endpoint = str(getattr(settings, url_setting, "") or "")
+            if not endpoint or not self._quota_enabled(org, quota_key):
+                continue
+            if not QuotaService.can_consume(self.db, str(org.id), quota_key):
+                self._record_metric(org, provider_name, "quota_exceeded", error_code="daily_quota")
+                continue
+            runnable.append((
+                provider_name,
+                quota_key,
+                ExternalIntentFeedProvider(
+                    name=provider_name,
+                    endpoint=endpoint,
+                    token=str(getattr(settings, token_setting, "") or ""),
+                    max_retries=settings.INTENT_PROVIDER_MAX_RETRIES,
+                ),
+            ))
 
-        provider = ExternalIntentFeedProvider(
-            name=provider_name,
-            endpoint=endpoint,
-            token=token,
-            max_retries=settings.INTENT_PROVIDER_MAX_RETRIES,
-        )
-        started = time.perf_counter()
-        result = await provider.collect(self._payload(lead, person))
-        duration_ms = int((time.perf_counter() - started) * 1000)
-        QuotaService.consume(self.db, str(org.id), quota_key)
-        self._record_metric(
-            org,
-            provider_name,
-            result.status,
-            result_count=len(result.evidence),
-            duration_ms=duration_ms,
-            error_code=result.error_code,
-            retryable=result.retryable,
-        )
-        return list(result.evidence)
+        if not runnable:
+            return {}
+
+        # Libera a transação antes de aguardar rede. O payload abaixo é um snapshot
+        # simples e não depende de lazy-loading durante as chamadas externas.
+        payload = self._payload(lead, person)
+        self.db.commit()
+        semaphore = asyncio.Semaphore(_PROVIDER_CONCURRENCY)
+        results = await asyncio.gather(*[
+            self._run_provider(provider, payload, semaphore)
+            for _, _, provider in runnable
+        ])
+
+        collected: dict[str, list[dict[str, Any]]] = {}
+        for (provider_name, quota_key, _provider), (result, duration_ms) in zip(runnable, results):
+            QuotaService.consume(self.db, str(org.id), quota_key)
+            self._record_metric(
+                org,
+                provider_name,
+                result.status,
+                result_count=len(result.evidence),
+                duration_ms=duration_ms,
+                error_code=result.error_code,
+                retryable=result.retryable,
+            )
+            collected[provider_name] = list(result.evidence)
+        return collected
 
     async def _verify_email_if_enabled(self, org: Organization, person: Person | None) -> bool:
         if not person or not person.email:
@@ -160,25 +181,33 @@ class ContinuousIntelligenceService:
             self._record_metric(org, "email_catchall", "quota_exceeded", error_code="daily_quota")
             return False
 
+        was_authoritatively_verified = ContactVerifier.has_authoritative_verification(person)
+        previous_status = person.verification_status
+        previous_verified_at = person.email_verified_at
+        self.db.commit()
+
         started = time.perf_counter()
-        verifier = ContactVerifier(
-            EmailVerificationService(), enable_catchall_probe=True,
-        )
+        verifier = ContactVerifier(EmailVerificationService(), enable_catchall_probe=True)
         result = await verifier.verify_email(person)
         QuotaService.consume(self.db, str(org.id), quota_key)
-        status = result.get("verification_status") or "unknown"
+        status = str(result.get("verification_status") or "unknown")
         self._record_metric(
             org,
             "email_catchall",
-            "success" if status in {"deliverable", "catch_all", "domain_validated"} else "empty",
+            "success" if status in {"non_catch_all", "catch_all", "domain_validated"} else "empty",
             result_count=1,
             duration_ms=int((time.perf_counter() - started) * 1000),
         )
-        person.email_verified = bool(result.get("email_verified"))
-        person.verification_status = str(status)
-        person.last_verified_at = datetime.now(timezone.utc)
-        if person.email_verified:
-            person.email_verified_at = person.last_verified_at
+
+        if was_authoritatively_verified and result.get("passive_observation"):
+            person.email_verified = True
+            person.verification_status = previous_status
+            person.email_verified_at = previous_verified_at
+        else:
+            person.email_verified = bool(result.get("email_verified"))
+            person.verification_status = status
+            if person.email_verified:
+                person.email_verified_at = datetime.now(timezone.utc)
         self.db.add(person)
         return True
 
@@ -206,6 +235,7 @@ class ContinuousIntelligenceService:
                 .filter(Person.organization_id == org.id, Person.id.in_(person_ids))
                 .all()
             }
+        self.db.commit()
 
         processed = 0
         changed = 0
@@ -215,16 +245,8 @@ class ContinuousIntelligenceService:
             known = {_evidence_key(item) for item in existing}
             new_evidence: list[dict[str, Any]] = []
 
-            for provider_name, quota_key, url_setting, token_setting in _PROVIDER_CONFIG:
-                values = await self._collect_provider(
-                    org,
-                    lead,
-                    person,
-                    provider_name=provider_name,
-                    quota_key=quota_key,
-                    endpoint=str(getattr(settings, url_setting, "") or ""),
-                    token=str(getattr(settings, token_setting, "") or ""),
-                )
+            provider_results = await self._collect_enabled_providers(org, lead, person)
+            for provider_name, values in provider_results.items():
                 for item in values:
                     key = _evidence_key(item)
                     if key in known:
@@ -266,20 +288,19 @@ class ContinuousIntelligenceService:
                 changed += 1
             elif email_updated:
                 self.db.commit()
+            else:
+                # Persiste métricas e consumo de quota antes da próxima espera de rede.
+                self.db.commit()
             processed += 1
 
         QuotaService.consume(self.db, str(org.id), "CONTINUOUS_INTELLIGENCE")
         self._record_metric(org, "continuous_intelligence", "success", result_count=changed)
         self.db.commit()
-        return {
-            "organization_id": str(org.id),
-            "status": "success",
-            "processed": processed,
-            "changed": changed,
-        }
+        return {"organization_id": str(org.id), "status": "success", "processed": processed, "changed": changed}
 
     async def run_due_organizations(self) -> list[dict[str, Any]]:
         orgs = self.db.query(Organization).order_by(Organization.created_at.asc()).all()
+        self.db.commit()
         results: list[dict[str, Any]] = []
         for org in orgs:
             if not self._quota_enabled(org, "CONTINUOUS_INTELLIGENCE"):
