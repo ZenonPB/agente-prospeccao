@@ -30,11 +30,22 @@ export interface DataHealthItem {
   refresh_priority: number;
 }
 
+export interface ProviderHealth {
+  provider: string;
+  statuses: Record<string, number>;
+  total: number;
+  failures: number;
+  failure_rate: number;
+  health: 'healthy' | 'degraded' | 'disabled' | 'quota_exceeded';
+  last_seen_at?: string | null;
+}
+
 export interface DataHealthOverview {
   total: number;
   healthy: number;
   health_rate: number;
   issues: Record<string, number>;
+  provider_health: ProviderHealth[];
   items: DataHealthItem[];
   generated_at: string;
 }
