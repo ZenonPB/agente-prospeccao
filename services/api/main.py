@@ -17,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
 from src.middleware.rate_limit import limiter
 from src.middleware.correlation import CorrelationIdMiddleware
-from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, intelligence, search, data_intelligence
+from src.routes import leads, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, intelligence, search, data_intelligence, engagement
 from src.routes.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,36 @@ async def _cadence_scheduler_loop():
                 db.close()
         except Exception as exc:  # noqa: BLE001
             logger.error("Erro no cadence scheduler: %s", exc)
+        await asyncio.sleep(settings.CADENCE_POLL_SECONDS)
+
+
+async def _engagement_scheduler_loop():
+    """Materializa tarefas e avança waits/condições sem executar canais externos."""
+    from src.db.models import Organization
+    from src.db.session import SessionLocal
+    from src.services.engagement_service import SequenceService
+
+    while True:
+        try:
+            db = SessionLocal()
+            try:
+                organization_ids = [row[0] for row in db.query(Organization.id).all()]
+                for organization_id in organization_ids:
+                    try:
+                        result = SequenceService(db, organization_id).process_due(limit=100)
+                        if result.get("processed"):
+                            logger.info(
+                                "Engagement scheduler: org %s processou %d inscrição(ões)",
+                                organization_id,
+                                result["processed"],
+                            )
+                    except Exception as exc:  # noqa: BLE001
+                        db.rollback()
+                        logger.error("Erro no engagement da org %s: %s", organization_id, exc)
+            finally:
+                db.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.error("Erro no engagement scheduler: %s", exc)
         await asyncio.sleep(settings.CADENCE_POLL_SECONDS)
 
 
@@ -157,6 +187,7 @@ async def _continuous_intelligence_loop():
 async def lifespan(app: FastAPI):
     tasks = [
         asyncio.create_task(_cadence_scheduler_loop()),
+        asyncio.create_task(_engagement_scheduler_loop()),
         asyncio.create_task(_lost_requeue_loop()),
         asyncio.create_task(_cadence_close_loop()),
         asyncio.create_task(_deliverability_check_loop()),
@@ -166,6 +197,7 @@ async def lifespan(app: FastAPI):
     from src.jobs_consumer import job_consumer_loop
     tasks.append(asyncio.create_task(job_consumer_loop()))
     logger.info("Cadence scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
+    logger.info("Engagement scheduler iniciado (poll %ds)", settings.CADENCE_POLL_SECONDS)
     logger.info("Job-consumer iniciado (poll %ds)", settings.JOB_POLL_SECONDS)
     logger.info(
         "Inteligência contínua iniciada (poll %ds; providers exigem opt-in por workspace)",
@@ -255,6 +287,7 @@ app.include_router(leads.router, prefix="/api")
 app.include_router(intelligence.router, prefix="/api")
 app.include_router(search.router, prefix="/api")
 app.include_router(data_intelligence.router, prefix="/api")
+app.include_router(engagement.router, prefix="/api")
 app.include_router(campaigns.router, prefix="/api")
 app.include_router(metrics.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
