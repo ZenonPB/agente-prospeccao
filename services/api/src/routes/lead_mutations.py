@@ -264,6 +264,11 @@ def install_lead_mutations(leads_module) -> None:
             )
             raise HTTPException(status_code=409, detail=_CONVERSION_CONFLICT)
 
+    # A função acima é criada dinamicamente porque o schema original vive no
+    # router legado. Antes de registrar o endpoint, devolvemos a anotação real
+    # do body para o FastAPI construir exatamente o mesmo contrato OpenAPI.
+    register_conversion.__annotations__["body"] = leads_module.RegisterConversionRequest
+
     # Funções públicas continuam importáveis pelo nome antigo. Isso preserva os
     # testes e consumidores internos que chamam diretamente a função de rota.
     leads_module.UpdateLeadStatusRequest = UpdateLeadStatusRequest
