@@ -57,7 +57,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Radar comercial', href: '/monitoramento', icon: Radar, analystOnly: true },
       { name: 'Relatórios', href: '/relatorios', icon: BarChart3, analystOnly: true },
-      { name: 'Data Health', href: '/data-health', icon: DatabaseZap, analystOnly: true },
+      { name: 'Qualidade dos dados', href: '/data-health', icon: DatabaseZap, analystOnly: true },
     ],
   },
   {

@@ -7,7 +7,7 @@ export default function MonitoringPage() {
       <PageHeader
         eyebrow="Inteligência contínua"
         title="Radar comercial"
-        description="Salve buscas, acompanhe novos matches, reconheça eventos recorrentes e veja o estado operacional dos leads sem perder controle sobre cotas e ações externas."
+        description="Salve buscas, acompanhe novos resultados, identifique eventos recorrentes e organize oportunidades sem perder o controle sobre limites de uso e consultas externas."
       />
       <ProspectingRadar />
     </div>

@@ -1,15 +1,15 @@
 """Busca local, tenant-aware e sem efeitos colaterais sobre dados canônicos.
 
-A camada de busca consulta Company/Person já conhecidos pelo workspace. Ela não
-chama providers: descoberta/enrichment continuam pertencendo ao pipeline. Filtros
-heterogêneos usam lógica ternária para que dado ausente permaneça UNKNOWN em vez
-de ser tratado como falso.
+A busca consulta somente dados já conhecidos pela organização. Filtros que
+podem ser avaliados com segurança no PostgreSQL são aplicados antes do limite
+de candidatos; critérios derivados continuam usando lógica ternária em memória.
 """
 from __future__ import annotations
 
 from collections import defaultdict
 from typing import Any, Iterable, Mapping
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from src.db.models import Company, CompanyRecord, Enrichment, Lead, LeadOpportunityRow, Person
@@ -141,7 +141,7 @@ def evaluate_expression(
     *,
     depth: int = 0,
 ) -> SearchTruth:
-    """Avalia grupos AND/OR/NOT preservando UNKNOWN por Kleene logic."""
+    """Avalia grupos AND/OR/NOT preservando UNKNOWN por lógica de Kleene."""
     if depth > 3:
         raise ValueError("expressão excede profundidade máxima de 3 níveis")
     results = [evaluate_condition(document, item) for item in expression.conditions]
@@ -206,15 +206,50 @@ def _range_truth(value: Any, minimum: Any, maximum: Any) -> SearchTruth:
     return SearchTruth.MATCH
 
 
+def _like_pattern(value: str) -> str:
+    """Escapa curingas SQL para busca literal por substring."""
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _contains_clause(column: Any, values: Iterable[str]):
+    clauses = [column.ilike(_like_pattern(value.strip()), escape="\\") for value in values if value.strip()]
+    return or_(*clauses) if clauses else None
+
+
 class ProspectSearchService:
     def __init__(self, db: Session, organization_id: Any) -> None:
         self.db = db
         self.organization_id = organization_id
 
-    def _company_documents(self) -> tuple[list[dict[str, Any]], bool]:
+    def _company_documents(self, request: CompanySearchRequest) -> tuple[list[dict[str, Any]], bool]:
+        query = self.db.query(Company).filter(Company.organization_id == self.organization_id)
+
+        if request.locations:
+            location_clauses = []
+            for value in request.locations:
+                pattern = _like_pattern(value.strip())
+                if value.strip():
+                    location_clauses.append(or_(
+                        Company.city.ilike(pattern, escape="\\"),
+                        Company.state.ilike(pattern, escape="\\"),
+                        Company.country.ilike(pattern, escape="\\"),
+                    ))
+            if location_clauses:
+                known = or_(*location_clauses)
+                if request.include_unknown:
+                    known = or_(known, and_(Company.city.is_(None), Company.state.is_(None), Company.country.is_(None)))
+                query = query.filter(known)
+
+        if request.industries:
+            known = _contains_clause(Company.category, request.industries)
+            if known is not None:
+                if request.include_unknown:
+                    known = or_(known, Company.category.is_(None))
+                query = query.filter(known)
+
         companies = (
-            self.db.query(Company)
-            .filter(Company.organization_id == self.organization_id)
+            query
             .order_by(Company.created_at.desc())
             .limit(MAX_CANDIDATES + 1)
             .all()
@@ -332,7 +367,7 @@ class ProspectSearchService:
         return documents, truncated
 
     def search_companies(self, request: CompanySearchRequest) -> dict[str, Any]:
-        documents, truncated = self._company_documents()
+        documents, truncated = self._company_documents(request)
         matches: list[dict[str, Any]] = []
         unknown_count = 0
         for document in documents:
@@ -380,23 +415,72 @@ class ProspectSearchService:
         }
 
     def search_people(self, request: PeopleSearchRequest) -> dict[str, Any]:
+        person_query = self.db.query(Person).filter(Person.organization_id == self.organization_id)
+
+        if request.email_status == "present":
+            person_query = person_query.filter(Person.email.isnot(None), Person.email != "")
+        elif request.email_status == "verified":
+            person_query = person_query.filter(Person.email.isnot(None), Person.email != "", Person.email_verified.is_(True))
+        elif request.email_status == "missing":
+            person_query = person_query.filter(or_(Person.email.is_(None), Person.email == ""))
+
+        if request.phone_status == "present":
+            person_query = person_query.filter(Person.phone.isnot(None), Person.phone != "")
+        elif request.phone_status == "missing":
+            person_query = person_query.filter(or_(Person.phone.is_(None), Person.phone == ""))
+
+        if request.linkedin_status == "present":
+            person_query = person_query.filter(Person.linkedin_url.isnot(None), Person.linkedin_url != "")
+        elif request.linkedin_status == "missing":
+            person_query = person_query.filter(or_(Person.linkedin_url.is_(None), Person.linkedin_url == ""))
+
+        company_ids: list[Any] | None = None
+        if request.company or request.domain or request.locations:
+            company_query = self.db.query(Company.id).filter(Company.organization_id == self.organization_id)
+            if request.company:
+                company_query = company_query.filter(Company.company_name.ilike(_like_pattern(request.company), escape="\\"))
+            if request.domain:
+                company_query = company_query.filter(Company.normalized_domain.ilike(_like_pattern(request.domain), escape="\\"))
+            if request.locations:
+                location_clauses = []
+                for value in request.locations:
+                    if not value.strip():
+                        continue
+                    pattern = _like_pattern(value.strip())
+                    location_clauses.append(or_(
+                        Company.city.ilike(pattern, escape="\\"),
+                        Company.state.ilike(pattern, escape="\\"),
+                        Company.country.ilike(pattern, escape="\\"),
+                    ))
+                if location_clauses:
+                    company_query = company_query.filter(or_(*location_clauses))
+            company_ids = [row[0] for row in company_query.limit(MAX_CANDIDATES + 1).all()]
+            if not company_ids:
+                return {
+                    "people": [],
+                    "total": 0,
+                    "limit": request.limit,
+                    "offset": request.offset,
+                    "candidate_scan_truncated": False,
+                }
+            person_query = person_query.filter(Person.company_id.in_(company_ids[:MAX_CANDIDATES]))
+
         people = (
-            self.db.query(Person)
-            .filter(Person.organization_id == self.organization_id)
+            person_query
             .order_by(Person.created_at.desc())
             .limit(MAX_CANDIDATES + 1)
             .all()
         )
-        truncated = len(people) > MAX_CANDIDATES
+        truncated = len(people) > MAX_CANDIDATES or bool(company_ids and len(company_ids) > MAX_CANDIDATES)
         people = people[:MAX_CANDIDATES]
-        company_ids = list({person.company_id for person in people if person.company_id})
+        related_company_ids = list({person.company_id for person in people if person.company_id})
         companies = {}
-        if company_ids:
+        if related_company_ids:
             companies = {
                 company.id: company
                 for company in self.db.query(Company).filter(
                     Company.organization_id == self.organization_id,
-                    Company.id.in_(company_ids),
+                    Company.id.in_(related_company_ids),
                 ).all()
             }
 

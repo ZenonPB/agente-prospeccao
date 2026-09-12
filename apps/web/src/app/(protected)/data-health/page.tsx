@@ -5,9 +5,9 @@ export default function DataHealthPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Qualidade dos dados"
-        title="Data Health"
-        description="Veja quais informações estão vencidas, incompletas ou pouco confiáveis antes de abordar um lead."
+        eyebrow="Inteligência comercial"
+        title="Qualidade dos dados"
+        description="Identifique informações desatualizadas, incompletas ou pouco confiáveis antes de abordar uma oportunidade."
       />
       <DataHealthDashboard />
     </div>

@@ -42,6 +42,10 @@ export interface ProviderHealth {
 
 export interface DataHealthOverview {
   total: number;
+  organization_total: number;
+  analyzed: number;
+  sample_truncated: boolean;
+  coverage_rate: number;
   healthy: number;
   health_rate: number;
   issues: Record<string, number>;

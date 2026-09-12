@@ -1,8 +1,8 @@
-"""Verificação de entregabilidade de e-mail com histórico e catch-all opt-in.
+"""Verificação conservadora de e-mail com histórico e catch-all opt-in.
 
-O caminho padrão é passivo: sintaxe, descartáveis e MX. O probe SMTP de
-catch-all é ativo e só roda quando habilitado explicitamente pelo chamador.
-Toda incerteza falha fechada para envio automático.
+Sintaxe e MX validam o domínio, não a existência da caixa individual. O probe
+SMTP opcional detecta comportamento catch-all, mas nunca promove sozinho um
+endereço específico a verificado.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def _extract_domain(email: str) -> str:
 
 
 class EmailVerificationService:
-    """Verifica e-mail de forma fail-closed, com probe ativo opcional."""
+    """Classifica evidência de domínio sem inventar verificação de mailbox."""
 
     def __init__(self) -> None:
         self._mx_cache: Dict[str, Optional[List[str]]] = {}
@@ -77,12 +77,12 @@ class EmailVerificationService:
         email: str,
         client: Optional[httpx.AsyncClient] = None,
     ) -> Dict[str, Any]:
-        """Contrato legado: valida sintaxe + descartável + MX."""
+        """Valida sintaxe e capacidade de e-mail do domínio, não a caixa."""
         if not is_valid_email_syntax(email):
-            return {"verified": False, "mx": None, "reason": "syntax_invalid"}
+            return {"verified": False, "domain_valid": False, "mx": None, "reason": "syntax_invalid"}
         domain = _extract_domain(email)
         if domain in DISPOSABLE_DOMAINS:
-            return {"verified": False, "mx": None, "reason": "disposable_domain"}
+            return {"verified": False, "domain_valid": False, "mx": None, "reason": "disposable_domain"}
 
         own_client = client is None
         if own_client:
@@ -90,15 +90,15 @@ class EmailVerificationService:
         try:
             mx = await self._lookup_mx(client, domain)
         finally:
-            if own_client:
+            if own_client and client is not None:
                 await client.aclose()
         if mx is None:
-            return {"verified": False, "mx": None, "reason": "no_mx_or_dns_unavailable"}
-        return {"verified": True, "mx": mx[0], "reason": "ok"}
+            return {"verified": False, "domain_valid": False, "mx": None, "reason": "no_mx_or_dns_unavailable"}
+        return {"verified": False, "domain_valid": True, "mx": mx[0], "reason": "mx_present"}
 
     @staticmethod
     def probe_smtp_catchall_sync(domain: str, mx_host: str) -> Dict[str, Any]:
-        """Detecta catch-all via RCPT TO aleatório. Só usar com opt-in explícito."""
+        """Testa somente comportamento catch-all; não confirma a caixa alvo."""
         clean_mx = mx_host.split()[-1].rstrip(".")
         random_email = f"probe_check_{uuid.uuid4().hex[:10]}@{domain}"
         try:
@@ -108,7 +108,7 @@ class EmailVerificationService:
                 code, _ = server.rcpt(random_email)
                 return {"is_catchall": code == 250, "code": code, "probed": True}
         except Exception as exc:  # noqa: BLE001
-            logger.debug("Probe SMTP catchall falhou para %s: %s", domain, exc)
+            logger.debug("Probe SMTP catch-all falhou para %s: %s", domain, exc)
             return {"is_catchall": None, "probed": False, "error": type(exc).__name__}
 
     async def probe_smtp_catchall(
@@ -128,23 +128,32 @@ class EmailVerificationService:
         *,
         enable_catchall_probe: bool = False,
     ) -> Dict[str, Any]:
-        """Retorna estado rico sem confundir MX válido com caixa individual válida."""
+        """Retorna evidência explicável sem tratar inferência como verificação."""
         base = await self.verify_email(email, client=client)
         reason = base.get("reason")
         if reason == "syntax_invalid":
             return {
-                **base, "status": "invalid", "confidence": 0,
-                "catch_all": None, "auto_send_eligible": False,
+                **base,
+                "status": "invalid",
+                "confidence": 0,
+                "catch_all": None,
+                "auto_send_eligible": False,
             }
         if reason == "disposable_domain":
             return {
-                **base, "status": "invalid", "confidence": 5,
-                "catch_all": None, "auto_send_eligible": False,
+                **base,
+                "status": "invalid",
+                "confidence": 5,
+                "catch_all": None,
+                "auto_send_eligible": False,
             }
-        if not base.get("verified") or not base.get("mx"):
+        if not base.get("domain_valid") or not base.get("mx"):
             return {
-                **base, "status": "unknown", "confidence": 15,
-                "catch_all": None, "auto_send_eligible": False,
+                **base,
+                "status": "unknown",
+                "confidence": 15,
+                "catch_all": None,
+                "auto_send_eligible": False,
             }
 
         if not enable_catchall_probe:
@@ -152,7 +161,7 @@ class EmailVerificationService:
                 **base,
                 "verified": False,
                 "status": "domain_validated",
-                "confidence": 70,
+                "confidence": 65,
                 "catch_all": None,
                 "auto_send_eligible": False,
                 "reason": "mx_valid_catchall_not_checked",
@@ -166,7 +175,7 @@ class EmailVerificationService:
                 **base,
                 "verified": False,
                 "status": "catchall_unknown",
-                "confidence": 55,
+                "confidence": 50,
                 "catch_all": None,
                 "auto_send_eligible": False,
                 "reason": "catchall_probe_unavailable",
@@ -176,17 +185,17 @@ class EmailVerificationService:
                 **base,
                 "verified": False,
                 "status": "catch_all",
-                "confidence": 80,
+                "confidence": 60,
                 "catch_all": True,
                 "auto_send_eligible": False,
                 "reason": "catch_all_domain",
             }
         return {
             **base,
-            "verified": True,
-            "status": "deliverable",
-            "confidence": 92,
+            "verified": False,
+            "status": "non_catch_all",
+            "confidence": 75,
             "catch_all": False,
-            "auto_send_eligible": True,
-            "reason": "mx_valid_not_catchall",
+            "auto_send_eligible": False,
+            "reason": "mx_valid_non_catch_all_mailbox_unconfirmed",
         }

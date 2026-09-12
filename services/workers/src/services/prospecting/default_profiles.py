@@ -1,32 +1,20 @@
-"""Perfis iniciais de OfferProfile — Fase B do plano de consolidação.
+"""Perfis de oferta padrão usados pelo motor genérico de prospecção.
 
-Adicionar nova oferta = criar profile aqui. Engine não muda (consolidação §Fase B).
-
-Todo profile registrado passa por `validate_registry` (P1.4): erros são
-logados no build e barrados pelo teste de regressão; ferramenta
-administrativa futura deve barrar publish com erro.
+Cada perfil descreve ICP, descoberta, sinais, decisores, canais e qualificação.
+Configurações específicas do portfólio AlphaMec são aplicadas ao final a partir
+de um módulo externo ao núcleo genérico.
 """
 import logging
-from typing import Any, Dict
 
-from services.prospecting.offer_profile import (
-    OfferProfile,
-    OfferProfileRegistry,
-)
+from services.prospecting.offer_profile import OfferProfile, OfferProfileRegistry
 
 logger = logging.getLogger(__name__)
 
 
 def build_default_registry() -> OfferProfileRegistry:
-    """Constrói o registry com os profiles iniciais.
-
-    Cada profile é uma unidade de inteligência comercial completa:
-    ICP + discovery + prescoring + signals + intent + decision_makers +
-    channels + qualification + outreach.
-    """
+    """Constrói e valida o catálogo padrão de perfis de oferta."""
     registry = OfferProfileRegistry()
 
-    # ---- web_presence: landing page ----
     registry.register(OfferProfile(
         key="landing_page",
         archetype="web_presence",
@@ -34,7 +22,7 @@ def build_default_registry() -> OfferProfileRegistry:
         version="1.0",
         offer={"name": "Landing Page de Conversão", "tagline": "Página de alta conversão"},
         icp={
-            "company_sizes": ["ME", "PE"],  # micro/pequena
+            "company_sizes": ["ME", "PE"],
             "segments": ["psicologia", "estética", "clínicas", "infoprodutores"],
             "cnaes": ["8630-5/04", "9602-5/02", "8599-6/99"],
             "exclusions": ["enterprise com site"],
@@ -58,12 +46,7 @@ def build_default_registry() -> OfferProfileRegistry:
             "steps": ["cnpj_receita", "technical_site"],
             "stop_conditions": {"if_qualifies_after": "technical_site"},
             "max_cost": 5,
-            "people_discovery": {
-                # Permite tentar Hunter e, se vazio, consultar o site oficial.
-                "max_cost": 2,
-                "max_steps": 2,
-                "min_role_fit": 70,
-            },
+            "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 70},
         },
         signals={
             "positive": ["NO_OWN_WEBSITE", "HAS_INSTAGRAM"],
@@ -93,7 +76,6 @@ def build_default_registry() -> OfferProfileRegistry:
         },
     ))
 
-    # ---- industrial: mechanical_project ----
     registry.register(OfferProfile(
         key="mechanical_project",
         archetype="industrial",
@@ -101,9 +83,9 @@ def build_default_registry() -> OfferProfileRegistry:
         version="1.0",
         offer={"name": "Projeto Mecânico", "tagline": "Projeto mecânico sob medida"},
         icp={
-            "company_sizes": ["EPP", "ME", "GE"],  # pequena/média/grande
+            "company_sizes": ["EPP", "ME", "GE"],
             "segments": ["metalúrgica", "máquinas industriais", "automação"],
-            "cnaes": ["25", "28", "33"],  # indústria
+            "cnaes": ["25", "28", "33"],
             "exclusions": ["varejo", "serviços não-industriais"],
         },
         discovery={
@@ -124,16 +106,10 @@ def build_default_registry() -> OfferProfileRegistry:
             "steps": ["cnpj_receita", "business_social", "cnpj_qsa"],
             "stop_conditions": {},
             "max_cost": 3,
-            "people_discovery": {
-                "max_cost": 2,
-                "max_steps": 2,
-                "min_role_fit": 70,
-            },
+            "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 70},
         },
         signals={
             "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
-            # P1.7: formalidade (CNPJ) pesa mais que contato direto —
-            # capacidade industrial instalada importa antes do telefone.
             "weights": {"HAS_CNPJ": 20, "HAS_BUSINESS_EMAIL": 15, "HAS_PHONE": 5},
             "negative": ["RETAIL_FOCUSED"],
             "disqualifiers": ["SERVICE_ONLY"],
@@ -161,7 +137,6 @@ def build_default_registry() -> OfferProfileRegistry:
         },
     ))
 
-    # ---- industrial: technical_drawing ----
     registry.register(OfferProfile(
         key="technical_drawing",
         archetype="industrial",
@@ -171,7 +146,7 @@ def build_default_registry() -> OfferProfileRegistry:
         icp={
             "company_sizes": ["EPP", "ME"],
             "segments": ["projetos sob demanda", "indústria sob encomenda"],
-            "cnaes": ["25", "71"],  # indústria + engenharia
+            "cnaes": ["25", "71"],
         },
         discovery={
             "providers": ["cnae_discovery", "google_places"],
@@ -179,11 +154,7 @@ def build_default_registry() -> OfferProfileRegistry:
             "query_strategy": "cnae+city",
         },
         enrichment={
-            "people_discovery": {
-                "max_cost": 2,
-                "max_steps": 2,
-                "min_role_fit": 70,
-            },
+            "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 70},
         },
         prescoring={
             "weights": {"HAS_PHONE": 15, "HAS_CNPJ": 20},
@@ -191,8 +162,6 @@ def build_default_registry() -> OfferProfileRegistry:
         },
         signals={
             "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
-            # P1.7: contato direto pesa mais que formalidade — desenho
-            # técnico vende para quem atende e manda referência por e-mail.
             "weights": {"HAS_CNPJ": 5, "HAS_BUSINESS_EMAIL": 15, "HAS_PHONE": 10},
             "negative": ["RETAIL_FOCUSED"],
         },
@@ -203,7 +172,6 @@ def build_default_registry() -> OfferProfileRegistry:
         channels={"priority": ["email", "phone"]},
     ))
 
-    # ---- industrial: machine_manual ----
     registry.register(OfferProfile(
         key="machine_manual",
         archetype="industrial",
@@ -213,18 +181,11 @@ def build_default_registry() -> OfferProfileRegistry:
         icp={
             "company_sizes": ["EPP", "ME", "GE"],
             "segments": ["fabricantes de máquinas", "indústria com frota de equipamentos"],
-            "cnaes": ["28"],  # máquinas
+            "cnaes": ["28"],
         },
-        discovery={
-            "providers": ["cnae_discovery"],
-            "target_candidates": 100,
-        },
+        discovery={"providers": ["cnae_discovery"], "target_candidates": 100},
         enrichment={
-            "people_discovery": {
-                "max_cost": 2,
-                "max_steps": 2,
-                "min_role_fit": 70,
-            },
+            "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 70},
         },
         decision_makers={
             "roles": ["plant_engineer", "safety_manager", "operations_director"],
@@ -232,8 +193,6 @@ def build_default_registry() -> OfferProfileRegistry:
         },
         signals={
             "positive": ["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
-            # P1.7: telefone pesa mais — manual/NR-12 exige visita técnica
-            # e levantamento presencial antes da proposta.
             "weights": {"HAS_CNPJ": 10, "HAS_BUSINESS_EMAIL": 5, "HAS_PHONE": 15},
             "negative": ["RETAIL_FOCUSED"],
         },
@@ -246,7 +205,6 @@ def build_default_registry() -> OfferProfileRegistry:
         },
     ))
 
-    # ---- custom_products: trophies ----
     registry.register(OfferProfile(
         key="trophies",
         archetype="custom_products",
@@ -256,23 +214,17 @@ def build_default_registry() -> OfferProfileRegistry:
         icp={
             "company_sizes": ["ME", "PE"],
             "segments": ["esportivos", "corporativos", "eventos", "federações"],
-            "cnaes": ["32"],  # fabricação de produtos diversos
+            "cnaes": ["32"],
             "geography": {"country": "BR", "states": ["SP", "RJ", "MG", "RS"]},
         },
         discovery={
             "providers": ["google_places", "instagram_search", "event_search"],
             "target_candidates": 400,
-            "provider_budgets": {
-                "google_places": 100, "instagram_search": 50, "event_search": 80,
-            },
+            "provider_budgets": {"google_places": 100, "instagram_search": 50, "event_search": 80},
             "query_strategy": "evento+cidade OR empresa+segmento",
         },
         enrichment={
-            "people_discovery": {
-                "max_cost": 2,
-                "max_steps": 2,
-                "min_role_fit": 70,
-            },
+            "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 70},
         },
         prescoring={
             "weights": {
@@ -287,7 +239,7 @@ def build_default_registry() -> OfferProfileRegistry:
         },
         intent={
             "event_weights": {"EVENT_SCHEDULED": 0.9, "SEASONAL_DEMAND": 0.7},
-            "decay_days": 30,  # eventos têm ciclo curto
+            "decay_days": 30,
             "trigger_threshold": 0.4,
         },
         decision_makers={
@@ -308,20 +260,24 @@ def build_default_registry() -> OfferProfileRegistry:
         },
     ))
 
-    from services.prospecting.phase5_profiles import register_phase5_profiles
-    register_phase5_profiles(registry)
+    from services.alphamec_offer_profiles import register_alphamec_profiles
+    register_alphamec_profiles(registry)
 
     from services.prospecting.offer_profile_validator import validate_registry
     invalid = validate_registry(registry)
     for key, errors in invalid.items():
-        logger.warning("OfferProfile %s com %d erro(s): %s",
-                       key, len(errors), "; ".join(errors))
+        logger.warning(
+            "OfferProfile %s com %d erro(s): %s",
+            key,
+            len(errors),
+            "; ".join(errors),
+        )
 
     return registry
 
 
 def get_default_registry() -> OfferProfileRegistry:
-    """Singleton lazy — registry padrão carregado uma vez."""
+    """Retorna o catálogo padrão, construído uma única vez por processo."""
     global _default_registry
     if _default_registry is None:
         _default_registry = build_default_registry()
