@@ -1304,6 +1304,12 @@ class Conversion(Base):
     __tablename__ = "conversions"
     __table_args__ = (
         Index("ix_conversions_lead_id", "lead_id"),
+        Index(
+            "uq_conversions_lead_offer",
+            "lead_id",
+            func.coalesce(text("offer_key"), "unknown"),
+            unique=True,
+        ),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
