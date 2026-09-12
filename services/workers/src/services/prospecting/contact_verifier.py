@@ -6,9 +6,10 @@ from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, Optional
 
-
 logger = logging.getLogger(__name__)
 MAX_EMAIL_HISTORY = 30
+_AUTHORITATIVE_STATUSES = {"verified", "mailbox_verified", "provider_verified", "fully_verified"}
+_PASSIVE_STATUSES = {"domain_validated", "catchall_unknown", "catch_all", "non_catch_all", "unknown"}
 
 
 class ContactVerifier:
@@ -51,13 +52,21 @@ class ContactVerifier:
     @staticmethod
     def latest_verified_at(person: Any) -> str | None:
         raw = getattr(person, "raw_data", None)
-        if not isinstance(raw, dict):
-            return None
-        history = raw.get("email_verification_history")
-        if isinstance(history, list) and history and isinstance(history[-1], dict):
-            return history[-1].get("observed_at")
+        if isinstance(raw, dict):
+            history = raw.get("email_verification_history")
+            if isinstance(history, list) and history and isinstance(history[-1], dict):
+                return history[-1].get("observed_at")
         value = getattr(person, "email_verified_at", None) or getattr(person, "last_verified_at", None)
         return value.isoformat() if hasattr(value, "isoformat") else value
+
+    @staticmethod
+    def has_authoritative_verification(person: Any) -> bool:
+        if not bool(getattr(person, "email_verified", False)):
+            return False
+        status = str(getattr(person, "verification_status", "") or "").lower()
+        if status in _AUTHORITATIVE_STATUSES or "verified" in status:
+            return True
+        return getattr(person, "email_verified_at", None) is not None
 
     async def verify_email(self, person: Any) -> Dict[str, Any]:
         email = getattr(person, "email", None)
@@ -70,20 +79,26 @@ class ContactVerifier:
         if self._email_service is None:
             return {"email_verified": False, "verification_status": "pending_real_check", "confidence": 0}
 
+        previously_verified = self.has_authoritative_verification(person)
         try:
             if hasattr(self._email_service, "verify_email_v2"):
                 verified = await self._email_service.verify_email_v2(
                     email,
                     enable_catchall_probe=self._enable_catchall_probe,
                 )
+                status = str(verified.get("status") or "unknown")
+                canonical_verified = bool(verified.get("verified"))
+                if status in _PASSIVE_STATUSES and previously_verified:
+                    canonical_verified = True
                 result = {
-                    "email_verified": bool(verified.get("verified")),
-                    "verification_status": verified.get("status") or "unknown",
+                    "email_verified": canonical_verified,
+                    "verification_status": status,
                     "reason": verified.get("reason"),
                     "mx": verified.get("mx"),
                     "confidence": int(verified.get("confidence") or 0),
                     "catch_all": verified.get("catch_all"),
-                    "auto_send_eligible": bool(verified.get("auto_send_eligible")),
+                    "auto_send_eligible": bool(verified.get("auto_send_eligible")) or previously_verified,
+                    "passive_observation": status in _PASSIVE_STATUSES,
                 }
             else:
                 verified = await self._email_service.verify_email(email)
@@ -96,16 +111,18 @@ class ContactVerifier:
                     "confidence": 80 if ok else 20,
                     "catch_all": None,
                     "auto_send_eligible": ok,
+                    "passive_observation": False,
                 }
         except Exception as exc:  # noqa: BLE001
             logger.warning("Falha na verificação assíncrona do e-mail: %s", exc)
             result = {
-                "email_verified": False,
+                "email_verified": previously_verified,
                 "verification_status": "pending_real_check",
                 "reason": "verification_error",
                 "confidence": 0,
                 "catch_all": None,
-                "auto_send_eligible": False,
+                "auto_send_eligible": previously_verified,
+                "passive_observation": True,
             }
 
         self._append_history(person, email, result)

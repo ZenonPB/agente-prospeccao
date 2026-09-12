@@ -1,7 +1,7 @@
-"""Configuração declarativa de excelência por oferta da Fase 5.
+"""Configuração declarativa das ofertas comerciais da AlphaMec.
 
-Este módulo fica deliberadamente fora de ``services.prospecting``: nomes de
-ofertas pertencem à camada de configuração, nunca ao core genérico.
+Nomes e sinais específicos do portfólio ficam fora do núcleo genérico de
+prospecção para que o motor continue reutilizável por outras organizações.
 """
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ def _register_if_missing(registry: OfferProfileRegistry, profile: OfferProfile) 
         registry.register(profile)
 
 
-def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegistry:
-    """Expande perfis existentes sem alterar o denominator de scoring legado."""
+def register_alphamec_profiles(registry: OfferProfileRegistry) -> OfferProfileRegistry:
+    """Registra e aprimora perfis do portfólio sem alterar o núcleo genérico."""
     _enhance(
         registry,
         "landing_page",
@@ -155,3 +155,6 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
     for profile in profiles:
         _register_if_missing(registry, profile)
     return registry
+
+
+register_phase5_profiles = register_alphamec_profiles
