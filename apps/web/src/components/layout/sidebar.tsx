@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Layers,
   HelpCircle,
+  DatabaseZap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
@@ -52,7 +53,10 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Inteligência',
-    items: [{ name: 'Relatórios', href: '/relatorios', icon: BarChart3, analystOnly: true }],
+    items: [
+      { name: 'Relatórios', href: '/relatorios', icon: BarChart3, analystOnly: true },
+      { name: 'Data Health', href: '/data-health', icon: DatabaseZap, analystOnly: true },
+    ],
   },
   {
     label: 'Gestão',
@@ -91,7 +95,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={toggleSidebar} />
       )}
@@ -104,7 +107,6 @@ export function Sidebar() {
           !sidebarOpen && "max-lg:-translate-x-full",
         )}
       >
-        {/* Brand */}
         <div className="flex h-16 items-center gap-2.5 border-b border-sidebar-border px-4">
           {sidebarOpen && (
             <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
@@ -133,12 +135,10 @@ export function Sidebar() {
           </Button>
         </div>
 
-        {/* Org Switcher */}
         <div className="border-b border-sidebar-border p-2">
           <OrgSwitcher collapsed={!sidebarOpen} />
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 space-y-4 overflow-y-auto p-2">
           {visibleGroups.map((group) => (
             <div key={group.label} className="space-y-0.5">
@@ -165,7 +165,6 @@ export function Sidebar() {
                     aria-current={isActive ? 'page' : undefined}
                     title={sidebarOpen ? undefined : item.name}
                   >
-                    {/* Sinal da página ativa */}
                     {isActive && (
                       <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-sidebar-primary animate-scale-in" />
                     )}
@@ -184,7 +183,6 @@ export function Sidebar() {
           ))}
         </nav>
 
-        {/* Footer */}
         <div className="border-t border-sidebar-border p-4">
           {sidebarOpen ? (
             <p className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
