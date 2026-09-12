@@ -6,6 +6,7 @@ import { commercialPlatformApi, type CRMProvider, type CRMSyncMode } from '@/lib
 const keys = {
   connections: ['commercial-platform', 'connections'] as const,
   runs: ['commercial-platform', 'sync-runs'] as const,
+  certifications: ['commercial-platform', 'crm-certifications'] as const,
   intelligence: ['commercial-platform', 'intelligence'] as const,
 };
 
@@ -26,6 +27,21 @@ export function useCRMHealth() {
   return useMutation({
     mutationFn: commercialPlatformApi.health,
     onSuccess: async () => client.invalidateQueries({ queryKey: keys.connections }),
+  });
+}
+
+export function useCRMCertifications() {
+  return useQuery({ queryKey: keys.certifications, queryFn: commercialPlatformApi.certifications, staleTime: 15_000 });
+}
+
+export function useCertifyCRMConnection() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: commercialPlatformApi.certify,
+    onSuccess: async () => Promise.all([
+      client.invalidateQueries({ queryKey: keys.connections }),
+      client.invalidateQueries({ queryKey: keys.certifications }),
+    ]),
   });
 }
 
