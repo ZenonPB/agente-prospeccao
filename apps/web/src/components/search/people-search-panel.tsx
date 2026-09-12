@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Database, Loader2, MailCheck, Search, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -53,28 +53,16 @@ function contactStatusLabel(status: string) {
 
 export function PeopleSearchPanel({ interpretedFilters }: { interpretedFilters?: PeopleSearchFilters | null }) {
   const search = usePeopleSearch();
-  const [query, setQuery] = useState('');
-  const [company, setCompany] = useState('');
-  const [domain, setDomain] = useState('');
-  const [titles, setTitles] = useState('');
-  const [buyerRoles, setBuyerRoles] = useState<string[]>([]);
-  const [locations, setLocations] = useState('');
-  const [emailStatus, setEmailStatus] = useState<PeopleSearchFilters['email_status']>('any');
-  const [phoneStatus, setPhoneStatus] = useState<PeopleSearchFilters['phone_status']>('any');
-  const [minQuality, setMinQuality] = useState('');
-
-  useEffect(() => {
-    if (!interpretedFilters) return;
-    setQuery(interpretedFilters.query ?? '');
-    setCompany(interpretedFilters.company ?? '');
-    setDomain(interpretedFilters.domain ?? '');
-    setTitles((interpretedFilters.titles ?? []).join(', '));
-    setBuyerRoles(interpretedFilters.buyer_roles ?? []);
-    setLocations((interpretedFilters.locations ?? []).join(', '));
-    setEmailStatus(interpretedFilters.email_status ?? 'any');
-    setPhoneStatus(interpretedFilters.phone_status ?? 'any');
-    setMinQuality(interpretedFilters.min_actionable_score?.toString() ?? '');
-  }, [interpretedFilters]);
+  const initial = interpretedFilters ?? {};
+  const [query, setQuery] = useState(initial.query ?? '');
+  const [company, setCompany] = useState(initial.company ?? '');
+  const [domain, setDomain] = useState(initial.domain ?? '');
+  const [titles, setTitles] = useState((initial.titles ?? []).join(', '));
+  const [buyerRoles, setBuyerRoles] = useState<string[]>(initial.buyer_roles ?? []);
+  const [locations, setLocations] = useState((initial.locations ?? []).join(', '));
+  const [emailStatus, setEmailStatus] = useState<PeopleSearchFilters['email_status']>(initial.email_status ?? 'any');
+  const [phoneStatus, setPhoneStatus] = useState<PeopleSearchFilters['phone_status']>(initial.phone_status ?? 'any');
+  const [minQuality, setMinQuality] = useState(initial.min_actionable_score?.toString() ?? '');
 
   const filters = useMemo<PeopleSearchFilters>(() => ({
     query: query || undefined,
