@@ -64,7 +64,7 @@ export function DataHealthDashboard() {
   if (health.isError) {
     return (
       <EmptyState
-        icon={AlertTriangle}
+        icon={<AlertTriangle className="size-6" aria-hidden="true" />}
         title="Não foi possível carregar a saúde dos dados"
         description={health.error instanceof Error ? health.error.message : 'Tente novamente em instantes.'}
         action={<Button onClick={() => void health.refetch()}>Tentar novamente</Button>}
@@ -141,7 +141,11 @@ export function DataHealthDashboard() {
         </CardHeader>
         <CardContent>
           {data.items.length === 0 ? (
-            <EmptyState icon={CheckCircle2} title="Nenhum registro para revisar" description="A base deste workspace ainda está vazia ou totalmente saudável." />
+            <EmptyState
+              icon={<CheckCircle2 className="size-6" aria-hidden="true" />}
+              title="Nenhum registro para revisar"
+              description="A base deste workspace ainda está vazia ou totalmente saudável."
+            />
           ) : (
             <div className="space-y-3">
               {data.items.slice(0, 50).map((item) => (
