@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_current_user, get_user_organization
+from src.auth.dependencies import get_current_user, get_user_organization, require_analyst
 from src.db.dependencies import get_db
-from src.db.models import Job, JobStatus, JobType, Lead, Organization, User
+from src.db.models import Job, JobStatus, JobType, Lead, Organization, OrganizationMember, User
 from src.services.data_health_service import DataHealthService
 from src.services.data_intelligence_service import DataIntelligenceService
 
@@ -23,7 +23,7 @@ class RefreshPlanRequest(BaseModel):
 def get_data_health(
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _member: OrganizationMember = Depends(require_analyst()),
     org: Organization = Depends(get_user_organization),
 ):
     return DataHealthService(db, org.id).overview(limit=limit)
@@ -59,7 +59,7 @@ def recompute_lead_intelligence(
 def create_refresh_plan(
     request: RefreshPlanRequest,
     db: Session = Depends(get_db),
-    _user: User = Depends(get_current_user),
+    _member: OrganizationMember = Depends(require_analyst()),
     org: Organization = Depends(get_user_organization),
 ):
     """Prioriza refresh e, opcionalmente, agenda reanálise por campanha.
@@ -77,13 +77,14 @@ def create_refresh_plan(
         return {"candidates": [], "jobs": []}
 
     leads = db.query(Lead).filter(Lead.organization_id == org.id, Lead.id.in_(lead_ids)).all()
-    by_campaign: dict[str, list[Lead]] = {}
+    by_campaign: dict[object, list[Lead]] = {}
     for lead in leads:
         if lead.campaign_id:
-            by_campaign.setdefault(str(lead.campaign_id), []).append(lead)
+            by_campaign.setdefault(lead.campaign_id, []).append(lead)
 
     jobs: list[dict[str, str]] = []
     for campaign_id, campaign_leads in by_campaign.items():
+        campaign_id_str = str(campaign_id)
         # Evita duplicar refresh pendente para a mesma campanha.
         pending = db.query(Job).filter(
             Job.organization_id == org.id,
@@ -92,7 +93,7 @@ def create_refresh_plan(
             Job.status.in_([JobStatus.PENDING, JobStatus.IN_PROGRESS]),
         ).first()
         if pending:
-            jobs.append({"job_id": str(pending.id), "campaign_id": campaign_id, "status": "already_pending"})
+            jobs.append({"job_id": str(pending.id), "campaign_id": campaign_id_str, "status": "already_pending"})
             continue
         job = Job(
             job_type=JobType.LEAD_ENRICHMENT,
@@ -100,7 +101,7 @@ def create_refresh_plan(
             organization_id=org.id,
             campaign_id=campaign_id,
             payload={
-                "campaign_id": campaign_id,
+                "campaign_id": campaign_id_str,
                 "reanalyze_only": True,
                 "unscored_only": False,
                 "max_leads": min(len(campaign_leads), 200),
@@ -110,7 +111,7 @@ def create_refresh_plan(
         )
         db.add(job)
         db.flush()
-        jobs.append({"job_id": str(job.id), "campaign_id": campaign_id, "status": "queued"})
+        jobs.append({"job_id": str(job.id), "campaign_id": campaign_id_str, "status": "queued"})
 
     db.commit()
     return {"candidates": candidates, "jobs": jobs}
