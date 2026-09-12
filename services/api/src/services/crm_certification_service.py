@@ -23,7 +23,7 @@ class CRMCertificationService:
 
     async def run(self, connection_id: Any, actor_id: Any = None) -> CRMCertificationRun:
         sync = CRMSyncService(self.db, self.organization_id)
-        connection, adapter = await sync._adapter(connection_id)  # internal package seam, no secret exposure
+        connection, adapter = await sync._adapter(connection_id)  # package seam; secret stays in memory
         checks: list[dict[str, Any]] = []
         overall = "PASSED"
 
@@ -37,10 +37,16 @@ class CRMCertificationService:
             checks.append({"name": "authentication", "status": "failed", "error": type(exc).__name__})
             overall = "FAILED"
 
-        # Read-only contract check. No cursor is persisted and no remote object is
-        # changed. Salesforce intentionally reports unsupported polling because
-        # its adapter requires workspace-specific SOQL; healthcheck still proves auth.
-        if overall == "PASSED":
+        if overall == "PASSED" and connection.provider == "salesforce":
+            # Salesforce auth is genuinely exercised by /limits. Incremental
+            # reads need tenant-specific SOQL/field mapping, so do not pretend an
+            # empty local adapter response was a live remote read.
+            checks.append({
+                "name": "read_contract",
+                "status": "not_applicable",
+                "note": "autenticação real validada; leitura incremental exige SOQL configurado para o workspace",
+            })
+        elif overall == "PASSED":
             try:
                 changes, _cursor = await adapter.fetch_changes(
                     organization_id=str(self.organization_id),
