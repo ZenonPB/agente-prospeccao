@@ -29,6 +29,23 @@ export interface CRMSyncRun {
   completed_at?: string | null;
 }
 
+export interface CRMCertificationRun {
+  id: string;
+  connection_id: string;
+  provider: CRMProvider;
+  status: 'PASSED' | 'FAILED' | string;
+  checks: Array<{
+    name: string;
+    status: string;
+    sample_count?: number;
+    note?: string;
+    error?: string;
+  }>;
+  adapter_version: string;
+  tested_by_id?: string | null;
+  created_at?: string | null;
+}
+
 export interface CommercialIntelligenceDashboard {
   attribution: {
     total_outcomes: number;
@@ -94,6 +111,8 @@ export const commercialPlatformApi = {
     body: JSON.stringify(body),
   }),
   health: (connectionId: string) => request<{ provider: string; status: string; detail?: string }>(`/api/crm/crm-sync/connections/${connectionId}/health`, { method: 'POST' }),
+  certify: (connectionId: string) => request<CRMCertificationRun>(`/api/crm/crm-sync/connections/${connectionId}/certify`, { method: 'POST' }),
+  certifications: () => request<{ items: CRMCertificationRun[] }>('/api/crm/crm-sync/certifications'),
   pull: (connectionId: string) => request<{ status: string; processed: number; succeeded: number; conflicts: number }>(`/api/crm/crm-sync/connections/${connectionId}/pull`, {
     method: 'POST',
     body: JSON.stringify({ idempotency_key: `ui-pull:${connectionId}:${Date.now()}` }),
