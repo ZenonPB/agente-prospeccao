@@ -16,7 +16,7 @@ def _module():
 
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
-    assert verify_migrations.migration_head() == "a1c3e5f7b9d2"
+    assert verify_migrations.migration_head() == "c2d4e6f8a0b1"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -45,6 +45,20 @@ def test_controlled_learning_tem_schema_e_integridade_obrigatorios():
     assert "controlled_learning_proposals" in verify_migrations.REQUIRED_TABLES
     assert verify_migrations.REQUIRED_COLUMNS["controlled_learning_proposals"] == {"proposal_version", "status", "evidence_snapshot", "published_at", "created_at"}
     assert verify_migrations.REQUIRED_UNIQUES["controlled_learning_proposals"] == {"uq_controlled_learning_org_comparison", "uq_controlled_learning_org_offer_version"}
+
+
+def test_publicacao_offer_profile_tem_versionamento_rollback_e_single_active():
+    verify_migrations = _module()
+    assert {"offer_profile_versions", "offer_profile_activations"} <= verify_migrations.REQUIRED_TABLES
+    assert verify_migrations.REQUIRED_UNIQUES["offer_profile_versions"] == {"uq_offer_profile_versions_org_offer_version"}
+    assert "uq_offer_profile_versions_one_active" in verify_migrations.REQUIRED_INDEXES
+    assert {"offer_key", "version", "profile_snapshot", "is_active", "source_proposal_id", "activated_at", "deactivated_at"} == verify_migrations.REQUIRED_COLUMNS["offer_profile_versions"]
+
+
+def test_crm_certification_tem_evidencia_persistente():
+    verify_migrations = _module()
+    assert "crm_certification_runs" in verify_migrations.REQUIRED_TABLES
+    assert {"provider", "status", "checks", "adapter_version", "tested_by_id", "created_at"} == verify_migrations.REQUIRED_COLUMNS["crm_certification_runs"]
 
 
 def test_engagement_tem_schema_e_integridade_obrigatorios():
