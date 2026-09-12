@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_current_user, get_user_organization, require_analyst
+from src.auth.dependencies import get_current_user, get_user_organization, require_analyst, require_manager
 from src.db.dependencies import get_db
 from src.db.models import Job, JobStatus, JobType, Lead, Organization, OrganizationMember, User
+from src.services.continuous_intelligence_service import ContinuousIntelligenceService
 from src.services.data_health_service import DataHealthService
 from src.services.data_intelligence_service import DataIntelligenceService
 
@@ -55,6 +56,16 @@ def recompute_lead_intelligence(
     return DataIntelligenceService(db, org.id).analyze_lead(lead, persist=True)
 
 
+@router.post("/watch/run-once")
+async def run_watch_once(
+    db: Session = Depends(get_db),
+    _member: OrganizationMember = Depends(require_manager()),
+    org: Organization = Depends(get_user_organization),
+):
+    """Executa o watch agora, sem ignorar cotas ou opt-ins do workspace."""
+    return await ContinuousIntelligenceService(db).run_once_for_org(org, force=True)
+
+
 @router.post("/refresh-plan")
 def create_refresh_plan(
     request: RefreshPlanRequest,
@@ -62,12 +73,6 @@ def create_refresh_plan(
     _member: OrganizationMember = Depends(require_analyst()),
     org: Organization = Depends(get_user_organization),
 ):
-    """Prioriza refresh e, opcionalmente, agenda reanálise por campanha.
-
-    Não dispara provider diretamente no request. Quando `enqueue=true`, cria
-    jobs LEAD_ENRICHMENT existentes, um por campanha, preservando a fila e a
-    observabilidade já usadas pelo pipeline.
-    """
     candidates = DataHealthService(db, org.id).refresh_candidates(limit=request.limit)
     if not request.enqueue:
         return {"candidates": candidates, "jobs": []}
@@ -85,7 +90,6 @@ def create_refresh_plan(
     jobs: list[dict[str, str]] = []
     for campaign_id, campaign_leads in by_campaign.items():
         campaign_id_str = str(campaign_id)
-        # Evita duplicar refresh pendente para a mesma campanha.
         pending = db.query(Job).filter(
             Job.organization_id == org.id,
             Job.campaign_id == campaign_id,
