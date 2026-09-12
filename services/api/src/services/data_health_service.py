@@ -1,11 +1,11 @@
-"""Leitura de Data Health e priorização de refresh por workspace."""
+"""Leitura de qualidade dos dados e priorização de atualização por organização."""
 from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from src.db.models import Company, EmailSuppression, Enrichment, Lead, LeadOpportunityRow, Person, ProviderExecutionMetric
@@ -20,6 +20,18 @@ class DataHealthService:
         self.db = db
         self.organization_id = organization_id
 
+    @staticmethod
+    def _phone_observed_at(person: Person | None) -> Any:
+        if not person or not person.phone:
+            return None
+        raw = person.raw_data if isinstance(person.raw_data, dict) else {}
+        history = raw.get("phone_verification_history")
+        if isinstance(history, list):
+            for item in reversed(history):
+                if isinstance(item, dict) and item.get("observed_at"):
+                    return item["observed_at"]
+        return raw.get("phone_verified_at") or raw.get("phone_observed_at")
+
     def _lead_freshness(self, lead: Lead, enrichment: Enrichment | None, person: Person | None) -> list[dict[str, Any]]:
         timestamps = lead.enrichment_timestamps if isinstance(lead.enrichment_timestamps, dict) else {}
         return [
@@ -29,7 +41,7 @@ class DataHealthService:
             evaluate_freshness("intent", timestamps.get("intent")),
             evaluate_freshness("jobs", timestamps.get("jobs")),
             evaluate_freshness("email", ContactVerifier.latest_verified_at(person) if person and person.email else None),
-            evaluate_freshness("phone", person.last_verified_at if person and person.phone else None),
+            evaluate_freshness("phone", self._phone_observed_at(person)),
             evaluate_freshness("employment", EmploymentHistoryService.current_observed_at(person) if person else None),
         ]
 
@@ -74,11 +86,23 @@ class DataHealthService:
         return sorted(by_provider.values(), key=lambda item: (-item["failure_rate"], item["provider"]))
 
     def overview(self, *, limit: int = 100) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        requested_limit = min(max(limit, 1), 500)
+        organization_total = (
+            self.db.query(func.count(Lead.id))
+            .filter(Lead.organization_id == self.organization_id)
+            .scalar()
+            or 0
+        )
+        overdue_first = case(
+            (Lead.next_action_at.isnot(None) & (Lead.next_action_at <= now), 0),
+            else_=1,
+        )
         leads = (
             self.db.query(Lead)
             .filter(Lead.organization_id == self.organization_id)
-            .order_by(Lead.updated_at.desc().nullslast(), Lead.created_at.desc())
-            .limit(min(max(limit, 1), 500))
+            .order_by(overdue_first.asc(), Lead.updated_at.desc().nullslast(), Lead.created_at.desc())
+            .limit(requested_limit)
             .all()
         )
         lead_ids = [lead.id for lead in leads]
@@ -89,7 +113,9 @@ class DataHealthService:
         if lead_ids:
             rows = self.db.query(Enrichment).filter(Enrichment.lead_id.in_(lead_ids)).all()
             for row in rows:
-                enrichments.setdefault(row.lead_id, row)
+                current = enrichments.get(row.lead_id)
+                if current is None or (row.created_at and current.created_at and row.created_at > current.created_at):
+                    enrichments[row.lead_id] = row
         persons = {}
         if person_ids:
             rows = self.db.query(Person).filter(Person.organization_id == self.organization_id, Person.id.in_(person_ids)).all()
@@ -124,7 +150,6 @@ class DataHealthService:
 
         items: list[dict[str, Any]] = []
         counters: Counter[str] = Counter()
-        now = datetime.now(timezone.utc)
         for lead in leads:
             person = persons.get(lead.primary_person_id)
             company = companies.get(lead.company_id)
@@ -136,7 +161,7 @@ class DataHealthService:
             phone = verify_phone(contact_phone)
             email_invalid = bool(contact_email and contact_email.lower() in suppressed_emails)
             missing_decision_maker = person is None
-            duplicate_risk = not bool(lead.cnpj or lead.normalized_domain or lead.place_id)
+            identity_risk = not bool(lead.cnpj or lead.normalized_domain or lead.place_id)
             missing_phone = not bool(contact_phone)
             missing_email = not bool(contact_email)
 
@@ -150,7 +175,7 @@ class DataHealthService:
                 counters["missing_email"] += 1
             if missing_decision_maker:
                 counters["missing_decision_maker"] += 1
-            if duplicate_risk:
+            if identity_risk:
                 counters["identity_risk"] += 1
 
             priority = 0
@@ -174,21 +199,25 @@ class DataHealthService:
                 "missing_email": missing_email,
                 "missing_phone": missing_phone,
                 "missing_decision_maker": missing_decision_maker,
-                "identity_risk": duplicate_risk,
+                "identity_risk": identity_risk,
                 "opportunity_count": opportunity_counts[lead.id],
                 "refresh_priority": priority,
             })
 
         items.sort(key=lambda item: (-item["refresh_priority"], item["company_name"].lower()))
-        total = len(items)
+        analyzed = len(items)
         healthy = sum(
             1 for item in items
             if not item["stale_keys"] and not item["email_invalid"] and not item["missing_decision_maker"] and not item["identity_risk"]
         )
         return {
-            "total": total,
+            "total": analyzed,
+            "organization_total": int(organization_total),
+            "analyzed": analyzed,
+            "sample_truncated": int(organization_total) > analyzed,
+            "coverage_rate": round(analyzed / organization_total * 100.0, 1) if organization_total else 100.0,
             "healthy": healthy,
-            "health_rate": round((healthy / total * 100.0), 1) if total else 100.0,
+            "health_rate": round((healthy / analyzed * 100.0), 1) if analyzed else 100.0,
             "issues": dict(counters),
             "provider_health": self._provider_health(now=now),
             "items": items,
@@ -196,5 +225,5 @@ class DataHealthService:
         }
 
     def refresh_candidates(self, *, limit: int = 25) -> list[dict[str, Any]]:
-        overview = self.overview(limit=max(limit * 4, 100))
+        overview = self.overview(limit=min(500, max(limit * 8, 100)))
         return [item for item in overview["items"] if item["refresh_priority"] > 0][:limit]
