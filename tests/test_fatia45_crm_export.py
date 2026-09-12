@@ -53,8 +53,9 @@ class _DB:
         self._opps = list(opps)
         self.added = []
         self.committed = 0
+        self.flushed = 0
     def query(self, model, *args):
-        from src.db.models import Lead, LeadOpportunityRow, CommercialOutcomeRow
+        from src.db.models import Lead
         name = getattr(model, "__tablename__", None) or getattr(model, "__name__", "")
         if name == "leads" and self._lead is not None:
             return _Q([self._lead])
@@ -65,6 +66,8 @@ class _DB:
         return _Q([])
     def add(self, row):
         self.added.append(row)
+    def flush(self):
+        self.flushed += 1
     def commit(self):
         self.committed += 1
 
