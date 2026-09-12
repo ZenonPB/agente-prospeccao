@@ -1,21 +1,15 @@
-"""Endpoints org-scoped para eventos descobertos e métricas comerciais."""
+"""Endpoints org-scoped para eventos descobertos e learning comercial."""
 from datetime import date, datetime, timezone
-from typing import Optional
+from typing import Any, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_user_organization, require_analyst
+from src.auth.dependencies import get_current_user, get_user_organization, require_analyst, require_manager
 from src.db.dependencies import get_db
-from src.db.models import (
-    Organization,
-    OrganizationMember,
-    User,
-    CommercialComparison,
-    ControlledLearningProposal,
-)
-from src.auth.dependencies import get_current_user, require_manager
+from src.db.models import CommercialComparison, ControlledLearningProposal, Organization, OrganizationMember, User
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 
@@ -27,11 +21,18 @@ class ComparisonApprovalRequest(BaseModel):
     @field_validator("approved_version", "evidence", mode="before")
     @classmethod
     def _strip_required_text(cls, value: str) -> str:
-        """Impede aprovação com texto vazio após remover espaços."""
         value = value.strip()
         if not value:
             raise ValueError("o texto da aprovação não pode ser vazio")
         return value
+
+
+class OfferProfilePublishRequest(BaseModel):
+    profile_snapshot: dict[str, Any]
+
+
+class OfferProfileRollbackRequest(BaseModel):
+    target_version: str = Field(..., min_length=3, max_length=32, pattern=r"^\d+\.\d+$")
 
 
 @router.get("/events")
@@ -41,45 +42,27 @@ def list_events(
     org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(require_analyst()),
 ):
-    """Lista eventos ainda acionáveis; históricos permanecem consultáveis."""
     from src.db.models import EventOpportunityRow
-
     rows = db.query(EventOpportunityRow).filter(
         EventOpportunityRow.organization_id == org.id,
         EventOpportunityRow.status == "upcoming",
         EventOpportunityRow.event_date >= date.today(),
         (EventOpportunityRow.expires_at.is_(None) | EventOpportunityRow.expires_at > datetime.now(timezone.utc)),
     ).order_by(EventOpportunityRow.event_date.asc()).limit(limit).all()
-    return {
-        "events": [
-            {
-                "id": str(row.id),
-                "name": row.name,
-                "event_type": row.event_type,
-                "event_date": row.event_date.isoformat(),
-                "location": row.location,
-                "source_url": row.source_url,
-                "organizer": row.organizer,
-                "organizer_resolved": row.organizer_resolved or {},
-                "timing": row.timing or {},
-                "offer_key": row.offer_key,
-                "registration_status": row.registration_status,
-                "status": row.status,
-                "provider": row.provider,
-                "provider_status": row.provider_status,
-                "source_identifier": row.source_identifier,
-                "provenance": row.provenance or {},
-                "lead_id": str(row.lead_id) if row.lead_id else None,
-                "decision_maker_id": str(row.decision_maker_id) if row.decision_maker_id else None,
-                "decision_maker_status": row.decision_maker_status,
-                "recommended_channel": row.recommended_channel,
-                "action_status": row.action_status,
-                "next_action": row.next_action,
-            }
-            for row in rows
-        ],
-        "total": len(rows),
-    }
+    return {"events": [{
+        "id": str(row.id), "name": row.name, "event_type": row.event_type,
+        "event_date": row.event_date.isoformat(), "location": row.location,
+        "source_url": row.source_url, "organizer": row.organizer,
+        "organizer_resolved": row.organizer_resolved or {}, "timing": row.timing or {},
+        "offer_key": row.offer_key, "registration_status": row.registration_status,
+        "status": row.status, "provider": row.provider, "provider_status": row.provider_status,
+        "source_identifier": row.source_identifier, "provenance": row.provenance or {},
+        "lead_id": str(row.lead_id) if row.lead_id else None,
+        "decision_maker_id": str(row.decision_maker_id) if row.decision_maker_id else None,
+        "decision_maker_status": row.decision_maker_status,
+        "recommended_channel": row.recommended_channel,
+        "action_status": row.action_status, "next_action": row.next_action,
+    } for row in rows], "total": len(rows)}
 
 
 @router.get("/comparisons")
@@ -93,9 +76,7 @@ def compare_versions(
     _member: OrganizationMember = Depends(require_analyst()),
 ):
     from src.services.commercial_comparison_service import CommercialComparisonService
-    comparison = CommercialComparisonService().compute_and_persist(
-        db, org.id, offer_key, version_a, version_b, min_samples,
-    )
+    comparison = CommercialComparisonService().compute_and_persist(db, org.id, offer_key, version_a, version_b, min_samples)
     db.commit()
     return _comparison_dict(comparison)
 
@@ -109,17 +90,13 @@ def approve_comparison(
     actor: User = Depends(get_current_user),
     _member: OrganizationMember = Depends(require_manager()),
 ):
-    from uuid import UUID
     from src.services.commercial_comparison_service import CommercialComparisonService
+    from src.services.controlled_learning_service import ControlledLearningService
     try:
-        comparison = CommercialComparisonService().approve(
-            db, org.id, UUID(comparison_id), body.approved_version, actor, body.evidence,
-        )
-        from src.services.controlled_learning_service import ControlledLearningService
-        proposal = ControlledLearningService().create_from_comparison(
-            db, org.id, comparison.id, actor,
-        )
+        comparison = CommercialComparisonService().approve(db, org.id, UUID(comparison_id), body.approved_version, actor, body.evidence)
+        proposal = ControlledLearningService().create_from_comparison(db, org.id, comparison.id, actor)
     except (ValueError, TypeError) as exc:
+        db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
     response = _comparison_dict(comparison)
@@ -134,18 +111,68 @@ def list_learning_proposals(
     org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(require_analyst()),
 ):
-    """Lista recomendações de learning; nenhuma delas altera configuração ativa."""
     from src.services.controlled_learning_service import ControlledLearningService
     proposals = ControlledLearningService().list_for_organization(db, org.id, offer_key)
     return {"proposals": [_learning_proposal_dict(proposal) for proposal in proposals]}
 
 
+@router.post("/learning-proposals/{proposal_id}/publish")
+def publish_learning_proposal(
+    proposal_id: str,
+    body: OfferProfilePublishRequest,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    actor: User = Depends(get_current_user),
+    _member: OrganizationMember = Depends(require_manager()),
+):
+    """Publica snapshot aprovado; nunca gera/edita pesos silenciosamente."""
+    from src.services.controlled_learning_service import ControlledLearningService
+    try:
+        row = ControlledLearningService().publish_profile(db, org.id, UUID(proposal_id), body.profile_snapshot, actor)
+        db.commit()
+        db.refresh(row)
+    except (ValueError, TypeError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _profile_version_dict(row)
+
+
+@router.get("/offer-profile-versions")
+def list_offer_profile_versions(
+    offer_key: Optional[str] = Query(None, min_length=1, max_length=64),
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    from src.services.controlled_learning_service import ControlledLearningService
+    rows = ControlledLearningService().list_versions(db, org.id, offer_key)
+    return {"items": [_profile_version_dict(row) for row in rows]}
+
+
+@router.post("/offer-profile-versions/{offer_key}/rollback")
+def rollback_offer_profile(
+    offer_key: str,
+    body: OfferProfileRollbackRequest,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    actor: User = Depends(get_current_user),
+    _member: OrganizationMember = Depends(require_manager()),
+):
+    from src.services.controlled_learning_service import ControlledLearningService
+    try:
+        row = ControlledLearningService().rollback_profile(db, org.id, offer_key, body.target_version, actor)
+        db.commit()
+        db.refresh(row)
+    except (ValueError, TypeError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _profile_version_dict(row)
+
+
 def _comparison_dict(comparison: CommercialComparison) -> dict:
     return {
-        "id": str(comparison.id),
-        "offer_key": comparison.offer_key,
-        "version_a": comparison.version_a,
-        "version_b": comparison.version_b,
+        "id": str(comparison.id), "offer_key": comparison.offer_key,
+        "version_a": comparison.version_a, "version_b": comparison.version_b,
         "result": comparison.result,
         "computed_at": comparison.computed_at.isoformat() if comparison.computed_at else None,
         "approved_version": comparison.approved_version,
@@ -157,19 +184,27 @@ def _comparison_dict(comparison: CommercialComparison) -> dict:
 
 def _learning_proposal_dict(proposal: ControlledLearningProposal) -> dict:
     return {
-        "id": str(proposal.id),
-        "organization_id": str(proposal.organization_id),
-        "source_comparison_id": str(proposal.source_comparison_id),
-        "offer_key": proposal.offer_key,
-        "proposal_version": proposal.proposal_version,
-        "approved_version": proposal.approved_version,
+        "id": str(proposal.id), "organization_id": str(proposal.organization_id),
+        "source_comparison_id": str(proposal.source_comparison_id), "offer_key": proposal.offer_key,
+        "proposal_version": proposal.proposal_version, "approved_version": proposal.approved_version,
         "approved_by_id": str(proposal.approved_by_id) if proposal.approved_by_id else None,
-        "status": proposal.status,
-        "evidence_snapshot": proposal.evidence_snapshot,
-        "requires_manual_publication": True,
+        "status": proposal.status, "evidence_snapshot": proposal.evidence_snapshot,
+        "requires_manual_publication": proposal.status != "PUBLISHED",
         "published_by_id": str(proposal.published_by_id) if proposal.published_by_id else None,
         "published_at": proposal.published_at.isoformat() if proposal.published_at else None,
         "created_at": proposal.created_at.isoformat() if proposal.created_at else None,
+    }
+
+
+def _profile_version_dict(row: Any) -> dict:
+    return {
+        "id": str(row.id), "offer_key": row.offer_key, "version": row.version,
+        "profile_snapshot": row.profile_snapshot, "is_active": bool(row.is_active),
+        "source_proposal_id": str(row.source_proposal_id) if row.source_proposal_id else None,
+        "activated_by_id": str(row.activated_by_id) if row.activated_by_id else None,
+        "activated_at": row.activated_at.isoformat() if row.activated_at else None,
+        "deactivated_at": row.deactivated_at.isoformat() if row.deactivated_at else None,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
 
@@ -183,31 +218,13 @@ def list_outcomes(
     org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(require_analyst()),
 ):
-    """Retorna outcomes e conversão por oferta/versão, sem dados de outra org."""
     from src.db.models import CommercialOutcomeRow
     from services.prospecting.commercial_outcome_service import CommercialOutcomeService
-
-    rows = CommercialOutcomeService().list_for_organization(
-        db,
-        org.id,
-        offer_key=offer_key,
-        offer_version=offer_version,
-        date_from=date_from,
-        date_to=date_to,
-    )
-    return CommercialOutcomeService().metrics(rows) | {
-        "outcomes": [
-            {
-                "id": str(row.id),
-                "lead_id": str(row.lead_id),
-                "lead_opportunity_id": str(row.lead_opportunity_id) if row.lead_opportunity_id else None,
-                "offer_key": row.offer_key,
-                "offer_version": row.offer_version,
-                "outcome": row.outcome,
-                "value": float(row.value or 0),
-                "provider": row.provider,
-                "recorded_at": row.recorded_at.isoformat() if row.recorded_at else None,
-            }
-            for row in rows
-        ],
-    }
+    rows = CommercialOutcomeService().list_for_organization(db, org.id, offer_key=offer_key, offer_version=offer_version, date_from=date_from, date_to=date_to)
+    return CommercialOutcomeService().metrics(rows) | {"outcomes": [{
+        "id": str(row.id), "lead_id": str(row.lead_id),
+        "lead_opportunity_id": str(row.lead_opportunity_id) if row.lead_opportunity_id else None,
+        "offer_key": row.offer_key, "offer_version": row.offer_version,
+        "outcome": row.outcome, "value": float(row.value or 0), "provider": row.provider,
+        "recorded_at": row.recorded_at.isoformat() if row.recorded_at else None,
+    } for row in rows]}
