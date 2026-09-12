@@ -74,6 +74,38 @@ class SignalKey:
     SERVICE_ONLY = "SERVICE_ONLY"
     HOSTS_EVENTS = "HOSTS_EVENTS"
     ONLINE_ONLY_RESALE = "ONLINE_ONLY_RESALE"
+    MANUAL_PROCESS = "MANUAL_PROCESS"
+    MULTI_UNIT = "MULTI_UNIT"
+    USES_SPREADSHEETS = "USES_SPREADSHEETS"
+    SAAS_LIMITATION = "SAAS_LIMITATION"
+    VERY_SMALL_LOW_COMPLEXITY = "VERY_SMALL_LOW_COMPLEXITY"
+    HIRING_OPERATIONS = "HIRING_OPERATIONS"
+    HIRING_IT = "HIRING_IT"
+    NEW_PRODUCT = "NEW_PRODUCT"
+    PROTOTYPE = "PROTOTYPE"
+    R_AND_D = "R_AND_D"
+    CUSTOM_PARTS = "CUSTOM_PARTS"
+    USINAGEM = "USINAGEM"
+    CUSTOM_MANUFACTURING = "CUSTOM_MANUFACTURING"
+    EVENT_SCHEDULED = "EVENT_SCHEDULED"
+    SEASONAL_DEMAND = "SEASONAL_DEMAND"
+    CUSTOM_PRODUCTS = "CUSTOM_PRODUCTS"
+    HAS_PRODUCTION_LINE = "HAS_PRODUCTION_LINE"
+    CUSTOM_MACHINERY = "CUSTOM_MACHINERY"
+    AUTOMATION = "AUTOMATION"
+    EXPANDING_FACTORY = "EXPANDING_FACTORY"
+    HIRING_MECHANICAL_ENGINEER = "HIRING_MECHANICAL_ENGINEER"
+    REPLACEMENT_PARTS = "REPLACEMENT_PARTS"
+    REVERSE_ENGINEERING = "REVERSE_ENGINEERING"
+    MACHINE_MANUFACTURER = "MACHINE_MANUFACTURER"
+    NR12 = "NR12"
+    INDUSTRIAL_SAFETY = "INDUSTRIAL_SAFETY"
+    TECHNICAL_DOCUMENTATION = "TECHNICAL_DOCUMENTATION"
+    NEW_MACHINE = "NEW_MACHINE"
+    HAS_ADS = "HAS_ADS"
+    WEAK_CTA = "WEAK_CTA"
+    NO_CONTACT_FORM = "NO_CONTACT_FORM"
+    WEAK_CONVERSION_FLOW = "WEAK_CONVERSION_FLOW"
 
 
 # Metadados do registry: tipo de valor esperado e descrição semântica.
@@ -132,6 +164,38 @@ SIGNAL_REGISTRY: Dict[str, Dict[str, str]] = {
         "type": "bool", "description": "promove ou hospeda eventos"},
     SignalKey.ONLINE_ONLY_RESALE: {
         "type": "bool", "description": "revenda exclusivamente online"},
+    SignalKey.MANUAL_PROCESS: {"type": "bool", "description": "processo operacional manual ou repetitivo"},
+    SignalKey.MULTI_UNIT: {"type": "bool", "description": "opera múltiplas unidades ou filiais"},
+    SignalKey.USES_SPREADSHEETS: {"type": "bool", "description": "uso relevante de planilhas na operação"},
+    SignalKey.SAAS_LIMITATION: {"type": "bool", "description": "limitação observada ou declarada do SaaS atual"},
+    SignalKey.VERY_SMALL_LOW_COMPLEXITY: {"type": "bool", "description": "operação pequena e de baixa complexidade"},
+    SignalKey.HIRING_OPERATIONS: {"type": "bool", "description": "contratação ativa para operações"},
+    SignalKey.HIRING_IT: {"type": "bool", "description": "contratação ativa para tecnologia/TI"},
+    SignalKey.NEW_PRODUCT: {"type": "bool", "description": "lançamento ou desenvolvimento de novo produto"},
+    SignalKey.PROTOTYPE: {"type": "bool", "description": "atividade de prototipagem observada"},
+    SignalKey.R_AND_D: {"type": "bool", "description": "atividade de pesquisa e desenvolvimento"},
+    SignalKey.CUSTOM_PARTS: {"type": "bool", "description": "necessidade ou produção de peças customizadas"},
+    SignalKey.USINAGEM: {"type": "bool", "description": "atividade de usinagem"},
+    SignalKey.CUSTOM_MANUFACTURING: {"type": "bool", "description": "manufatura sob encomenda"},
+    SignalKey.EVENT_SCHEDULED: {"type": "bool", "description": "evento futuro com data observada"},
+    SignalKey.SEASONAL_DEMAND: {"type": "bool", "description": "demanda sazonal recorrente"},
+    SignalKey.CUSTOM_PRODUCTS: {"type": "bool", "description": "demanda por produtos personalizados"},
+    SignalKey.HAS_PRODUCTION_LINE: {"type": "bool", "description": "opera linha de produção"},
+    SignalKey.CUSTOM_MACHINERY: {"type": "bool", "description": "opera ou demanda máquinas customizadas"},
+    SignalKey.AUTOMATION: {"type": "bool", "description": "sinal de automação industrial"},
+    SignalKey.EXPANDING_FACTORY: {"type": "bool", "description": "expansão física de planta/fábrica"},
+    SignalKey.HIRING_MECHANICAL_ENGINEER: {"type": "bool", "description": "contratação de engenharia mecânica"},
+    SignalKey.REPLACEMENT_PARTS: {"type": "bool", "description": "demanda por peças de reposição"},
+    SignalKey.REVERSE_ENGINEERING: {"type": "bool", "description": "necessidade de engenharia reversa"},
+    SignalKey.MACHINE_MANUFACTURER: {"type": "bool", "description": "fabricante de máquinas ou equipamentos"},
+    SignalKey.NR12: {"type": "bool", "description": "necessidade ou contexto de conformidade NR-12"},
+    SignalKey.INDUSTRIAL_SAFETY: {"type": "bool", "description": "sinal de segurança industrial"},
+    SignalKey.TECHNICAL_DOCUMENTATION: {"type": "bool", "description": "necessidade de documentação técnica"},
+    SignalKey.NEW_MACHINE: {"type": "bool", "description": "máquina nova ou comissionamento recente"},
+    SignalKey.HAS_ADS: {"type": "bool", "description": "atividade de mídia paga detectada"},
+    SignalKey.WEAK_CTA: {"type": "bool", "description": "call-to-action fraco ou ausente"},
+    SignalKey.NO_CONTACT_FORM: {"type": "bool", "description": "site sem formulário de contato/conversão"},
+    SignalKey.WEAK_CONVERSION_FLOW: {"type": "bool", "description": "fluxo de conversão digital fraco"},
 }
 
 # Registro de chaves legadas que NÃO devem receber novos usos.

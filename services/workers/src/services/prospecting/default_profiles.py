@@ -308,6 +308,9 @@ def build_default_registry() -> OfferProfileRegistry:
         },
     ))
 
+    from services.prospecting.phase5_profiles import register_phase5_profiles
+    register_phase5_profiles(registry)
+
     from services.prospecting.offer_profile_validator import validate_registry
     invalid = validate_registry(registry)
     for key, errors in invalid.items():
