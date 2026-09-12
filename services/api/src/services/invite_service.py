@@ -20,7 +20,13 @@ def hash_invite_token(token: str) -> str:
 
 
 def get_invite_by_token(db: Session, token: str) -> Invite | None:
-    """Resolve um convite pelo hash e migra convites legados sob demanda."""
+    """Resolve um convite pelo hash e migra convites legados sob demanda.
+
+    A migration normaliza os registros persistidos existentes. O fallback para
+    texto puro existe apenas para compatibilidade durante rollout e altera a
+    entidade em memória; fluxos mutáveis (aceite/cadastro) fazem commit logo em
+    seguida. Isso evita I/O transacional desnecessário em consultas de leitura.
+    """
     token_hash = hash_invite_token(token)
     invite = db.query(Invite).filter(Invite.token == token_hash).first()
     if invite:
@@ -29,7 +35,6 @@ def get_invite_by_token(db: Session, token: str) -> Invite | None:
     legacy = db.query(Invite).filter(Invite.token == token).first()
     if legacy:
         legacy.token = token_hash
-        db.flush()
         return legacy
     return None
 
