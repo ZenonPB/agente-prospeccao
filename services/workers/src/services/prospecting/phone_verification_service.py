@@ -17,27 +17,38 @@ class PhoneVerificationState(str, Enum):
     INVALID = "INVALID"
 
 
-def normalize_phone(value: str | None, *, country_code: str = "55") -> str | None:
+def _raw_digits(value: str | None) -> str:
     digits = re.sub(r"\D+", "", value or "")
-    if not digits:
-        return None
     if digits.startswith("00"):
         digits = digits[2:]
+    return digits
+
+
+def normalize_phone(value: str | None, *, country_code: str = "55") -> str | None:
+    digits = _raw_digits(value)
+    if not digits:
+        return None
     if len(digits) in {10, 11}:
         digits = country_code + digits
     return f"+{digits}"
 
 
 def verify_phone(value: str | None, *, provider_verified: bool = False) -> dict[str, Any]:
+    raw_digits = _raw_digits(value)
     normalized = normalize_phone(value)
     if normalized is None:
         return {"state": PhoneVerificationState.UNKNOWN.value, "normalized": None, "confidence": 0, "reason": "missing"}
 
+    if len(raw_digits) < 10 or len(raw_digits) > 15:
+        return {"state": PhoneVerificationState.INVALID.value, "normalized": normalized, "confidence": 0, "reason": "invalid_length"}
+    # Checa a entrada nacional/internacional antes de prefixar DDI. Caso contrário,
+    # `11111111111` viraria `5511111111111` e deixaria de parecer degenerado.
+    if len(set(raw_digits)) == 1:
+        return {"state": PhoneVerificationState.INVALID.value, "normalized": normalized, "confidence": 0, "reason": "repeated_digits"}
+
     digits = normalized[1:]
     if not digits.isdigit() or len(digits) < 10 or len(digits) > 15:
         return {"state": PhoneVerificationState.INVALID.value, "normalized": normalized, "confidence": 0, "reason": "invalid_length"}
-    if len(set(digits)) == 1:
-        return {"state": PhoneVerificationState.INVALID.value, "normalized": normalized, "confidence": 0, "reason": "repeated_digits"}
 
     if provider_verified:
         return {"state": PhoneVerificationState.VERIFIED.value, "normalized": normalized, "confidence": 95, "reason": "provider_verified"}
