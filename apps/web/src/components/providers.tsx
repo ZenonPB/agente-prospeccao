@@ -55,14 +55,9 @@ function WorkspaceQueryBoundary({
 }
 
 export function Providers({ children, session }: { children: React.ReactNode; session?: Session | null }) {
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        refetchOnWindowFocus: false,
-        retry: 1,
-      },
-    },
-  }));
+  // Mantém as políticas padrão do projeto. O boundary acima só intervém na
+  // troca explícita de tenant, sem alterar retry/refetch de queries normais.
+  const [queryClient] = useState(() => new QueryClient());
 
   return (
     <SessionProvider session={session}>
