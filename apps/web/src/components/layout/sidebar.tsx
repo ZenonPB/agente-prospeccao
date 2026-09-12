@@ -18,6 +18,7 @@ import {
   HelpCircle,
   DatabaseZap,
   Radar,
+  Route,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
@@ -49,6 +50,7 @@ const navGroups: NavGroup[] = [
       { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
       { name: 'Buscar', href: '/buscar', icon: SearchIcon },
       { name: 'Oportunidades', href: '/oportunidades', icon: Target },
+      { name: 'Sequências', href: '/sequences', icon: Route },
       { name: 'Negociações', href: '/vendas', icon: DollarSign },
     ],
   },

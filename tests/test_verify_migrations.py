@@ -17,7 +17,7 @@ def _module():
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
 
-    assert verify_migrations.migration_head() == "8e0f2a4c6d7b"
+    assert verify_migrations.migration_head() == "9f1a3c5e7b8d"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -66,6 +66,31 @@ def test_controlled_learning_tem_schema_e_integridade_obrigatorios():
         "uq_controlled_learning_org_comparison",
         "uq_controlled_learning_org_offer_version",
     }
+
+
+def test_engagement_tem_schema_e_integridade_obrigatorios():
+    verify_migrations = _module()
+
+    expected = {
+        "sequence_templates",
+        "sequence_enrollments",
+        "sequence_executions",
+        "commercial_tasks",
+        "next_best_action_decisions",
+        "workflow_definitions",
+        "workflow_runs",
+    }
+    assert expected <= verify_migrations.REQUIRED_TABLES
+    assert verify_migrations.REQUIRED_UNIQUES["sequence_executions"] == {
+        "uq_sequence_executions_enrollment_step",
+        "uq_sequence_executions_org_idempotency",
+    }
+    assert verify_migrations.REQUIRED_UNIQUES["workflow_runs"] == {
+        "uq_workflow_runs_org_workflow_event",
+    }
+    assert {"action", "why", "confidence", "evidence", "deadline", "fingerprint"} == (
+        verify_migrations.REQUIRED_COLUMNS["next_best_action_decisions"]
+    )
 
 
 def test_verify_database_rejeita_banco_fora_do_head(monkeypatch):

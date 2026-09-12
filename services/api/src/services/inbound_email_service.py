@@ -65,6 +65,20 @@ def _record_response_message(
     ))
 
 
+def _pause_engagement(db: Session, organization_id, lead: Lead, *, stop: bool) -> None:
+    """Mantém o motor novo coerente com o inbound sem criar nova transação."""
+    try:
+        from src.services.engagement_service import SequenceService
+
+        SequenceService(db, organization_id).pause_for_lead(
+            lead.id,
+            "UNSUBSCRIBE" if stop else "REPLY_RECEIVED",
+            terminal=stop,
+        )
+    except Exception as exc:  # sequência não pode invalidar um inbound legítimo
+        logger.warning("Falha ao pausar engagement do lead %s: %s", lead.id, exc)
+
+
 def process_inbound_email(
     db: Session,
     *,
@@ -104,8 +118,6 @@ def process_inbound_email(
         )
         return {"matched": False, "stop_requested": False}
 
-    # Defesa em profundidade. O filtro acima já deve tornar este caso impossível,
-    # mas não processamos nada se uma sessão/stub inconsistente devolver outra org.
     if str(lead.organization_id) != str(organization_id):
         db.rollback()
         logger.error(
@@ -124,10 +136,10 @@ def process_inbound_email(
             FollowUp.status == FollowUpStatus.PENDING,
         ).all():
             follow_up.status = FollowUpStatus.SKIPPED
+        _pause_engagement(db, organization_id, lead, stop=True)
         log_inbound_activity(db, lead, "Opt-out por resposta STOP (inbound)", now)
         logger.info("Lead %s opt-out via inbound", lead.id)
     else:
-        # Estados finais/comerciais não regredem ao receber uma resposta atrasada.
         if lead.status not in (
             LeadStatus.REUNIAO_MARCADA,
             LeadStatus.REUNIAO_FEITA,
@@ -142,6 +154,7 @@ def process_inbound_email(
             FollowUp.status == FollowUpStatus.PENDING,
         ).all():
             follow_up.status = FollowUpStatus.CANCELLED
+        _pause_engagement(db, organization_id, lead, stop=False)
         _record_response_message(db, lead, body or "", now)
         log_inbound_activity(db, lead, "Resposta recebida (inbound)", now)
         logger.info("Lead %s recebeu resposta via inbound", lead.id)
@@ -149,7 +162,7 @@ def process_inbound_email(
         try:
             from src.services.notification_service import create_lead_responded_notification
             create_lead_responded_notification(db, lead, lead.organization_id)
-        except Exception as exc:  # notificação não pode invalidar o inbound
+        except Exception as exc:
             logger.warning("Falha ao criar notificação de resposta: %s", exc)
 
     db.commit()

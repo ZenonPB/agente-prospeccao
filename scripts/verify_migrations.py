@@ -43,6 +43,13 @@ REQUIRED_TABLES = {
     "lead_opportunity_snapshots",
     "controlled_learning_proposals",
     "login_attempts",
+    "sequence_templates",
+    "sequence_enrollments",
+    "sequence_executions",
+    "commercial_tasks",
+    "next_best_action_decisions",
+    "workflow_definitions",
+    "workflow_runs",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer",
@@ -67,6 +74,17 @@ REQUIRED_INDEXES = {
     "ix_decision_resolution_snapshots_org_lead",
     "ix_lead_opportunity_snapshots_org_lead",
     "ix_controlled_learning_org_offer_status",
+    "ix_sequence_templates_org_enabled",
+    "ix_sequence_enrollments_org_status_next",
+    "ix_sequence_enrollments_lead",
+    "ix_sequence_executions_org_status_scheduled",
+    "ix_commercial_tasks_org_status_due",
+    "ix_commercial_tasks_owner_status",
+    "ix_commercial_tasks_lead",
+    "ix_nba_decisions_org_lead_created",
+    "ix_nba_decisions_org_status_deadline",
+    "ix_workflow_definitions_org_trigger_enabled",
+    "ix_workflow_runs_org_status_started",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -86,6 +104,13 @@ REQUIRED_FKS = {
     "provider_execution_metrics": {"organizations.id", "jobs.id", "campaigns.id"},
     "company_aliases": {"organizations.id", "companies.id"},
     "conversions": {"leads.id", "lead_opportunities.id"},
+    "sequence_templates": {"organizations.id", "users.id"},
+    "sequence_enrollments": {"organizations.id", "sequence_templates.id", "leads.id", "persons.id", "users.id"},
+    "sequence_executions": {"organizations.id", "sequence_enrollments.id", "leads.id"},
+    "commercial_tasks": {"organizations.id", "leads.id", "persons.id", "sequence_enrollments.id", "users.id"},
+    "next_best_action_decisions": {"organizations.id", "leads.id", "sequence_enrollments.id"},
+    "workflow_definitions": {"organizations.id", "users.id"},
+    "workflow_runs": {"organizations.id", "workflow_definitions.id"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
@@ -98,6 +123,16 @@ REQUIRED_UNIQUES = {
         "uq_controlled_learning_org_comparison",
         "uq_controlled_learning_org_offer_version",
     },
+    "sequence_templates": {"uq_sequence_templates_org_name_version"},
+    "sequence_enrollments": {"uq_sequence_enrollments_sequence_lead"},
+    "sequence_executions": {
+        "uq_sequence_executions_enrollment_step",
+        "uq_sequence_executions_org_idempotency",
+    },
+    "commercial_tasks": {"uq_commercial_tasks_org_idempotency"},
+    "next_best_action_decisions": {"uq_nba_decisions_org_lead_fingerprint"},
+    "workflow_definitions": {"uq_workflow_definitions_org_name_version"},
+    "workflow_runs": {"uq_workflow_runs_org_workflow_event"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -137,6 +172,13 @@ REQUIRED_COLUMNS = {
         "published_at",
         "created_at",
     },
+    "sequence_templates": {"steps", "version", "persona_key", "offer_key", "enabled"},
+    "sequence_enrollments": {"status", "current_step_index", "next_action_at", "pause_reason"},
+    "sequence_executions": {"step_type", "status", "scheduled_at", "idempotency_key", "payload"},
+    "commercial_tasks": {"task_type", "status", "due_at", "idempotency_key", "source"},
+    "next_best_action_decisions": {"action", "why", "confidence", "evidence", "deadline", "fingerprint"},
+    "workflow_definitions": {"trigger_type", "conditions", "actions", "version", "enabled"},
+    "workflow_runs": {"event_key", "status", "context", "action_results", "started_at"},
 }
 
 
