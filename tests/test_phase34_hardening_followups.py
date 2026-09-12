@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -83,59 +84,64 @@ def test_role_change_is_distinct_from_employer_change():
     assert result["change"]["change_type"] == "role_changed"
 
 
-@pytest.mark.asyncio
-async def test_email_v2_keeps_mx_only_as_domain_validated(monkeypatch):
-    service = EmailVerificationService()
+def test_email_v2_keeps_mx_only_as_domain_validated(monkeypatch):
+    async def scenario():
+        service = EmailVerificationService()
 
-    async def base(_email, client=None):
-        return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
+        async def base(_email, client=None):
+            return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
 
-    monkeypatch.setattr(service, "verify_email", base)
-    result = await service.verify_email_v2("user@example.com")
-    assert result["status"] == "domain_validated"
-    assert result["verified"] is False
-    assert result["auto_send_eligible"] is False
+        monkeypatch.setattr(service, "verify_email", base)
+        result = await service.verify_email_v2("user@example.com")
+        assert result["status"] == "domain_validated"
+        assert result["verified"] is False
+        assert result["auto_send_eligible"] is False
 
-
-@pytest.mark.asyncio
-async def test_email_v2_detects_catchall_and_blocks_auto_send(monkeypatch):
-    service = EmailVerificationService()
-
-    async def base(_email, client=None):
-        return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
-
-    async def probe(_domain, _mx, enable_catchall_probe=False):
-        assert enable_catchall_probe is True
-        return {"is_catchall": True, "probed": True}
-
-    monkeypatch.setattr(service, "verify_email", base)
-    monkeypatch.setattr(service, "probe_smtp_catchall", probe)
-    result = await service.verify_email_v2("user@example.com", enable_catchall_probe=True)
-    assert result["status"] == "catch_all"
-    assert result["verified"] is False
-    assert result["auto_send_eligible"] is False
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_email_v2_non_catchall_can_be_deliverable(monkeypatch):
-    service = EmailVerificationService()
+def test_email_v2_detects_catchall_and_blocks_auto_send(monkeypatch):
+    async def scenario():
+        service = EmailVerificationService()
 
-    async def base(_email, client=None):
-        return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
+        async def base(_email, client=None):
+            return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
 
-    async def probe(_domain, _mx, enable_catchall_probe=False):
-        return {"is_catchall": False, "probed": True}
+        async def probe(_domain, _mx, enable_catchall_probe=False):
+            assert enable_catchall_probe is True
+            return {"is_catchall": True, "probed": True}
 
-    monkeypatch.setattr(service, "verify_email", base)
-    monkeypatch.setattr(service, "probe_smtp_catchall", probe)
-    result = await service.verify_email_v2("user@example.com", enable_catchall_probe=True)
-    assert result["status"] == "deliverable"
-    assert result["verified"] is True
-    assert result["auto_send_eligible"] is True
+        monkeypatch.setattr(service, "verify_email", base)
+        monkeypatch.setattr(service, "probe_smtp_catchall", probe)
+        result = await service.verify_email_v2("user@example.com", enable_catchall_probe=True)
+        assert result["status"] == "catch_all"
+        assert result["verified"] is False
+        assert result["auto_send_eligible"] is False
+
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_contact_verifier_persists_bounded_history():
+def test_email_v2_non_catchall_can_be_deliverable(monkeypatch):
+    async def scenario():
+        service = EmailVerificationService()
+
+        async def base(_email, client=None):
+            return {"verified": True, "mx": "10 mx.example.com.", "reason": "ok"}
+
+        async def probe(_domain, _mx, enable_catchall_probe=False):
+            return {"is_catchall": False, "probed": True}
+
+        monkeypatch.setattr(service, "verify_email", base)
+        monkeypatch.setattr(service, "probe_smtp_catchall", probe)
+        result = await service.verify_email_v2("user@example.com", enable_catchall_probe=True)
+        assert result["status"] == "deliverable"
+        assert result["verified"] is True
+        assert result["auto_send_eligible"] is True
+
+    asyncio.run(scenario())
+
+
+def test_contact_verifier_persists_bounded_history():
     class Service:
         async def verify_email_v2(self, email, enable_catchall_probe=False):
             return {
@@ -148,14 +154,17 @@ async def test_contact_verifier_persists_bounded_history():
                 "auto_send_eligible": False,
             }
 
-    person = _person()
-    verifier = ContactVerifier(Service())
-    for _ in range(35):
-        await verifier.verify_email(person)
-    history = person.raw_data["email_verification_history"]
-    assert len(history) == 1  # estado idêntico atualiza o último snapshot
-    assert history[-1]["status"] == "domain_validated"
-    assert ContactVerifier.latest_verified_at(person) is not None
+    async def scenario():
+        person = _person()
+        verifier = ContactVerifier(Service())
+        for _ in range(35):
+            await verifier.verify_email(person)
+        history = person.raw_data["email_verification_history"]
+        assert len(history) == 1
+        assert history[-1]["status"] == "domain_validated"
+        assert ContactVerifier.latest_verified_at(person) is not None
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize(
@@ -181,38 +190,42 @@ def test_external_intent_provider_rejects_mixed_dns_resolution():
     )[0] is False
 
 
-@pytest.mark.asyncio
-async def test_external_intent_provider_normalizes_real_feed_contract(monkeypatch):
-    provider = ExternalIntentFeedProvider(name="company_news", endpoint="https://feed.example.com/v1")
+def test_external_intent_provider_normalizes_real_feed_contract(monkeypatch):
+    async def scenario():
+        provider = ExternalIntentFeedProvider(name="company_news", endpoint="https://feed.example.com/v1")
 
-    async def safe():
-        return True, "ok"
+        async def safe():
+            return True, "ok"
 
-    monkeypatch.setattr(provider, "_destination_is_safe", safe)
+        monkeypatch.setattr(provider, "_destination_is_safe", safe)
 
-    def handler(request: httpx.Request):
-        return httpx.Response(
-            200,
-            json={"items": [{"id": "n-1", "title": "Empresa anuncia expansão", "published_at": "2026-09-12T00:00:00Z"}]},
-        )
+        def handler(request: httpx.Request):
+            return httpx.Response(
+                200,
+                json={"items": [{"id": "n-1", "title": "Empresa anuncia expansão", "published_at": "2026-09-12T00:00:00Z"}]},
+            )
 
-    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-        result = await provider.collect({"company": {"name": "Acme"}}, client=client)
-    assert result.status == "success"
-    assert result.evidence[0]["source"] == "company_news"
-    assert result.evidence[0]["external_id"] == "n-1"
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            result = await provider.collect({"company": {"name": "Acme"}}, client=client)
+        assert result.status == "success"
+        assert result.evidence[0]["source"] == "company_news"
+        assert result.evidence[0]["external_id"] == "n-1"
+
+    asyncio.run(scenario())
 
 
-@pytest.mark.asyncio
-async def test_continuous_watch_is_noop_without_explicit_org_opt_in():
-    from src.services.continuous_intelligence_service import ContinuousIntelligenceService
+def test_continuous_watch_is_noop_without_explicit_org_opt_in():
+    async def scenario():
+        from src.services.continuous_intelligence_service import ContinuousIntelligenceService
 
-    org = SimpleNamespace(id="org-1", api_quota={})
-    service = ContinuousIntelligenceService(SimpleNamespace())
-    result = await service.run_once_for_org(org, force=True)
-    assert result == {
-        "organization_id": "org-1",
-        "status": "disabled",
-        "processed": 0,
-        "changed": 0,
-    }
+        org = SimpleNamespace(id="org-1", api_quota={})
+        service = ContinuousIntelligenceService(SimpleNamespace())
+        result = await service.run_once_for_org(org, force=True)
+        assert result == {
+            "organization_id": "org-1",
+            "status": "disabled",
+            "processed": 0,
+            "changed": 0,
+        }
+
+    asyncio.run(scenario())
