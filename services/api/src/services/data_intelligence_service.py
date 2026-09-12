@@ -7,8 +7,10 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, Person
-from services.prospecting.intent_engine import build_opportunity_vector, detect_technologies, extract_intent_signals, intent_score
+from services.prospecting.intent_engine import build_opportunity_vector, extract_intent_signals, intent_score
+from services.prospecting.intent_provider_registry import IntentProviderRegistry
 from services.prospecting.phone_verification_service import verify_phone
+from services.prospecting.technology_stack_provider import TechnologyStackProvider
 
 
 class DataIntelligenceService:
@@ -70,7 +72,13 @@ class DataIntelligenceService:
             lead.company_linkedin_url,
             lead.instagram_url,
         ]
-        technologies = detect_technologies(*technical_payloads)
+        tech_result = TechnologyStackProvider().detect(*technical_payloads)
+        technologies = tech_result["technologies"]
+
+        # O registry oferece telemetria por família/provider e o agregador geral
+        # continua lendo toda evidência conhecida. Assim uma fonte legada com
+        # `source=discovery` não perde sinais por não pertencer a uma família.
+        intent_provider_result = IntentProviderRegistry().run(evidence)
         signals = extract_intent_signals(evidence)
         calculated_intent = intent_score(signals)
 
@@ -124,8 +132,15 @@ class DataIntelligenceService:
         result = {
             "lead_id": str(lead.id),
             "technologies": technologies,
+            "technographics_provider": {
+                "provider": tech_result["provider"],
+                "status": tech_result["status"],
+                "result_count": tech_result["result_count"],
+                "cost_units": tech_result["cost_units"],
+            },
             "intent_signals": signals,
             "intent_score": calculated_intent if signals else None,
+            "intent_providers": intent_provider_result["providers"],
             "phone_verification": phone,
             "opportunity_vector": vector,
             "evidence_count": len(evidence),
@@ -138,8 +153,10 @@ class DataIntelligenceService:
                 **current_evidence_score,
                 "phase4": {
                     "technologies": technologies,
+                    "technographics_provider": result["technographics_provider"],
                     "intent_signals": signals,
                     "intent_score": result["intent_score"],
+                    "intent_providers": result["intent_providers"],
                     "phone_verification": phone,
                     "formula_version": "intent-v2",
                     "generated_at": result["generated_at"],
