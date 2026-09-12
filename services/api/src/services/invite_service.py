@@ -1,24 +1,37 @@
-"""Serviço de convites — criação, validação, aceite.
+"""Serviço de convites com tokens de uso único armazenados por hash."""
+from __future__ import annotations
 
-Permite que owner/admin convidem usuários para sua organização
-por e-mail. O token do convite é enviado por e-mail e usado na aceitação.
-"""
+import hashlib
+import logging
 import secrets
 import uuid
-import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from src.db.models import (
-    User,
-    OrganizationMember,
-    Invite,
-    OrganizationRole,
-    SalesRole,
-)
+from src.db.models import Invite, OrganizationMember, OrganizationRole, SalesRole, User
 
 logger = logging.getLogger(__name__)
+
+
+def hash_invite_token(token: str) -> str:
+    """Gera a representação persistida do segredo sem armazená-lo em texto puro."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def get_invite_by_token(db: Session, token: str) -> Invite | None:
+    """Resolve um convite pelo hash e migra convites legados sob demanda."""
+    token_hash = hash_invite_token(token)
+    invite = db.query(Invite).filter(Invite.token == token_hash).first()
+    if invite:
+        return invite
+
+    legacy = db.query(Invite).filter(Invite.token == token).first()
+    if legacy:
+        legacy.token = token_hash
+        db.flush()
+        return legacy
+    return None
 
 
 def create_invite(
@@ -29,59 +42,57 @@ def create_invite(
     role: OrganizationRole = OrganizationRole.MEMBER,
     sales_role: SalesRole = SalesRole.CONSULTOR,
 ) -> Invite:
-    """Cria um convite para um e-mail na organização.
-
-    Se o e-mail já tiver um convite pendente (não aceito e não expirado),
-    retorna o existente. Convites expiram em 7 dias. OWNER é proibido também
-    nesta camada para que callers internos não contornem a regra da API.
-    """
+    """Cria ou renova um convite válido sem persistir o segredo reutilizável."""
     if role == OrganizationRole.OWNER:
         raise ValueError(
             "OWNER não pode ser concedido por convite; use transferência de propriedade",
         )
 
     normalized_email = email.strip().lower()
+    now = datetime.now(timezone.utc)
     existing = db.query(Invite).filter(
         Invite.organization_id == organization_id,
         Invite.email == normalized_email,
         Invite.accepted_at.is_(None),
-        Invite.expires_at > datetime.now(timezone.utc),
+        Invite.expires_at > now,
     ).first()
 
+    raw_token = secrets.token_urlsafe(32)
+    persisted_token = hash_invite_token(raw_token)
+
     if existing:
-        logger.info(
-            "Convite pendente já existe para o e-mail mascarado na org %s",
-            organization_id,
-        )
+        existing.token = persisted_token
+        existing.role = role
+        existing.sales_role = sales_role
+        existing.invited_by_id = invited_by_id
+        existing.expires_at = now + timedelta(days=7)
+        db.flush()
+        setattr(existing, "_raw_token", raw_token)
+        logger.info("Convite pendente renovado na org %s", organization_id)
         return existing
 
-    token = secrets.token_urlsafe(32)
     invite = Invite(
         id=uuid.uuid4(),
         organization_id=organization_id,
         email=normalized_email,
-        token=token,
+        token=persisted_token,
         role=role,
         sales_role=sales_role,
         invited_by_id=invited_by_id,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        expires_at=now + timedelta(days=7),
     )
     db.add(invite)
     db.flush()
+    setattr(invite, "_raw_token", raw_token)
     logger.info("Convite criado para org %s", organization_id)
     return invite
 
 
 def accept_invite(db: Session, token: str, user: User) -> OrganizationMember:
-    """Aceita um convite por token.
-
-    Valida token, expiração, e-mail, ownership e membership no tenant alvo.
-    Convites OWNER antigos são recusados: propriedade só muda pelo fluxo de
-    transferência, que mantém a invariável de um owner principal por workspace.
-    """
+    """Aceita convite válido e cria membership somente na organização alvo."""
     from fastapi import HTTPException
 
-    invite = db.query(Invite).filter(Invite.token == token).first()
+    invite = get_invite_by_token(db, token)
     if not invite:
         raise HTTPException(status_code=404, detail="Convite não encontrado")
 
@@ -98,10 +109,7 @@ def accept_invite(db: Session, token: str, user: User) -> OrganizationMember:
         )
 
     if invite.email.lower() != user.email.lower():
-        raise HTTPException(
-            status_code=403,
-            detail="Este convite foi enviado para outro e-mail",
-        )
+        raise HTTPException(status_code=403, detail="Este convite foi enviado para outro e-mail")
 
     existing_member = db.query(OrganizationMember).filter(
         OrganizationMember.organization_id == invite.organization_id,
@@ -111,7 +119,7 @@ def accept_invite(db: Session, token: str, user: User) -> OrganizationMember:
     if existing_member:
         invite.accepted_at = datetime.now(timezone.utc)
         db.commit()
-        logger.info("Convite %s aceito (usuário já era membro)", invite.id)
+        logger.info("Convite %s aceito por usuário já membro", invite.id)
         return existing_member
 
     member = OrganizationMember(
@@ -124,20 +132,11 @@ def accept_invite(db: Session, token: str, user: User) -> OrganizationMember:
     invite.accepted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(member)
-
-    logger.info(
-        "Convite %s aceito: user %s → org %s (role=%s, sales_role=%s)",
-        invite.id,
-        user.id,
-        invite.organization_id,
-        invite.role.value,
-        invite.sales_role.value,
-    )
+    logger.info("Convite %s aceito na org %s", invite.id, invite.organization_id)
     return member
 
 
 def list_pending_invites(db: Session, organization_id: uuid.UUID) -> list[Invite]:
-    """Lista convites pendentes (não aceitos e não expirados) da organização."""
     return db.query(Invite).filter(
         Invite.organization_id == organization_id,
         Invite.accepted_at.is_(None),
@@ -146,7 +145,6 @@ def list_pending_invites(db: Session, organization_id: uuid.UUID) -> list[Invite
 
 
 def revoke_invite(db: Session, invite_id: uuid.UUID) -> None:
-    """Revoga um convite (marca como expirado imediatamente)."""
     invite = db.query(Invite).filter(Invite.id == invite_id).first()
     if invite and not invite.accepted_at:
         invite.expires_at = datetime.now(timezone.utc)
