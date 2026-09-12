@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { Check, ChevronsUpDown, Building2, Plus, Loader2 } from "lucide-react";
 import { useMyOrganizations, useCreateOrganization } from "@/hooks/use-api";
 import { toast } from "sonner";
@@ -30,7 +30,9 @@ import {
 import { cn } from "@/lib/utils";
 import {
   getActiveOrganizationId,
+  getServerActiveOrganizationId,
   setActiveOrganizationId,
+  subscribeToActiveOrganization,
 } from "@/lib/active-organization";
 import { useRouter } from "next/navigation";
 import type { SalesRole } from "@/types";
@@ -54,13 +56,27 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
-  const [activeOrgId, setActiveOrgId] = useState<string | null>(() => getActiveOrganizationId());
+  const activeOrgId = useSyncExternalStore(
+    subscribeToActiveOrganization,
+    getActiveOrganizationId,
+    getServerActiveOrganizationId,
+  );
 
   const organizations = useMemo(() => orgsData?.organizations || [], [orgsData]);
   const activeOrg = useMemo(
     () => organizations.find((org) => org.id === activeOrgId) ?? organizations[0],
     [organizations, activeOrgId],
   );
+
+  useEffect(() => {
+    // Membership pode ser revogada em outra sessão enquanto um id antigo ficou
+    // persistido no navegador. Normaliza para uma membership válida para que a
+    // UI nunca mostre um workspace enquanto a API envia o header de outro.
+    const fallbackId = organizations[0]?.id;
+    if (!fallbackId) return;
+    const hasValidActiveOrg = organizations.some((org) => org.id === activeOrgId);
+    if (!hasValidActiveOrg) setActiveOrganizationId(fallbackId);
+  }, [activeOrgId, organizations]);
 
   const handleSelectOrg = useCallback(
     (orgId: string) => {
@@ -70,7 +86,6 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
         return;
       }
 
-      setActiveOrgId(orgId);
       setActiveOrganizationId(orgId);
       setOpen(false);
       toast.success(`Workspace alterado para ${selected.name}.`);
@@ -87,7 +102,6 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
       const created = await createOrg.mutateAsync({ name: normalizedName });
       setCreateOpen(false);
       setName("");
-      setActiveOrgId(created.id);
       setActiveOrganizationId(created.id);
       toast.success("Organização criada e selecionada.");
       router.refresh();
