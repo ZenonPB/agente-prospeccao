@@ -70,8 +70,6 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
         return;
       }
 
-      // Atualiza a UI antes de emitir o evento global. O boundary de queries
-      // cancela requests do tenant anterior e refaz as queries montadas.
       setActiveOrgId(orgId);
       setActiveOrganizationId(orgId);
       setOpen(false);
@@ -89,8 +87,6 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
       const created = await createOrg.mutateAsync({ name: normalizedName });
       setCreateOpen(false);
       setName("");
-      // O endpoint de criação já autoriza o usuário como owner; a lista de
-      // organizações será invalidada pela mutation e o novo tenant torna-se ativo.
       setActiveOrgId(created.id);
       setActiveOrganizationId(created.id);
       toast.success("Organização criada e selecionada.");
@@ -104,95 +100,95 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
     return null;
   }
 
-  if (organizations.length === 1 && !collapsed) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2 text-sm text-sidebar-foreground/70">
-        <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-        <span className="truncate">{activeOrg?.name || "Minha Organização"}</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="ml-auto h-6 w-6"
-          onClick={() => setCreateOpen(true)}
-          aria-label="Criar organização"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </div>
-    );
-  }
+  const singleOrganizationTrigger = organizations.length === 1 && !collapsed ? (
+    <div className="flex items-center gap-2 px-3 py-2 text-sm text-sidebar-foreground/70">
+      <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className="truncate">{activeOrg?.name || "Minha Organização"}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="ml-auto h-6 w-6"
+        onClick={() => setCreateOpen(true)}
+        aria-label="Criar novo workspace"
+      >
+        <Plus className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </div>
+  ) : null;
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="ghost"
-              role="combobox"
-              aria-expanded={open}
-              aria-label={`Organização ativa: ${activeOrg?.name || "Selecione"}`}
-              className={cn(
-                "w-full justify-between border border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
-                collapsed && "w-10 justify-center p-0",
-              )}
-            />
-          }
-        >
-          {collapsed ? (
-            <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-          ) : (
-            <>
-              <span className="truncate text-left">
-                {activeOrg?.name || "Selecione..."}
-              </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
-            </>
-          )}
-        </PopoverTrigger>
-        <PopoverContent className="w-[260px] p-0" align="start">
-          <Command>
-            <CommandList>
-              <CommandEmpty>Nenhuma organização encontrada.</CommandEmpty>
-              <CommandGroup heading="Workspaces">
-                {organizations.map((org) => {
-                  const isActive = activeOrg?.id === org.id;
-                  return (
-                    <CommandItem
-                      key={org.id}
-                      value={`${org.name} ${org.id}`}
-                      onSelect={() => handleSelectOrg(org.id)}
-                      aria-current={isActive ? "true" : undefined}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          isActive ? "opacity-100" : "opacity-0",
-                        )}
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{org.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {ORG_ROLE_LABELS[org.role] || "Membro"} · {SALES_ROLE_LABELS[org.sales_role] || org.sales_role}
-                        </p>
-                      </div>
-                    </CommandItem>
-                  );
-                })}
-                <CommandItem
-                  value="__create__"
-                  onSelect={() => setCreateOpen(true)}
-                  className="border-t border-border/60 text-muted-foreground"
-                >
-                  <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Criar organização
-                </CommandItem>
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      {singleOrganizationTrigger ?? (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                role="combobox"
+                aria-expanded={open}
+                aria-label={`Organização ativa: ${activeOrg?.name || "Selecione"}`}
+                className={cn(
+                  "w-full justify-between border border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                  collapsed && "w-10 justify-center p-0",
+                )}
+              />
+            }
+          >
+            {collapsed ? (
+              <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <>
+                <span className="truncate text-left">
+                  {activeOrg?.name || "Selecione..."}
+                </span>
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" aria-hidden="true" />
+              </>
+            )}
+          </PopoverTrigger>
+          <PopoverContent className="w-[260px] p-0" align="start">
+            <Command>
+              <CommandList>
+                <CommandEmpty>Nenhuma organização encontrada.</CommandEmpty>
+                <CommandGroup heading="Workspaces">
+                  {organizations.map((org) => {
+                    const isActive = activeOrg?.id === org.id;
+                    return (
+                      <CommandItem
+                        key={org.id}
+                        value={`${org.name} ${org.id}`}
+                        onSelect={() => handleSelectOrg(org.id)}
+                        aria-current={isActive ? "true" : undefined}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            isActive ? "opacity-100" : "opacity-0",
+                          )}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{org.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {ORG_ROLE_LABELS[org.role] || "Membro"} · {SALES_ROLE_LABELS[org.sales_role] || org.sales_role}
+                          </p>
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
+                  <CommandItem
+                    value="__create__"
+                    onSelect={() => setCreateOpen(true)}
+                    className="border-t border-border/60 text-muted-foreground"
+                  >
+                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Criar organização
+                  </CommandItem>
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-[420px]">
