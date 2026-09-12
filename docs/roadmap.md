@@ -273,7 +273,7 @@ Planner usa valor esperado/custo.
 
 # 4. Fase 2 — Company Search e People Search
 
-## 4.1 Advanced Company Search
+## 4.1 Advanced Company Search — ✅ operacional
 
 Criar `POST /api/search/companies` com filtros:
 - localização;
@@ -290,11 +290,15 @@ Criar `POST /api/search/companies` com filtros:
 
 Suportar `AND`, `OR`, `NOT`.
 
-## 4.2 Natural Language Search
+**Entregue na Fase 2:** DSL com allowlist, lógica ternária `MATCH`/`NO_MATCH`/`UNKNOWN`, limites de profundidade/payload e varredura tenant-aware limitada com sinalização de truncamento. A busca reutiliza `Company`, `CompanyRecord`, `Enrichment` e oportunidades sem disparar providers.
+
+## 4.2 Natural Language Search — ✅ operacional
 
 LLM apenas traduz linguagem natural para `SearchIntent` validado. Não chama provider diretamente.
 
-## 4.3 People Search
+**Entregue na Fase 2:** `POST /api/search/interpret` usa BYOK/quota já existentes, valida o JSON por Pydantic e exige revisão/execução explícita no frontend.
+
+## 4.3 People Search — ✅ operacional
 
 Criar `POST /api/search/people` com:
 - empresa/domínio;
@@ -305,6 +309,8 @@ Criar `POST /api/search/people` com:
 - localização;
 - status do email/telefone;
 - LinkedIn.
+
+**Entregue na Fase 2:** `POST /api/search/people` consulta `Person` canônica por workspace, aplica filtros comerciais e ordena resultados com `ActionableContactScore` explicável.
 
 ## 4.4 BuyerPersona — ✅ núcleo operacional
 
@@ -354,10 +360,12 @@ custo: `WebsitePeopleProvider` (site oficial, JSON-LD `Person`, sem chave),
 + Bearer opcional, retry, `failed` ≠ `empty`) e `HunterPeopleProvider`
 (Domain Search oficial, chave + quota).
 
-## 4.7 ActionableContactScore
+## 4.7 ActionableContactScore — ✅ operacional
 
 Dimensões:
 `identity_confidence`, `role_fit`, `email_confidence`, `phone_confidence`, `freshness`, `routability`.
+
+**Entregue na Fase 2:** score determinístico 0–100 com breakdown por dimensão, origem, estado `known`/`unknown` e cobertura; ausência de evidência não é convertida silenciosamente em fato negativo.
 
 
 # 5. Fase 3 — Enrichment, Freshness e Data Health
