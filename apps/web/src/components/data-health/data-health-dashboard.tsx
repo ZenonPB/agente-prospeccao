@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useDataHealth, useRefreshPlan } from '@/hooks/use-data-intelligence';
-import type { DataHealthItem } from '@/lib/data-intelligence-api';
+import type { DataHealthItem, ProviderHealth } from '@/lib/data-intelligence-api';
 
 const ISSUE_LABELS: Record<string, string> = {
   stale: 'Dados desatualizados',
@@ -20,9 +20,22 @@ const ISSUE_LABELS: Record<string, string> = {
   identity_risk: 'Identidade incompleta',
 };
 
+const PROVIDER_HEALTH_LABELS: Record<ProviderHealth['health'], string> = {
+  healthy: 'Saudável',
+  degraded: 'Degradado',
+  disabled: 'Desativado',
+  quota_exceeded: 'Cota esgotada',
+};
+
 function healthTone(item: DataHealthItem) {
   if (item.email_invalid || item.identity_risk) return 'destructive' as const;
   if (item.stale_keys.length || item.missing_decision_maker) return 'secondary' as const;
+  return 'outline' as const;
+}
+
+function providerTone(health: ProviderHealth['health']) {
+  if (health === 'degraded' || health === 'quota_exceeded') return 'destructive' as const;
+  if (health === 'disabled') return 'secondary' as const;
   return 'outline' as const;
 }
 
@@ -124,6 +137,28 @@ export function DataHealthDashboard() {
               <Badge key={key} variant="secondary" className="px-3 py-1.5">
                 {ISSUE_LABELS[key] ?? key}: {count}
               </Badge>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {data.provider_health.length > 0 && (
+        <section aria-labelledby="provider-health-title" className="space-y-3">
+          <div>
+            <h2 id="provider-health-title" className="text-base font-semibold">Saúde dos providers</h2>
+            <p className="text-sm text-muted-foreground">Últimos 7 dias. Falha, cota esgotada, desativado e sucesso permanecem estados distintos.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {data.provider_health.map((provider) => (
+              <Card key={provider.provider}>
+                <CardContent className="flex items-center justify-between gap-4 pt-6">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{provider.provider}</p>
+                    <p className="text-xs text-muted-foreground">{provider.total} execuções · {provider.failure_rate}% falhas</p>
+                  </div>
+                  <Badge variant={providerTone(provider.health)}>{PROVIDER_HEALTH_LABELS[provider.health]}</Badge>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </section>
