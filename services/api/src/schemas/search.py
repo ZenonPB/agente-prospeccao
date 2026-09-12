@@ -28,6 +28,23 @@ class FilterCondition(BaseModel):
     operator: FilterOperator = FilterOperator.EQ
     value: Any = None
 
+    @field_validator("value")
+    @classmethod
+    def validate_value_shape(cls, value: Any) -> Any:
+        if value is None or isinstance(value, (str, int, float, bool)):
+            if isinstance(value, str) and len(value) > 500:
+                raise ValueError("valor de filtro excede 500 caracteres")
+            return value
+        if isinstance(value, list):
+            if len(value) > 50:
+                raise ValueError("lista de filtro excede 50 itens")
+            if any(not isinstance(item, (str, int, float, bool)) for item in value):
+                raise ValueError("lista de filtro aceita apenas valores escalares")
+            if any(isinstance(item, str) and len(item) > 500 for item in value):
+                raise ValueError("item de filtro excede 500 caracteres")
+            return value
+        raise ValueError("valor de filtro deve ser escalar ou lista de escalares")
+
 
 class FilterExpression(BaseModel):
     operator: Literal["AND", "OR", "NOT"] = "AND"
@@ -41,6 +58,16 @@ class FilterExpression(BaseModel):
         if not self.conditions and not self.groups:
             raise ValueError("expressão de filtro vazia")
         return self
+
+
+def _expression_stats(expression: FilterExpression, depth: int = 1) -> tuple[int, int]:
+    deepest = depth
+    predicates = len(expression.conditions)
+    for group in expression.groups:
+        child_predicates, child_depth = _expression_stats(group, depth + 1)
+        predicates += child_predicates
+        deepest = max(deepest, child_depth)
+    return predicates, deepest
 
 
 class CompanySearchRequest(BaseModel):
@@ -66,7 +93,7 @@ class CompanySearchRequest(BaseModel):
     offset: int = Field(0, ge=0, le=10000)
 
     @model_validator(mode="after")
-    def validate_ranges(self):
+    def validate_ranges_and_complexity(self):
         for minimum, maximum, label in (
             (self.employee_min, self.employee_max, "employees"),
             (self.revenue_min, self.revenue_max, "revenue"),
@@ -74,6 +101,12 @@ class CompanySearchRequest(BaseModel):
         ):
             if minimum is not None and maximum is not None and minimum > maximum:
                 raise ValueError(f"intervalo inválido para {label}")
+        if self.expression is not None:
+            predicates, depth = _expression_stats(self.expression)
+            if depth > 3:
+                raise ValueError("expressão excede profundidade máxima de 3 níveis")
+            if predicates > 50:
+                raise ValueError("expressão excede 50 predicados")
         return self
 
 
