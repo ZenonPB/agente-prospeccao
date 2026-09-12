@@ -1,0 +1,619 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "2.1 Escrever o teste que reproduz o vazamento cross-tenant (deve FALHAR antes da correção)": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901333
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173917934
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789174083285
+      }
+    ],
+    "2.2 Adicionar `Organization.inbound_token_hash` ao modelo único": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901389
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175656708
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175827072
+      }
+    ],
+    "2.3 Criar o serviço de token de inbound": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901477
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175660363
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789176163263
+      }
+    ],
+    "2.4 Confinar `process_inbound_email` à organização resolvida": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901534
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789176175686
+      }
+    ],
+    "2.5 Publicar as rotas por token e endurecer as rotas legadas": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901604
+      }
+    ],
+    "2.6 Criar o script de geração do token de inbound por organização": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901656
+      }
+    ],
+    "2.7 Escrever as propriedades de isolamento do inbound": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901699
+      }
+    ],
+    "3.2 Tornar a autorização do WebSocket fail-closed": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901745
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175664154
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175831111
+      }
+    ],
+    "3.3 Cobrir a criação de job e a listagem HTTP com escopo de organização": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901814
+      }
+    ],
+    "3.4 Escrever as propriedades de autorização de job": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901871
+      }
+    ],
+    "4.1 Escrever os testes que reproduzem o envio para lead terminal (devem FALHAR antes da correção)": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173901957
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173921682
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175028623
+      }
+    ],
+    "4.2 Bloquear a cadência em estado terminal nos três pontos": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902020
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175667896
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789176167192
+      }
+    ],
+    "4.3 Escrever as propriedades de estado terminal": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902090
+      }
+    ],
+    "5.1 Escrever o teste que reproduz PERDIDO sem motivo (deve FALHAR antes da correção)": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902147
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173925375
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175033881
+      }
+    ],
+    "5.2 Exigir o motivo no schema de atualização de status": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902216
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175671856
+      }
+    ],
+    "5.3 Criar o ponto único de transição de status e ligar os consumidores": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902281
+      }
+    ],
+    "5.4 Escrever as propriedades de perda e trilha": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902357
+      }
+    ],
+    "6.1 Escrever o teste de contrato que reprova o caminho fraco (deve FALHAR antes da correção)": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902427
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173929100
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175648394
+      }
+    ],
+    "6.2 Exigir motivo na ação em lote do Painel_Oportunidades": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902492
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175844787
+      }
+    ],
+    "6.3 Verificar a equivalência lote ↔ individual": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902558
+      }
+    ],
+    "7.1 Escrever o teste de concorrência que reproduz a duplicata (deve FALHAR antes da correção)": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902651
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173932850
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175652328
+      }
+    ],
+    "7.2 Declarar o índice único de expressão no modelo": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902712
+      },
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789175840904
+      }
+    ],
+    "7.3 Alinhar o check com a constraint e converter a violação em 409": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902764
+      }
+    ],
+    "7.4 Escrever as propriedades de conversão única": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902820
+      }
+    ],
+    "8.1 Criar a revisão m1 — `organizations.inbound_token_hash`": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902873
+      }
+    ],
+    "8.2 Contagem prévia do CHECK de `lost_reason` — PARAR se houver conflito": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902928
+      }
+    ],
+    "8.3 Criar a revisão m2 — CHECK `ck_leads_lost_reason_required`": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173902970
+      }
+    ],
+    "8.4 Contagem prévia de duplicatas em `conversions` — PARAR se houver conflito": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903038
+      }
+    ],
+    "8.5 Criar a revisão m3 — índice único `uq_conversions_lead_offer`": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903093
+      }
+    ],
+    "8.6 Contagem prévia de `jobs.organization_id` nulo — PARAR se houver conflito": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903143
+      }
+    ],
+    "8.7 Criar a revisão m4 — `jobs.organization_id NOT NULL` (condicional)": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903193
+      }
+    ],
+    "9. Checkpoint do Bloco 1": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903234
+      }
+    ],
+    "10.1 Enviar o parâmetro de início automático da coleta": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903289
+      }
+    ],
+    "10.2 Garantir disparo único da coleta automática": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903342
+      }
+    ],
+    "10.3 Corrigir o valor do filtro \"Meus Leads\"": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903400
+      }
+    ],
+    "10.4 Declarar o filtro aplicado no estado vazio": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903454
+      }
+    ],
+    "10.5 Escrever o teste de contrato do parâmetro `assigned`": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903523
+      }
+    ],
+    "11.1 Criar o helper de redirecionamento seguro": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903576
+      }
+    ],
+    "11.2 Ligar o helper ao login e ao aceite de convite": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903639
+      }
+    ],
+    "11.3 Verificar a propriedade do redirecionamento": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903696
+      }
+    ],
+    "12.1 Criar o mapeamento puro de estados de provider": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903758
+      }
+    ],
+    "12.2 Aplicar loading, erro, vazio e parcial por região, com marcação de inferência": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903816
+      }
+    ],
+    "12.3 Verificar as propriedades de apresentação honesta": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903886
+      }
+    ],
+    "13. Checkpoint do Bloco 2": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173903949
+      }
+    ],
+    "14.1 Conferir e registrar os três controles de Outreach_Assistido": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904015
+      }
+    ],
+    "14.2 Provisionar a organização e o token de inbound do UAT": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904061
+      }
+    ],
+    "14.3 Subir API e web reais para a sessão": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904124
+      }
+    ],
+    "15.1 Executar o roteiro do Golden Path com a Oferta_TROFEUS": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904222
+      }
+    ],
+    "15.2 Preencher no mínimo dez fichas de nove itens": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904270
+      }
+    ],
+    "15.3 Executar o smoke das Ofertas_Smoke": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904321
+      }
+    ],
+    "15.4 Registrar e classificar os findings do UAT": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904373
+      }
+    ],
+    "15.5 Decidir o provider de eventos pelos limiares": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904421
+      }
+    ],
+    "16.1 Implementar o provider especializado somente se os limiares não foram atingidos": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904477
+      }
+    ],
+    "16.2 Escrever os testes do provider especializado": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904541
+      }
+    ],
+    "17.1 Estender o funil para sete etapas monotônicas e dois outcomes separados": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904593
+      }
+    ],
+    "17.2 Calcular a taxa de conversão com denominador zero indisponível": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904652
+      }
+    ],
+    "17.3 Adicionar os cortes por `offer_key` e por canal na rota do funil": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904708
+      }
+    ],
+    "17.4 Expor `amostra` e `disponivel` em cada agregação": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904765
+      }
+    ],
+    "17.5 Escrever as propriedades do BI": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904825
+      }
+    ],
+    "17.6 Cobrir escopo por organização e igualdade entre telas": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904886
+      }
+    ],
+    "18.1 Adicionar a aba com as sete etapas, os dois outcomes e a taxa": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173904955
+      }
+    ],
+    "18.2 Exportar a visão filtrada": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905029
+      }
+    ],
+    "18.3 Apresentar amostra, insuficiência e ausência de dado": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905097
+      }
+    ],
+    "19.1 Expor a análise por variante de mensagem na aba de funil": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905158
+      }
+    ],
+    "19.2 Implementar atribuição avançada de resultado": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905211
+      }
+    ],
+    "20.1 Gates 1 a 4 — testes, compilação, genericidade e migrations": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905270
+      }
+    ],
+    "20.2 Gates 5 a 7 — lint, tipos e build do `apps/web`": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905345
+      }
+    ],
+    "20.3 Gate 8 — browser QA dos fluxos do Bloco 2": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905416
+      }
+    ],
+    "20.4 Gate 9 — atualizar o grafo de conhecimento se executável": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905471
+      }
+    ],
+    "21.1 Submeter à revisão de implementação": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905526
+      }
+    ],
+    "21.2 Submeter à revisão de código": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905588
+      }
+    ],
+    "21.3 Declarar a Definition of Done": [
+      {
+        "executionId": "20563b12-2901-49ff-9ebc-5a29b8bb668d",
+        "chatSessionId": "sess_de95f37a-b226-4c54-b66d-eb1a486e5a58",
+        "timestamp": 1789173905644
+      }
+    ]
+  }
+}
