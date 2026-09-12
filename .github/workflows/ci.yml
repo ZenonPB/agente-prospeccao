@@ -113,7 +113,7 @@ jobs:
         run: python -m src.seeds.scoring_templates
 
   e2e:
-    name: E2E outreach cycle (Postgres real)
+    name: E2E critical invariants (Postgres real)
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -132,6 +132,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://test:test@localhost:5432/test
       E2E_DATABASE_URL: postgresql://test:test@localhost:5432/test
+      JWT_SECRET: ci-e2e-secret-minimum-32-bytes-long
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -154,6 +155,6 @@ jobs:
           SECRETS_ENCRYPTION_KEY: ""
         run: alembic upgrade head
       - name: Run E2E outreach cycle
-        env:
-          JWT_SECRET: ci-e2e-secret
         run: python -m pytest tests/e2e_outreach_cycle.py -q -m e2e
+      - name: Verify conversion concurrency invariant
+        run: python -m pytest tests/test_conversion_unique_concurrency.py -q
