@@ -61,7 +61,10 @@ os.environ.setdefault("PGADMIN_PASSWORD", "admin")
 os.environ.setdefault("GROQ_API_KEY", "test")
 os.environ.setdefault("GOOGLE_API_KEY", "test")
 os.environ.setdefault("HUNTER_API_KEY", "")
-os.environ.setdefault("JWT_SECRET", "test-secret")
+# HS256 recomenda chave de ao menos 256 bits. A fixture respeita a mesma
+# premissa de segurança da produção para que `-W error` não esconda problemas
+# atrás de uma credencial de teste artificialmente fraca.
+os.environ.setdefault("JWT_SECRET", "test-secret-ci-only-minimum-32-bytes-long")
 os.environ.setdefault("SECRETS_ENCRYPTION_KEY", "")
 os.environ.setdefault("ENVIRONMENT", "test")
 
