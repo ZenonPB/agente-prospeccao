@@ -1,0 +1,99 @@
+name: Patch phase1 workspace contracts
+
+on:
+  push:
+    branches:
+      - feat/phase-1-foundation-multiworkspace
+
+permissions:
+  contents: write
+
+jobs:
+  patch-contracts:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase-1-foundation-multiworkspace
+      - name: Patch backend active membership and frontend API source of truth
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Backend: /orgs/me must serialize the membership already resolved from
+          # X-Organization-Id instead of silently selecting the first membership.
+          path = Path('services/api/src/routes/orgs.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''@router.get("/me")
+          def get_my_org(
+              db: Session = Depends(get_db),
+              user: User = Depends(get_current_user),
+          ):
+              """Retorna a organização do usuário autenticado + seu papel de venda.
+
+              O frontend precisa do `organization_id` e do `sales_role` do usuário
+              atual para: (a) montar a tela de membros; (b) decidir se pode gerenciar
+              papéis; (c) exibir o badge de papel de venda. Rota declarada antes de
+              `/{org_id}/...` para não colidir com o path matching.
+              """
+              member = db.query(OrganizationMember).filter(
+                  OrganizationMember.user_id == user.id,
+              ).first()
+              if not member:
+                  raise HTTPException(status_code=404, detail="Usuário sem organização")
+
+              return {'''
+          new = '''@router.get("/me")
+          def get_my_org(
+              db: Session = Depends(get_db),
+              member: OrganizationMember = Depends(get_user_membership),
+          ):
+              """Retorna o workspace ativo e o papel do usuário nele.
+
+              `get_user_membership` resolve `X-Organization-Id` e valida membership.
+              A rota não faz um segundo lookup global: isso evita retornar a primeira
+              organização do usuário depois de ele trocar de workspace no frontend.
+              """
+              return {'''
+          if old not in text:
+              raise SystemExit('Expected /orgs/me block not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Frontend: API and switcher must share exactly the same storage contract.
+          path = Path('apps/web/src/lib/api.ts')
+          text = path.read_text(encoding='utf-8')
+          import_anchor = 'import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";\n'
+          import_line = 'import { getActiveOrganizationId } from "@/lib/active-organization";\n'
+          if import_line not in text:
+              if import_anchor not in text:
+                  raise SystemExit('Expected api import anchor not found')
+              text = text.replace(import_anchor, import_anchor + import_line, 1)
+
+          local_getter = '''// Organização ativa gravada pelo OrgSwitcher (chave em `org-switcher.tsx`).
+          // Quando presente, define o workspace multi-org nas chamadas à API.
+          function getActiveOrganizationId(): string | null {
+            if (typeof window === "undefined") return null;
+            return window.localStorage.getItem("active_organization_id");
+          }
+
+          '''
+          if local_getter not in text:
+              raise SystemExit('Expected local active organization getter not found')
+          path.write_text(text.replace(local_getter, '', 1), encoding='utf-8')
+          PY
+      - name: Commit backend contract
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services/api/src/routes/orgs.py
+          git commit -m "fix(workspace): respeita organização ativa em orgs me"
+      - name: Commit frontend contract and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/patch-phase1-contracts.yml
+          git add apps/web/src/lib/api.ts .github/workflows/patch-phase1-contracts.yml
+          git commit -m "refactor(workspace): unifica contexto da organização ativa"
+          git push origin HEAD:feat/phase-1-foundation-multiworkspace
