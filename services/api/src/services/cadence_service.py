@@ -54,6 +54,10 @@ logger = logging.getLogger(__name__)
 # Máximo de tentativas para falhas transitórias antes de cancelar a etapa.
 MAX_ATTEMPTS = 3
 
+# Estados que encerram o relacionamento: lead nestes status sai da cadência —
+# não recebe envio e não entra na seleção de vencidos.
+TERMINAL_STATUSES = (LeadStatus.PERDIDO, LeadStatus.DESQUALIFICADO)
+
 
 DEFAULT_CADENCE_DAYS = [0, 3, 7, 14]
 
@@ -146,12 +150,32 @@ def send_step(
     """Envia uma etapa da cadência (humano-no-loop ou scheduler).
 
     Marca como SENT, registra um `Message` no lead e uma atividade na trilha.
-    Respeita `opt_out` e a lista de supressão (bounce permanente).
+    Respeita estado terminal do lead, `opt_out` e a lista de supressão
+    (bounce permanente).
 
     Retorna True se a etapa foi enviada (ou já estava enviada).
     """
     if follow_up.status == FollowUpStatus.SENT:
         return True
+
+    lead = follow_up.lead or db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
+    # Lead perdido/desqualificado não recebe outreach: bloqueio antes de
+    # resolver destinatário, de criar `Message` ou de tocar o SMTP.
+    if lead and lead.status in TERMINAL_STATUSES:
+        logger.info("Lead %s em %s — etapa %s pulada (estado terminal)",
+                    lead.id, lead.status.value, follow_up.step.value)
+        follow_up.status = FollowUpStatus.SKIPPED
+        log_event(
+            "cadence_skipped",
+            lead_id=str(follow_up.lead_id),
+            organization_id=str(lead.organization_id) if lead.organization_id else None,
+            reason="terminal_status",
+            status=lead.status.value,
+            step=follow_up.step.value,
+        )
+        db.commit()
+        return False
+
     if follow_up.lead and follow_up.lead.opt_out:
         follow_up.status = FollowUpStatus.SKIPPED
         db.commit()
@@ -165,7 +189,6 @@ def send_step(
 
     from src.services.email_service import send_email
 
-    lead = follow_up.lead or db.query(Lead).filter(Lead.id == follow_up.lead_id).first()
     # Envio automático (scheduler, sem user_id) exige e-mail verificado — um
     # e-mail heurístico (adivinhado) nunca vai sozinho.
     require_verified = user_id is None
@@ -353,6 +376,27 @@ def mark_opt_out(db: Session, lead: Lead) -> None:
     db.commit()
 
 
+def cancel_pending_for_terminal(db: Session, lead: Lead, reason: str) -> int:
+    """Encerra as etapas pendentes de um lead que entrou em estado terminal.
+
+    Ponto único: qualquer caminho que grave PERDIDO/DESQUALIFICADO chama isto.
+    Sem commit próprio — a transação é do chamador. Etapa já enviada não é
+    reescrita, o histórico da cadência fica intacto.
+
+    Retorna quantas etapas foram encerradas.
+    """
+    pendentes = db.query(FollowUp).filter(
+        FollowUp.lead_id == lead.id,
+        FollowUp.status == FollowUpStatus.PENDING,
+    ).all()
+    for fu in pendentes:
+        fu.status = FollowUpStatus.CANCELLED
+    if pendentes:
+        logger.info("Cadência encerrada para lead %s (%s): %d etapa(s)",
+                    lead.id, reason, len(pendentes))
+    return len(pendentes)
+
+
 def _resolve_from_email(db: Session, lead: Optional[Lead], org: Optional[Organization]) -> Optional[str]:
     """Resolve o remetente de um envio, em ordem de precedência:
 
@@ -438,7 +482,7 @@ def run_due(db: Session) -> Tuple[int, int]:
     """Envia automaticamente as etapas vencidas de orgs com `auto_send_email`.
 
     Rodado periodicamente pelo scheduler (main.py). Respeita:
-    - opt-out e `email_verified` (via `send_step`);
+    - estado terminal do lead, opt-out e `email_verified` (via `send_step`);
     - **throttling**: teto diário por org (`daily_email_limit`),
       janela de espalhamento (`send_window_start/end`) e teto por hora;
     - etapas que não couberem no orçamento do dia/hora **permanecem PENDING**
@@ -456,6 +500,7 @@ def run_due(db: Session) -> Tuple[int, int]:
             (FollowUp.status == FollowUpStatus.PENDING)
             & (FollowUp.scheduled_at <= now_utc)
             & (Lead.opt_out.is_(False))
+            & (~Lead.status.in_(TERMINAL_STATUSES))
             & (Organization.auto_send_email.is_(True))
         )
         .order_by(FollowUp.scheduled_at.asc())

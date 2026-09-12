@@ -153,6 +153,11 @@ class Organization(Base):
     define o que podem gerenciar (owner/admin/member).
     """
     __tablename__ = "organizations"
+    __table_args__ = (
+        # O token de inbound é resolvido por igualdade sobre o hash: índice
+        # único garante lookup indexado e no máximo uma org por token.
+        Index("uq_organizations_inbound_token_hash", "inbound_token_hash", unique=True),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(120), unique=True, nullable=False)
@@ -181,6 +186,9 @@ class Organization(Base):
     webhook_url = Column(String(255))
     # Segredo compartilhado enviado em X-Webhook-Secret — consumidor valida.
     webhook_secret = Column(String(64))
+    # sha256 do token que identifica a org nas rotas de inbound. O token em
+    # claro nunca é persistido: é exibido uma vez na geração. Nulo = sem token.
+    inbound_token_hash = Column(String(64), nullable=True)
     # Link de agendamento (Cal.com/Calendly). Injetado no outreach como CTA.
     scheduling_url = Column(String(255))
     # Teto diário de uso por provedor (BYOK vs pool). Sobrescreve o

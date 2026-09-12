@@ -223,7 +223,13 @@ async def websocket_pipeline(
             return
 
         job = db.query(Job).filter(Job.id == job_id).first()
-        if job is None or (job.organization_id and str(job.organization_id) != str(org.id)):
+        # Falha fechada: job inexistente, job órfão (sem organização) e job de
+        # outra organização recebem a mesma recusa, sem revelar qual é o caso.
+        if (
+            job is None
+            or job.organization_id is None
+            or str(job.organization_id) != str(org.id)
+        ):
             await websocket.close(code=403, reason="Acesso negado a este job")
             return
     finally:

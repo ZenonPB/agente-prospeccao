@@ -3,3 +3,4 @@
 -r services/api/requirements.txt
 -r services/workers/requirements.txt
 pytest==9.1.1
+hypothesis==6.168.0

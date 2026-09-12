@@ -57,11 +57,14 @@ ANTES de escrever código.** Skills disponíveis nesta máquina:
 | Skill | Quando usar |
 |---|---|
 | `tdd` | Construir feature ou corrigir bug test-first (red-green-refactor) ou pedir testes/integração. |
+| `api-contracts` | Verificar contratos REST/WebSocket reais entre FastAPI, jobs e Next.js antes de alterar consumidores ou payloads. |
 | `improve-codebase-architecture` | Auditar/evoluir a arquitetura do código (gera relatório visual de aprofundamento). |
 
 ### Infra / automação / segurança
 | Skill | Quando usar |
 |---|---|
+| `release-operations` | Auditar release, CI, migrations, health, workers, scheduler, backup/restore e rollback no deploy Render/Vercel/Neon. |
+| `tenant-isolation-audit` | Auditar organização, autorização, jobs, WebSocket, exports, caches, providers, PII e provas negativas cross-tenant. |
 | `agent-browser` | Automatizar navegador: preencher formulários, clicar, screenshots, extrair dados, QA, testar a app web. |
 | `firebase-security-rules-auditor` | Auditar regras de segurança Firebase — não se aplica a este repo (Postgres); ignorar. |
 | `find-skills` | Procurar/instalar novas skills (`npx skills add <repo@skill> -g -y`). |
