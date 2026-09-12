@@ -1,22 +1,118 @@
-"""Perfis adicionais de ofertas AlphaMec.
+"""Perfis e extensões de excelência por oferta AlphaMec.
 
-A engine permanece genérica: cada nova oferta declara ICP, sinais, discovery,
-enrichment, personas, canais e requisitos de evidência.
+A engine permanece genérica: cada oferta declara ICP, descoberta, sinais,
+personas e outreach. Esta camada só expande o registry declarativo.
 """
 from __future__ import annotations
+
+from dataclasses import replace
+from typing import Any
 
 from services.prospecting.offer_profile import OfferProfile, OfferProfileRegistry
 
 
-def _register_if_missing(registry: OfferProfileRegistry, profile: OfferProfile) -> None:
-    try:
-        registry.get(profile.key)
+def _deep_merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    result = dict(base or {})
+    for key, value in extra.items():
+        current = result.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            result[key] = _deep_merge(current, value)
+        elif isinstance(current, list) and isinstance(value, list):
+            result[key] = list(dict.fromkeys([*current, *value]))
+        else:
+            result[key] = value
+    return result
+
+
+def _enhance(
+    registry: OfferProfileRegistry,
+    key: str,
+    *,
+    signals: dict[str, Any] | None = None,
+    intent: dict[str, Any] | None = None,
+    decision_makers: dict[str, Any] | None = None,
+    outreach: dict[str, Any] | None = None,
+) -> None:
+    current = registry.get(key)
+    if current is None:
         return
-    except (KeyError, ValueError, AttributeError):
+    registry.register(replace(
+        current,
+        version="1.1",
+        signals=_deep_merge(current.signals, signals or {}),
+        intent=_deep_merge(current.intent, intent or {}),
+        decision_makers=_deep_merge(current.decision_makers, decision_makers or {}),
+        outreach=_deep_merge(current.outreach, outreach or {}),
+    ))
+
+
+def _register_if_missing(registry: OfferProfileRegistry, profile: OfferProfile) -> None:
+    if registry.get(profile.key) is None:
         registry.register(profile)
 
 
 def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegistry:
+    """Atualiza ofertas existentes e registra novas vertentes da Fase 5."""
+    _enhance(
+        registry,
+        "landing_page",
+        signals={
+            "positive": ["HAS_ADS", "WEAK_CTA", "NO_CONTACT_FORM", "WEAK_CONVERSION_FLOW"],
+            "weights": {"NO_OWN_WEBSITE": 1.35, "HAS_ADS": 1.2, "WEAK_CTA": 1.1, "NO_CONTACT_FORM": 1.15},
+        },
+        decision_makers={
+            "roles": ["founder", "marketing_manager", "commercial_manager"],
+            "priority": ["founder", "marketing_manager", "commercial_manager"],
+        },
+        outreach={"evidence_requirements": ["NO_OWN_WEBSITE", "GOOGLE_RATING"]},
+    )
+    _enhance(
+        registry,
+        "mechanical_project",
+        signals={
+            "positive": [
+                "HAS_CNC", "HAS_PRODUCTION_LINE", "CUSTOM_MACHINERY", "AUTOMATION",
+                "NEW_EQUIPMENT", "EXPANDING_FACTORY", "HIRING_MECHANICAL_ENGINEER",
+            ],
+            "weights": {
+                "HAS_PRODUCTION_LINE": 1.15,
+                "CUSTOM_MACHINERY": 1.3,
+                "NEW_EQUIPMENT": 1.2,
+                "EXPANDING_FACTORY": 1.2,
+                "HIRING_MECHANICAL_ENGINEER": 1.1,
+            },
+        },
+        intent={
+            "event_weights": {
+                "NEW_EQUIPMENT": 0.9,
+                "EXPANDING_FACTORY": 0.9,
+                "HIRING_MECHANICAL_ENGINEER": 0.85,
+            },
+        },
+    )
+    _enhance(
+        registry,
+        "technical_drawing",
+        signals={
+            "positive": ["USINAGEM", "CUSTOM_PARTS", "REPLACEMENT_PARTS", "REVERSE_ENGINEERING", "CUSTOM_MANUFACTURING"],
+            "weights": {"CUSTOM_PARTS": 1.25, "REVERSE_ENGINEERING": 1.25, "CUSTOM_MANUFACTURING": 1.15},
+        },
+    )
+    _enhance(
+        registry,
+        "machine_manual",
+        signals={
+            "positive": ["MACHINE_MANUFACTURER", "NR12", "INDUSTRIAL_SAFETY", "TECHNICAL_DOCUMENTATION", "NEW_MACHINE"],
+            "weights": {"NR12": 1.3, "TECHNICAL_DOCUMENTATION": 1.2, "NEW_MACHINE": 1.15},
+        },
+    )
+    _enhance(
+        registry,
+        "trophies",
+        signals={"positive": ["EVENT_SCHEDULED", "SEASONAL_DEMAND"]},
+        intent={"event_weights": {"EVENT_SCHEDULED": 0.95, "SEASONAL_DEMAND": 0.8}},
+    )
+
     profiles = [
         OfferProfile(
             key="web_systems_erp",
@@ -40,7 +136,7 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
                     "MANUAL_PROCESS": 20,
                     "HIRING_OPERATIONS": 18,
                     "HIRING_IT": 18,
-                    "EXPANSION": 14,
+                    "EXPANDING": 14,
                 },
                 "threshold": 38,
                 "top_k": 35,
@@ -52,21 +148,12 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
                 "people_discovery": {"max_cost": 3, "max_steps": 3, "min_role_fit": 68},
             },
             signals={
-                "positive": [
-                    "MULTI_UNIT", "MANUAL_PROCESS", "HIRING_OPERATIONS", "HIRING_IT",
-                    "EXPANSION", "USES_SPREADSHEETS", "SAAS_LIMITATION",
-                ],
+                "positive": ["MULTI_UNIT", "MANUAL_PROCESS", "HIRING_OPERATIONS", "HIRING_IT", "EXPANDING", "USES_SPREADSHEETS", "SAAS_LIMITATION"],
                 "negative": ["VERY_SMALL_LOW_COMPLEXITY"],
-                "weights": {
-                    "MANUAL_PROCESS": 1.3,
-                    "MULTI_UNIT": 1.2,
-                    "HIRING_OPERATIONS": 1.1,
-                    "HIRING_IT": 1.1,
-                    "EXPANSION": 1.0,
-                },
+                "weights": {"MANUAL_PROCESS": 1.3, "MULTI_UNIT": 1.2, "HIRING_OPERATIONS": 1.1, "HIRING_IT": 1.1, "EXPANDING": 1.0},
             },
             intent={
-                "event_weights": {"HIRING_OPERATIONS": 0.9, "HIRING_IT": 0.85, "EXPANSION": 0.8, "NEW_BRANCH": 0.8},
+                "event_weights": {"HIRING_OPERATIONS": 0.9, "HIRING_IT": 0.85, "EXPANDING": 0.8, "NEW_BRANCH": 0.8},
                 "decay_days": 75,
                 "trigger_threshold": 0.5,
             },
@@ -83,10 +170,7 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
                     "Há retrabalho, planilhas paralelas ou limitações do sistema atual?",
                 ],
             },
-            outreach={
-                "angle": "eficiencia_operacional",
-                "evidence_requirements": ["MANUAL_PROCESS"],
-            },
+            outreach={"angle": "eficiencia_operacional", "evidence_requirements": ["MANUAL_PROCESS"]},
         ),
         OfferProfile(
             key="3d_printing",
@@ -94,39 +178,13 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
             vertical="mechanical_engineering",
             version="1.0",
             offer={"name": "Impressão 3D", "tagline": "Protótipos e peças com ciclo rápido"},
-            icp={
-                "company_sizes": ["ME", "EPP", "GE"],
-                "segments": ["P&D", "hardware", "produto", "laboratórios", "manufatura"],
-            },
-            discovery={
-                "providers": ["cnae_discovery", "google_places", "job_search", "company_news"],
-                "target_candidates": 180,
-                "query_strategy": "rnd+product+manufacturing",
-            },
-            prescoring={
-                "weights": {"NEW_PRODUCT": 22, "PROTOTYPE": 25, "R_AND_D": 22, "HAS_CNPJ": 10},
-                "threshold": 35,
-                "top_k": 30,
-                "on_insufficient_data": "promote",
-            },
-            enrichment={
-                "steps": ["cnpj_receita", "business_social"],
-                "max_cost": 4,
-                "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 65},
-            },
-            signals={
-                "positive": ["NEW_PRODUCT", "PROTOTYPE", "R_AND_D", "CUSTOM_PARTS"],
-                "weights": {"PROTOTYPE": 1.35, "R_AND_D": 1.25, "NEW_PRODUCT": 1.15},
-            },
-            intent={
-                "event_weights": {"NEW_PRODUCT": 0.95, "PROTOTYPE": 1.0, "R_AND_D": 0.9},
-                "decay_days": 45,
-                "trigger_threshold": 0.45,
-            },
-            decision_makers={
-                "roles": ["engineering_manager", "product_manager", "founder", "rnd_manager"],
-                "buyer_types": ["TECHNICAL_BUYER", "ECONOMIC_BUYER", "CHAMPION"],
-            },
+            icp={"company_sizes": ["ME", "EPP", "GE"], "segments": ["P&D", "hardware", "produto", "laboratórios", "manufatura"]},
+            discovery={"providers": ["cnae_discovery", "google_places", "job_search", "company_news"], "target_candidates": 180, "query_strategy": "rnd+product+manufacturing"},
+            prescoring={"weights": {"NEW_PRODUCT": 22, "PROTOTYPE": 25, "R_AND_D": 22, "HAS_CNPJ": 10}, "threshold": 35, "top_k": 30, "on_insufficient_data": "promote"},
+            enrichment={"steps": ["cnpj_receita", "business_social"], "max_cost": 4, "people_discovery": {"max_cost": 2, "max_steps": 2, "min_role_fit": 65}},
+            signals={"positive": ["NEW_PRODUCT", "PROTOTYPE", "R_AND_D", "CUSTOM_PARTS"], "weights": {"PROTOTYPE": 1.35, "R_AND_D": 1.25, "NEW_PRODUCT": 1.15}},
+            intent={"event_weights": {"NEW_PRODUCT": 0.95, "PROTOTYPE": 1.0, "R_AND_D": 0.9}, "decay_days": 45, "trigger_threshold": 0.45},
+            decision_makers={"roles": ["engineering_manager", "product_manager", "founder", "rnd_manager"], "buyer_types": ["TECHNICAL_BUYER", "ECONOMIC_BUYER", "CHAMPION"]},
             channels={"priority": ["email", "linkedin", "phone"]},
             outreach={"angle": "validacao_rapida", "evidence_requirements": ["NEW_PRODUCT"]},
         ),
@@ -163,7 +221,6 @@ def register_phase5_profiles(registry: OfferProfileRegistry) -> OfferProfileRegi
             outreach={"angle": "personalizacao_evento", "evidence_requirements": ["EVENT_SCHEDULED"]},
         ),
     ]
-
     for profile in profiles:
         _register_if_missing(registry, profile)
     return registry
