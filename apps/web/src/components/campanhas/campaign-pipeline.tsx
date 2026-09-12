@@ -158,6 +158,7 @@ export function CampaignPipeline({
       connect(createPipelineWsUrl(result.job_id), getPipelineAuthPayload());
     } catch (e) {
       setIsRunning(false);
+      setHasStarted(false);
       const msg = e instanceof Error ? e.message : 'Erro ao iniciar pipeline';
       setErrorMessage(msg);
       setEvents((prev) => [...prev, { type: 'error', message: msg }]);
@@ -197,6 +198,7 @@ export function CampaignPipeline({
       connect(createPipelineWsUrl(result.job_id), getPipelineAuthPayload());
     } catch (error) {
       setIsRunning(false);
+      setHasStarted(false);
       const message = error instanceof Error ? error.message : 'Erro ao descobrir eventos';
       setErrorMessage(message);
       setEvents((prev) => [...prev, { type: 'error', message }]);
