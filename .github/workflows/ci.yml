@@ -156,5 +156,7 @@ jobs:
         run: alembic upgrade head
       - name: Run E2E outreach cycle
         run: python -m pytest tests/e2e_outreach_cycle.py -q -m e2e
+      # Este teste cria User/Organization/Lead reais para validar a corrida sob
+      # as mesmas FKs e constraints que existem em produção.
       - name: Verify conversion concurrency invariant
         run: python -m pytest tests/test_conversion_unique_concurrency.py -q
