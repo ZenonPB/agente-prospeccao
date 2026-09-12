@@ -83,9 +83,11 @@ def test_effective_registry_overlays_only_active_workspace_profile():
 
     landing = registry.get("landing_page")
     mechanical = registry.get("mechanical_project")
+    canonical_mechanical = get_default_registry().get("mechanical_project")
     assert landing is not None and landing.version == "2.0"
     assert landing.prescoring["threshold"] == 61
-    assert mechanical is not None and mechanical.version == "1.0"
+    assert mechanical is not None and canonical_mechanical is not None
+    assert mechanical.version == canonical_mechanical.version
 
 
 def test_effective_registry_ignores_invalid_persisted_snapshot():
@@ -94,5 +96,6 @@ def test_effective_registry_ignores_invalid_persisted_snapshot():
     registry = build_effective_registry(_Db([SimpleNamespace(profile_snapshot=invalid)]), "org-1")
 
     landing = registry.get("landing_page")
-    assert landing is not None
-    assert landing.version == "1.0"
+    canonical_landing = get_default_registry().get("landing_page")
+    assert landing is not None and canonical_landing is not None
+    assert landing.version == canonical_landing.version
