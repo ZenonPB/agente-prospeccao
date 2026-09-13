@@ -1,112 +1,96 @@
-# Feedback loop de scoring — "IA que aprende com o time"
+# Feedback humano e loop de aprendizado
 
-> Documento operacional da feature de feedback humano sobre o score da IA.
-> Status geral: **Fases 1–3 concluídas**. Este fluxo (`ScoringFeedback` e
-> `TemplateLearning`) é diferente do Learning/Metrics comercial de outcomes e
-> comparação A/B descrito em `docs/architecture.md`.
+> **LIVE · atualizado em 2026-09-13.** Feedback melhora análise e priorização,
+> mas nunca altera produção sem o fluxo de Controlled Learning.
 
-## Objetivo
+## Dois tipos de feedback
 
-Permitir que o time corrija o score dado pela IA (ex.: "IA deu 85, mas o site é
-bom/atualizado — deveria ser ~40") e que essas correções **calibrem a IA ao
-longo do tempo**. Não há retreino de modelo (Groq é API fechada): o
-"aprendizado" é memória contextual — feedback vira regras explícitas por
-vertical/organização, injetadas no prompt de scoring.
+### Utilidade do lead
 
-## Arquitetura da solução
+`LeadUsefulnessFeedback` responde à pergunta operacional: **este lead serve para
+o time?**
 
+- 👍 útil;
+- 👎 não útil;
+- motivo negativo fechado (empresa errada, sem necessidade, contato errado,
+  fora do porte/região, já tem fornecedor, dados incorretos, outro);
+- detalhe opcional;
+- org-scoped;
+- idempotente por lead + usuário;
+- evento auditável na trilha.
+
+### Correção de score
+
+`ScoringFeedback` responde: **a pontuação da IA ficou alta ou baixa demais?**
+
+- score original;
+- score sugerido;
+- direção da correção;
+- justificativa humana;
+- estado do feedback;
+- aplicação explícita quando permitida;
+- trilha auditável.
+
+Os dois conceitos não devem ser fundidos: um lead pode ter score razoável e ser
+inútil por um motivo operacional, ou ser útil apesar de um score mal calibrado.
+
+## Outcome real
+
+`CommercialOutcomeRow` é a evidência mais forte do ciclo comercial quando está
+atribuído à `LeadOpportunity` correta. Comparações devem agrupar por:
+
+- workspace;
+- oferta;
+- versão da oferta;
+- segmento/coorte quando aplicável;
+- período;
+- provider/origem quando a pergunta for qualidade de aquisição.
+
+## Fluxo de uso
+
+```text
+feedback útil/não útil
+score feedback
+outcomes reais
+      ↓
+analytics / diagnóstico / coaching
+      ↓
+hipótese de alteração do OfferProfile
+      ↓
+comparação + tamanho de amostra
+      ↓
+proposta versionada
+      ↓
+aprovação humana
+      ↓
+publicação explícita / rollback
 ```
-Usuário discorda do score (UI)
-        │  score sugerido + motivo em texto livre
-        ▼
-ScoringFeedback (tabela)  ──►  correção imediata no lead (opcional, auditable
-        │                        via LeadActivity SCORE_FEEDBACK)
-        ▼  (N feedbacks acumulados por template/org)
-Compilação LLM (modelo barato de classificação)
-        │  3–6 regras objetivas, ex.: "sites atualizados pesam MENOS em
-        │  campanhas de redesign; sites amadores pesam MAIS"
-        ▼
-TemplateLearning (tabela, por template × organização)
-        │
-        ▼
-build_prompt() injeta as regras como "Ajustes aprendidos com o time"
-        │
-        ▼
-Scoring futuro calibrado → botão "Aplicar aprendizado e reavaliar" reusa o
-fluxo de reanálise existente.
-```
 
-### Decisões de desenho (o porquê)
+## Coaching
 
-- **Regras, não overrides cegos**: o feedback nunca substitui o score de outros
-  leads automaticamente; entra como contexto de calibração e a LLM continua
-  decidindo — explicável e reversível (regra pode ser descartada).
-- **`TemplateLearning` separado do template**: templates globais (seed) são
-  compartilhados entre orgs; o aprendizado de uma org NÃO edita o global — fica
-  org-scoped na tabela de learning.
-- **Cap de regras (~10)**: ao ultrapassar, as antigas são compactadas pela LLM
-  para não estourar o prompt.
-- **Trilha de auditoria**: todo feedback gera `LeadActivity` (`SCORE_FEEDBACK`)
-  com o texto do usuário — o porquê nunca se perde.
-- **Multi-tenant**: tudo org-scoped (`organization_id` em todas as tabelas).
+O produto de coaching ainda é parcial. A próxima camada deve transformar dados
+existentes em orientação explicável ao vendedor, por exemplo:
 
-## Fases
+- leads bons sem próxima ação;
+- oportunidades quentes paradas;
+- taxa de feedback negativo por motivo;
+- gargalos por estágio;
+- follow-ups vencidos;
+- diferenças entre previsão e outcome;
+- segmentos/providers com baixa utilidade.
 
-### Fase 1 — Coletar feedback (concluída)
+Não usar linguagem prescritiva baseada em amostra insuficiente; sempre mostrar
+por que a recomendação foi gerada.
 
-- [x] Modelo `ScoringFeedback` + enums (`FeedbackDirection`, `FeedbackStatus`)
-      em `services/workers/src/database/models.py` (fonte única).
-- [x] Migration Alembic nova (`c3d4e5f6a7b9_score_feedback.py`) — incl. novo valor
-      `SCORE_FEEDBACK` na enum `lead_activity_action`.
-- [x] API: `POST /api/leads/{lead_id}/score-feedback` (campos: `suggested_score`,
-      `reason`, `apply_to_lead`) e `GET /api/leads/score-feedback` (lista org-scoped,
-      filtros `campaign_id`/`status`). Router registrado ANTES do router de leads
-      (evita captura de `/score-feedback` pelo `/{lead_id}`).
-- [x] UI: botão "Discordar do score" no menu (⋯) do card do kanban → diálogo
-      com score sugerido (slider 0–100) + motivo livre (remontado por `key` por lead).
-- [x] Testes `tests/test_score_feedback.py` (4): corrige score + reclassifica no
-      topo do funil, não reclassifica pós-contato, direção MUITO_ALTO/BAIXO,
-      rejeição de score igual.
+## Isolamento e privacidade
 
-### Fase 2 — A IA aprender (concluída)
+Nenhum feedback de A pode calibrar B. Toda agregação deve começar por
+`organization_id`. Feedback, outcomes e publicação de OfferProfile são privados
+ao workspace salvo decisão futura explícita para padrões globais anonimizados.
 
-- [x] Tabela `TemplateLearning` (`template_id`, `organization_id`,
-      `instructions` JSONB, `updated_at`) + migration (`d8e9f0a1b2c3`, incl.
-      valor `COMPILED` na enum `feedback_status`).
-- [x] Compilação: N feedbacks pendentes de um template → LLM resume em regras →
-      `TemplateLearning` (`learning_compilation_service.py`; endpoint manual
-      `POST /api/campaigns/{id}/synthesize-learning`; automático depois, se
-      fizer sentido).
-- [x] `build_prompt()` (scoring_service) aceita `learned_instructions` e injeta
-      o bloco "Ajustes aprendidos com o time".
-- [x] `pipeline_worker` busca as regras da org ao montar o prompt de scoring.
-- [x] Botão "Aplicar e reavaliar" na campanha (reusa reanalyze).
-- [x] Testes: compilação (mock LLM), injeção no prompt, cap/compaction
-      (`tests/test_learning_compilation.py`, 8).
+## Gate antes da calibração final
 
-### Fase 3 — Visibilidade (concluída)
-
-- [x] Painel "Aprendizados da IA" na campanha (`learning-panel.tsx`): feedbacks
-      dados, regras ativas, descartar regra (`DELETE /api/campaigns/{id}/learning/{index}`).
-- [x] BI: desvio médio |score IA − score consultor| ao longo do tempo —
-      `GET /api/leads/score-feedback-metrics` (org) + variação por campanha no
-      painel; card "Convergência IA × Time" em Relatórios.
-
-## Guardrails
-
-1. Score 0–100 e regra de negócio `>= 60 → QUALIFICADO` permanecem leis; a
-   correção imediata de um lead só muda `status` se ele ainda estiver no topo
-   do funil (NOVO/ANALISADO/QUALIFICADO/DESQUALIFICADO).
-2. A correção imediata NÃO recalcula `priority` (decisão da LLM).
-3. Feedback é insumo; regra compilada é contexto — nunca comando determinístico
-   de score no código.
-4. Sem custo surpresa: compilação usa `GROQ_MODEL_CLASSIFY` + cota da org.
-
-## Como acompanhar
-
-- Este documento: marcar itens ao concluir.
-- O nome da branch da implementação original é histórico; a feature está
-  incorporada ao código atual. Não use o nome da branch histórica como instrução
-  de deploy.
-- Testes: `python -m pytest tests -q` (raiz) — arquivos `test_score_feedback*`,
-  `test_learning_compilation*`.
+A calibração final depende do PR #172: o pipeline precisa consumir o
+OfferProfile publicado no workspace inteiro. Depois disso, Filter Context/BI e
+UAT devem provar que feedback/outcomes usados na análise pertencem à mesma
+oferta, versão e organização.
