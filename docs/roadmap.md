@@ -1,7 +1,8 @@
 # Roadmap — AlphaMec Release Candidate
 
 > **LIVE · atualizado em 2026-09-13.** Leia `docs/README.md` antes dos snapshots
-> de fases antigas. Estado base: `main` após PR #172; batch 3 em validação.
+> de fases antigas. Estado base após PR #173: Opportunity 360 operacionalmente
+> editável, preservando as fontes canônicas do CRM.
 
 ## Objetivo
 
@@ -22,32 +23,39 @@ oferta por meio de `OfferProfile` e isolamento estrito por workspace.
 - CRM adapters/sync/certificação read-only;
 - analytics, provider metrics e controlled learning com aprovação/publicação/rollback;
 - feedback útil/não útil e score feedback;
-- Kanban comercial e Opportunity 360 read-only;
+- Kanban comercial;
+- Opportunity 360 read-only e editável;
 - Company 360 e Person 360;
 - OfferProfile efetivo por workspace em todo o pipeline;
 - CI com backend `-W error`, migrations PostgreSQL, E2E crítico e web build.
 
-## Batch 3 — Opportunity 360 editável
+## Batch 3 — Opportunity 360 editável — ✅
 
-Objetivo: operar a oportunidade sem criar uma segunda fonte de verdade.
+Objetivo cumprido: operar a oportunidade sem criar uma segunda fonte de verdade.
 
-Implementado na branch:
+Entregue:
 
 - `OpportunityCommandService` sobre `LeadOpportunityRow`, `Lead` e
   `CommercialTask` existentes;
 - edição de owner, status, estágio, valor, previsão, próxima ação, motivo de
   perda e notas;
-- criação idempotente e atualização de tarefas;
+- validação atômica de status/motivo de perda para respeitar constraints do DB;
+- criação idempotente de tarefas protegida também contra requests concorrentes
+  pela UNIQUE do PostgreSQL + recuperação do vencedor da corrida;
+- atualização de tarefas existentes;
 - ANALYST read-only; CONSULTOR restrito à própria carteira; MANAGER/OWNER/ADMIN
   com gestão de ownership;
-- validação de membro do workspace e lookup fail-closed;
-- editor web em `/oportunidades/360/[id]/editar` com formulários semânticos,
+- validação de membership no workspace e lookup fail-closed;
+- editor web em `/oportunidades/360/[id]/editar` com controles semânticos,
   navegação por teclado, feedback de operação e mutations/cache via React Query;
 - optimistic update com rollback para conclusão/dispensa de tarefa;
+- migration idempotente que alinha `LeadActivityAction.NEGOTIATION_UPDATED` ao
+  enum PostgreSQL;
 - suíte PostgreSQL de permissões, idempotência, validação e relações;
 - gate explícito da suíte no job E2E do CI.
 
-**DoD:** todos os checks verdes no mesmo HEAD antes do merge.
+O batch foi submetido aos mesmos gates de merge do projeto; todos devem estar
+verdes no HEAD final que inclui esta documentação antes do merge.
 
 ## Próximas entregas para o RC
 
