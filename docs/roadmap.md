@@ -1,7 +1,7 @@
 # Roadmap — AlphaMec Release Candidate
 
 > **LIVE · atualizado em 2026-09-13.** Leia `docs/README.md` antes dos snapshots
-> de fases antigas. Estado base: `main` após PR #171; PR #172 em validação.
+> de fases antigas. Estado base: `main` após PR #172; batch 3 em validação.
 
 ## Objetivo
 
@@ -23,45 +23,35 @@ oferta por meio de `OfferProfile` e isolamento estrito por workspace.
 - analytics, provider metrics e controlled learning com aprovação/publicação/rollback;
 - feedback útil/não útil e score feedback;
 - Kanban comercial e Opportunity 360 read-only;
+- Company 360 e Person 360;
+- OfferProfile efetivo por workspace em todo o pipeline;
 - CI com backend `-W error`, migrations PostgreSQL, E2E crítico e web build.
 
-## Batch em validação — PR #172
+## Batch 3 — Opportunity 360 editável
 
-### A. OfferProfile efetivo por workspace
+Objetivo: operar a oportunidade sem criar uma segunda fonte de verdade.
 
-O pipeline inteiro deve usar a versão publicada no workspace, não apenas o
-catálogo global. Implementação do batch:
+Implementado na branch:
 
-- `ContextVar` por job, sem estado global mutável;
-- registry efetivo materializado antes de `run_pipeline`;
-- consumers legados de `get_default_registry()` recebem o overlay da tarefa;
-- construção de outro workspace sempre parte do catálogo base;
-- falha de composição = job falha fechado;
-- testes de nesting/restauração e concorrência assíncrona.
+- `OpportunityCommandService` sobre `LeadOpportunityRow`, `Lead` e
+  `CommercialTask` existentes;
+- edição de owner, status, estágio, valor, previsão, próxima ação, motivo de
+  perda e notas;
+- criação idempotente e atualização de tarefas;
+- ANALYST read-only; CONSULTOR restrito à própria carteira; MANAGER/OWNER/ADMIN
+  com gestão de ownership;
+- validação de membro do workspace e lookup fail-closed;
+- editor web em `/oportunidades/360/[id]/editar` com formulários semânticos,
+  navegação por teclado, feedback de operação e mutations/cache via React Query;
+- optimistic update com rollback para conclusão/dispensa de tarefa;
+- suíte PostgreSQL de permissões, idempotência, validação e relações;
+- gate explícito da suíte no job E2E do CI.
 
-**DoD:** CI final verde no mesmo HEAD + teste explícito de isolamento.
-
-### B. CRM 360 canônico
-
-- Opportunity 360 read-only: entregue no PR #171;
-- Company 360 read-only: implementado no PR #172;
-- Person 360 read-only: implementado no PR #172;
-- timeline derivada de fontes existentes; nenhuma tabela artificial apenas
-  para apresentação;
-- escopo de carteira e organization_id aplicados em todas as relações.
-
-**DoD:** PostgreSQL real cobre cross-tenant, dados parciais e query-count.
+**DoD:** todos os checks verdes no mesmo HEAD antes do merge.
 
 ## Próximas entregas para o RC
 
-### 1. Opportunity 360 editável
-
-Unificar edição comercial sobre fontes já existentes:
-owner, estágio/status, valor, previsão, próxima ação, tarefas, notas e motivo de
-perda. Não criar segunda representação para campos já presentes em `Lead` ou
-`CommercialTask`.
-
-### 2. Importador histórico AlphaMec
+### 1. Importador histórico AlphaMec
 
 Fluxo obrigatório:
 
@@ -70,33 +60,33 @@ Fluxo obrigatório:
 Requisitos: dry-run, org-scope, idempotência, erro por linha, nenhuma escrita
 parcial silenciosa e auditoria da origem.
 
-### 3. CRM para substituir a planilha
+### 2. CRM para substituir a planilha
 
 Completar:
 Company 360/Person 360 editáveis quando necessário, busca global, filtros,
 tags, ações em massa, ownership, tarefas, notas canônicas, propostas/contratos
 **somente quando houver modelo de domínio real**, exportação e auditoria.
 
-### 4. Filter Context + BI interativo
+### 3. Filter Context + BI interativo
 
 Um contrato de filtro compartilhado por dashboards e tabelas: período,
 workspace, owner, campanha, oferta/versão, estágio, segmento, região e provider.
 Filtros devem compor queries no backend; não carregar universo inteiro para
 filtrar no navegador.
 
-### 5. Feedback, coaching e calibração
+### 4. Feedback, coaching e calibração
 
 Consolidar feedback de utilidade, score feedback e outcomes em análises úteis ao
 vendedor e à gestão. Learning continua controlado: proposta → evidência →
 aprovação humana → publicação versionada → rollback. Nunca aplicar mudança de
 produção silenciosamente.
 
-### 6. Golden Path AlphaMec
+### 5. Golden Path AlphaMec
 
 Prioridade funcional: troféus/eventos/MEJ, sem hardcode do núcleo. Provar:
 discovery → empresa → decisor → oportunidade → ação → contato → outcome → BI.
 
-### 7. UAT multi-workspace
+### 6. UAT multi-workspace
 
 Cenários mínimos:
 - A não lê/escreve B por UUID conhecido;
@@ -105,7 +95,7 @@ Cenários mínimos:
 - CRM e dashboards respeitam carteira e organização;
 - importador nunca resolve entidades fora do workspace.
 
-### 8. Campanha real e hardening final
+### 7. Campanha real e hardening final
 
 Rodar campanha AlphaMec real com credenciais autorizadas; medir coverage,
 precision, custo, latência, bounce/routability, conversão e problemas de UX.
