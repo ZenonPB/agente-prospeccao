@@ -10,7 +10,9 @@ e não dentro do handler da request. Com isso:
   consultável em `GET /api/pipeline/jobs`);
 - claim atômico com `FOR UPDATE SKIP LOCKED` — seguro com múltiplos workers;
 - Jobs que ficaram presos em IN_PROGRESS (processo morreu no meio) são
-  recuperados após `JOB_STALE_MINUTES`.
+  recuperados após `JOB_STALE_MINUTES`;
+- cada job executa com o OfferProfileRegistry efetivo da própria organização,
+  ligado por ContextVar e isolado de outros jobs/workspaces.
 """
 import asyncio
 import logging
@@ -84,10 +86,29 @@ def _reclaim_stale_jobs(db) -> None:
         logger.warning("Recuperados %d job(s) IN_PROGRESS preso(s).", len(stale))
 
 
+def _effective_registry_for_job(job: Job):
+    """Materializa o registry efetivo antes de entrar no pipeline.
+
+    Usa uma sessão curta e independente: o registry é composto de snapshots
+    imutáveis e não mantém objetos ORM vivos. Se a composição falhar, o job
+    deve falhar fechado em vez de executar silenciosamente com catálogo global.
+    """
+    from services.prospecting.effective_offer_registry import build_effective_registry
+
+    if job.organization_id is None:
+        raise ValueError("Job de pipeline sem organization_id")
+    db = SessionLocal()
+    try:
+        return build_effective_registry(db, job.organization_id)
+    finally:
+        db.close()
+
+
 async def _run_job(job: Job) -> None:
     """Executa o pipeline do job e transmite os eventos para o WebSocket."""
     from src.routes.pipeline import active_connections
     from src.pipeline_worker import run_pipeline
+    from services.prospecting.runtime_offer_registry import use_runtime_offer_registry
 
     payload = job.payload if isinstance(job.payload, dict) else {}
     log_job_event(
@@ -100,32 +121,34 @@ async def _run_job(job: Job) -> None:
     )
 
     try:
-        async for event in run_pipeline(
-            job_id=str(job.id),
-            query=payload.get("query"),
-            campaign_id=payload.get("campaign_id"),
-            max_leads=int(payload.get("max_leads", 10)),
-            reanalyze_only=bool(payload.get("reanalyze_only", False)),
-            unscored_only=bool(payload.get("unscored_only", False)),
-            source=payload.get("source") or "places",
-            cnae_code=payload.get("cnae_code"),
-            cnpjs=payload.get("cnpjs"),
-            porte_category=payload.get("porte_category"),
-            pncp_start=payload.get("pncp_start"),
-            pncp_end=payload.get("pncp_end"),
-            pncp_uf=payload.get("pncp_uf"),
-            pncp_keyword=payload.get("pncp_keyword"),
-        ):
-            # Lê conexões dinamicamente (WS pode conectar após o job começar).
-            connections = active_connections.get(str(job.id), [])
-            dead = []
-            for ws in connections:
-                try:
-                    await ws.send_json(event)
-                except Exception:  # noqa: BLE001 — um WS morto não derruba o job
-                    dead.append(ws)
-            for ws in dead:
-                connections.remove(ws)
+        effective_registry = _effective_registry_for_job(job)
+        with use_runtime_offer_registry(effective_registry):
+            async for event in run_pipeline(
+                job_id=str(job.id),
+                query=payload.get("query"),
+                campaign_id=payload.get("campaign_id"),
+                max_leads=int(payload.get("max_leads", 10)),
+                reanalyze_only=bool(payload.get("reanalyze_only", False)),
+                unscored_only=bool(payload.get("unscored_only", False)),
+                source=payload.get("source") or "places",
+                cnae_code=payload.get("cnae_code"),
+                cnpjs=payload.get("cnpjs"),
+                porte_category=payload.get("porte_category"),
+                pncp_start=payload.get("pncp_start"),
+                pncp_end=payload.get("pncp_end"),
+                pncp_uf=payload.get("pncp_uf"),
+                pncp_keyword=payload.get("pncp_keyword"),
+            ):
+                # Lê conexões dinamicamente (WS pode conectar após o job começar).
+                connections = active_connections.get(str(job.id), [])
+                dead = []
+                for ws in connections:
+                    try:
+                        await ws.send_json(event)
+                    except Exception:  # noqa: BLE001 — um WS morto não derruba o job
+                        dead.append(ws)
+                for ws in dead:
+                    connections.remove(ws)
         final_db = SessionLocal()
         try:
             final_job = final_db.query(Job).filter(Job.id == job.id).first()
