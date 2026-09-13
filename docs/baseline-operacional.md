@@ -1,91 +1,88 @@
-# Baseline operacional (Task 1 — reproduzível, observável e seguro)
+# Baseline operacional
 
-Este documento é o contrato da fundação sobre a qual as demais fases do roadmap
-são construídas. Ele descreve como reproduzir o ambiente, como validar a cadeia
-de migrations, como uma execução é correlacionada fim-a-fim e quais controles de
-segurança são obrigatórios. Não substitui `QUICKSTART.md`/`DEPLOY.md`; consolida
-as garantias operacionais.
+> **RUNBOOK · atualizado em 2026-09-13.** Define o mínimo para considerar um
+> commit candidato ao AlphaMec RC.
 
-## 1. Setup reproduzível
+## Build e testes
 
-- Setup local: `scripts/setup.sh` (Linux/macOS) ou `scripts/setup.ps1` (Windows).
-- Subir o ambiente: `scripts/dev.sh` / `docker-compose.yml`.
-- Variáveis de ambiente: ver `.env.example`. Providers pagos são opcionais — o
-  sistema sobe e opera com chaves vazias/dummy (ver seção 5).
-- Dependências de teste: `requirements-dev.txt`.
-
-## 2. Migrations verificáveis
-
-- A cadeia Alembic deve ter **exatamente um head** (`scripts/verify_migrations.py`
-  falha caso contrário).
-- `services/workers/migrations/versions/3b6c8d0e1f2a_controlled_learning_proposals.py`
-  declara `depends_on = "fe4f5a6b7c8d"` para garantir que `commercial_comparisons`
-  exista antes da FK, em banco vazio.
-- Validação de contrato de schema (tabelas, colunas, índices, FKs e uniques
-  essenciais): `python scripts/verify_migrations.py --database-url "$DATABASE_URL"`.
-- CI (`.github/workflows/ci.yml`, job `migrations`):
-  1. `alembic upgrade head` em Postgres limpo;
-  2. `alembic upgrade head` novamente (idempotência);
-  3. `verify_migrations.py` (contrato de schema);
-  4. seed de templates (smoke).
-
-### Downgrade — não-objetivo consciente
-
-`verify_migrations.py` não executa downgrade e várias migrations são guardadas/
-idempotentes por desenho (correções de dados, criação condicional). Downgrade
-automático **não** faz parte do baseline; recuperação se dá por restauração de
-backup (`scripts/backup.sh`). O roadmap prevê downgrade apenas "quando suportado".
-
-## 3. Observabilidade e correlação fim-a-fim
-
-Uma execução pode ser reconstruída a partir de um único identificador:
-
-```
-request HTTP (X-Request-ID)
-  -> job (job_id, organization_id, campaign_id)
-     -> provider attempts (provider_execution_metrics.correlation_id)
-```
-
-- **Request**: `CorrelationIdMiddleware` (`services/api/src/middleware/correlation.py`)
-  atribui/propaga `X-Request-ID` (aceita também `X-Correlation-ID` na entrada) e
-  o devolve na resposta. O id fica num `ContextVar` acessível durante a request.
-- **Logs estruturados**: `observability.log_event` emite `event=<name> k=v ...`
-  em uma linha, com **redaction** de credenciais (`authorization`, `api_key`,
-  `password`, `secret`, `token`) e inclui automaticamente `request_id` quando há
-  uma request corrente. `log_job_event` correlaciona `job_id`/`organization_id`/
-  `campaign_id` e mede `duration_ms`.
-- **Provider trace**: `provider_execution_metrics.correlation_id` liga as
-  medições de uma mesma execução; consultável em
-  `GET /api/analytics/provider-trace/{correlation_id}` (com escopo de tenant).
-- **Health**: `GET /health` faz ping real no banco (200 ok / 503 degradado).
-
-## 4. Isolamento multi-tenant
-
-Todo dado e ação são escopados por `organization_id`. Coberto por testes de
-resolução de organização, acesso restrito por papel e escopo de tenant no
-provider trace. Novos fluxos devem manter o escopo explícito.
-
-## 5. Segurança e compliance (obrigatórios)
-
-- **Sem provider pago obrigatório**: CI e testes rodam com chaves dummy/vazias.
-- **Webhook inbound assinado**: requisição sem segredo válido → 401.
-- **Opt-out / suppression / bounce**: bloqueiam envio; entregabilidade pausa
-  auto-send por org quando bounce rate excede o limite.
-- **Auditoria**: `OrgAuditLog`/`OrgAuditEvent` registram actor/target; segredos
-  são auditados por `key_name` (`SECRET_SET`) — nunca o valor.
-- **Headers de segurança**: `SecurityHeadersMiddleware` em todas as respostas.
-- **Segredos**: nunca logados (redaction) nem persistidos em claro.
-
-## 6. Como validar o baseline
+No mesmo HEAD candidato:
 
 ```bash
-# Testes unitários (sem banco)
-python -m pytest tests -q
-
-# Contrato de migrations (requer Postgres)
-python scripts/verify_migrations.py --database-url "$DATABASE_URL" --upgrade
+python -m compileall -q services/api services/workers
+python -m pytest tests -q -W error
 ```
 
-Critérios de aceite da Task 1: ambiente limpo conclui setup e migrations, o
-healthcheck responde, uma execução é rastreável por correlação (request → job →
-provider) e dados/ações de uma organização não vazam para outra.
+CI também precisa provar em PostgreSQL real:
+- `alembic upgrade head`;
+- segunda execução idempotente;
+- `scripts/verify_migrations.py`;
+- seed smoke;
+- E2E crítico;
+- concorrência de conversão;
+- invariantes tenant/performance das visões CRM relevantes.
+
+Frontend:
+
+```bash
+cd apps/web
+npm ci
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+## Segurança
+
+- JWT secret forte em produção;
+- CORS sem localhost em produção;
+- headers de segurança habilitados;
+- secrets de provider por workspace;
+- providers externos opt-in/quota;
+- APIs tenant-sensitive filtram `organization_id` desde o recurso raiz;
+- acesso cross-tenant conhecido retorna fail-closed;
+- jobs nunca executam sem `organization_id` quando a operação é tenant-bound.
+
+## Banco
+
+- um único Alembic head;
+- constraints/FKs/índices coerentes;
+- migrations reproduzíveis do banco vazio;
+- nenhuma migration manual fora da cadeia;
+- query-count explícito em agregadores 360/listas críticas;
+- importadores devem ser idempotentes e auditáveis.
+
+## Runtime
+
+- jobs longos fora da request;
+- claim de job concorrente seguro;
+- stale jobs recuperáveis;
+- correlation ID/provider metrics disponíveis;
+- OfferProfile efetivo do workspace aplicado ao pipeline;
+- falha crítica de configuração não cai silenciosamente para configuração de outro tenant/global inadequada.
+
+## Frontend
+
+- loading/error/empty states;
+- foco visível e teclado;
+- labels/semântica adequados;
+- links externos seguros;
+- queries/cache centralizados;
+- sem N+1 de requests no navegador;
+- listas volumosas paginadas/filtradas no servidor;
+- produção sem erros de typecheck/build.
+
+## Observabilidade mínima
+
+Para uma campanha/job deve ser possível responder:
+- qual workspace/campanha/job/correlation ID;
+- quais providers rodaram;
+- status/latência/custo/uso;
+- quantos candidatos e leads foram produzidos;
+- qual OfferProfile/versão influenciou a oportunidade;
+- qual erro/estágio falhou.
+
+## Merge policy
+
+Não mergear com suíte vermelha porque “já falhava antes”. Corrigir ou provar
+que o gate oficial correto não executa aquele teste por uma razão documentada.
+Todos os checks devem estar verdes no mesmo HEAD do merge.
