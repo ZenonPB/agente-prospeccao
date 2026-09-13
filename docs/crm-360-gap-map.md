@@ -1,7 +1,8 @@
 # CRM 360 — gap map
 
 > **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only foi mergeada
-> no PR #171. Company 360 e Person 360 read-only estão em validação no PR #172.
+> no PR #171. Company 360 e Person 360 read-only foram mergeadas no PR #172.
+> A edição operacional da Opportunity 360 está em validação no batch 3.
 
 ## Modelo canônico reutilizado
 
@@ -35,18 +36,35 @@
 - UI comercial com estados loading/error/empty;
 - testes PostgreSQL de cross-tenant e query-count.
 
-### Falta para ficar editável
+### Edição operacional — batch 3
 
-- um contrato de mutação consolidado para owner/status/estágio/valor/previsão;
-- edição/criação de tarefas reutilizando `CommercialTask`;
-- edição de próxima ação sem segunda fonte de verdade;
-- notas: decidir se `Lead.notes` é suficiente ou se UAT justifica entidade
-  canônica append-only;
-- ações em massa e search/filter integrados ao CRM.
+Em validação:
+
+- `PATCH /api/opportunities/{id}/360` atualiza a fonte canônica (`Lead`) para
+  owner, status, estágio, valor, previsão, próxima ação, motivo de perda e notas;
+- `POST /api/opportunities/{id}/tasks` cria `CommercialTask` idempotente;
+- `PATCH /api/opportunities/{id}/tasks/{task_id}` atualiza tarefa existente;
+- ANALYST continua read-only; CONSULTOR só opera a própria carteira e não
+  atribui recursos a colegas; MANAGER/OWNER/ADMIN podem administrar ownership;
+- owner/tarefa só aceitam membros do workspace;
+- status `PERDIDO` exige motivo;
+- editor web dedicado em `/oportunidades/360/[id]/editar`, com formulários
+  semânticos, estados de loading/error, feedback por toast e mutations via
+  React Query; atualização de tarefa usa optimistic update com rollback;
+- suíte PostgreSQL cobre RBAC, cross-tenant/carteira, idempotência, validação e
+  relação tarefa↔lead.
+
+### Gap restante
+
+- ações em massa e search/filter integrados ao CRM;
+- decidir via UAT se `Lead.notes` basta ou se notas precisam entidade
+  append-only própria;
+- propostas/contratos só devem virar entidades quando houver ciclo de vida real;
+- importar histórico AlphaMec com dedupe e auditoria.
 
 ## Company 360
 
-### PR #172
+### Entregue no PR #172
 
 - dados canônicos de Company;
 - aliases/origens;
@@ -69,7 +87,7 @@
 
 ## Person 360
 
-### PR #172
+### Entregue no PR #172
 
 - Person canônica + confiança/verificação/roteabilidade;
 - Company relacionada;
