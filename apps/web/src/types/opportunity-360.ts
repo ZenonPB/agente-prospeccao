@@ -22,9 +22,54 @@ export type Opportunity360Task = {
   source: string;
   due_at: string | null;
   completed_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-  owner: Opportunity360Actor | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  owner?: Opportunity360Actor | null;
+  owner_user_id?: string | null;
+};
+
+export type Opportunity360Patch = {
+  owner_user_id?: string | null;
+  status?: string | null;
+  negotiation_stage?: string | null;
+  value?: number | null;
+  expected_close_date?: string | null;
+  next_action_at?: string | null;
+  lost_reason?: string | null;
+  notes?: string | null;
+};
+
+export type OpportunityTaskCreate = {
+  client_request_id: string;
+  title: string;
+  description?: string | null;
+  task_type?: string;
+  due_at?: string | null;
+  owner_user_id?: string | null;
+};
+
+export type OpportunityTaskPatch = {
+  title?: string;
+  description?: string | null;
+  due_at?: string | null;
+  owner_user_id?: string | null;
+  status?: 'OPEN' | 'COMPLETED' | 'DISMISSED';
+};
+
+export type Opportunity360CommandResult = {
+  opportunity_id: string;
+  lead_id: string;
+  changed: Record<string, unknown>;
+  commercial: {
+    owner_user_id: string | null;
+    status: string | null;
+    negotiation_stage: string | null;
+    value: number | null;
+    expected_close_date: string | null;
+    next_action_at: string | null;
+    lost_reason: string | null;
+    notes: string | null;
+  };
 };
 
 export type Opportunity360Payload = {
@@ -175,5 +220,7 @@ export type Opportunity360Payload = {
     contract_entity: boolean;
     notes_entity: boolean;
     read_only: boolean;
+    can_edit?: boolean;
+    can_manage_owners?: boolean;
   };
 };
