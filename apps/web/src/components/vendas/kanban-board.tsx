@@ -10,6 +10,7 @@ import { GripVertical, Clock, AlertTriangle, AlertCircle, RefreshCw, Loader2, Us
 import { DragDropContext, Droppable, Draggable, DropResult, DragStart } from '@hello-pangea/dnd';
 import { useUpdateLeadStatus, useAssignLead, useOrgMembership, useOrgMembers, useRecordWhatsAppClick, useSlaAlerts, useAllLeads } from '@/hooks/use-api';
 import { ScoreFeedbackDialog } from '@/components/vendas/score-feedback-dialog';
+import { LeadUsefulnessDialog } from '@/components/vendas/lead-usefulness-dialog';
 import { OutcomeDialog } from '@/components/oportunidades/conversion-dialog';
 import type { SlaAlertItem } from '@/types';
 import { whatsAppLink } from '@/lib/utils';
@@ -72,6 +73,7 @@ interface KanbanCardProps {
   onMarkLost: (lead: LeadbanCard) => void;
   onMarkDisqualified: (lead: LeadbanCard) => void;
   onOpenFeedback: (lead: LeadbanCard) => void;
+  onOpenUsefulness: (lead: LeadbanCard) => void;
   onOpenLead: (leadId: string) => void;
 }
 
@@ -97,6 +99,7 @@ const KanbanCard = memo(function KanbanCard({
   onMarkLost,
   onMarkDisqualified,
   onOpenFeedback,
+  onOpenUsefulness,
   onOpenLead,
 }: KanbanCardProps) {
   const daysSinceCreated = useMemo(() => {
@@ -366,6 +369,15 @@ const KanbanCard = memo(function KanbanCard({
                       <BrainCircuit className="mr-2 h-3.5 w-3.5" />
                       Discordar do score
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenUsefulness(lead);
+                      }}
+                    >
+                      <Check className="mr-2 h-3.5 w-3.5" />
+                      Avaliar se foi útil
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={(e) => {
@@ -449,6 +461,7 @@ const KanbanCard = memo(function KanbanCard({
   if (prev.onMarkLost !== next.onMarkLost) return false;
   if (prev.onMarkDisqualified !== next.onMarkDisqualified) return false;
   if (prev.onOpenFeedback !== next.onOpenFeedback) return false;
+  if (prev.onOpenUsefulness !== next.onOpenUsefulness) return false;
   if (prev.onOpenLead !== next.onOpenLead) return false;
   return true;
 });
@@ -533,6 +546,9 @@ export function KanbanBoard() {
   // Feedback de score: qual lead está sendo corrigido e se o diálogo está aberto.
   const [feedbackLead, setFeedbackLead] = useState<LeadData | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // Avaliação simples útil / não útil do lead.
+  const [usefulnessLead, setUsefulnessLead] = useState<LeadData | null>(null);
+  const [usefulnessOpen, setUsefulnessOpen] = useState(false);
   // Diálogo de outcome (LOST/DESQUALIFICADO): lead alvo + modo.
   const [outcomeLead, setOutcomeLead] = useState<{ id: string; mode: 'lost' | 'disqualified' } | null>(null);
 
@@ -697,6 +713,12 @@ export function KanbanBoard() {
   const onOpenFeedback = useCallback((lead: LeadData) => {
     setFeedbackLead(lead);
     setFeedbackOpen(true);
+  }, []);
+
+  // Abrir avaliação simples útil / não útil. Estável para o memo.
+  const onOpenUsefulness = useCallback((lead: LeadData) => {
+    setUsefulnessLead(lead);
+    setUsefulnessOpen(true);
   }, []);
 
   // Abrir diálogo de outcome. Estável para o memo; a submissão acontece no
@@ -869,6 +891,7 @@ export function KanbanBoard() {
                           onMarkLost={onMarkLost}
                           onMarkDisqualified={onMarkDisqualified}
                           onOpenFeedback={onOpenFeedback}
+                          onOpenUsefulness={onOpenUsefulness}
                           onOpenLead={onOpenLead}
                         />
                       ))}
@@ -904,6 +927,17 @@ export function KanbanBoard() {
         onOpenChange={(open) => {
           setFeedbackOpen(open);
           if (!open) setFeedbackLead(null);
+        }}
+      />
+
+      {/* Avaliação simples útil / não útil: remonta por lead. */}
+      <LeadUsefulnessDialog
+        key={usefulnessLead?.id ? `usefulness-${usefulnessLead.id}` : 'usefulness-none'}
+        lead={usefulnessLead}
+        open={usefulnessOpen}
+        onOpenChange={(open) => {
+          setUsefulnessOpen(open);
+          if (!open) setUsefulnessLead(null);
         }}
       />
 

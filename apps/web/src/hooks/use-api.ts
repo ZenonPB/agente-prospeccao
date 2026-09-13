@@ -336,6 +336,20 @@ export function useDiscardLearningRule() {
   });
 }
 
+// Feedback simples de utilidade do lead: util / nao util com motivo fechado.
+export function useLeadUsefulnessFeedback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; useful: boolean; reason?: string | null; detail?: string | null }) =>
+      leadsApi.usefulnessFeedback(id, body),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["leads", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+}
+
 // Convergência IA × time no BI (desvio médio semanal, org inteira).
 export function useScoreFeedbackMetrics() {
   return useQuery({

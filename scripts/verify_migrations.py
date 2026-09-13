@@ -33,6 +33,7 @@ REQUIRED_TABLES = {
     "sequence_enrollments", "sequence_executions", "commercial_tasks",
     "next_best_action_decisions", "workflow_definitions", "workflow_runs",
     "offer_profile_versions", "offer_profile_activations", "crm_certification_runs",
+    "lead_usefulness_feedbacks",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer", "ix_event_opportunities_org_date",
@@ -53,6 +54,7 @@ REQUIRED_INDEXES = {
     "ix_workflow_runs_org_status_started", "ix_offer_profile_versions_org_offer_active",
     "uq_offer_profile_versions_one_active", "ix_offer_profile_activations_org_offer_created",
     "ix_crm_certification_org_connection_created",
+    "ix_lead_usefulness_org_created", "ix_lead_usefulness_lead_id",
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -78,6 +80,7 @@ REQUIRED_FKS = {
     "offer_profile_versions": {"organizations.id", "controlled_learning_proposals.id", "offer_profile_versions.id", "users.id"},
     "offer_profile_activations": {"organizations.id", "offer_profile_versions.id", "users.id"},
     "crm_certification_runs": {"organizations.id", "crm_connections.id", "users.id"},
+    "lead_usefulness_feedbacks": {"organizations.id", "leads.id", "users.id"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
@@ -95,6 +98,7 @@ REQUIRED_UNIQUES = {
     "workflow_definitions": {"uq_workflow_definitions_org_name_version"},
     "workflow_runs": {"uq_workflow_runs_org_workflow_event"},
     "offer_profile_versions": {"uq_offer_profile_versions_org_offer_version"},
+    "lead_usefulness_feedbacks": {"uq_lead_usefulness_lead_user"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -115,6 +119,7 @@ REQUIRED_COLUMNS = {
     "offer_profile_versions": {"offer_key", "version", "profile_snapshot", "is_active", "source_proposal_id", "activated_at", "deactivated_at"},
     "offer_profile_activations": {"offer_key", "action", "version_id", "previous_version_id", "actor_id", "created_at"},
     "crm_certification_runs": {"provider", "status", "checks", "adapter_version", "tested_by_id", "created_at"},
+    "lead_usefulness_feedbacks": {"useful", "reason", "detail", "campaign_id", "created_at"},
 }
 
 

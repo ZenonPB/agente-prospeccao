@@ -30,6 +30,8 @@ const activityLabels: Record<string, string> = {
   CONVERTED: 'Conversão registrada',
   CONTACT_ENRICHED: 'Decisores enriquecidos',
   LINKEDIN_ASSOCIATED: 'Perfil LinkedIn associado',
+  SCORE_FEEDBACK: 'Nota do score ajustada',
+  LEAD_FEEDBACK: 'Lead avaliado',
 };
 
 interface ActivitiesTabProps {

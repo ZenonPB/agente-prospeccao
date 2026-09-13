@@ -36,6 +36,8 @@ from database.models import (
     LeadActivity,
     LeadActivityAction,
     LeadStatus,
+    LeadUsefulnessFeedback,
+    LeadUsefulnessReason,
     ScoringFeedback,
     TemplateLearning,
     FeedbackDirection,

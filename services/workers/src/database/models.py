@@ -1394,6 +1394,7 @@ class LeadActivityAction(enum.Enum):
     WHATSAPP_SENT = "WHATSAPP_SENT"
     LINKEDIN_ASSOCIATED = "LINKEDIN_ASSOCIATED"
     SCORE_FEEDBACK = "SCORE_FEEDBACK"
+    LEAD_FEEDBACK = "LEAD_FEEDBACK"
 
 
 class LeadActivity(Base):
@@ -1479,6 +1480,57 @@ class ScoringFeedback(Base):
             f"<ScoringFeedback(lead='{self.lead_id}', "
             f"{self.original_score}→{self.suggested_score}, {self.status.value})>"
         )
+
+class LeadUsefulnessReason(enum.Enum):
+    """Motivo do feedback negativo sobre a utilidade do lead."""
+
+    EMPRESA_ERRADA = "EMPRESA_ERRADA"
+    SEM_NECESSIDADE = "SEM_NECESSIDADE"
+    CONTATO_ERRADO = "CONTATO_ERRADO"
+    FORA_DO_PORTE = "FORA_DO_PORTE"
+    FORA_DA_REGIAO = "FORA_DA_REGIAO"
+    JA_TEM_FORNECEDOR = "JA_TEM_FORNECEDOR"
+    DADOS_INCORRETOS = "DADOS_INCORRETOS"
+    OUTRO = "OUTRO"
+
+
+class LeadUsefulnessFeedback(Base):
+    """Feedback simples de utilidade do lead (útil / não útil).
+
+    Complementa o `ScoringFeedback` (que calibra o score numérico): aqui o
+    vendedor diz se o lead serve, e quando não serve indica o motivo da
+    taxonomia fechada. Org-scoped e idempotente por (lead, usuário).
+    """
+    __tablename__ = "lead_usefulness_feedbacks"
+    __table_args__ = (
+        UniqueConstraint(
+            "lead_id", "user_id",
+            name="uq_lead_usefulness_lead_user",
+        ),
+        Index("ix_lead_usefulness_org_created", "organization_id", "created_at"),
+        Index("ix_lead_usefulness_lead_id", "lead_id"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
+    useful = Column(Boolean, nullable=False)
+    reason = Column(Enum(LeadUsefulnessReason, name="lead_usefulness_reason", create_type=True), nullable=True)
+    detail = Column(Text)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    lead = relationship("Lead")
+    user = relationship("User")
+    campaign = relationship("Campaign")
+
+    def __repr__(self):
+        return (
+            f"<LeadUsefulnessFeedback(lead='{self.lead_id}', "
+            f"useful={self.useful}, reason={self.reason})>"
+        )
+
 
 class TemplateLearning(Base):
     # Regras de calibracao aprendidas com o time, por template + organizacao.

@@ -156,6 +156,12 @@ export const leadsApi = {
   scoreFeedbackMetrics: () =>
     request<ScoreFeedbackMetrics>("/api/leads/score-feedback-metrics"),
 
+  usefulnessFeedback: (id: string, body: { useful: boolean; reason?: string | null; detail?: string | null }) =>
+    request<import("@/types/lead-usefulness").LeadUsefulnessFeedbackResult>(`/api/leads/${id}/usefulness-feedback`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   assign: (id: string, assignedToId: string | null) =>
     request<{ id: string; company_name: string; assigned_to_id: string | null; assigned_at: string | null; assigned_to_name: string | null; previous_assignee_id: string | null }>(`/api/leads/${id}/assign`, {
       method: "PATCH",
