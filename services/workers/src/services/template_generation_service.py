@@ -172,15 +172,19 @@ class TemplateGenerationService:
     def __init__(self, api_key: Optional[str] = None) -> None:
         self.api_key = api_key or settings.GROQ_API_KEY
 
-    def _load_generic(self, db: Session) -> Optional[CampaignScoringTemplate]:
-        return (
-            db.query(CampaignScoringTemplate)
-            .filter(
-                sqlfunc.lower(CampaignScoringTemplate.service_label) == "genérico",
-                CampaignScoringTemplate.is_active.is_(True),
-            )
-            .first()
+    def _load_generic(
+        self, db: Session, organization_id: Optional[str] = None
+    ) -> Optional[CampaignScoringTemplate]:
+        query = db.query(CampaignScoringTemplate).filter(
+            sqlfunc.lower(CampaignScoringTemplate.service_label) == "genérico",
+            CampaignScoringTemplate.is_active.is_(True),
         )
+        if organization_id:
+            query = query.filter(
+                (CampaignScoringTemplate.organization_id == organization_id)
+                | (CampaignScoringTemplate.organization_id.is_(None))
+            )
+        return query.first()
 
     def _find_existing(self, db: Session, label: str, organization_id: Optional[str]) -> Optional[CampaignScoringTemplate]:
         q = db.query(CampaignScoringTemplate).filter(
@@ -206,7 +210,7 @@ class TemplateGenerationService:
         Retorna o template serializado (mesmo formato do router). Se falhar,
         cai no template 'Genérico' sem quebrar o pipeline.
         """
-        generic = self._load_generic(db)
+        generic = self._load_generic(db, organization_id)
 
         from services.provider_client import quota_ok
         if not quota_ok(db, organization_id, "GROQ_API_KEY"):

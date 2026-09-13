@@ -320,6 +320,12 @@ async def create_campaign_from_brief(
         tmpl = db.query(CampaignScoringTemplate).filter(
             CampaignScoringTemplate.service_label == matched_label,
             CampaignScoringTemplate.is_active.is_(True),
+            (CampaignScoringTemplate.organization_id.is_(None)) |
+            (CampaignScoringTemplate.organization_id == _org.id),
+        ).order_by(
+            # Vertente própria primeiro; global como fallback.
+            CampaignScoringTemplate.organization_id.is_(None),
+            CampaignScoringTemplate.created_at.asc(),
         ).first()
         if tmpl:
             scoring_template_id = str(tmpl.id)

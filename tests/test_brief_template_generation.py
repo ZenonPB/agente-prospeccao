@@ -31,6 +31,9 @@ class _FakeQuery:
     def filter(self, *a, **k):
         return self
 
+    def order_by(self, *a, **k):
+        return self
+
     def first(self):
         return self._row
 

@@ -410,7 +410,9 @@ def patch_scoring_template(
         new_label = updates["service_label"]
         existing = db.query(CampaignScoringTemplate).filter(
             (CampaignScoringTemplate.service_label == new_label) &
-            (CampaignScoringTemplate.id != tmpl.id),
+            (CampaignScoringTemplate.id != tmpl.id) &
+            ((CampaignScoringTemplate.organization_id.is_(None)) |
+             (CampaignScoringTemplate.organization_id == org.id)),
         ).first()
         if existing:
             raise HTTPException(status_code=409, detail="Já existe uma vertente com este nome")
