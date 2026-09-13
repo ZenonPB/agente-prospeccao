@@ -6,7 +6,6 @@ relações em lotes para não introduzir N+1.
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,7 +19,7 @@ from src.db.models import (
     LeadOpportunityRow,
     Person,
 )
-from src.services.org_service import consultant_lead_scope
+from src.services.org_service import consultant_lead_scope, is_full_access
 
 
 def _enum(value: Any) -> Any:
@@ -69,6 +68,14 @@ class Crm360Service:
             query = consultant_lead_scope(self.member, query)
         return query
 
+    def _restricted_member_without_visible_lead(self, leads: list[Lead]) -> bool:
+        """Evita inferência de contas fora da carteira sem esconder conta órfã de gestor."""
+        return (
+            self.member is not None
+            and not is_full_access(self.member)
+            and not leads
+        )
+
     def company(self, company_id: Any) -> dict[str, Any] | None:
         company = self.db.query(Company).filter(
             Company.id == company_id,
@@ -78,8 +85,7 @@ class Crm360Service:
             return None
 
         leads = self._visible_leads(company_id=company.id).order_by(Lead.created_at.desc()).all()
-        # CONSULTOR não usa Company 360 para inferir contas de outra carteira.
-        if self.member is not None and not leads:
+        if self._restricted_member_without_visible_lead(leads):
             return None
         lead_ids = [lead.id for lead in leads]
 
@@ -157,7 +163,7 @@ class Crm360Service:
         visible_company_leads = []
         if person.company_id is not None:
             visible_company_leads = self._visible_leads(company_id=person.company_id).order_by(Lead.created_at.desc()).all()
-            if self.member is not None and not visible_company_leads:
+            if self._restricted_member_without_visible_lead(visible_company_leads):
                 return None
 
         primary_leads = [lead for lead in visible_company_leads if lead.primary_person_id == person.id]
