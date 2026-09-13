@@ -18,7 +18,7 @@ Legenda: ✅ completo no escopo atual · 🟡 em validação/PR · 🟠 parcial 
 | Enrichment waterfall | ✅ | steps/estratégia/custo/gates declarativos. |
 | OfferProfile base | ✅ | catálogo validado + ofertas AlphaMec. |
 | OfferProfile versionado por workspace | ✅ | publicação controlada, single-active e rollback exato. |
-| OfferProfile efetivo no pipeline inteiro | 🟡 | PR #172: ContextVar por job + registry efetivo; falta CI final/merge. |
+| OfferProfile efetivo no pipeline inteiro | ✅ | PR #172 mergeado: ContextVar por job + registry efetivo tenant-safe + testes concorrentes. |
 | OfferMatcher + snapshots | ✅ | matcher-v2, score breakdown e histórico append-only. |
 | Opportunity attribution | ✅ | conversion/outcome ligados à oportunidade/versão/snapshot. |
 | Next Best Action | ✅ | decisão persistida + roteabilidade + tarefas. |
@@ -30,9 +30,9 @@ Legenda: ✅ completo no escopo atual · 🟡 em validação/PR · 🟠 parcial 
 | Controlled learning | ✅ | comparação → proposta → aprovação → publicação → rollback. |
 | CRM adapters/sync | ✅ | Pipedrive/HubSpot/Salesforce, idempotência e certificação read-only quando há credenciais. |
 | Opportunity 360 read-only | ✅ | PR #171; tenant-safe, timeline e query-count testado em PostgreSQL. |
-| Company 360 read-only | 🟡 | PR #172; backend + frontend + testes PostgreSQL em validação. |
-| Person 360 read-only | 🟡 | PR #172; backend + frontend + testes PostgreSQL em validação. |
-| Opportunity 360 editável | 🟠 | fontes de edição existem, falta contrato/UI unificados. |
+| Company 360 read-only | ✅ | PR #172; backend + frontend + testes PostgreSQL. |
+| Person 360 read-only | ✅ | PR #172; backend + frontend + testes PostgreSQL. |
+| Opportunity 360 editável | 🟡 | batch 3: comando unificado sobre Lead/CommercialTask, RBAC, tarefas idempotentes e editor web em validação. |
 | Importador histórico AlphaMec | ⬜ | precisa preview/mapping/validation/dedupe/import/report. |
 | Filter Context compartilhado | ⬜ | dashboards ainda não usam um contrato único de filtros. |
 | BI interativo final | 🟠 | analytics existem; falta Filter Context e UX integrada. |
@@ -43,11 +43,11 @@ Legenda: ✅ completo no escopo atual · 🟡 em validação/PR · 🟠 parcial 
 
 ## Bloqueadores antes da calibração final
 
-1. Merge seguro do OfferProfile efetivo por workspace no pipeline.
-2. Não permitir que learning/scoring use catálogo global quando existe versão publicada.
-3. UAT multi-workspace com overlays diferentes em jobs concorrentes.
+1. Concluir e validar a Opportunity 360 editável no mesmo HEAD do CI.
+2. Implementar importação histórica segura antes de abandonar a planilha como fonte de transição.
+3. UAT multi-workspace com overlays diferentes em jobs concorrentes e operações de CRM.
 4. Amostra real suficiente antes de qualquer mudança automática de pesos.
 
 ## Próximo corte do RC
 
-Após PR #172: Opportunity 360 editável → importador histórico → Filter Context/BI → coaching/calibração → Golden Path → UAT → campanha real/hardening.
+Opportunity 360 editável → importador histórico → Filter Context/BI → coaching/calibração → Golden Path → UAT → campanha real/hardening.
