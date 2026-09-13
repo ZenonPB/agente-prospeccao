@@ -1,86 +1,111 @@
-# Runbook de UAT — Golden Path AlphaMec
+# UAT — AlphaMec Release Candidate
 
-Checklist de validação com usuário real. Requisito: stack local de pé
-(Postgres via `docker compose up -d`, API `uvicorn main:app --reload --port 8000`
-a partir de `services/api`, web `npm run dev` em `apps/web` → :3001) e `.env`
-com `JWT_SECRET`, `GROQ_API_KEY`, `GOOGLE_API_KEY` preenchidos.
+> **RUNBOOK · atualizado em 2026-09-13.** Executar somente em ambiente
+> autorizado, com workspaces e credenciais de teste/produção explicitamente
+> identificados. Nunca declarar campanha real concluída sem evidência.
 
-## 0. Pré-flight e migrations
+## Objetivo
 
-1. Em `services/workers`, rode `alembic heads` e confirme uma única cabeça.
-2. Rode `alembic upgrade head` em banco de teste antes de produção.
-3. Confirme que nenhum segredo/token aparece em logs.
-4. Execute a suíte backend e os gates do frontend antes do UAT funcional.
+Provar que a plataforma pode substituir a planilha e operar com segurança em
+multi-workspace antes do RC.
 
-## 1. Onboarding multi-tenant
-1. Acesse `http://localhost:3001/register`, crie conta → cai no dashboard com
-   workspace pessoal criado automaticamente.
-2. `Configurações → Membros`: convide um segundo usuário com papel CONSULTOR;
-   aceite o convite pelo link recebido.
-3. Com o consultor logado, confirme que ele não vê leads/campanhas da org do
-   dono (org switcher só mostra organizações das quais é membro).
+## Pré-condições
 
-## 2. Campanha + coleta
-1. `Campanhas → Nova`: crie campanha com segmento sugerido pela IA
-   (`/suggest-segment`, rate-limit 20/min — não martelar o botão).
-2. Rode coleta (Google Places ou CNAE). Verifique leads aparecendo na lista com
-   status `NOVO`.
+- migrations em `head` e verifier verde;
+- CI do commit testado completamente verde;
+- ao menos dois workspaces A/B;
+- usuários MANAGER e CONSULTOR em ambos;
+- OfferProfiles publicados distintos em A/B para uma mesma key de teste;
+- providers externos somente se houver credencial/consentimento;
+- dados sintéticos para testes destrutivos.
 
-## 3. Enriquecimento + scoring
-1. Rode o worker (`python -m src.main` em `services/workers`, limit=5) ou o
-   pipeline pela UI.
-2. Leads com site ganham dados técnicos; **leads sem site continuam sendo
-   pontuados pelo caminho business**.
-3. Valide score, prioridade, evidências e justificativa com exemplos reais.
+## Bloco 1 — isolamento
 
-## 4. CRM verdadeiro
-1. No kanban (`Vendas`), mova um lead QUALIFICADO para `CONTATADO` e depois
-   `RESPONDIDO`.
-2. Marque um lead como **PERDIDO**: o motivo deve ser obrigatório e vir do enum
-   (`PRECO/PRAZO/NAO_RESPONDEU/CONCORRENTE/OUTRO`).
-3. Marque outro como **DESQUALIFICADO** e confirme que ele não é contabilizado
-   como perda comercial.
-4. Confirme que PERDIDO/DESQUALIFICADO não recebem nenhuma etapa de cadência
-   pendente ou automática.
-5. Confira na página do lead que trilha, status e forecast refletem o outcome.
+1. obter UUID de Company/Person/Lead/Opportunity de A;
+2. autenticar em B e tentar acessar pelas APIs/telas;
+3. esperado: 404/403 conforme contrato, nenhum dado parcial;
+4. repetir para tasks, outcomes, analytics e importação;
+5. CONSULTOR deve enxergar apenas carteira/pool permitido;
+6. MANAGER/owner deve enxergar toda a própria organização.
 
-## 5. Inbound de e-mail por organização
+## Bloco 2 — OfferProfile por workspace
 
-O caminho preferencial é `POST /api/webhooks/email/inbound/{token}`. O token é
-opaco e por organização; somente o SHA-256 é persistido. A rota antiga
-`POST /api/webhooks/email/inbound` existe temporariamente e exige **os dois**
-headers `X-Webhook-Secret` e `X-Organization-Id`.
+1. publicar overlay A e overlay B com diferenças observáveis;
+2. disparar jobs concorrentes;
+3. verificar snapshots/score/plano de discovery usados por cada job;
+4. confirmar que A nunca usa versão/configuração de B;
+5. rollback em A e repetir sem afetar B.
 
-Antes de produção:
+## Bloco 3 — CRM
 
-1. Gere/configure um token distinto para cada organização que usa inbound.
-2. Reaponte Postmark/SendGrid (ou equivalente) para a URL com token da org.
-3. Não registre a URL completa do webhook em logs, tickets ou screenshots.
-4. Teste duas organizações com o **mesmo endereço de remetente** e confirme que
-   uma resposta da org A altera somente o lead da org A.
-5. Token inválido, org ausente na rota legada e segredo inválido devem falhar
-   sem criar Message, LeadActivity, Notification ou alterar FollowUp.
-6. Só remova a configuração legada do provedor depois de validar a rota nova.
+Fluxo mínimo:
 
-## 6. Export cross-tenant
-1. Na campanha, exporte CSV como MANAGER: todas as linhas autorizadas.
-2. Repita como CONSULTOR atribuído a apenas 1 lead: CSV contém **somente** os
-   leads do próprio escopo.
-3. Com segunda org de teste, tente abrir o export de campanha de outra org pelo
-   ID → deve retornar 404/403 sem revelar conteúdo.
+1. abrir Company 360;
+2. navegar para Person 360;
+3. navegar para Opportunity 360;
+4. atribuir owner/estágio/valor/próxima ação quando a edição 360 estiver pronta;
+5. criar/concluir tarefa;
+6. registrar contato/reunião/proposta/perda/conversão;
+7. confirmar timeline e outcome correto;
+8. confirmar que refresh/navegação preserva estado.
 
-## 7. Relatórios
-1. `Relatórios → Exportar PDF` (ANALYST/MANAGER apenas; CONSULTOR não vê o
-   botão). PDF deve refletir só os dados da org ativa.
+## Bloco 4 — importador histórico
 
-## 8. Segurança
-- Login errado 5× no mesmo email → lockout conforme política configurada.
-- Acesso a lead/job de outra org ou job órfão → recusa fechada.
-- Inbound nunca resolve lead globalmente por e-mail.
-- Rate limits de auth e webhooks ativos.
-- Tokens, API keys e segredos não aparecem em respostas nem logs.
+Após implementação:
 
-## Evidências
-Para cada item, capture screenshot ou saída de teste e anexe ao registro de UAT.
-Não marque `ALPHAMEC — PRODUCTION READY: YES` enquanto houver blocker aberto,
-gate técnico vermelho ou etapa do Golden Path que exija intervenção de dev.
+- upload de planilha real sanitizada;
+- preview sem escrita;
+- mapping explícito;
+- linhas inválidas destacadas;
+- dedupe de Company/Person/Lead;
+- confirmação;
+- relatório final;
+- reimportação do mesmo arquivo sem duplicação indevida;
+- auditoria/provenance da importação.
+
+## Bloco 5 — Filter Context/BI
+
+Usar o mesmo conjunto de filtros em dashboards diferentes e conferir:
+- período;
+- owner;
+- campanha;
+- oferta/versão;
+- estágio;
+- segmento/região;
+- provider.
+
+Números devem reconciliar com queries/linhas conhecidas da base.
+
+## Bloco 6 — Golden Path troféus/eventos/MEJ
+
+Cenário prioritário:
+
+`evento/organizador → Company → Person/decisor → trophies → score/evidência → Next Best Action → tarefa/contato → outcome → BI`.
+
+Verificar que a especificidade está em OfferProfile/providers, não em hardcode
+do pipeline.
+
+## Bloco 7 — campanha real autorizada
+
+Somente após os blocos anteriores:
+- campanha pequena e controlada;
+- registrar correlation IDs;
+- medir candidatos → qualificados → acionáveis → contatos → respostas → reuniões;
+- medir custo/latência/coverage/precision/routability/bounce;
+- revisar manualmente falsos positivos/negativos.
+
+## Registro de achados
+
+Classificar cada achado:
+- `BLOCKS_ALPHAMEC`;
+- `IMPORTANT_ALPHAMEC`;
+- `DEFER_TO_V2`.
+
+Registrar: passos, esperado, observado, workspace, usuário, entidade, timestamp,
+commit e correlation ID quando houver.
+
+## Critério de aprovação
+
+RC só é aprovado se não houver `BLOCKS_ALPHAMEC`, isolamento for comprovado,
+fluxo CRM não depender da planilha para estado corrente e o Golden Path puder
+ser repetido com resultados auditáveis.

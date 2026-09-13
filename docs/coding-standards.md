@@ -1,51 +1,73 @@
-# Padrões de Código
+# Coding standards
 
-## Obrigatórios
+> **LIVE · atualizado em 2026-09-13.** Complementa AGENTS.md e os padrões dos
+> subdiretórios. Segurança de tenant e fonte canônica têm prioridade sobre
+> conveniência local.
 
-- Serviços de I/O dos workers devem ser **async** (usar `async def` +
-  `httpx.AsyncClient`); handlers/serviços da API podem ser síncronos quando o
-  acesso SQLAlchemy ou a compatibilidade do framework exigir, sem bloquear o
-  event loop com trabalho pesado.
-- Nunca usar `requests` em workers — usar `httpx`
-- Nunca usar `print` — usar `logging`
-- Funções com mais de 60 linhas devem ser quebradas
-- Todo método público deve ter docstring com Args e Returns
-- Tratar exceções de forma granular — nunca `except Exception` sem log
-- Usar `try/except/finally` em todas as sessões de banco de dados
-- Visar sempre a segurança do sistema, tanto quanto utilizar das melhores práticas e padrões de código para manutenções futuras.
-- Nunca commitar chaves de API ou credenciais de acesso ao sistema.
-- Nunca commitar arquivos .env, .env.local, .env.*
-- Não utilizar variáveis globais desnecessariamente.
-- Não utilizar importações absolutas que não sejam necessárias. 
+## Backend
 
-## Banco de Dados
+- Python tipado onde melhora contrato/leitura; nomes explícitos.
+- Rotas finas; composição de domínio em services.
+- Toda query tenant-sensitive começa por `organization_id`.
+- Evitar lazy-loading acidental/N+1; usar batch queries/joinedload quando
+  necessário e teste de query-count em agregadores críticos.
+- Não ocultar erro crítico com fallback global inseguro.
+- Operação repetível deve ser idempotente por constraint/chave lógica.
+- Transações e commits pertencem a boundary explícita.
+- Provider externo: timeout, quota, opt-in, tratamento de erro e telemetria.
+- Nunca logar secret/token/PII desnecessária.
 
-- Nunca alterar migrations antigas — sempre criar nova migration
-- Nunca remover colunas em produção — marcar como deprecated primeiro
-- Sempre usar SQLAlchemy 2 (não declarative_base legado quando possível)
-- Sessões de banco sempre fechadas no `finally`
-- Filtros SQLAlchemy usam `&` e `|` — nunca `and`/`or` Python
+## Domínio
 
-## Estrutura de Serviços
+Antes de tabela nova, procurar fonte canônica em Company/Person/Lead/
+LeadOpportunity/Task/Activity/Outcome/OfferProfile. Preferir derivação em leitura
+quando não há ciclo de vida próprio.
 
-- Um arquivo por serviço em `src/services/`
-- Classe nomeada `XService` (ex: `AIScoringService`)
-- Método principal claramente nomeado (ex: `score_lead`, `enrich_website`)
-- Serviços não importam outros serviços — orquestração em `enrichment_orchestrator.py`
-  (que liga `technical_enrichment_service` + `scoring_service`) ou em `main.py`;
-  import cruzado entre serviços é a exceção, não a regra
-- Providers devem distinguir erro, vazio, desabilitado e desconhecido; não
-  converter falha em lista vazia silenciosamente. Exceções devem ser tratadas no
-  limite do fluxo com log e estado observável.
+`UNKNOWN` não vira `FALSE`; evidência e hipótese permanecem distintas.
 
-## Variáveis de Ambiente
+## Frontend
 
-- Toda config via `settings.py` (pydantic-settings)
-- Nunca acessar `os.environ` diretamente nos serviços
-- Nunca commitar `.env`
+- TypeScript sem `any` salvo integração inevitável/documentada.
+- React Query para estado de servidor e invalidação por domínio.
+- Componentes acessíveis: elemento semântico, label, foco visível, teclado,
+  `aria-*` quando necessário e target de interação adequado.
+- Estados loading/error/empty sempre que houver fetch.
+- Não usar efeitos/fetch duplicados para dados já cacheados.
+- Listas pesadas: paginação/filtro server-side.
+- Links externos normalizados e `rel="noreferrer"`/`noopener` conforme caso.
+- UI é comercial: traduzir keys técnicas e priorizar hierarquia visual.
+
+## API
+
+- contratos estáveis e explícitos;
+- erro 404 fail-closed quando revelar existência cross-tenant seria informação;
+- validação Pydantic para payloads;
+- limites de tamanho/paginação;
+- response não expõe metadata interna/secrets;
+- filtros compartilhados devem ser aplicados no backend.
 
 ## Testes
 
-- Criar teste para cada serviço novo em `tests/`
-- Mockar chamadas externas (Groq, Google, httpx)
-- Testar cenário de falha além do caminho feliz
+Mudança de domínio exige teste do happy path e das invariantes que podem
+regredir. Para multi-workspace, incluir cenário A vs B. Para persistência/
+constraints/query-count, usar PostgreSQL real no gate apropriado.
+
+Não “consertar” teste enfraquecendo assertion só para ficar verde.
+
+## Commits e PR
+
+- branch curta por fatia/batch coerente;
+- commits descritivos por responsabilidade;
+- PR inicia draft quando ainda há gates pendentes;
+- body descreve escopo, segurança, testes, migrações e docs;
+- só marcar ready/merge com CI final verde no mesmo HEAD.
+
+## Gates
+
+```bash
+python -m compileall -q services/api services/workers
+python -m pytest tests -q -W error
+cd apps/web && npm ci && npm run lint && npx tsc --noEmit && npm run build
+```
+
+Além disso: migrations + verifier + E2E/invariantes PostgreSQL no CI.

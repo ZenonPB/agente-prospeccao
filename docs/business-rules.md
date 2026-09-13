@@ -1,236 +1,102 @@
-# Regras de Negócio
+# Regras de negócio
 
-## Funil de Status dos Leads
-NOVO
-→ ANALISADO      (após enriquecimento/scoring)
-→ QUALIFICADO    (score >= 60)
-→ DESQUALIFICADO (score < 60)
-→ CONTATADO      (1ª mensagem enviada)
-→ RESPONDIDO     (lead respondeu)
-→ REUNIAO_MARCADA
-→ REUNIAO_FEITA  (reunião realizada)
-→ PROPOSTA_ENVIADA
-→ PERDIDO        (automático ao encerrar a cadência sem resposta; volta à fila após 90 dias — perdas deliberadas não voltam)
-→ DESQUALIFICADO via `POST /leads/{id}/mark-disqualified` (inadequado — motivo opcional, sem outcome LOST)
-→ PERDIDO via `POST /leads/{id}/mark-lost` (oportunidade válida perdida — `lost_reason` obrigatório, outcome LOST)
+> **LIVE · atualizado em 2026-09-13.** Regras aqui devem corresponder ao código
+> e testes atuais; histórico de decisões fica em `decisions.md`/`adr/`.
 
-WON (conversão) × LOST (perda válida) × DESQUALIFICADO (inadequado) são
-outcomes semanticamente distintos e alimentam aprendizados diferentes —
-nunca equivalentes.
+## Workspace e acesso
 
-## Critérios de Scoring (0-100)
+1. Dados comerciais pertencem a uma `Organization`.
+2. Membership define papel administrativo e papel de vendas.
+3. OWNER/ADMIN e ANALYST/MANAGER têm acesso total da organização.
+4. CONSULTOR vê leads atribuídos a si e pool não atribuído conforme helper
+   canônico de escopo.
+5. UUID de outro workspace nunca concede acesso.
 
-### Scoring Contextual por Campanha
+## Campanha e oferta
 
-A pontuação **NÃO** é genérica — ela depende do serviço que a campanha quer vender
-e do segmento prospectado. Cada `CampaignScoringTemplate` (tabela no banco)
-define critérios relevantes para uma categoria de serviço (por exemplo:
-"Desenvolvimento de Sites" valoriza SEO/HTTPS/performance; "Engenharia Mecânica"
-valoriza porte/fábrica/expansão — e **desvaloriza** qualidade do site como
-critério primário).
+1. Campanha pertence a um workspace.
+2. `offer_profile_key` identifica a oferta declarativa quando conhecida.
+3. O catálogo base é fallback; versão ativa publicada no workspace prevalece.
+4. Uma Company/Lead pode ter múltiplas oportunidades/ofertas simultâneas.
+5. Alterar OfferProfile futuro não reescreve snapshots/outcomes passados.
 
-O pipeline carrega o template por ordem de precedência:
-1. `campaign.scoring_template_id` (vínculo explícito do usuário).
-2. Match case-insensitive de `template.service_label` com `campaign.target_service`.
-3. Fallback ao template `Genérico` ativo.
-4. `None` — caso em que a LLM infere os critérios a partir do contexto e explica-os
-   em `priority_reasoning`.
+## Discovery
 
-Os critérios do template podem ser editados via UI futura (gerenciamento de
-templates) ou diretamente via SQL/seed — sem mudar código. Para adicionar uma
-nova categoria de serviço basta inserir um novo row em `campaign_scoring_templates`
-ou estender o seed em `services/workers/src/seeds/scoring_templates.py` e
-re-executar `python -m src.seeds.scoring_templates`.
+1. Providers externos são opt-in quando exigem credencial/custo.
+2. Quotas e secrets são resolvidos por organização.
+3. Candidates são deduplicados por identidade forte antes de enriquecimento caro.
+4. CNPJ/domínio/source ids têm precedência sobre fuzzy merge.
+5. Fuzzy match cria revisão, não merge destrutivo automático.
+6. Provider caro roda depois de gates baratos sempre que possível.
 
-### Faixas do Score
+## Evidência
 
-| Faixa | Significado |
-|---|---|
-| 80-100 | Múltiplas evidências positivas fortes para ESTA campanha |
-| 60-79  | Fito razoável + alguns sinais positivos → QUALIFICADO |
-| 40-59  | Fito parcial / sinais mistos |
-| 20-39  | Poucos sinais relevantes para a campanha |
-| 0-19   | Não se encaixa ou sinais contrários |
+1. `UNKNOWN` não equivale a negativo.
+2. FACT/INFERENCE/HYPOTHESIS são distintos.
+3. Sinal usado em score precisa ser explicável por dado observado/regra.
+4. Provenance deve ser preservada quando o dado é externo.
 
-**Score >= 60 → QUALIFICADO → entra na fila de outreach**
-**Score < 60 → DESQUALIFICADO → não entra no outreach automaticamente**
+## Pre-scoring e scoring
 
-### Prioridade (Quente / Morno / Frio)
+1. Pre-scoring reduz custo, não deve apagar silenciosamente auditoria de
+   candidatos descartados.
+2. OfferMatcher usa sinais/pesos declarados pela oferta.
+3. Score breakdown e evidência são persistidos com oportunidade/snapshot.
+4. Re-scoring de versão nova preserva histórico.
 
-A `priority` é uma decisão **LLM**, NÃO uma derivação matemática do score. Ela
-pondera urgência, fito com o serviço e sinais de compra:
+## Pessoas e contato
 
-| Valor | Quando |
-|---|---|
-| HOT (Quente)  | Urgência + fito + sinais de compra claros |
-| WARM (Morno)  | Fito razoável, alguns sinais |
-| COLD (Frio)   | Poucos sinais / fito baixo |
+1. Person é canônica; Contact legado pode existir durante transição.
+2. Buyer role/role fit e identity confidence são gates explícitos.
+3. Dados incertos não são promovidos a decisor confirmado.
+4. Routability é separada de identidade: saber quem é não implica saber como
+   contactar com segurança.
+5. Opt-out/suppression sempre bloqueiam envio automático permitido.
 
-A LLM devolve também `priority_reasoning` justificando a escolha — exibido no
-card "Evidências" da tela de detalhe do lead.
+## CRM
 
-### Explicabilidade (campos em `leads`)
+1. Lead guarda estado comercial (owner/status/valor/previsão/próxima ação).
+2. `CommercialTask` é fonte de verdade para tarefas.
+3. `LeadActivity` é trilha auditável de mudanças/eventos comerciais.
+4. Opportunity 360/Company 360/Person 360 são composições, não novas fontes.
+5. Timeline é derivada.
+6. Motivo de perda deve ser explícito quando fluxo exigir.
 
-Toda qualificação vem acompanhada de:
+## Outcomes
 
-- `executive_summary` — resumo consultor comercial (2-4 frases)
-- `score_factors[]` — lista de fatores + (positivos) / − (negativos) com `rationale` e `evidence_ref`
-- `evidence[]` — lista de evidências estruturadas (`type`, `severity`, `title`,
-  `description`, `source`). As evidências técnicas são FATOS coletados
-  passivamente (CMS real, SSL medido, load_time medido, etc.) — a LLM apenas
-  interpreta, sem inventar valores.
-- `qualification_reason` — argumento de venda textual
-- `priority_reasoning` — justificativa da prioridade
+1. Outcome real deve pertencer ao workspace e Lead corretos.
+2. Quando houver múltiplas oportunidades, attribution deve apontar a
+   `LeadOpportunity` correta.
+3. BI não inventa attribution ausente.
+4. Conversão/outcome são insumo de learning, não comando automático de mudança.
 
-O frontend exibe tudo isso na aba "Evidências" do detalhe do lead.
+## Learning
 
-## Confiança de Contato (contact_confidence)
+1. Feedback é auditável e privado ao workspace.
+2. Learning produz proposta/evidência.
+3. Publicação exige ação humana explícita.
+4. Uma versão ativa por offer key/workspace.
+5. Rollback é exato para snapshot publicado.
+6. Nenhum loop paralelo de template pode sobrescrever silenciosamente a mesma
+   responsabilidade do OfferProfile.
 
-| Faixa | Significado |
-|---|---|
-| 90-100 | Dono/CEO confirmado via Hunter ou CNPJ |
-| 70-89 | Cargo relevante encontrado (diretor, sócio) |
-| 50-69 | E-mail genérico de empresa (contato@, comercial@) |
-| 0-49 | Fonte incerta ou inferida |
+## Importação histórica
 
-## Regras do Pipeline
+1. Preview/dry-run antes de escrita.
+2. Mapping de coluna explícito.
+3. Dedupe por entidades canônicas.
+4. Erro por linha reportado.
+5. Reimportação não deve duplicar registros já reconhecidos.
+6. Arquivo/origem fica auditável.
 
-- Lead sem website **não passa pelo enriquecimento técnico**, mas é pontuado
-  pelo **caminho business** em campanhas `WEB_PRESENCE` (fatores cadastrais +
-  sinais do template direcionados a quem não tem site próprio). Nunca fica
-  invisível/`NOVO` esperando por um site.
-- Lead sem contato com `email_verified = True` não sai no **envio automático**
-  da cadência (gate 4.1); humano ainda pode enviar não-verificado com aviso.
-- **Leads `PERDIDO` voltam à fila após 90 dias** (implementado 2026-08-12):
-  job em background (`LOST_REQUEUE_DAYS`, default 90) re-enfileira
-  `PERDIDO → NOVO` quando a perda é **baseada em tempo** (`lost_reason` nulo ou
-  `NAO_RESPONDEU` = "ciclo encerrado sem resposta") e o lead **não** é
-  `opt_out`. Perdas deliberadas (`PRECO`/`CONCORRENTE`/`PRAZO`/`OUTRO`) **não**
-  voltam automaticamente. Data de perda = última `LeadActivity` com
-  `status_to=PERDIDO` (fallback `updated_at`); mantém o consultor atribuído e
-  registra trilha. Carência configurável (`LOST_REQUEUE_DAYS=0` desativa).
-- **`PERDIDO` automático no encerramento da cadência** (implementado 2026-08-12):
-  quando o **`CLOSING`** (dia 14) foi enviado e o lead **não respondeu** dentro
-  da carência (`CADENCE_CLOSE_GRACE_DAYS`, default 7), ele é marcado
-  `PERDIDO`/`NAO_RESPONDEU` automaticamente — só transiciona `CONTATADO` (nunca
-  sobrescreve `RESPONDIDO`+ / reunião / proposta) e **não** marca `opt_out`.
-  Registra trilha (STATUS_CHANGED + action `LOST`), que também alimenta a data
-  de perda do requeue de 90 dias. Carência configurável
-  (`CADENCE_CLOSE_GRACE_DAYS=0` desativa).
-- Scoring é recalculado quando novos dados de enriquecimento chegam
-  (`POST /campaigns/{id}/reanalyze`).
-- Mensagem de outreach nunca é genérica — deve referenciar dados reais do lead.
+## Automação e mensagens
 
-## Re-scoring de oportunidades e histórico
+1. Sequence/workflow não criam bypass de opt-in/suppression.
+2. Automação materializa tarefas/ações por caminhos persistidos e auditáveis.
+3. Nenhuma integração externa pode enviar em nome do usuário sem gate e
+   configuração prevista no produto.
 
-- Cada avaliação do `OfferMatcher` gera um snapshot imutável em
-  `lead_opportunity_snapshots` (versão do perfil, versão da fórmula
-  `matcher-v2`, score, sinais e evidências do momento).
-- Publicar uma nova versão de `OfferProfile` **não** atualiza oportunidades
-  existentes automaticamente; novas coletas usam a versão nova.
-- Campanha ativa só migra de versão via reavaliação explícita
-  (`POST /campaigns/{id}/reanalyze`, `reanalyze_only=True`).
-- Conversões e outcomes gravam `lead_opportunity_snapshot_id`, preservando o
-  contexto original da venda mesmo após re-scorings posteriores.
-- Histórico consultável em `GET /api/leads/{id}/oportunidades/historico`
-  (filtro opcional `offer_key`).
+## Regra do RC
 
-## Cadência de follow-up e envio (3.7/4.3)
-
-- Etapas `FollowUpStep`: `OPENING` (1ª mensagem) → `FOLLOWUP_1` (2ª mensagem) →
-  `FOLLOWUP_2` (3ª mensagem) → `CLOSING` (encerramento) + `POST_SALE`
-  (pós-venda, mesmo motor). Status: `PENDING/SENT/SKIPPED/CANCELLED`.
-- **Calendário configurável por template** (`CampaignScoringTemplate.cadence_schedule`):
-  4 dias em que mensagens são enviadas a partir do 1º contato. Padrão
-  `[0, 3, 7, 14]` (vendas rápidas); vertentes industriais usam ciclos longos
-  (ex.: `[0, 7, 30, 60]` p/ Eng. Mecânica). Lista inválida cai no padrão.
-  `cadence/start` resolve o calendário pelo template da campanha e devolve em
-  `schedule`.
-- **Humano no loop por padrão**; envio automático só com opt-in da org
-  (`auto_send_email`), e respeita:
-  - teto diário por org (`daily_email_limit`, default 40) e janela de
-    espalhamento (`send_window_start/end`, default 09:00–17:00, fuso do
-    servidor) — etapas que não couberem ficam `PENDING` (postergadas, nunca
-    falham);
-  - remetente dedicado por consultor (`organization_members.email_from`) →
-    org (`organizations.email_from`) → global (`SMTP_FROM_EMAIL`);
-  - `opt_out` do lead cancela as etapas pendentes;
-  - destinatário com `email_verified = True`;
-  - **pausa por entregabilidade**: quando a taxa de bounce da org passa de 5%
-    no período, o monitor (`_deliverability_check_loop`) desliga o
-    `auto_send_email` para proteger a reputação do remetente. A reativação é
-    manual (owner/admin no `/configuracoes`) — o monitor não religa sozinho;
-  - monitora (`GET /api/analytics/deliverability`, ANALYST/MANAGER).
-- Inbound (`POST /webhooks/email/inbound`, valida `EMAIL_WEBHOOK_SECRET`):
-  resposta → `RESPONDIDO` (cancela a cadência); STOP → `opt_out`.
-- Tracking de abertura/clique por etapa (`tracking_token`) quando
-  `TRACKING_BASE_URL` configurada; bounce registra em `email_suppressions`.
-
-## Opt-out / supressão
-
-- `POST /leads/{id}/opt-out` marca `Lead.opt_out` e torna as etapas pendentes
-  da cadência `SKIPPED`; `DELETE /leads/{id}` remove o lead.
-- Bounce (falha de entrega) registra em `email_suppressions` e impede novos
-  envios ao mesmo endereço.
-
-## Funil de negociação e resultado de contrato (C.3)
-
-- `Lead.negotiation_stage`: `RD` (reunião de demonstração) → `ORCAMENTO` → `RP`
-  (reunião de proposta). Gravado via `PATCH /leads/{id}/negotiation` **somente**
-  quando o lead está em `RESPONDIDO / REUNIAO_MARCADA / REUNIAO_FEITA /
-  PROPOSTA_ENVIADA` (400 caso contrário).
-- `Lead.contract_outcome`: `APROVADO/REPROVADO/EM_ANALISE` (+ `outcome_date`);
-  a conversão (`POST /leads/{id}/conversion`) marca `APROVADO`.
-- Pós-venda (`POST /leads/{id}/post-sale`): registra `post_sale_contacted_at` +
-  `post_sale_channel` (`WHATSAPP/EMAIL`) e agenda o lembrete `POST_SALE` quando
-  há conteúdo. Somente para leads convertidos.
-
-## Valor, forecast e metas (4.8/4.9)
-
-- `Lead.value` (ticket estimado) + `expected_close_date` + `lost_reason`
-  (`PRECO/PRAZO/NAO_RESPONDEU/CONCORRENTE/OUTRO`) — `PATCH /leads/{id}`.
-- Forecast ponderado no BI: `value × win-rate do estágio` (NOVO 5% →
-  PROPOSTA_ENVIADA 90%); `realized_revenue` vem de `Conversion.contract_value`.
-- Metas mensais por consultor em `sales_targets` (`meetings_target`/
-  `revenue_target`, mês `YYYY-MM`); `AnalyticsService.consultants()` devolve o
-  atingimento (% realizado vs meta).
-
-## SLA de leads parados (4.10)
-
-- Prazos configuráveis por org (`organizations.sla_*_days`; defaults 5/2/2):
-  `QUALIFICADO_NO_CONTACT`, `RESPONDIDO_NO_NEXT_ACTION`, `OPENED_NO_RESPONSE`.
-- `GET /leads/sla-alerts` lista os alertas por dias parados, respeitando o
-  escopo do consultor (`consultant_lead_scope`); alimenta o painel "Ações de
-  hoje" e a notificação no kanban.
-
-## Limites Legais (Lei 12.737/2012)
-
-A plataforma jamais:
-- Tenta explorar vulnerabilidades
-- Executa injeções de qualquer tipo
-- Testa autenticação
-- Realiza qualquer ação não-passiva
-
-Toda análise se restringe a informações publicamente acessíveis.
-
-## Limites de Uso (API Keys)
-
-O uso de providers externos é contabilizado por organização e chave em
-`provider_usage`, com limite diário configurável em `organizations.api_quota` e
-fallback global `PROVIDER_DAILY_QUOTA` (`GOOGLE_API_KEY=100`,
-`GROQ_API_KEY=2000`, `HUNTER_API_KEY=50`). Hunter exige chave e quota positiva
-explicitamente configuradas pela organização para fazer opt-in. O gate é
-fail-closed: quando não há quota restante, o
-provider não é chamado. Hunter e providers de CNPJ obedecem às cotas do próprio
-serviço e ao comportamento de fallback/skip implementado pelo worker; não há
-valores mensais fixos nesta aplicação.
-
-## Sequência de Follow-up
-
-| Mensagem | Quando | Objetivo |
-|---|---|---|
-| 1ª mensagem | Dia 0 | Apresentação + problema + CTA reunião |
-| Follow-up 1 | Dia 3 sem resposta | Reforço leve |
-| Follow-up 2 | Dia 7 sem resposta | Última tentativa |
-| Encerramento | Dia 14 sem resposta | Ciclo encerrado (lead → `PERDIDO` automático após `CADENCE_CLOSE_GRACE_DAYS` sem resposta; volta à fila em 90 dias se a perda for por ausência de resposta) |
-| Pós-venda | Após conversão | Acompanhamento pós-cliente (canal WhatsApp/E-mail) |
+Uma capability só é considerada concluída se o fluxo real, segurança e testes
+necessários estiverem entregues; helper/placeholder/registry isolado não basta.

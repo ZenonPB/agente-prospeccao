@@ -1,35 +1,74 @@
-# Learning comercial controlado
+# Controlled Learning
 
-O learning comercial é derivado de uma comparação A/B estatisticamente
-conclusiva e aprovada por um gerente. A aprovação não altera pesos, thresholds
-ou qualquer `OfferProfile` ativo.
+> **LIVE · atualizado em 2026-09-13.** O learning é deliberadamente
+> human-in-the-loop. Nenhuma mudança de scoring/oferta entra em produção por
+> efeito colateral de feedback ou outcome.
 
-## Fluxo
+## Fluxo canônico
 
 ```text
-outcomes
-  → comparação A/B com amostra mínima e Wilson
-  → aprovação humana (`AB_COMPARISON_APPROVED`)
-  → proposta versionada (`PROPOSED`)
-  → publicação manual futura
+feedback + CommercialOutcome
+        ↓
+análise / comparação por oferta + versão
+        ↓
+CommercialComparison / evidência
+        ↓
+proposta de alteração
+        ↓
+aprovação humana explícita
+        ↓
+OfferProfileVersion publicada no workspace
+        ↓
+build_effective_registry(org)
+        ↓
+próximos jobs do pipeline
 ```
 
-Cada proposta é vinculada à organização e à comparação de origem. O snapshot de
-evidência contém apenas veredicto, recomendação, delta e intervalos/estatísticas
-das duas versões; não contém comandos de edição de configuração.
+## Invariantes
 
-## API
+- aprendizado é isolado por `organization_id`;
+- proposta não altera o registry ativo;
+- publicação gera versão/auditoria e mantém snapshot imutável;
+- só uma versão ativa da mesma oferta por workspace;
+- rollback restaura snapshot conhecido, não recalcula uma aproximação;
+- histórico de oportunidades/outcomes preserva a versão usada na época;
+- amostra insuficiente deve ser sinalizada, não transformada em certeza;
+- feedback humano é evidência, não comando automático de produção.
 
-- `POST /api/intelligence/comparisons/{id}/approval`: aprova a versão vencedora
-  e cria, na mesma transação, uma proposta pendente.
-- `GET /api/intelligence/learning-proposals`: lista propostas da organização;
-  aceita o filtro opcional `offer_key`.
+## Runtime efetivo
 
-A criação é idempotente por `(organization_id, source_comparison_id)`. Uma
-segunda aprovação da mesma versão não regrava a auditoria; tentar aprovar outra
-versão é rejeitado. A proposta recebe uma versão sequencial por oferta e o
-estado inicial `PROPOSED`.
+A publicação só é útil se o pipeline realmente consumir a versão ativa do
+workspace. O PR #172 fecha essa lacuna: antes de `run_pipeline`, o job materializa
+`build_effective_registry(db, organization_id)` e liga o registry à tarefa via
+`ContextVar`. Assim discovery, pre-scoring, enrichment, scoring, matcher e
+resolução de decisor que usam `get_default_registry()` durante o job recebem o
+overlay publicado daquela organização.
 
-Não existe nesta etapa endpoint de publicação. Aplicar uma recomendação exige
-um fluxo posterior de publicação explícita, com versionamento do `OfferProfile`,
-rollback e auditoria própria.
+Jobs concorrentes de A e B não compartilham o mesmo contexto. A construção do
+registry também sempre parte do catálogo base, impedindo contaminação entre
+tenants.
+
+## Fontes de feedback
+
+- `LeadUsefulnessFeedback`: útil/não útil + motivo fechado;
+- `ScoringFeedback`: correção humana do score + justificativa;
+- `CommercialOutcomeRow`: resultado real atribuído à oferta/versão;
+- sinais de provider/cobertura/custo: úteis para estratégia, sem reescrever
+  silenciosamente pesos comerciais.
+
+## Antes da calibração final
+
+1. PR #172 verde e mergeado;
+2. provar overlays distintos em workspaces concorrentes;
+3. consolidar dashboards de feedback/outcomes por oferta/versão;
+4. definir amostra mínima e intervalos/qualidade suficientes;
+5. UAT com AlphaMec;
+6. apenas então aprovar ajustes de pesos/thresholds no fluxo versionado.
+
+## O que não fazer
+
+- editar `default_profiles.py` como reação automática a feedback;
+- usar `CampaignScoringTemplate` como segundo loop concorrente de learning;
+- publicar alteração sem evidência e aprovação;
+- misturar outcomes de oportunidades diferentes do mesmo lead;
+- comparar versões sem preservar a versão usada em cada observação.

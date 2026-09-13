@@ -7,6 +7,7 @@ de um módulo externo ao núcleo genérico.
 import logging
 
 from services.prospecting.offer_profile import OfferProfile, OfferProfileRegistry
+from services.prospecting.runtime_offer_registry import get_runtime_offer_registry
 
 logger = logging.getLogger(__name__)
 
@@ -276,12 +277,24 @@ def build_default_registry() -> OfferProfileRegistry:
     return registry
 
 
-def get_default_registry() -> OfferProfileRegistry:
-    """Retorna o catálogo padrão, construído uma única vez por processo."""
+def get_base_registry() -> OfferProfileRegistry:
+    """Retorna o catálogo base imutável/cached, ignorando contexto de runtime."""
     global _default_registry
     if _default_registry is None:
         _default_registry = build_default_registry()
     return _default_registry
+
+
+def get_default_registry() -> OfferProfileRegistry:
+    """Retorna registry efetivo da tarefa; fora dela, o catálogo base.
+
+    O nome é mantido por compatibilidade com os consumidores existentes. Em
+    jobs de pipeline o ``jobs_consumer`` liga um registry efetivo por workspace
+    via ContextVar; assim discovery, enrichment, scoring e matching usam a
+    mesma publicação sem estado global mutável.
+    """
+    runtime_registry = get_runtime_offer_registry()
+    return runtime_registry if runtime_registry is not None else get_base_registry()
 
 
 _default_registry = None

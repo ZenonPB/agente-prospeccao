@@ -1,259 +1,178 @@
-# Arquitetura atual
+# Arquitetura — Agente de Prospecção AlphaMec
 
-> **Fonte operacional:** este documento descreve o código presente no branch
-> atual, não o plano histórico de consolidação. Snapshot: 2026-09-10 ·
-> Alembic head `4a6b8c9d1e2f` (+ reconciliação documental Onda 0A, sem mudança
-> de código).
->
-> Para status por capacidade e backlog, consulte `docs/00-status-mapa.md` e
-> `docs/pendencias-pos-consolidacao.md`. Para regras de negócio, consulte
-> `docs/business-rules.md`. Para o contrato de genericidade do core (o que pode
-> e o que não pode conhecer uma vertical pelo nome), consulte
-> `docs/adr/0001-genericity-contract.md`.
+> **LIVE · atualizado em 2026-09-13.** Estado base: `main` após PR #171; PR
+> #172 em validação. `docs/README.md` define a hierarquia documental.
 
 ## Visão geral
 
-O Prospect.ai é uma plataforma multi-tenant de prospecção B2B. O sistema é
-dividido em três camadas, com PostgreSQL como fonte compartilhada de estado:
-
 ```text
-Next.js/React
-     │ REST (JWT) + WebSocket autenticado
-     ▼
-FastAPI ───────────────► PostgreSQL ◄────────────── Workers Python
-     │                         ▲                         │
-     └──── jobs em background ─┘                         │
-                  coleta, enrichment e scoring           │
+Next.js Web
+   ↓ JWT + X-Organization-Id
+FastAPI API
+   ├─ Auth / Organizations / Membership
+   ├─ Campaigns / Search / CRM / Analytics
+   ├─ Opportunity / Company / Person 360
+   └─ Job queue + WebSocket progress
+          ↓
+PostgreSQL 16
+          ↑
+Pipeline / Workers
+   ├─ Discovery federation
+   ├─ Entity resolution + provenance
+   ├─ Pre-scoring
+   ├─ Enrichment waterfall
+   ├─ Offer matching / scoring
+   ├─ Decision maker resolution
+   ├─ Sequences / workflows / tasks
+   └─ outcomes / learning / telemetry
 ```
 
-- **Web (`apps/web`)**: autenticação NextAuth, campanhas, leads, oportunidades,
-  vendas, relatórios e configurações.
-- **API (`services/api`)**: autenticação/autorização, isolamento por
-  organização, REST, WebSocket, consumidor de jobs, scheduler de cadência,
-  eventos, outcomes e BI.
-- **Workers (`services/workers`)**: serviços assíncronos de coleta,
-  enriquecimento, scoring, matching de ofertas, discovery e contatos. Define
-  os modelos SQLAlchemy e as migrations; a API apenas os reexporta.
+## Monorepo
 
-Nenhuma análise técnica de site faz sondagem ativa: o enrichment é passivo e
-usa apenas conteúdo publicamente acessível.
+- `apps/web`: Next.js, React Query, Tailwind e componentes de UI.
+- `services/api`: FastAPI, auth, endpoints, job consumer, CRM/analytics.
+- `services/workers`: domínio compartilhado, providers, models, migrations e
+  motores de discovery/enrichment/scoring/learning.
+- `tests`: unitários + persistência PostgreSQL + E2E.
+- `docs`: documentação LIVE, runbooks, ADRs e snapshots históricos.
 
-## Stack e configuração
-
-| Camada | Tecnologia |
-|---|---|
-| Web | Next.js 16, React 19, TypeScript, TanStack Query, Zustand, shadcn/ui sobre `@base-ui/react` |
-| API | FastAPI, uvicorn, SQLAlchemy, pydantic-settings, slowapi |
-| Workers | Python async, `httpx.AsyncClient`, SQLAlchemy 2, Alembic |
-| Banco | PostgreSQL |
-| Auth | JWT compartilhado entre NextAuth e FastAPI, bcrypt |
-| IA | Groq; modelos configuráveis por `GROQ_MODEL_CLASSIFY` e `GROQ_MODEL_GENERATION` |
-| Provedores | Google Places, Receita/CNPJ/CNAE, Hunter opcional, fonte especializada de pessoas via endpoint próprio (opt-in), provider HTTP de eventos opt-in |
-| BI | Agregações FastAPI, Recharts/Leaflet no Web e PDF via WeasyPrint |
-
-As configurações são carregadas pelos respectivos `settings.py`. A API exige
-`DATABASE_URL` e `JWT_SECRET`; o worker exige `DATABASE_URL`, `GROQ_API_KEY` e
-`GOOGLE_API_KEY`. Secrets por organização ficam criptografados em
-`organization_secrets` e nunca são devolvidos pela API.
-
-## Fluxos operacionais
-
-### Pipeline de empresas
-
-`POST /api/pipeline/start` apenas cria um `Job`. O `jobs_consumer` reivindica o
-job e executa `pipeline_worker` fora da request; o progresso é publicado no
-WebSocket `/api/pipeline/ws/{job_id}`.
+## Modelo de domínio canônico
 
 ```text
-Campaign (opcional)
-  → OfferProfileResolver (oferta explícita ou fallback legado)
-  → DiscoveryPlanner / DiscoveryExecutor
-  → Google Places, CNAE/Receita ou PNCP
-  → identidade cross-provider por Company/aliases
-  → Candidate pre-scoring determinístico
-  → Lead
-  → enrichment adaptativo passivo
-  → scoring contextual Groq + evidências
-  → OfferMatcher (múltiplas LeadOpportunity)
-  → ContactEnrichment/Decision Maker (resolved/partial/needs_review/not_found/failed)
-  → Company/Person canônicas + outreach e cadência
+Organization
+ ├─ Membership / User
+ ├─ Company
+ │   ├─ CompanyAlias
+ │   ├─ Person
+ │   └─ Lead (contexto comercial/campanha)
+ │       ├─ LeadOpportunity [0..N ofertas]
+ │       │   └─ LeadOpportunitySnapshot [append-only]
+ │       ├─ LeadActivity
+ │       ├─ CommercialTask
+ │       ├─ SequenceEnrollment / Execution
+ │       ├─ WorkflowRun
+ │       ├─ Feedback
+ │       └─ CommercialOutcome
+ ├─ Campaign
+ ├─ OfferProfileVersion
+ └─ provider/secrets/quotas/audit
 ```
 
-O `OfferProfile` orienta providers, orçamento, sinais e versão. Campanhas
-legadas continuam funcionando por `target_service`/`target_segment`; o
-resolver registra `resolved_from` para tornar o fallback observável. O
-`DiscoveryExecutor` usa adapters reais de Places/CNAE e pula explicitamente um
-provider sem credencial ou registro.
+**Company** representa a conta canônica. **Person** representa a pessoa/decisor
+canônico. **Lead** representa o contexto comercial de uma conta em uma
+campanha/carteira. **LeadOpportunity** representa uma oferta específica que a
+conta pode comprar. Uma empresa pode ter múltiplas oportunidades simultâneas.
 
-### Event Discovery
+## Multi-tenancy
 
-O pipeline aceita `source=events` em `POST /api/pipeline/start`. Esse é um fluxo
-separado do scoring de leads:
+`organization_id` é parte do contrato de segurança, não apenas um filtro de
+interface. Regras:
+
+1. recurso raiz sempre é carregado por `(id, organization_id)`;
+2. relações com `organization_id` são filtradas novamente;
+3. relações sem `organization_id` só são acessadas depois de provar que o pai
+   pertence ao workspace;
+4. acesso cross-workspace retorna 404 quando possível para não revelar
+   existência;
+5. CONSULTOR ainda passa pelo escopo de carteira (`consultant_lead_scope`);
+6. testes reais em PostgreSQL cobrem UUID conhecido do outro workspace.
+
+## OfferProfile e runtime por workspace
+
+O catálogo base vive em `services/prospecting/default_profiles.py`. Publicações
+controladas por organização vivem em `OfferProfileVersion`.
 
 ```text
-EventDiscoveryProvider
-  → validação e normalização do evento
-  → status do provider (ok/empty/failed/skipped)
-  → deduplicação por URL ou provider + identificador
-  → OrganizerResolver + EventTimingScorer
-  → EventOpportunityService
-  → event_opportunities
-  → vínculo seguro com Company/Lead quando há nome oficial e confiança suficiente
+catálogo base
+   + versão ativa publicada para Organization
+   ↓
+build_effective_registry(db, organization_id)
+   ↓
+registry efetivo
+   ↓ ContextVar do job
+Discovery → PreScore → Enrichment → Scoring → OfferMatcher → Decision Maker
 ```
 
-`EVENT_DISCOVERY_URL` habilita o `HttpEventDiscoveryProvider` explicitamente;
-`EVENT_DISCOVERY_TOKEN` é Bearer opcional e as retentativas são controladas por
-`EVENT_DISCOVERY_MAX_RETRIES`. Sem URL, o provider externo permanece desligado.
-O provider HTTP aceita uma lista JSON ou `{ "events": [...] }` e distingue erro
-de rede/HTTP/JSON de lista vazia.
+No PR #172, o registry efetivo é ligado ao job por `ContextVar`. Isso evita
+estado global mutável e permite que jobs concorrentes de workspaces diferentes
+vejam overlays diferentes. `build_effective_registry` sempre parte de
+`get_base_registry()` para que o overlay A nunca contamine a construção de B.
+Falha de resolução do registry faz o job falhar fechado.
 
-O job de eventos associa eventos futuros vinculados a um lead à oportunidade
-`trophies` por meio do `OfferMatcher`, com upsert idempotente em
-`lead_opportunities`. Ele **não** resolve automaticamente decisor nem dispara
-outreach; essas etapas permanecem no loop humano e são pendência
-(`docs/pendencias-pos-consolidacao.md`).
+## Pipeline
 
-### Outcomes e comparação A/B
+1. request cria `Job` PENDING;
+2. `jobs_consumer` faz claim atômico com `FOR UPDATE SKIP LOCKED`;
+3. materializa OfferProfile registry da organização;
+4. `run_pipeline` resolve campanha/oferta e executa discovery;
+5. identity resolution deduplica Company cross-provider;
+6. pre-scoring evita enrichment caro em candidatos fracos;
+7. waterfall de enrichment respeita estratégia/custo/gates;
+8. scoring + OfferMatcher persistem oportunidade e snapshot;
+9. decisor/contato e próxima ação são resolvidos;
+10. providers e scoring persistem telemetria/correlation ID;
+11. resultado é exposto ao CRM/BI/learning.
 
-Conversões e resultados comerciais são atribuídos a uma oferta, versão e, quando
-disponível, `lead_opportunity_id`. `commercial_outcomes` é a fonte persistida
-para métricas por organização, oferta, versão e período.
+## Unified Data Network
 
-`GET /api/intelligence/outcomes` lista outcomes e métricas. `GET
-/api/intelligence/comparisons` calcula e persiste uma comparação de versões com
-intervalos de Wilson e amostra mínima. Uma versão só pode ser aprovada por
-manager/owner quando a comparação for conclusiva; a aprovação grava actor,
-data, evidência e `AB_COMPARISON_APPROVED` em `org_audit_log`, além de criar
-uma proposta `PROPOSED` de learning controlado, sem publicação automática.
+Providers são adapters intercambiáveis. Estratégia por capability pode usar
+federation/planner, custos, quotas, status e opt-in. Dados externos devem
+carregar provenance, confidence e timestamps quando disponíveis. Provider caro
+não deve executar antes de gates baratos.
 
-O módulo `services/prospecting/learning_metrics.py` continua contendo o
-comparador e registry in-memory usados pelo serviço da API e por testes; ele não
-é a fonte de persistência. A persistência operacional está em
-`commercial_outcomes` e `commercial_comparisons`.
+## CRM
 
-## API pública principal
+A fonte de verdade interna substitui a planilha progressivamente:
 
-Todos os endpoints abaixo usam o prefixo `/api`, salvo o WebSocket e tracking
-público. A autenticação/organização é aplicada por dependências FastAPI.
+- Kanban e status/owner em `Lead`;
+- tarefas em `CommercialTask`;
+- histórico em `LeadActivity` + eventos reais derivados;
+- oportunidades em `LeadOpportunity`;
+- outcomes atribuídos à oportunidade;
+- sequences/workflows persistidos;
+- Opportunity 360 read-only entregue;
+- Company 360/Person 360 read-only em validação no PR #172.
 
-| Grupo | Rotas representativas |
-|---|---|
-| Auth | `/auth/register`, `/auth/login`, reset/change password, `/auth/profile` |
-| Org | `/orgs/me`, `/orgs/my-organizations`, membros, convites, secrets, auditoria, metas e usage |
-| Campanhas | `/campaigns`, importação CSV/Sheets, brief, templates e learning de score |
-| Leads | `/leads`, detalhe, enrichment, mensagens, cadência, score feedback, oportunidades, conversão e pós-venda |
-| Pipeline | `POST /pipeline/start`, `GET /pipeline/jobs`, `/api/pipeline/ws/{job_id}` |
-| Intelligence | `GET /intelligence/events`, `/outcomes`, `/comparisons`, aprovação A/B e propostas de learning controlado |
-| BI | `/metrics` e `/analytics/*`, incluindo funnel, consultores, deliverability, variantes e PDF |
-| Integrações | webhooks inbound/outbound, tracking, CRM paste e playbooks |
+Não criar `Proposal`, `Contract` ou `Note` apenas para preencher UI. Essas
+entidades só entram quando houver regra e ciclo de vida canônicos comprovados
+no UAT.
 
-O WebSocket exige a primeira mensagem `{"type":"auth","token":"..."}` e
-valida que o job pertence à organização do usuário. O token não vai na query
-string.
+## Controlled learning
 
-## Modelo de dados relevante
-
-Os modelos vivem em `services/workers/src/database/models.py`. A API importa-os
-por `services/api/src/db/models.py`.
-
-- **Tenant e acesso:** `organizations`, `users`, `organization_members`,
-  `organization_secrets`, `provider_usage`, `provider_execution_metrics`,
-  `org_audit_log`.
- - **Prospecção:** `campaigns`, `campaign_scoring_templates`, `jobs`, `leads`,
-`companies`, `company_aliases`, `persons` (canônica com confiança/verificação/
-acionabilidade), `company_records`, `enrichments`,
-`prescoring_discards`, `discovery_provenance` em `leads`.
-- **Oportunidades:** `lead_opportunities` (unique por lead/oferta, com
-  `offer_version`, score e evidências) e `event_opportunities` (provider,
-  status, provenance, organizer, timing, lead e datas).
-- **Vendas/outreach:** `contacts`, `messages`, `follow_ups`, `conversions`,
-  `commercial_outcomes`, `commercial_comparisons`, atividades e notificações.
-- **Feedback:** `scoring_feedback` e `template_learning` calibram o scoring
-  por organização; isso é distinto de métricas comerciais A/B.
-
-A `persons` canônica carrega identidade/contato/verificação e acionabilidade; a
-resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
-(identity por evidências sem exigir CPF — P1.32 ✅; reliability por fonte
-persistida — P1.33 ✅ no cálculo/persistência); verificação de e-mail roda
-em `ContactVerifier` async com serviço injetado, sem thread no resolver.
-Migrations antigas não devem ser editadas.
-
-O head atual é `4a6b8c9d1e2f`: o `score_breakdown` do matcher (`matcher-v2` em
-runtime) persiste sobre a base de snapshots, propostas controladas e tabelas
-comerciais, com o default da coluna alinhado ao runtime na Fatia 1 (finding
-F-01 corrigido) — ver `docs/pendencias-pos-consolidacao.md` §23.
-
-## Tarefas e scheduler
-
-O `lifespan` da API inicia:
-
-- scheduler de cadência (`CADENCE_POLL_SECONDS`, default 60s);
-- requeue de `PERDIDO` (`LOST_REQUEUE_DAYS`, default 90d);
-- encerramento de cadências sem resposta;
-- monitor de entregabilidade, que pode pausar `auto_send_email`;
-- expiração de eventos (`EVENT_EXPIRATION_POLL_SECONDS`, default 1h);
-- consumidor de Jobs (`JOB_POLL_SECONDS`, default 5s).
-
-SMTP síncrono é executado em thread; chamadas externas dos workers são async.
-Os jobs registram início, fim, falha, recuperação, duração e não devem expor
-credenciais nos campos livres.
-
-## Limitações atuais
-
-- O core ainda possui acoplamento a vertical em dois pontos conhecidos
-  (`discovery_planner_service` ramifica por `profile_key`;
-  `event_opportunity_service` fixa `"trophies"`). Ambos estão registrados
-  no ratchet do Genericity Harness e atribuídos às Tasks 5 e 6 do roadmap;
-  o teste falha se o acoplamento crescer.
-- Providers externos de eventos e vagas são opt-in; não são habilitados por
-  padrão nem constituem garantia de cobertura externa.
-- Event Discovery já persiste evento, organizador/lead e a oportunidade `trophies`,
-  mas ainda não percorre o funil completo de decisor e outreach.
-- `NextBestActionService` calcula uma recomendação determinística a partir do
-  snapshot do lead e é consumido pelo detalhe `GET /api/leads/{id}`. Ele não
-  envia mensagens nem altera estado; providers de pessoas continuam opt-in.
-- `HunterPeopleProvider` implementa o Domain Search oficial via `httpx`, com
-  retry, estados de erro e provenance. A fábrica de `ContactEnrichmentService`
-  só o registra quando a organização configurou a chave e a quota
-  `HUNTER_API_KEY`; a quota é consumida após resposta HTTP bem-sucedida.
-- `HttpPeopleProvider` federa qualquer fonte especializada de pessoas via
-  endpoint JSON próprio (`PEOPLE_DISCOVERY_URL` + Bearer opcional), com retry
-  de transitórios, distinção `failed`/`empty`, rejeição de domínio inválido e
-  proteção SSRF, provenance (`people_http` + endpoint) e `email_verified`
-  nunca inventado. Opt-in duplo fail-closed: exige endpoint global
-  configurado e quota explícita `PEOPLE_DISCOVERY_HTTP` da organização; a
-  quota é consumida após resposta HTTP 200.
-- `OfferProfile` e suas versões são cadastrados em código; não há CRUD
-  administrativo nem rollback de publicação. `POST /api/campaigns/from-brief`
-  sugere o OfferProfile resolvido (`offer_profile_key/label/resolved_from`,
-  corrigido na Fatia 1 — finding F-03) para a campanha já nascer vinculada.
-- A resolução de decisores distingue `resolved/partial/needs_review/not_found/failed`
-  e mantém snapshot JSONB compatível; `Person` canônica recebe os campos de
-  `Contact` via `sync_lead_entities`. A descoberta externa de pessoas opera via
-  waterfall (`Website`/`Http`/`Hunter`, opt-in por quota); a remoção do legado
-  `ContactVerification` com thread foi concluída (verificação só no seam async).
-  Pesos de identidade/reliability ainda são literais no código (calibráveis via
-  config só na Onda 1).
-- BI comercial expõe oferta, versão, período, amostra e cortes por vertical,
-  consultor, campanha, provider e versão (`GET /api/analytics/outcomes-breakdown`);
-  canal, variante e etapa seguem sem coluna de atribuição no outcome.
-- `EventOpportunityService` calcula expiração por `event_date` ou `expires_at`,
-  normalizando timestamps ISO para UTC, e inclui o timing persistido na ação
-  humana recomendada; recorrência e estados adicionais de evento continuam
-  fora do escopo atual.
-- Resoluções de decisor são gravadas em `decision_resolution_snapshots` com
-  payload canônico e hash SHA-256. O reprocessamento é idempotente para a mesma
-  evidência; uma evidência diferente cria novo snapshot sem alterar o anterior.
-- BI executivo deriva `actionable_contact_rate` e `precision_at_k` sob demanda
-  em `GET /api/analytics/executive-metrics`, sempre org-scoped, e sinaliza
-  amostras vazias/parciais sem fabricar denominador.
-
-## Verificação do snapshot
-
-No snapshot desta documentação foram validados:
 ```text
-python -m pytest tests -q -W error       → 1039 passed
-python -m compileall -q services/api services/workers
-apps/web: npm run lint → npx tsc --noEmit → npm run build
-scripts/verify_migrations.py             → head 1a2b3c4d5e6f
+outcomes + feedback
+   ↓ análise/compare
+CommercialComparison
+   ↓ aprovação humana
+ControlledLearningProposal
+   ↓ publicação explícita
+OfferProfileVersion ativa por workspace
+   ↓
+registry efetivo do próximo job
 ```
+
+Nunca há atualização silenciosa da produção. Publicação é versionada e rollback
+é explícito/exato.
+
+## Frontend
+
+Regras de arquitetura:
+- React Query para cache/estado de servidor;
+- requests autenticados incluem `X-Organization-Id`;
+- páginas 360 são comerciais, não dumps técnicos;
+- loading/error/empty states obrigatórios;
+- semântica, foco e targets mínimos de interação;
+- listas pesadas paginadas/filtradas no backend;
+- nada de fetch duplicado em loops/N+1 de UI.
+
+## Observabilidade e qualidade
+
+CI oficial executa:
+- compileall Python;
+- `pytest -W error`;
+- migrations em PostgreSQL real + segunda execução/idempotência + schema verify;
+- E2E crítico e invariantes de concorrência/tenant quando aplicáveis;
+- web lint + TypeScript + production build.
+
+Métricas de providers, custos, tokens e correlation IDs permitem investigar
+campanhas. Merge só ocorre quando todos os checks do mesmo HEAD estão verdes.

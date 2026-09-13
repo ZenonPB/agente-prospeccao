@@ -2,20 +2,24 @@
 
 O catálogo padrão continua sendo a base. Publicações controladas por organização
 sobrescrevem somente a mesma `key`, preservando fallback/global defaults.
+
+Importante: a construção sempre parte do catálogo base, nunca do registry de
+runtime eventualmente ligado à tarefa atual. Isso impede que o overlay do
+workspace A contamine a construção do workspace B em fluxos concorrentes.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from database.learning_models import OfferProfileVersion
-from services.prospecting.default_profiles import get_default_registry
+from services.prospecting.default_profiles import get_base_registry
 from services.prospecting.offer_profile import OfferProfile, OfferProfileRegistry
 from services.prospecting.offer_profile_validator import validate_profile
 
 
 def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegistry:
     registry = OfferProfileRegistry()
-    for profile in get_default_registry().list():
+    for profile in get_base_registry().list():
         registry.register(profile)
 
     if db is None or organization_id is None:
@@ -28,7 +32,11 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
     for row in rows:
         snapshot = dict(row.profile_snapshot or {})
         profile = OfferProfile.from_dict(snapshot)
-        problems = [problem for problem in validate_profile(profile) if not str(problem).startswith("aviso:")]
+        problems = [
+            problem
+            for problem in validate_profile(profile)
+            if not str(problem).startswith("aviso:")
+        ]
         if problems:
             # Publicações inválidas não entram silenciosamente no runtime.
             continue

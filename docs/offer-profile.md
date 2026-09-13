@@ -1,126 +1,100 @@
-# OfferProfile e oportunidades comerciais
+# OfferProfile — contrato e runtime
 
-> **Status atual:** contrato, registry, resolver e matcher estão operacionais no
-> pipeline. Snapshot: 2026-09-10 · Alembic head `4a6b8c9d1e2f` (+ reconciliação
-> documental Onda 0A, sem mudança de código).
-> Este documento substitui os status históricos das fases C–H; o plano original
-> está preservado em `docs/consolidacao.md`.
+> **LIVE · atualizado em 2026-09-13.** O perfil de oferta é a fonte declarativa
+> de inteligência específica de cada serviço. O engine deve permanecer genérico.
 
-## Papel na arquitetura
+## Responsabilidade
 
-`OfferProfile` é a configuração declarativa de uma oferta comercial. Ele
-separa o arquétipo genérico da vertical e da oferta concreta:
+Um `OfferProfile` descreve, conforme disponível:
+- identidade da oferta (`key`, versão, archetype/vertical, nome/tagline);
+- ICP, geografia e exclusões;
+- estratégia/providers/budgets de discovery;
+- pre-scoring e thresholds;
+- enrichment e people discovery;
+- sinais positivos/negativos/disqualifiers + pesos;
+- intent/timing;
+- decision makers/buyer roles;
+- canais;
+- qualificação;
+- outreach/evidence requirements.
 
-```text
-Archetype → Vertical → OfferProfile versionado
-```
+## Catálogo base e versões por workspace
 
-A resolução segue `offer_profile_key` explícito, depois vertical, arquétipo e,
-por fim, um perfil genérico. O resultado informa `resolved_from`, permitindo
-auditar por que uma oferta foi escolhida. Campanhas sem `offer_profile_key`
-continuam funcionando por compatibilidade com `target_service` e
-`target_segment`.
+`services/prospecting/default_profiles.py` constrói o catálogo base. Ele é
+fallback e não deve ser mutado em runtime.
 
-## Contrato
-
-```yaml
-key: str
-version: str
-archetype: str
-vertical: str
-offer: {name, tagline}
-icp: {company_sizes, segments, cnaes, exclusions, geography}
-discovery: {providers, target_candidates, provider_budgets, query_strategy}
-prescoring: {required_signals, weights, threshold, top_k, on_insufficient_data}
-enrichment: {steps, stop_conditions, max_cost}
-signals: {positive, negative, disqualifiers}
-intent: {event_weights, decay, trigger_threshold}
-decision_makers: {roles, buyer_types, priority}
-channels: {priority}
-qualification: {questions}
-outreach: {angle, evidence_requirements}
-```
-
-Perfis padrão atuais:
-
-| Key | Arquétipo | Vertical |
-|---|---|---|
-| `landing_page` | `web_presence` | `digital` |
-| `mechanical_project` | `industrial` | `mechanical_engineering` |
-| `technical_drawing` | `industrial` | `mechanical_engineering` |
-| `machine_manual` | `industrial` | `mechanical_engineering` |
-| `trophies` | `custom_products` | `awards` |
-
-Para adicionar uma oferta hoje, altere
-`services/workers/src/services/prospecting/default_profiles.py` e registre a
-versão. Ainda não há CRUD administrativo, publicação transacional ou rollback.
-
-## OfferMatcher e `LeadOpportunity`
-
-O matcher percorre os perfis registrados, calcula aderência 0–100 a partir de
-sinais e ICP, registra evidências e retorna várias oportunidades para o mesmo
-lead. Desqualificadores zeram a oportunidade; ausência de evidência não é
-convertida em fato.
-
-O resultado é persistido por `LeadOpportunityService` na tabela
-`lead_opportunities`, com upsert idempotente por `(lead_id, offer_key)` e
-`offer_version`. A API expõe `GET /api/leads/{lead_id}/oportunidades`, sempre
-com filtro pela organização do usuário.
+Publicações controladas são persistidas em `OfferProfileVersion` com
+`organization_id`. Para cada `key`, a versão ativa do workspace sobrepõe a
+mesma chave do catálogo base.
 
 ```text
-Lead
- ├─ Offer A / versão / score / evidências
- ├─ Offer B / versão / score / evidências
- └─ Offer C / versão / score / evidências
+base registry
+   + active OfferProfileVersion(org)
+   ↓
+build_effective_registry(db, org)
+   ↓
+effective registry
 ```
 
-O snapshot JSONB legado em `Lead.evidence_score` permanece por compatibilidade;
-`lead_opportunities` é a fonte relacional das oportunidades novas.
+Perfis publicados inválidos não entram silenciosamente no runtime.
 
-## Event Discovery e oferta
+## Runtime do pipeline
 
-Event Discovery é operacional em `source=events`: coleta, valida, deduplica,
-resolve o organizador, calcula timing e persiste `event_opportunities`. A
-persistência aceita `offer_key` (default `trophies`) e vincula o organizador a
-`Company`/`Lead` somente com evidência suficiente.
+Antes do PR #172, partes do pipeline ainda chamavam `get_default_registry()` e
+podiam usar o catálogo global mesmo quando o workspace possuía overlay
+publicado. Isso era aceitável para compatibilidade inicial, mas bloqueava a
+calibração final.
 
-O fluxo executa `EventOpportunity → OfferMatcher → LeadOpportunity` e prepara
-uma ação recomendada para eventos futuros com contato persistido. Ainda não
-executa descoberta externa de decisor nem `→ outreach`; o envio permanece humano.
+No PR #172:
 
-## Outcomes e versões
+1. `jobs_consumer` materializa `build_effective_registry` para o
+   `organization_id` do job;
+2. o registry é ligado à tarefa via `ContextVar`;
+3. consumidores existentes de `get_default_registry()` recebem o registry
+   efetivo durante aquele job;
+4. ao sair do contexto, o catálogo base é restaurado;
+5. jobs concorrentes não compartilham estado;
+6. `build_effective_registry` usa sempre `get_base_registry()` para impedir que
+   o overlay A seja reutilizado ao construir B;
+7. falha ao montar o registry faz o job falhar fechado.
 
-Conversões e outcomes persistidos carregam `offer_key`, `offer_version` e,
-quando conhecido, `lead_opportunity_id`. `commercial_outcomes` alimenta
-`GET /api/intelligence/outcomes`.
+Esse mecanismo é de compatibilidade do runtime. Novos serviços que já possuem
+`db + organization_id` podem preferir `build_effective_registry` ou
+`get_effective_profile` explicitamente.
 
-Comparações A/B são calculadas por `CommercialComparisonService` usando o
-registry/comparador existente, intervalo de Wilson e amostra mínima. O
-resultado é persistido em `commercial_comparisons`; aprovação conclusiva por
-manager/owner registra versão, ator, evidência e auditoria e cria uma proposta
-`PROPOSED` de learning controlado sem publicar alterações. O módulo
-`learning_metrics.py` ainda é in-memory por desenho do adaptador, mas o caminho
-operacional lê e grava no PostgreSQL.
+## Resolução de campanha
 
-## Limitações e próximos passos
+A campanha pode armazenar `offer_profile_key`. Quando ausente, o resolver usa
+`target_service`/`target_segment` e pode cair em perfil genérico. Uma chave
+explícita deve existir no registry efetivo da organização.
 
-- Não há entidade administrativa para definir OfferProfiles sem deploy
-  (Onda 1: `OfferProfileVersion` canônica + publicação + rollback).
-- Snapshots append-only e política explícita de re-scoring existem (P1.8/P1.9 ✅);
-  falta o versionamento dinâmico do perfil com publicação transacional (Onda 1).
-- A resolução de decisores opera por evidências sem exigir CPF (P1.32 ✅) com
-  reliability por fonte persistida (P1.33 ✅ no cálculo/persistência); pesos ainda
-  literais no código, calibráveis via configuração só na Onda 1.
-- **Drifts F-01 e F-03 corrigidos na Fatia 1** (ver
-  `docs/pendencias-pos-consolidacao.md` §23). Resta F-02 (unique
-  `uq_controlled_learning_org_offer_version` ausente no modelo — sem efeito
-  operacional).
-- BI avançado por vertical, consultor, canal, campanha, variante e Precision@K
-  ainda precisa de agregações e jobs próprios.
+## Versionamento, snapshots e attribution
 
-## Validação
+- cada oportunidade persiste `offer_key` e `offer_version`;
+- re-scoring gera histórico em `LeadOpportunitySnapshot`;
+- outcomes/conversões apontam para oportunidade/snapshot quando disponível;
+- mudanças futuras no perfil não reescrevem o contexto histórico de uma venda;
+- learning compara versões com amostra/evidência e publicação explícita.
 
-O contrato é coberto por testes unitários/integrados de resolver, matcher,
-persistência de oportunidades, outcomes e comparação A/B. O snapshot geral da
-branch foi validado com 948 testes Python sob `-W error`, `compileall`, lint,
-TypeScript, build Web e migration verifier no head `dd9e0f1a2b3c`.
+## Vertente / CampaignScoringTemplate
+
+`CampaignScoringTemplate` ainda existe por compatibilidade e por capacidades
+operacionais como cadência/roteamento legado. A direção de consolidação é:
+
+- ICP, sinais, pesos, thresholds, providers, buyer persona, timing e learning
+  pertencem ao OfferProfile;
+- cadência/operational playbook pode continuar separado enquanto houver regra
+  clara e sem duas fontes conflitantes;
+- não criar um segundo loop de calibração concorrente com OfferProfile.
+
+Veja `vertentes-offerprofile-consolidation.md` como snapshot histórico da
+auditoria e `roadmap.md` para o plano corrente.
+
+## Segurança e testes obrigatórios
+
+- profile de A nunca aparece em B;
+- versões ativas são filtradas por `organization_id`;
+- dois jobs concorrentes com overlays distintos enxergam registries distintos;
+- saída de um contexto restaura o registry anterior;
+- registry efetivo sempre começa no catálogo base, não no contexto corrente;
+- nenhuma mudança de learning entra em produção sem aprovação/publicação.

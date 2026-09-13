@@ -1,130 +1,113 @@
-# CRM 360 — mapa de gaps após a primeira leitura de oportunidade
+# CRM 360 — gap map
 
-> Estado desta fatia: composição **read-only** sobre dados já existentes. Nenhuma
-> nova entidade comercial foi criada apenas para preencher a interface.
+> **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only foi mergeada
+> no PR #171. Company 360 e Person 360 read-only estão em validação no PR #172.
 
-## O que já existe e foi reutilizado
+## Modelo canônico reutilizado
 
-| Capacidade | Fonte atual | Estado na visão 360 |
-|---|---|---|
-| Oportunidade por oferta | `lead_opportunities` | score, versão, sinais, evidências e breakdown consolidados |
-| Empresa | `Company` + fallback dos campos do `Lead` | resumo cadastral/localização/site |
-| Pessoa/decisor | `Person` canônica + `Contact` | decisor principal e contatos disponíveis |
-| Dono da carteira | `Lead.assigned_to_id` | exibido com data de atribuição |
-| Funil/forecast | campos comerciais do `Lead` | status, etapa de negociação, valor, previsão e motivo de perda |
-| Próxima ação | `next_best_action_decisions` + fallback `Lead.next_action_at` | recomendação persistida quando existe |
-| Tarefas | `commercial_tasks` | lista operacional, org-scoped |
-| Atividades | `lead_activities` | trilha histórica já auditável |
-| Feedback de qualidade | `lead_usefulness_feedbacks` | útil/não útil + motivo + autor |
-| Outcomes | `commercial_outcomes` | somente outcomes atribuídos à oportunidade consultada |
-| Sequências | `sequence_enrollments` / `sequence_executions` | contexto de execução, sem expor payload sensível |
-| Workflows | `workflow_runs` | histórico resumido, sem expor contexto/payload interno |
-| Timeline | derivada das fontes acima | contrato comum, sem tabela duplicada |
+| Necessidade | Fonte atual |
+|---|---|
+| Conta/empresa | `Company` + `CompanyAlias` |
+| Pessoa/decisor | `Person` (+ `Contact` legado quando necessário) |
+| Contexto comercial | `Lead` |
+| Oferta/oportunidade | `LeadOpportunityRow` + snapshots |
+| Owner/status/valor/previsão | `Lead` |
+| Atividades | `LeadActivity` |
+| Tarefas | `CommercialTask` |
+| Cadência | `SequenceEnrollment` / `SequenceExecution` |
+| Automação | `WorkflowRun` |
+| Feedback | `LeadUsefulnessFeedback` / `ScoringFeedback` |
+| Resultado | `CommercialOutcomeRow` / `Conversion` |
+| Próxima ação | `NextBestActionDecision` + campos de Lead |
 
-## Contrato de timeline
+## Opportunity 360
 
-A timeline é derivada em leitura e normalizada para:
+### Entregue
 
-```text
-type
-occurred_at
-actor
-title
-description
-source_entity
-metadata
-```
+- lookup `(opportunity_id, organization_id)` fail-closed;
+- Company + decisor/contatos;
+- oferta/versão, score, breakdown, sinais/evidências;
+- qualificação/intent/timing quando persistidos;
+- owner, status, estágio, valor, previsão e próxima ação;
+- tarefas, atividades, feedback, outcomes;
+- sequences/workflows;
+- timeline normalizada e determinística;
+- UI comercial com estados loading/error/empty;
+- testes PostgreSQL de cross-tenant e query-count.
 
-Ordenação: mais recente primeiro; empates são resolvidos por `type` e
-`source_entity`, tornando a resposta determinística.
+### Falta para ficar editável
 
-A timeline não cria eventos sintéticos para preencher lacunas. O único fallback
-permitido nesta fatia é transformar `Lead.next_action_at`, quando já persistido,
-em uma próxima ação agendada.
+- um contrato de mutação consolidado para owner/status/estágio/valor/previsão;
+- edição/criação de tarefas reutilizando `CommercialTask`;
+- edição de próxima ação sem segunda fonte de verdade;
+- notas: decidir se `Lead.notes` é suficiente ou se UAT justifica entidade
+  canônica append-only;
+- ações em massa e search/filter integrados ao CRM.
 
-## Company 360 — o que ainda falta
+## Company 360
 
-A entidade `Company` já consolida a identidade entre campanhas, mas a experiência
-360 completa ainda precisa de:
+### PR #172
 
-- página própria da empresa, independente de um lead;
-- lista consolidada de todas as pessoas e oportunidades da empresa;
-- timeline da conta atravessando campanhas sem duplicação;
-- notas estruturadas por conta;
-- tags e segmentação operacional;
-- owner da conta separado, caso o produto decida diferenciar de owner do lead;
-- merge/revisão de identidade como fluxo de usuário para candidatos fuzzy;
-- visão de saúde/freshness dos principais atributos;
-- histórico de alterações relevantes com auditoria universal.
+- dados canônicos de Company;
+- aliases/origens;
+- pessoas vinculadas;
+- leads/contextos comerciais visíveis;
+- oportunidades, tarefas e outcomes;
+- receita ganha e melhores scores;
+- timeline derivada de fontes existentes;
+- carteira do CONSULTOR respeitada;
+- gestores podem consultar Company canônica mesmo sem lead vinculado;
+- UI em `/crm/empresas/[companyId]`.
 
-## Person 360 — o que ainda falta
+### Gap
 
-A `Person` canônica e o histórico de emprego já existem. Para a operação de CRM
-ficar completa ainda faltam:
+- edição canônica de dados permitidos;
+- merge/revisão manual de aliases/duplicatas;
+- tags/segmentação operacional;
+- visão de propostas/contratos apenas quando o domínio existir;
+- bulk actions e global search conectados.
 
-- página própria da pessoa;
-- oportunidades e atividades relacionadas em uma única visão;
-- contatos/verificações com histórico e provenance apresentados de modo claro;
-- owner/responsável de relacionamento quando necessário;
-- notas e tarefas diretamente vinculadas à pessoa fora de uma sequência;
-- merge/revisão de identidades duplicadas;
-- indicação explícita de qual dado é atual, vencido ou precisa de revisão.
+## Person 360
 
-## Opportunity 360 editável — o que ainda falta
+### PR #172
 
-Esta fatia deliberadamente não cria edição nova. A próxima evolução do domínio
-deve decidir, antes de adicionar tabelas, como separar `Lead` de oportunidade
-comercial operacional. Hoje vários campos de negócio ainda vivem no `Lead`.
+- Person canônica + confiança/verificação/roteabilidade;
+- Company relacionada;
+- leads e oportunidades visíveis;
+- tarefas/outcomes/timeline;
+- UI em `/crm/pessoas/[personId]`.
 
-Pendências:
+### Gap
 
-- edição de owner, estágio, valor, forecast e próxima ação a partir da própria 360;
-- estágio comercial verdadeiramente por oportunidade quando um mesmo lead tiver
-  mais de uma oferta simultânea;
-- notas como entidade append-only/auditável, em vez de somente `Lead.notes`;
-- tarefas manuais CRUD além das tarefas materializadas por sequences/workflows;
-- busca/filtros globais por oportunidade;
-- bulk actions preservando atribuição correta à oferta;
-- permissões granulares de edição por papel;
-- audit trail universal para todas as mutações.
+- edição/validação humana de identidade;
+- histórico canônico de mudanças de emprego se necessário no CRM;
+- ações de contato integradas à tela sem duplicar cadência;
+- merge de pessoas duplicadas com auditoria.
 
-## Propostas e contratos
+## Proposal / Contract / Note
 
-Não foi encontrada uma entidade canônica `Proposal` nem uma entidade canônica
-`Contract` no domínio atual. Existem campos de negociação no `Lead`, incluindo
-`negotiation_stage`, `contract_outcome`, `value`, `expected_close_date` e outcomes
-comerciais atribuídos.
+Ainda **não** existem entidades canônicas completas para esses conceitos. Não
+serão criadas só para completar a aparência da tela 360. Até o UAT provar
+necessidade:
 
-Portanto, esta fatia **não fabrica** propostas ou contratos a partir desses
-campos. Antes de implementar o ciclo completo, definir contratos de domínio para:
+- proposta enviada continua representada por status/atividade/cadência;
+- contrato/outcome continua nos campos comerciais existentes e outcomes;
+- nota operacional simples continua em `Lead.notes`.
 
-```text
-Opportunity
-├── Proposal (0..N)
-└── Contract (0..N ou 0..1, conforme regra comercial aprovada)
-```
+Quando o fluxo AlphaMec demonstrar ciclo de vida próprio (versões, arquivos,
+aprovação, assinatura, auditoria), então novas entidades podem ser propostas.
 
-com versionamento de proposta, valor, validade, status, autor, timestamps,
-anexos/referências e auditabilidade. A decisão deve ser guiada pela planilha
-real da AlphaMec e pelo importador histórico para evitar modelar um CRM teórico.
+## Critério de conclusão do CRM para AlphaMec RC
 
-## Isolamento e desempenho desta fatia
+A planilha deixa de ser fonte operacional quando o sistema permite, com UAT:
 
-- lookup raiz exige `(opportunity_id, organization_id)`;
-- o `Lead` relacionado é novamente validado por `organization_id` e pelo escopo
-  de carteira do membro;
-- entidades que possuem `organization_id` também recebem filtro explícito;
-- entidades legadas sem `organization_id` só são acessadas depois de validar o
-  `lead_id` dentro do workspace;
-- outcomes são filtrados pelo `lead_opportunity_id`, evitando misturar ofertas;
-- usuários/atores são carregados em lote;
-- número de queries é limitado por fonte, não pela quantidade de tarefas,
-  atividades ou contatos.
-
-## Próxima fatia recomendada
-
-Antes de introduzir `Proposal`/`Contract`, a próxima fatia de CRM deve fechar a
-**Company 360 read-only + Person 360 read-only**, reutilizando o mesmo princípio
-de composição. Em paralelo, a Fase A ainda possui o risco já documentado de
-registry global de `OfferProfile` em partes do pipeline; esse risco precisa ser
-fechado antes da calibração/learning final.
+1. encontrar conta/pessoa/oportunidade;
+2. atribuir owner;
+3. mover estágio;
+4. registrar valor/previsão/motivo de perda;
+5. planejar e concluir tarefa/próxima ação;
+6. consultar timeline e contexto 360;
+7. importar histórico com dedupe/auditoria;
+8. filtrar/exportar e operar em massa;
+9. medir pipeline/resultados no BI;
+10. provar isolamento entre workspaces.
