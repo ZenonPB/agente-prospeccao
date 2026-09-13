@@ -1,152 +1,173 @@
-# Guia de Inicialização - Prospect.ai
+# Quickstart — Prospect.ai
 
-> **Modo automático (Windows, sem Docker):** o jeito mais fácil é dar **duplo
-> clique em `scripts\setup.cmd`** (setup completo uma única vez) e depois em
-> **`scripts\dev.cmd`** (sobe tudo). Ou rode manualmente:
-> `powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1` e depois
-> `.\scripts\dev.ps1 start`. O setup baixa um PostgreSQL embarcado (sem instalar
-> nada), cria os venvs, gera o `.env`/`.env.local` com segredos automáticos, roda
-> migrations e seed. Pule os passos 1–2 abaixo se usou o modo automático.
+> Atualizado em 2026-09-13. `.env.example`, manifests e scripts do repositório
+> têm precedência sobre exemplos deste guia.
 
-## Passo 1: Iniciar o Docker Desktop
+## Caminho recomendado: scripts do projeto
 
-Antes de rodar o script, você precisa **iniciar o Docker Desktop manualmente**:
+### Windows
 
-1. Abra o **Docker Desktop** (ícone na área de trabalho ou menu Iniciar)
-2. Aguarde até aparecer "Docker Desktop is running" na barra de tarefas
-3. Confirme que está rodando executando:
-   ```powershell
-   docker ps
-   ```
+Primeiro setup:
 
-## Passo 2: Configurar o Banco de Dados
-
-Se é a **primeira vez** rodando o sistema, execute estas etapas:
-
-### 2.1 Subir o PostgreSQL
 ```powershell
-docker-compose up -d db
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
 ```
 
-### 2.2 Rodar as Migrações
+Depois:
+
 ```powershell
-cd services\workers
-python -m venv venv
-.\venv\Scripts\activate
+.\scripts\dev.ps1 start
+.\scripts\dev.ps1 status
+# .\scripts\dev.ps1 restart
+# .\scripts\dev.ps1 stop
+```
+
+Também existem wrappers `.cmd` para uso por duplo clique quando presentes no
+checkout.
+
+### Linux/macOS
+
+```bash
+./scripts/setup.sh
+./scripts/dev.sh start
+./scripts/dev.sh status
+# ./scripts/dev.sh restart
+# ./scripts/dev.sh stop
+```
+
+Os scripts são a referência para portas, Postgres local/embarcado, migrations,
+seed e processos de desenvolvimento. Não duplique manualmente configuração se
+o script já a gerencia.
+
+## Caminho manual
+
+### 1. Ambiente
+
+```bash
+cp .env.example .env
+```
+
+Preencha somente as credenciais necessárias às capabilities que pretende usar.
+Secrets reais não devem ser commitados.
+
+### 2. PostgreSQL
+
+Com Docker:
+
+```bash
+docker compose up -d db
+```
+
+Ou aponte `DATABASE_URL` para PostgreSQL 16 compatível.
+
+### 3. Workers e migrations
+
+```bash
+cd services/workers
+python -m venv .venv
+source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 alembic upgrade head
-```
-
-### 2.3 Popular Templates de Scoring (opcional mas recomendado)
-```powershell
 python -m src.seeds.scoring_templates
 ```
 
-## Passo 3: Iniciar o Sistema
+### 4. API
 
-Agora sim, rode o script de desenvolvimento:
+Em outro terminal:
 
-```powershell
-cd ..\..  # Voltar para a raiz do projeto
-.\scripts\dev.ps1 start
-```
-
-O script abrirá duas janelas:
-- **Janela 1**: API FastAPI rodando em `http://localhost:8000`
-- **Janela 2**: Frontend Next.js rodando em `http://localhost:3001`
-
-## Passo 4: Acessar o Sistema
-
-1. Abra o navegador em: **http://localhost:3001**
-2. Clique em **"Cadastre-se grátis"**
-3. Crie sua conta (será o owner da organização)
-4. Pronto! Você pode começar a criar campanhas de prospecção
-
----
-
-## Comandos Úteis
-
-### Ver status dos serviços
-```powershell
-.\scripts\dev.ps1 status
-```
-
-### Parar todos os serviços
-```powershell
-.\scripts\dev.ps1 stop
-```
-
-### Reiniciar tudo
-```powershell
-.\scripts\dev.ps1 restart
-```
-
-### Ver logs do PostgreSQL
-```powershell
-docker-compose logs db
-```
-
-### Acessar o banco diretamente
-```powershell
-docker exec -it agente-prospeccao-db-1 psql -U postgres -d agente_prospeccao
-```
-
----
-
-## Solução de Problemas Comuns
-
-### Erro: "não existe a coluna follow_ups.attempts"
-**Causa**: Migração pendente do banco de dados.  
-**Solução**: Execute `alembic upgrade head` na pasta `services/workers` (veja Passo 2.2)
-
-### Erro: "failed to connect to docker API"
-**Causa**: Docker Desktop não está rodando.  
-**Solução**: Inicie o Docker Desktop e aguarde aparecer "running" na bandeja do sistema.
-
-### API não inicia ou dá erro de imports
-**Causa**: Dependências não instaladas ou venv não ativado.  
-**Solução**: 
-```powershell
-cd services\api
-.\venv\Scripts\activate
+```bash
+cd services/api
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
 
-### Web não carrega ou mostra erro 500
-**Causa**: Frontend não consegue conectar na API.  
-**Solução**: Verifique se `apps/web/.env.local` tem `NEXT_PUBLIC_API_URL=http://localhost:8000`
+Em ambiente não-production, a documentação OpenAPI fica disponível em
+`http://localhost:8000/docs`.
 
-### Porta 8000 ou 3001 já está em uso
-**Solução**: 
-```powershell
-# Descobrir qual processo está usando a porta 8000
-netstat -ano | findstr :8000
+### 5. Frontend
 
-# Matar o processo (substitua <PID> pelo número da coluna PID)
-taskkill /PID <PID> /F
+```bash
+cd apps/web
+npm ci
+npm run dev
 ```
 
----
+Confirme a URL exibida pelo Next.js/script local. O frontend precisa apontar
+`NEXT_PUBLIC_API_URL` para a API local.
 
-## Estrutura de Diretórios
+## Primeiro uso
 
+1. crie um usuário;
+2. confirme o workspace ativo;
+3. configure providers/secrets necessários em Configurações;
+4. crie uma campanha;
+5. execute uma coleta pequena antes de aumentar volume;
+6. acompanhe jobs/erros e verifique as oportunidades geradas.
+
+Providers externos podem exigir opt-in, quota e credenciais por workspace.
+
+## Testar antes de abrir PR
+
+Na raiz:
+
+```bash
+python -m compileall -q services/api services/workers
+python -m pytest tests -q -W error
 ```
-agente-prospeccao/
-├── .env                          # Configurações gerais (GROQ, Google, Hunter.io)
-├── apps/
-│   └── web/
-│       ├── .env.local            # Configurações do Next.js (NextAuth)
-│       └── src/                  # Código do frontend
-├── services/
-│   ├── api/                      # FastAPI REST + WebSocket
-│   │   ├── venv/                 # Ambiente virtual Python
-│   │   └── main.py               # Ponto de entrada da API
-│   └── workers/                  # Coleta/Enriquecimento/Scoring
-│       ├── venv/                 # Ambiente virtual Python
-│       ├── migrations/           # Migrações Alembic
-│       └── src/
-│           ├── main.py           # Script de worker
-│           └── seeds/            # Seeds do banco
-└── scripts/
-    └── dev.ps1                   # Script de inicialização Windows
+
+Frontend:
+
+```bash
+cd apps/web
+npm ci
+npm run lint
+npx tsc --noEmit
+npm run build
 ```
+
+O GitHub Actions adiciona gates de PostgreSQL real, migrations e E2E.
+
+## Problemas comuns
+
+### Migration pendente
+
+```bash
+cd services/workers
+alembic upgrade head
+```
+
+Se houver divergência de schema, não crie coluna manualmente. Resolva pela cadeia
+Alembic e pelo verifier do repositório.
+
+### API não importa módulos
+
+Verifique:
+- venv correto;
+- requirements instalados;
+- comando executado a partir de `services/api` conforme scripts do projeto;
+- `.env` carregável.
+
+### Web não conecta à API
+
+Verifique `NEXT_PUBLIC_API_URL`, API ativa, CORS local e workspace/session.
+
+### Provider falha
+
+Verifique secret/opt-in/quota **do workspace ativo**. Não assuma que uma chave
+global substitui configuração tenant-specific em produção.
+
+### Job parece parado
+
+Consulte status persistido do job/logs antes de reiniciar processos. O pipeline
+é consumido em background e possui recuperação para jobs stale; não rode a
+mesma operação repetidamente sem verificar idempotência.
+
+## Documentação seguinte
+
+- arquitetura: `docs/architecture.md`;
+- estado: `docs/00-status-mapa.md`;
+- roadmap: `docs/roadmap.md`;
+- baseline/gates: `docs/baseline-operacional.md`;
+- deploy: `DEPLOY.md`.
