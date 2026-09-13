@@ -5,7 +5,6 @@ constraints e idempotência são parte do contrato desta fatia de CRM.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import uuid
 
 import pytest
@@ -121,6 +120,11 @@ def _scenario(db, *, sales_role=SalesRole.MANAGER, role=OrganizationRole.OWNER):
     db.add(lead)
     db.flush()
     opportunity = _opportunity(db, lead)
+    # Os testes de validação exercitam rollback. Persistimos o cenário base
+    # primeiro para que o rollback reverta somente a operação sob teste, como
+    # acontece numa request real contra entidades já existentes.
+    db.commit()
+    opportunity = LeadOpportunityService().list_for_lead(db, lead.id)[0]
     return org, actor, member, lead, opportunity
 
 
@@ -153,13 +157,14 @@ class TestOpportunityCommandPersistence:
     def test_perda_exige_motivo_e_persiste_motivo_valido(self, db_session):
         db = db_session
         org, actor, member, lead, opportunity = _scenario(db)
+        opportunity_id = opportunity.id
         service = OpportunityCommandService(db, org.id, member, actor)
 
         with pytest.raises(OpportunityValidation, match="motivo da perda"):
-            service.update(opportunity.id, {"status": "PERDIDO"})
+            service.update(opportunity_id, {"status": "PERDIDO"})
         db.rollback()
 
-        result = service.update(opportunity.id, {
+        result = service.update(opportunity_id, {
             "status": "PERDIDO",
             "lost_reason": "PRECO",
         })
@@ -268,11 +273,13 @@ class TestOpportunityCommandPersistence:
     def test_datas_invalidas_falham_sem_commit(self, db_session):
         db = db_session
         org, actor, member, lead, opportunity = _scenario(db)
+        lead_id = lead.id
+        opportunity_id = opportunity.id
         original = lead.next_action_at
         service = OpportunityCommandService(db, org.id, member, actor)
 
         with pytest.raises(OpportunityValidation, match="Data/hora inválida"):
-            service.update(opportunity.id, {"next_action_at": "13/09/2026 10h"})
+            service.update(opportunity_id, {"next_action_at": "13/09/2026 10h"})
         db.rollback()
-        db.refresh(lead)
-        assert lead.next_action_at == original
+        persisted = db.query(Lead).filter(Lead.id == lead_id).one()
+        assert persisted.next_action_at == original
