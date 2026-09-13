@@ -1,8 +1,8 @@
 # CRM 360 — gap map
 
-> **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only foi mergeada
-> no PR #171. Company 360 e Person 360 read-only foram mergeadas no PR #172.
-> A edição operacional da Opportunity 360 está em validação no batch 3.
+> **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only foi entregue
+> no PR #171. Company 360 e Person 360 read-only foram entregues no PR #172.
+> A edição operacional da Opportunity 360 foi concluída no PR #173.
 
 ## Modelo canônico reutilizado
 
@@ -23,7 +23,7 @@
 
 ## Opportunity 360
 
-### Entregue
+### Leitura entregue
 
 - lookup `(opportunity_id, organization_id)` fail-closed;
 - Company + decisor/contatos;
@@ -36,9 +36,9 @@
 - UI comercial com estados loading/error/empty;
 - testes PostgreSQL de cross-tenant e query-count.
 
-### Edição operacional — batch 3
+### Edição operacional — PR #173
 
-Em validação:
+Entregue:
 
 - `PATCH /api/opportunities/{id}/360` atualiza a fonte canônica (`Lead`) para
   owner, status, estágio, valor, previsão, próxima ação, motivo de perda e notas;
@@ -47,12 +47,18 @@ Em validação:
 - ANALYST continua read-only; CONSULTOR só opera a própria carteira e não
   atribui recursos a colegas; MANAGER/OWNER/ADMIN podem administrar ownership;
 - owner/tarefa só aceitam membros do workspace;
-- status `PERDIDO` exige motivo;
-- editor web dedicado em `/oportunidades/360/[id]/editar`, com formulários
-  semânticos, estados de loading/error, feedback por toast e mutations via
-  React Query; atualização de tarefa usa optimistic update com rollback;
+- status `PERDIDO` exige motivo e o par status/motivo é validado atomicamente
+  antes de qualquer flush, preservando a constraint do banco;
+- tarefas usam `UNIQUE(organization_id, idempotency_key)` como autoridade de
+  idempotência e tratam corrida concorrente com rollback + leitura do vencedor;
+- migration alinha o enum PostgreSQL `lead_activity_action` ao runtime para
+  `NEGOTIATION_UPDATED`, eliminando drift que só aparecia em banco real;
+- editor web dedicado em `/oportunidades/360/[id]/editar`, com controles
+  semânticos nativos, navegação por teclado, layout responsivo, estados de
+  loading/error/read-only, feedback por toast e mutations via React Query;
+- atualização de tarefa usa optimistic update com rollback;
 - suíte PostgreSQL cobre RBAC, cross-tenant/carteira, idempotência, validação e
-  relação tarefa↔lead.
+  relação tarefa↔lead e roda explicitamente no CI.
 
 ### Gap restante
 
