@@ -160,3 +160,5 @@ jobs:
       # as mesmas FKs e constraints que existem em produção.
       - name: Verify conversion concurrency invariant
         run: python -m pytest tests/test_conversion_unique_concurrency.py -q
+      - name: Verify Opportunity 360 tenant and performance invariants
+        run: python -m pytest tests/test_opportunity_360.py -q -W error
