@@ -509,14 +509,20 @@ async def run_pipeline(
                     )
                     if scoring_template:
                         # Vincula o template gerado à campanha para reuso.
+                        # Escopo visível à org (própria ou global), própria primeiro.
                         label = scoring_template.get("service_label", "")
                         tmpl_row = (
                             db.query(CampaignScoringTemplate)
                             .filter(
                                 sqlfunc.lower(CampaignScoringTemplate.service_label) == label.lower().strip(),
                                 CampaignScoringTemplate.is_active.is_(True),
+                                (CampaignScoringTemplate.organization_id.is_(None)) |
+                                (CampaignScoringTemplate.organization_id == campaign.organization_id),
                             )
-                            .order_by(CampaignScoringTemplate.created_at.asc())
+                            .order_by(
+                                CampaignScoringTemplate.organization_id.is_(None),
+                                CampaignScoringTemplate.created_at.asc(),
+                            )
                             .first()
                         )
                         if tmpl_row:

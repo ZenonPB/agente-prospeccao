@@ -976,7 +976,7 @@ def get_lead_pitch(
 
     enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
     campaign = (
-        db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        db.query(Campaign).filter(Campaign.id == lead.campaign_id, Campaign.organization_id == _org.id).first()
         if lead.campaign_id else None
     )
     contacts = (
@@ -1017,7 +1017,7 @@ async def generate_messages(
         raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
     campaign = (
-        db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        db.query(Campaign).filter(Campaign.id == lead.campaign_id, Campaign.organization_id == _org.id).first()
         if lead.campaign_id
         else None
     )
@@ -1145,7 +1145,10 @@ def get_linkedin_queries(
     playbook = None
     if lead.campaign_id:
         from src.db.models import CampaignScoringTemplate
-        campaign = db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        campaign = db.query(Campaign).filter(
+            Campaign.id == lead.campaign_id,
+            Campaign.organization_id == _org.id,
+        ).first()
         if campaign and campaign.scoring_template_id:
             template = db.query(CampaignScoringTemplate).filter(
                 CampaignScoringTemplate.id == campaign.scoring_template_id,
@@ -1841,7 +1844,7 @@ async def start_lead_cadence(
         raise HTTPException(status_code=429, detail="Cota diária de IA esgotada — tente amanhã.")
 
     campaign = (
-        db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+        db.query(Campaign).filter(Campaign.id == lead.campaign_id, Campaign.organization_id == _org.id).first()
         if lead.campaign_id
         else None
     )

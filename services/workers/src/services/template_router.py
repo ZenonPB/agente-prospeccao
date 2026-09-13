@@ -63,42 +63,68 @@ def token_overlap(a: str, b: str) -> float:
     return len(ta & tb) / len(ta)
 
 
-def _templates_snapshot(db: Session) -> List[CampaignScoringTemplate]:
-    """Templates ativos, ordenados por criação (mais antigo primeiro)."""
-    return (
-        db.query(CampaignScoringTemplate)
-        .filter(CampaignScoringTemplate.is_active.is_(True))
-        .order_by(CampaignScoringTemplate.created_at.asc())
-        .all()
+def _visible_clause(organization_id: Optional[str]):
+    """Filtro de visibilidade tenant: global (NULL) ou da própria org.
+
+    Sem `organization_id` (chamadas legadas sem contexto de workspace),
+    devolve None para preservar o comportamento anterior.
+    """
+    if not organization_id:
+        return None
+    return (CampaignScoringTemplate.organization_id.is_(None)) | (
+        CampaignScoringTemplate.organization_id == organization_id
     )
 
 
-def _find_exact(db: Session, query: str) -> Optional[CampaignScoringTemplate]:
+def _templates_snapshot(
+    db: Session, organization_id: Optional[str] = None
+) -> List[CampaignScoringTemplate]:
+    """Templates ativos visíveis à org, ordenados por criação (mais antigo primeiro).
+
+    O escopo nunca inclui vertentes privadas de outras organizações: elas não
+    podem ser listadas, resolvidas por exact/fuzzy, enviadas como labels à LLM
+    nem usadas como fallback.
+    """
+    query = db.query(CampaignScoringTemplate).filter(
+        CampaignScoringTemplate.is_active.is_(True)
+    )
+    clause = _visible_clause(organization_id)
+    if clause is not None:
+        query = query.filter(clause)
+    return query.order_by(CampaignScoringTemplate.created_at.asc()).all()
+
+
+def _find_exact(
+    db: Session, query: str, organization_id: Optional[str] = None
+) -> Optional[CampaignScoringTemplate]:
     """Match case-insensitive/accent-insensitive por service_label."""
     key = normalize_key(query)
     if not key:
         return None
-    for tmpl in _templates_snapshot(db):
+    for tmpl in _templates_snapshot(db, organization_id):
         if normalize_key(tmpl.service_label) == key:
             return tmpl
     return None
 
 
-def _find_fuzzy(db: Session, query: str, threshold: float = _FUZZY_THRESHOLD) -> Optional[CampaignScoringTemplate]:
+def _find_fuzzy(
+    db: Session, query: str, threshold: float = _FUZZY_THRESHOLD,
+    organization_id: Optional[str] = None,
+) -> Optional[CampaignScoringTemplate]:
     """Match por overlap de tokens acima do threshold."""
     key = normalize_key(query)
     if not key:
         return None
     best, best_score = None, 0.0
-    for tmpl in _templates_snapshot(db):
+    for tmpl in _templates_snapshot(db, organization_id):
         score = token_overlap(tmpl.service_label, key)
         if score > best_score:
             best, best_score = tmpl, score
     return best if best_score >= threshold else None
 
 
-def _find_generic(db: Session) -> Optional[CampaignScoringTemplate]:
-    return _find_exact(db, "Genérico") or _find_exact(db, "generico")
+def _find_generic(db: Session, organization_id: Optional[str] = None) -> Optional[CampaignScoringTemplate]:
+    return _find_exact(db, "Genérico", organization_id) or _find_exact(db, "generico", organization_id)
 
 
 def _serialize(tmpl: CampaignScoringTemplate) -> Dict[str, Any]:
@@ -218,34 +244,40 @@ async def route_scoring_template(
           "matched_label": str | None,
         }
     """
-    # 1. Explícito
+    # 1. Explícito (fail closed: ID de outra org é tratado como inexistente).
     if explicit_template_id:
-        tmpl = db.query(CampaignScoringTemplate).filter(
+        query = db.query(CampaignScoringTemplate).filter(
             CampaignScoringTemplate.id == explicit_template_id,
             CampaignScoringTemplate.is_active.is_(True),
-        ).first()
+        )
+        clause = _visible_clause(organization_id)
+        if clause is not None:
+            query = query.filter(clause)
+        tmpl = query.first()
         if tmpl:
             return {"template": _serialize(tmpl), "route": ROUTE_MATCHED,
                     "matched_label": tmpl.service_label}
 
     # 2/3. Exact
     for query in (target_service, target_segment):
-        tmpl = _find_exact(db, query)
+        tmpl = _find_exact(db, query, organization_id)
         if tmpl:
             return {"template": _serialize(tmpl), "route": ROUTE_MATCHED,
                     "matched_label": tmpl.service_label}
 
     # 4. Fuzzy
     for query in (target_service, target_segment):
-        tmpl = _find_fuzzy(db, query)
+        tmpl = _find_fuzzy(db, query, organization_id=organization_id)
         if tmpl:
             return {"template": _serialize(tmpl), "route": ROUTE_MATCHED,
                     "matched_label": tmpl.service_label}
 
-    # 5. LLM (apenas se há mais que o Genérico disponível para classificar)
-    snapshots = [t for t in _templates_snapshot(db)
+    # 5. LLM (apenas se há mais que o Genérico disponível para classificar).
+    # Os labels candidatos são só os visíveis à org — vertente privada de
+    # outro workspace nunca é enviada à LLM nem escolhida por ela.
+    snapshots = [t for t in _templates_snapshot(db, organization_id)
                  if normalize_key(t.service_label) != normalize_key("Genérico")]
-    generic = _find_generic(db)
+    generic = _find_generic(db, organization_id)
     query = normalize_key(f"{target_service} {target_segment}".strip())
 
     if query and snapshots:
@@ -273,7 +305,7 @@ async def route_scoring_template(
                 "matched_label": None,
             }
         if route == ROUTE_MATCHED and label:
-            tmpl = _find_exact(db, label)
+            tmpl = _find_exact(db, label, organization_id)
             if tmpl:
                 return {"template": _serialize(tmpl), "route": ROUTE_MATCHED,
                         "matched_label": label}
