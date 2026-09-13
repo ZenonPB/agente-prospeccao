@@ -80,6 +80,9 @@ class OpportunityCommandService:
         self.organization_id = organization_id
         self.member = member
         self.user = user
+        # IDs primitivos sobrevivem a rollback/expire da Session e evitam lazy
+        # load acidental no meio de uma operação de escrita/auditoria.
+        self.user_id = user.id
 
     def _load(self, opportunity_id: Any) -> tuple[LeadOpportunityRow, Lead]:
         opportunity = self.db.query(LeadOpportunityRow).filter(
@@ -112,19 +115,37 @@ class OpportunityCommandService:
         if "owner_user_id" in data:
             self._set_owner(lead, data.get("owner_user_id"), changed)
 
+        # Valida o estado final antes de alterar o ORM. Status e motivo de perda
+        # formam uma única invariável no banco; tratar os dois atomicamente evita
+        # autoflush intermediário que viole ck_leads_lost_reason_required.
+        requested_status = (
+            _enum(LeadStatus, data.get("status"), "status")
+            if "status" in data
+            else lead.status
+        )
+        requested_lost_reason = (
+            _enum(LostReason, data.get("lost_reason"), "lost_reason")
+            if "lost_reason" in data
+            else lead.lost_reason
+        )
+        if requested_status == LeadStatus.PERDIDO and requested_lost_reason is None:
+            raise OpportunityValidation("Informe o motivo da perda")
+
+        # Atribui o motivo antes do status para que qualquer query de auditoria
+        # posterior faça flush de um estado que já satisfaz a constraint.
+        if "lost_reason" in data and lead.lost_reason != requested_lost_reason:
+            lead.lost_reason = requested_lost_reason
+            changed["lost_reason"] = requested_lost_reason.value if requested_lost_reason else None
+
         if "status" in data:
-            new_status = _enum(LeadStatus, data.get("status"), "status")
+            new_status = requested_status
             if new_status is not None and new_status != lead.status:
                 previous = lead.status
-                if new_status == LeadStatus.PERDIDO:
-                    requested_reason = data.get("lost_reason")
-                    if not requested_reason and lead.lost_reason is None:
-                        raise OpportunityValidation("Informe o motivo da perda")
                 lead.status = new_status
                 log_status_change(
                     self.db,
                     lead,
-                    user_id=str(self.user.id),
+                    user_id=str(self.user_id),
                     status_to=new_status,
                     status_from=previous,
                     detail=f"{previous.value if previous else '?'} → {new_status.value}",
@@ -135,7 +156,7 @@ class OpportunityCommandService:
                         self.db,
                         lead,
                         action=semantic,
-                        user_id=str(self.user.id),
+                        user_id=str(self.user_id),
                         status_to=new_status,
                         detail=new_status.value,
                     )
@@ -146,12 +167,6 @@ class OpportunityCommandService:
             if lead.negotiation_stage != value:
                 lead.negotiation_stage = value
                 changed["negotiation_stage"] = value.value if value else None
-
-        if "lost_reason" in data:
-            value = _enum(LostReason, data.get("lost_reason"), "lost_reason")
-            if lead.lost_reason != value:
-                lead.lost_reason = value
-                changed["lost_reason"] = value.value if value else None
 
         if "value" in data:
             raw = data.get("value")
@@ -197,7 +212,7 @@ class OpportunityCommandService:
                 self.db,
                 lead,
                 action=LeadActivityAction.NEGOTIATION_UPDATED,
-                user_id=str(self.user.id),
+                user_id=str(self.user_id),
                 detail="Opportunity 360: " + ", ".join(sorted(non_semantic)),
             )
 
@@ -235,7 +250,7 @@ class OpportunityCommandService:
             self.db,
             lead,
             action=LeadActivityAction.ASSIGNED if owner else LeadActivityAction.UNASSIGNED,
-            user_id=str(self.user.id),
+            user_id=str(self.user_id),
             detail=f"Atribuído a {owner.name}" if owner else "Oportunidade desatribuída",
         )
         changed["owner_user_id"] = str(owner.id) if owner else None
@@ -338,6 +353,24 @@ class OpportunityCommandService:
         return self._task(task, created=False)
 
     @staticmethod
+    def _task(task: CommercialTask, *, created: bool) -> dict[str, Any]:
+        return {
+            "id": str(task.id),
+            "created": created,
+            "lead_id": str(task.lead_id),
+            "owner_user_id": str(task.owner_user_id) if task.owner_user_id else None,
+            "task_type": task.task_type,
+            "title": task.title,
+            "description": task.description,
+            "due_at": task.due_at.isoformat() if task.due_at else None,
+            "status": task.status,
+            "source": task.source,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+            "updated_at": task.updated_at.isoformat() if task.updated_at else None,
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        }
+
+    @staticmethod
     def _result(opportunity: LeadOpportunityRow, lead: Lead, changed: dict[str, Any]) -> dict[str, Any]:
         return {
             "opportunity_id": str(opportunity.id),
@@ -353,20 +386,4 @@ class OpportunityCommandService:
                 "lost_reason": lead.lost_reason.value if lead.lost_reason else None,
                 "notes": lead.notes,
             },
-        }
-
-    @staticmethod
-    def _task(task: CommercialTask, *, created: bool) -> dict[str, Any]:
-        return {
-            "created": created,
-            "id": str(task.id),
-            "lead_id": str(task.lead_id),
-            "owner_user_id": str(task.owner_user_id) if task.owner_user_id else None,
-            "task_type": task.task_type,
-            "title": task.title,
-            "description": task.description,
-            "due_at": task.due_at.isoformat() if task.due_at else None,
-            "status": task.status,
-            "source": task.source,
-            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
         }
