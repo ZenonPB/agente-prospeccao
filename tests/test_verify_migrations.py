@@ -16,7 +16,7 @@ def _module():
 
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
-    assert verify_migrations.migration_head() == "c2d4e6f8a0b1"
+    assert verify_migrations.migration_head() == "d3e4f5a6b7c8"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -59,6 +59,14 @@ def test_crm_certification_tem_evidencia_persistente():
     verify_migrations = _module()
     assert "crm_certification_runs" in verify_migrations.REQUIRED_TABLES
     assert {"provider", "status", "checks", "adapter_version", "tested_by_id", "created_at"} == verify_migrations.REQUIRED_COLUMNS["crm_certification_runs"]
+
+
+def test_feedback_utilidade_tem_tabela_motivo_e_idempotencia():
+    verify_migrations = _module()
+    assert "lead_usefulness_feedbacks" in verify_migrations.REQUIRED_TABLES
+    assert {"useful", "reason", "detail", "campaign_id", "created_at"} == verify_migrations.REQUIRED_COLUMNS["lead_usefulness_feedbacks"]
+    assert verify_migrations.REQUIRED_UNIQUES["lead_usefulness_feedbacks"] == {"uq_lead_usefulness_lead_user"}
+    assert {"ix_lead_usefulness_org_created", "ix_lead_usefulness_lead_id"} <= verify_migrations.REQUIRED_INDEXES
 
 
 def test_engagement_tem_schema_e_integridade_obrigatorios():
