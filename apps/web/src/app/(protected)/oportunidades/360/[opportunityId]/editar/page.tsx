@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useMemo, useState } from 'react';
+import { use, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, Loader2, Plus, Save, UserRound, X } from 'lucide-react';
@@ -22,7 +22,6 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import type { Opportunity360Payload, Opportunity360Patch } from '@/types/opportunity-360';
@@ -39,7 +38,7 @@ const STATUS_OPTIONS = [
 ] as const;
 
 const STAGE_OPTIONS = [
-  ['NONE', 'Sem etapa interna'],
+  ['', 'Sem etapa interna'],
   ['RD', 'RD · Reunião de diagnóstico'],
   ['ORCAMENTO', 'Orçamento'],
   ['RP', 'RP · Reunião de proposta'],
@@ -52,6 +51,9 @@ const LOST_REASON_OPTIONS = [
   ['CONCORRENTE', 'Concorrente'],
   ['OUTRO', 'Outro'],
 ] as const;
+
+const SELECT_CLASS =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
 
 type Member = {
   user_id: string;
@@ -83,22 +85,33 @@ export default function EditOpportunity360Page(props: { params: Promise<{ opport
   const { opportunityId } = use(props.params);
   const query = useOpportunity360(opportunityId);
 
-  if (query.isLoading) {
-    return <EditorSkeleton />;
-  }
+  if (query.isLoading) return <EditorSkeleton />;
 
   if (query.isError || !query.data) {
     return (
       <main className="space-y-6">
-        <Link href="/oportunidades" className="inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Voltar para oportunidades
+        <Link
+          href="/oportunidades"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Voltar para oportunidades
         </Link>
-        <EmptyState title="Não foi possível editar esta oportunidade" description="Ela pode não existir neste workspace ou você pode não ter acesso a ela." />
+        <EmptyState
+          title="Não foi possível editar esta oportunidade"
+          description="Ela pode não existir neste workspace ou você pode não ter acesso a ela."
+        />
       </main>
     );
   }
 
-  return <OpportunityEditor key={`${opportunityId}:${query.data.lead.updated_at ?? ''}`} opportunityId={opportunityId} data={query.data} />;
+  return (
+    <OpportunityEditor
+      key={`${opportunityId}:${query.data.lead.updated_at ?? ''}`}
+      opportunityId={opportunityId}
+      data={query.data}
+    />
+  );
 }
 
 function OpportunityEditor({ opportunityId, data }: { opportunityId: string; data: Opportunity360Payload }) {
@@ -108,14 +121,13 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
   const membershipQ = useOrgMembership();
 
   const [status, setStatus] = useState(data.commercial.status ?? 'NOVO');
-  const [stage, setStage] = useState(data.commercial.negotiation_stage ?? 'NONE');
+  const [stage, setStage] = useState(data.commercial.negotiation_stage ?? '');
   const [lostReason, setLostReason] = useState(data.commercial.lost_reason ?? '');
   const [value, setValue] = useState(data.commercial.value == null ? '' : String(data.commercial.value));
   const [expectedClose, setExpectedClose] = useState(toLocalInput(data.commercial.expected_close_date));
   const [nextActionAt, setNextActionAt] = useState(toLocalInput(data.lead.next_action_at));
   const [notes, setNotes] = useState(data.lead.notes ?? '');
-  const [ownerUserId, setOwnerUserId] = useState(data.owner?.id ?? 'UNASSIGNED');
-
+  const [ownerUserId, setOwnerUserId] = useState(data.owner?.id ?? '');
   const [taskTitle, setTaskTitle] = useState('');
   const [taskDescription, setTaskDescription] = useState('');
   const [taskDueAt, setTaskDueAt] = useState('');
@@ -154,16 +166,14 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
 
     const payload: Opportunity360Patch = {
       status,
-      negotiation_stage: stage === 'NONE' ? null : stage,
+      negotiation_stage: stage || null,
       lost_reason: status === 'PERDIDO' ? lostReason : null,
       value: numericValue,
       expected_close_date: toIsoOrNull(expectedClose),
       next_action_at: toIsoOrNull(nextActionAt),
       notes: notes.trim() || null,
     };
-    if (canManageOwners) {
-      payload.owner_user_id = ownerUserId === 'UNASSIGNED' ? null : ownerUserId;
-    }
+    if (canManageOwners) payload.owner_user_id = ownerUserId || null;
 
     try {
       await updateOpportunity.mutateAsync(payload);
@@ -184,13 +194,14 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
     }
   }
 
-  async function submitTask(event: React.FormEvent<HTMLFormElement>) {
+  async function submitTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = taskTitle.trim();
     if (!title) return;
     const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
     try {
       await createTask.mutateAsync({
         client_request_id: requestId,
@@ -219,8 +230,12 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
 
   return (
     <main className="space-y-6">
-      <Link href={`/oportunidades/360/${opportunityId}`} className="inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Voltar para a visão 360
+      <Link
+        href={`/oportunidades/360/${opportunityId}`}
+        className="inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Voltar para a visão 360
       </Link>
 
       <PageHeader
@@ -246,26 +261,24 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
             <fieldset disabled={!canEdit || updateOpportunity.isPending} className="grid gap-4 sm:grid-cols-2 disabled:opacity-70">
               <div className="space-y-2">
                 <Label htmlFor="opportunity-status">Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger id="opportunity-status" className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{STATUS_OPTIONS.map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
-                </Select>
+                <select id="opportunity-status" className={SELECT_CLASS} value={status} onChange={(event) => setStatus(event.target.value)}>
+                  {STATUS_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="opportunity-stage">Etapa de negociação</Label>
-                <Select value={stage} onValueChange={setStage}>
-                  <SelectTrigger id="opportunity-stage" className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{STAGE_OPTIONS.map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
-                </Select>
+                <select id="opportunity-stage" className={SELECT_CLASS} value={stage} onChange={(event) => setStage(event.target.value)}>
+                  {STAGE_OPTIONS.map(([key, label]) => <option key={key || 'none'} value={key}>{label}</option>)}
+                </select>
               </div>
 
               {status === 'PERDIDO' && (
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="lost-reason">Motivo da perda</Label>
-                  <Select value={lostReason} onValueChange={setLostReason}>
-                    <SelectTrigger id="lost-reason" className="w-full"><SelectValue placeholder="Selecione um motivo" /></SelectTrigger>
-                    <SelectContent>{LOST_REASON_OPTIONS.map(([key, label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <select id="lost-reason" required className={SELECT_CLASS} value={lostReason} onChange={(event) => setLostReason(event.target.value)}>
+                    <option value="">Selecione um motivo</option>
+                    {LOST_REASON_OPTIONS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                  </select>
                 </div>
               )}
 
@@ -285,28 +298,39 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
               {canManageOwners ? (
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="opportunity-owner">Responsável</Label>
-                  <Select value={ownerUserId} onValueChange={setOwnerUserId} disabled={membersQ.isLoading}>
-                    <SelectTrigger id="opportunity-owner" className="w-full"><SelectValue placeholder="Selecione um responsável" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UNASSIGNED">Não atribuído</SelectItem>
-                      {(membersQ.data?.members ?? []).map((member) => (
-                        <SelectItem key={member.user_id} value={member.user_id}>{member.name || member.email || member.user_id}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <select
+                    id="opportunity-owner"
+                    className={SELECT_CLASS}
+                    value={ownerUserId}
+                    disabled={membersQ.isLoading}
+                    onChange={(event) => setOwnerUserId(event.target.value)}
+                  >
+                    <option value="">Não atribuído</option>
+                    {(membersQ.data?.members ?? []).map((member) => (
+                      <option key={member.user_id} value={member.user_id}>{member.name || member.email || member.user_id}</option>
+                    ))}
+                  </select>
                   {membersQ.isError && <p className="text-xs text-destructive">Não foi possível carregar os membros do workspace.</p>}
                 </div>
               ) : !data.owner && currentUserId ? (
                 <div className="sm:col-span-2">
                   <Button type="button" variant="outline" onClick={assignSelf} disabled={updateOpportunity.isPending}>
-                    <UserRound className="h-4 w-4" aria-hidden="true" /> Assumir esta oportunidade
+                    <UserRound className="h-4 w-4" aria-hidden="true" />
+                    Assumir esta oportunidade
                   </Button>
                 </div>
               ) : null}
 
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="opportunity-notes">Notas comerciais</Label>
-                <Textarea id="opportunity-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={10_000} rows={6} placeholder="Contexto útil para o próximo contato, objeções, acordos e próximos passos…" />
+                <Textarea
+                  id="opportunity-notes"
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  maxLength={10_000}
+                  rows={6}
+                  placeholder="Contexto útil para o próximo contato, objeções, acordos e próximos passos…"
+                />
                 <p className="text-right text-xs text-muted-foreground">{notes.length.toLocaleString('pt-BR')} / 10.000</p>
               </div>
             </fieldset>
@@ -344,7 +368,12 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
                     <Textarea id="task-description" value={taskDescription} onChange={(event) => setTaskDescription(event.target.value)} maxLength={4000} rows={3} />
                   </div>
                 </fieldset>
-                {canEdit && <Button type="submit" className="w-full" disabled={createTask.isPending || !taskTitle.trim()}>{createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}Adicionar tarefa</Button>}
+                {canEdit && (
+                  <Button type="submit" className="w-full" disabled={createTask.isPending || !taskTitle.trim()}>
+                    {createTask.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
+                    Adicionar tarefa
+                  </Button>
+                )}
               </form>
             </CardContent>
           </Card>
@@ -365,12 +394,18 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
                         <div className="min-w-0">
                           <p className="font-medium">{task.title}</p>
                           {task.description && <p className="mt-1 text-sm text-muted-foreground">{task.description}</p>}
-                          <p className="mt-2 text-xs text-muted-foreground">{task.due_at ? new Date(task.due_at).toLocaleString('pt-BR') : 'Sem prazo definido'}</p>
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {task.due_at ? new Date(task.due_at).toLocaleString('pt-BR') : 'Sem prazo definido'}
+                          </p>
                         </div>
                         {canEdit && (
                           <div className="flex shrink-0 gap-1" aria-label={`Ações da tarefa ${task.title}`}>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => setTaskStatus(task.id, 'COMPLETED')} disabled={updateTask.isPending} aria-label={`Concluir ${task.title}`} title="Concluir tarefa"><Check className="h-4 w-4" aria-hidden="true" /></Button>
-                            <Button type="button" variant="ghost" size="icon" onClick={() => setTaskStatus(task.id, 'DISMISSED')} disabled={updateTask.isPending} aria-label={`Dispensar ${task.title}`} title="Dispensar tarefa"><X className="h-4 w-4" aria-hidden="true" /></Button>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => setTaskStatus(task.id, 'COMPLETED')} disabled={updateTask.isPending} aria-label={`Concluir ${task.title}`} title="Concluir tarefa">
+                              <Check className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => setTaskStatus(task.id, 'DISMISSED')} disabled={updateTask.isPending} aria-label={`Dispensar ${task.title}`} title="Dispensar tarefa">
+                              <X className="h-4 w-4" aria-hidden="true" />
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -390,8 +425,14 @@ function EditorSkeleton() {
   return (
     <main className="space-y-6" aria-busy="true" aria-label="Carregando editor da oportunidade">
       <Skeleton className="h-10 w-48" />
-      <div className="space-y-2"><Skeleton className="h-5 w-40" /><Skeleton className="h-10 w-2/3" /></div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]"><Skeleton className="h-[620px] rounded-xl" /><Skeleton className="h-[420px] rounded-xl" /></div>
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-10 w-2/3" />
+      </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <Skeleton className="h-[620px] rounded-xl" />
+        <Skeleton className="h-[420px] rounded-xl" />
+      </div>
     </main>
   );
 }
