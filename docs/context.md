@@ -20,13 +20,18 @@ O objetivo do RC é substituir a planilha comercial e operar o ciclo:
 Entregues: data network federada, Company/Person canônicas, entity resolution,
 pre-scoring, enrichment, scoring, OfferMatcher, oportunidades versionadas,
 decisor/contato, Next Best Action, sequences/workflows/tasks, Kanban, CRM sync,
-analytics, feedback, controlled learning, Opportunity 360 read-only.
+analytics, feedback, controlled learning, Opportunity 360 read-only,
+Company 360, Person 360, OfferProfile efetivo tenant-safe no pipeline inteiro e
+Opportunity 360 editável.
 
-Em validação no PR #172:
-- OfferProfile efetivo por workspace aplicado ao pipeline inteiro;
-- Company 360 read-only;
-- Person 360 read-only;
-- ressincronização documental.
+O PR #173 fecha a edição operacional da Opportunity 360:
+- comandos sobre `Lead`/`CommercialTask`, sem estado comercial paralelo;
+- RBAC e isolamento para owner/status/estágio/valor/previsão/próxima ação/notas;
+- status perdido + motivo validados atomicamente antes de flush;
+- criação de tarefa idempotente e segura sob corrida concorrente;
+- editor web acessível, semântico e responsivo;
+- suíte PostgreSQL específica no gate E2E;
+- migration que elimina drift entre o enum de activities do runtime e o PostgreSQL.
 
 ## Invariantes que não podem regredir
 
@@ -68,18 +73,17 @@ Fontes canônicas:
 - CommercialOutcome = resultado atribuído.
 
 Não criar tabelas duplicadas de Proposal/Contract/Note até existir regra de
-domínio e UAT que justifiquem entidade própria.
+domínio e UAT que justifiquem entidade própria. Edição de Opportunity 360 deve
+mutar essas fontes canônicas, não introduzir estado paralelo.
 
 ## Prioridades atuais
 
-1. fechar PR #172 com CI verde;
-2. Opportunity 360 editável reutilizando campos/entidades existentes;
-3. importador histórico seguro da planilha AlphaMec;
-4. Filter Context compartilhado + BI interativo;
-5. coaching e calibração com feedback/outcomes;
-6. Golden Path troféus/eventos/MEJ;
-7. UAT multi-workspace;
-8. campanha real autorizada e hardening final.
+1. importador histórico seguro da planilha AlphaMec;
+2. Filter Context compartilhado + BI interativo;
+3. coaching e calibração com feedback/outcomes;
+4. Golden Path troféus/eventos/MEJ;
+5. UAT multi-workspace;
+6. campanha real autorizada e hardening final.
 
 ## Convenções de implementação
 

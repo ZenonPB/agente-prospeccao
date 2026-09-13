@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowUpRight, ChevronDown, History, Loader2 } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, History, Loader2, SlidersHorizontal } from 'lucide-react';
 import { useLeadOpportunities, useLeadOpportunitiesHistory } from '@/hooks/use-api';
 import { offerProfileLabel, signalLabel, SIGNAL_LABELS } from '@/lib/offers';
 import { cn } from '@/lib/utils';
@@ -108,14 +108,21 @@ function CartaoOferta({ oportunidade }: { oportunidade: LeadOpportunity }) {
         </div>
       )}
       <ResumoPontuacao breakdown={oportunidade.score_breakdown} />
-      <div className="mt-3 border-t pt-3">
+      <div className="mt-3 grid gap-2 border-t pt-3 sm:grid-cols-2">
         <Button
           variant="outline"
-          className="h-11 w-full justify-between sm:h-8"
+          className="h-11 justify-between sm:h-9"
           render={<Link href={`/oportunidades/360/${oportunidade.id}`} />}
         >
-          Ver oportunidade completa
+          Ver 360
           <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+        <Button
+          className="h-11 justify-between sm:h-9"
+          render={<Link href={`/oportunidades/360/${oportunidade.id}/editar`} />}
+        >
+          Gerenciar
+          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
     </article>
