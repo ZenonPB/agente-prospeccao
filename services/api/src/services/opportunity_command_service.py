@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from typing import Any
 import uuid
 
+from sqlalchemy.exc import IntegrityError
+
 from database.engagement_models import CommercialTask
 from src.db.models import (
     Lead,
@@ -300,7 +302,21 @@ class OpportunityCommandService:
             task_metadata={"lead_opportunity_id": str(opportunity_id)},
         )
         self.db.add(task)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError:
+            # O read-before-insert melhora o caminho comum, mas não é suficiente
+            # sob duas requests concorrentes. A UNIQUE(org, idempotency_key) é
+            # a autoridade; o perdedor da corrida reabre a transação e devolve
+            # exatamente a tarefa já criada pelo vencedor.
+            self.db.rollback()
+            existing = self.db.query(CommercialTask).filter(
+                CommercialTask.organization_id == self.organization_id,
+                CommercialTask.idempotency_key == idempotency_key,
+            ).first()
+            if existing is not None:
+                return self._task(existing, created=False)
+            raise
         self.db.refresh(task)
         return self._task(task, created=True)
 
