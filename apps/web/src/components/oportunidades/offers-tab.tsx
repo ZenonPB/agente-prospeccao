@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, History, Loader2 } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, History, Loader2 } from 'lucide-react';
 import { useLeadOpportunities, useLeadOpportunitiesHistory } from '@/hooks/use-api';
 import { offerProfileLabel, signalLabel, SIGNAL_LABELS } from '@/lib/offers';
 import { cn } from '@/lib/utils';
@@ -53,7 +54,7 @@ function CartaoOferta({ oportunidade }: { oportunidade: LeadOpportunity }) {
   const narrativa = oportunidade.narrative;
   const principaisSinais = (oportunidade.signals_matched ?? []).slice(0, 3);
   return (
-    <div className="rounded-lg border p-3">
+    <article className="rounded-lg border p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{offerProfileLabel(oportunidade.offer_key)}</span>
         <Badge>{oportunidade.score} pontos</Badge>
@@ -107,7 +108,17 @@ function CartaoOferta({ oportunidade }: { oportunidade: LeadOpportunity }) {
         </div>
       )}
       <ResumoPontuacao breakdown={oportunidade.score_breakdown} />
-    </div>
+      <div className="mt-3 border-t pt-3">
+        <Button
+          variant="outline"
+          className="h-11 w-full justify-between sm:h-8"
+          render={<Link href={`/oportunidades/360/${oportunidade.id}`} />}
+        >
+          Ver oportunidade completa
+          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
+    </article>
   );
 }
 
