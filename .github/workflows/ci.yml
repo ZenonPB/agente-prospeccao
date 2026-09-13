@@ -160,5 +160,7 @@ jobs:
         run: python -m pytest tests/test_conversion_unique_concurrency.py -q
       - name: Verify Opportunity 360 tenant and performance invariants
         run: python -m pytest tests/test_opportunity_360.py -q -W error
+      - name: Verify Opportunity 360 command and permission invariants
+        run: python -m pytest tests/test_opportunity_commands.py -q -W error
       - name: Verify Company/Person 360 tenant and performance invariants
         run: python -m pytest tests/test_crm_360_entities.py -q -W error
