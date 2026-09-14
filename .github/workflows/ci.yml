@@ -94,6 +94,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
         run: python scripts/verify_sales_operating_schema.py --database-url "$DATABASE_URL"
+      - name: Verify Block D production readiness contract
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+        run: python scripts/verify_block_d_readiness.py --database-url "$DATABASE_URL"
       - name: Seed templates (smoke)
         working-directory: services/workers
         env: *migration-env
