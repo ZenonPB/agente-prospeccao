@@ -103,7 +103,7 @@ def _execute_same_bulk(scenario, key: str):
 
 
 def test_bulk_mesma_chave_concorrente_produz_um_unico_efeito(bulk_scenario):
-    from database.models import CommercialBulkOperation, Lead, LeadActivity, LeadStatus
+    from database.models import CommercialBulkOperation, Lead, LeadActivity, LeadActivityAction, LeadStatus
 
     key = f"bulk-e2e-{uuid.uuid4()}"
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -120,8 +120,13 @@ def test_bulk_mesma_chave_concorrente_produz_um_unico_efeito(bulk_scenario):
         ).count() == 1
         lead = db.query(Lead).filter(Lead.id == bulk_scenario["lead_id"]).one()
         assert lead.status == LeadStatus.CONTATADO
-        # A transição comercial também deve existir uma única vez.
-        assert db.query(LeadActivity).filter(LeadActivity.lead_id == lead.id).count() == 1
+        # CONTATADO gera duas atividades canônicas (mudança + semântica), mas
+        # cada uma deve existir uma única vez apesar das duas requests.
+        activities = db.query(LeadActivity).filter(LeadActivity.lead_id == lead.id).all()
+        assert len(activities) == 2
+        actions = [item.action for item in activities]
+        assert actions.count(LeadActivityAction.STATUS_CHANGED) == 1
+        assert len(set(actions)) == 2
     finally:
         db.close()
 
