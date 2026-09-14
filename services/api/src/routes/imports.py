@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -57,13 +57,18 @@ def upload_import(
     request: Request,
     file: UploadFile = File(...),
     campaign_id: str | None = Query(default=None),
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Valida e cria um preview; não cria entidades comerciais."""
+    """Valida e cria um preview sem efeitos comerciais.
+
+    O preview é deliberadamente descartável e pode ser repetido; a fronteira
+    idempotente do import é a confirmação, onde a chave passa a ser persistida
+    e protegida por UNIQUE por workspace. Isso evita prometer idempotência de
+    upload enquanto o usuário ainda pode trocar mapping/dry-run.
+    """
     content = file.file.read(MAX_FILE_BYTES + 1)
     if len(content) > MAX_FILE_BYTES:
         _raise(ImportJobError("FILE_TOO_LARGE", "O arquivo excede o limite de 25 MiB.", 413))
@@ -76,7 +81,7 @@ def upload_import(
             filename=file.filename,
             content_type=file.content_type,
             campaign_id=campaign_id,
-            idempotency_key=idempotency_key,
+            idempotency_key=None,
             correlation_id=request.headers.get("X-Request-ID"),
             member=_member,
         )
