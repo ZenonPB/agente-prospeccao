@@ -17,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
 from src.middleware.rate_limit import limiter
 from src.middleware.correlation import CorrelationIdMiddleware
-from src.routes import leads, opportunities, crm_entities, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, lead_usefulness, intelligence, search, data_intelligence, engagement, imports
+from src.routes import leads, opportunities, crm_entities, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, lead_usefulness, intelligence, search, data_intelligence, engagement, imports, provider_diagnostics
 from src.routes.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
@@ -219,7 +219,7 @@ _is_prod = settings.ENVIRONMENT == "production"
 app = FastAPI(
     title="Prospect.ai API",
     description="Plataforma de inteligência comercial e prospecção B2B",
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
     docs_url=None if _is_prod else "/docs",
     redoc_url=None if _is_prod else "/redoc",
@@ -296,6 +296,7 @@ app.include_router(metrics.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
 app.include_router(scoring_templates.router, prefix="/api")
 app.include_router(orgs.router, prefix="/api")
+app.include_router(provider_diagnostics.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")
@@ -307,7 +308,7 @@ app.include_router(tracking.router)
 
 @app.get("/")
 def root():
-    return {"message": "Prospect.ai API"}
+    return {"message": "Prospect.ai API", "version": "1.0.0"}
 
 
 @app.get("/health")
@@ -324,4 +325,4 @@ def health():
         logger.exception("Healthcheck falhou ao pingar o banco")
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=503, content={"status": "error", "database": "unreachable"})
-    return {"status": "ok", "database": "ok"}
+    return {"status": "ok", "database": "ok", "version": "1.0.0"}
