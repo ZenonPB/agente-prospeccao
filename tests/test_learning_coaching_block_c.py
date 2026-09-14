@@ -147,7 +147,7 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
         assert candidate["version"] == candidate_version
         assert suggested["changes"]
         replay = calibration.replay("landing_page", candidate, min_samples=12, top_k=6)
-        assert replay["verdict"] == "v2"
+        assert replay["verdict"] == "v2", replay
         assert replay["version_a"] == baseline_version
         assert replay["version_b"] == candidate_version
         assert replay["v2"]["win_precision"] > replay["v1"]["win_precision"]
