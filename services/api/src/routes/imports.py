@@ -51,6 +51,32 @@ def _assert_job_scope(job: Any, user: User, member: OrganizationMember) -> None:
         raise HTTPException(status_code=404, detail="Importação não encontrada")
 
 
+def _confirmed_replay(
+    db: Session,
+    org_id: Any,
+    import_id: str,
+    body: ConfirmRequest,
+    user: User,
+    member: OrganizationMember,
+):
+    """Reconhece retry idempotente após uma corrida de confirmação.
+
+    ``confirm`` protege a escrita com lock/versionamento. Se outra request vencer
+    a corrida, esta request pode carregar uma versão antiga. Depois do rollback
+    relemos o job e só aceitamos replay quando chave *e* mapping são exatamente
+    os já persistidos, evitando transformar VERSION_CONFLICT real em sucesso.
+    """
+    current = get_job(db, org_id, import_id)
+    _assert_job_scope(current, user, member)
+    if (
+        current.idempotency_key == body.idempotency_key
+        and current.mapping_version == body.mapping_version
+        and current.status.value in {"QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "CANCEL_REQUESTED", "CANCELLED"}
+    ):
+        return current
+    return None
+
+
 @router.post("", status_code=201)
 @limiter.limit("10/minute")
 def upload_import(
@@ -158,6 +184,14 @@ def confirm_import(
         )
         return serialize_job(job, include_preview=False)
     except ImportJobError as error:
+        if error.code in {"VERSION_CONFLICT", "IDEMPOTENCY_CONFLICT"}:
+            db.rollback()
+            try:
+                replay = _confirmed_replay(db, _org.id, import_id, body, user, _member)
+            except ImportJobError:
+                replay = None
+            if replay is not None:
+                return serialize_job(replay, include_preview=False)
         _raise(error)
 
 
