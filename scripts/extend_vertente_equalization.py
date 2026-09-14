@@ -7,3 +7,16 @@ insert = '''    _enhance(\n        registry,\n        "3d_printing",\n        ic
 assert text.count(marker) == 1
 text = text.replace(marker, insert + marker, 1)
 path.write_text(text)
+
+page = Path('apps/web/src/app/(protected)/configuracoes/vertentes/page.tsx')
+text = page.read_text()
+old = "import { useMemo, useState } from 'react';\n"
+new = "import { useMemo, useState } from 'react';\nimport Link from 'next/link';\n"
+assert text.count(old) == 1
+text = text.replace(old, new, 1)
+
+old = '''      <PageHeader\n        eyebrow="Estratégia comercial"\n        title="Vertentes"\n        description="Cada vertente reúne, em um só lugar, quem procurar, onde encontrar, quais sinais observar e como qualificar uma oportunidade."\n      />'''
+new = '''      <PageHeader\n        eyebrow="Estratégia comercial"\n        title="Vertentes"\n        description="Cada vertente reúne, em um só lugar, quem procurar, onde encontrar, quais sinais observar e como qualificar uma oportunidade."\n        actions={\n          <Button variant="outline" render={<Link href="/configuracoes/vertentes/criterios" />}>\n            Critérios personalizados\n          </Button>\n        }\n      />'''
+assert text.count(old) == 1
+text = text.replace(old, new, 1)
+page.write_text(text)
