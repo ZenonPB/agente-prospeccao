@@ -226,7 +226,10 @@ class OfferProfileResolver:
                 score = len(needle_tokens & profile_tokens)
                 if score > best_score:
                     best, best_score = profile, score
-            if best is not None:
+            # Um único token compartilhado (ex.: "manutenção") é ambíguo
+            # demais para escolher uma Vertente automaticamente. Nomes/taglines
+            # exatos já foram tratados acima; o fuzzy exige duas evidências.
+            if best is not None and best_score >= 2:
                 return _ResolvedOffer(best, "vertical")
 
         return self.resolve(

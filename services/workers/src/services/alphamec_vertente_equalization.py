@@ -374,8 +374,11 @@ def equalize_alphamec_vertentes(registry: OfferProfileRegistry) -> OfferProfileR
     _set_signal_roles(
         registry,
         "mechanical_project",
-        positive=["HAS_PRODUCTION_LINE", "CUSTOM_MACHINERY", "AUTOMATION", "EXPANDING_FACTORY", "NEW_EQUIPMENT", "HIRING_MECHANICAL_ENGINEER"],
-        optional_positive=["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+        positive=["HAS_PRODUCTION_LINE", "EXPANDING_FACTORY", "NEW_EQUIPMENT"],
+        optional_positive=[
+            "CUSTOM_MACHINERY", "AUTOMATION", "HIRING_MECHANICAL_ENGINEER",
+            "HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE",
+        ],
         negative=["RETAIL_FOCUSED", "SERVICE_ONLY"],
     )
     _set_signal_roles(
