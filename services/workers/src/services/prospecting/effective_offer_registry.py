@@ -46,3 +46,24 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
 
 def get_effective_profile(db: Any, organization_id: Any, offer_key: str) -> OfferProfile | None:
     return build_effective_registry(db, organization_id).get(offer_key)
+
+
+#: Provider de discovery que caracteriza prospecção baseada em eventos.
+#: Uma oferta suporta Event Discovery quando o declara nos providers da
+#: estratégia de discovery do perfil efetivo (base ou publicado).
+EVENT_DISCOVERY_PROVIDER = "event_search"
+
+
+def offer_supports_event_discovery(db: Any, organization_id: Any, offer_key: Any) -> bool:
+    """Diz se a oferta efetiva do workspace suporta prospecção por eventos.
+
+    Sem chave, perfil inexistente ou sem `event_search` nos providers →
+    False (a UI omite a ação de eventos em vez de sugerir algo sem sentido).
+    """
+    if not offer_key or not isinstance(offer_key, str):
+        return False
+    profile = get_effective_profile(db, organization_id, offer_key)
+    if profile is None:
+        return False
+    providers = (profile.discovery or {}).get("providers") or []
+    return EVENT_DISCOVERY_PROVIDER in providers
