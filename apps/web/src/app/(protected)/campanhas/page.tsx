@@ -7,9 +7,9 @@ export default function CampanhasPage() {
     <div className="space-y-6">
       <div data-tour="campanhas-header">
         <PageHeader
-          eyebrow="Operação"
-          title="Campanhas"
-          description="Crie buscas de prospecção e colete oportunidades automaticamente"
+          eyebrow="Prospecção"
+          title="Encontrar novos clientes"
+          description="Crie uma busca para encontrar empresas que combinam com o que sua equipe vende. O sistema pesquisa, analisa e organiza os melhores candidatos para revisão."
           actions={<CrmPlanilhaModal />}
         />
       </div>

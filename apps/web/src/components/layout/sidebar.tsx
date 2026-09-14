@@ -44,18 +44,18 @@ const navGroups: NavGroup[] = [
     label: 'Prospecção e vendas',
     items: [
       { name: 'Minha carteira', href: '/crm', icon: BriefcaseBusiness, exact: true },
-      { name: 'Buscar clientes', href: '/campanhas', icon: Megaphone },
-      { name: 'Busca rápida', href: '/buscar', icon: SearchIcon },
-      { name: 'Leads qualificados', href: '/oportunidades', icon: Target },
-      { name: 'Follow-ups', href: '/sequences', icon: Route },
-      { name: 'Funil de vendas', href: '/vendas', icon: DollarSign },
+      { name: 'Encontrar novos clientes', href: '/campanhas', icon: Megaphone },
+      { name: 'Pesquisar na base', href: '/buscar', icon: SearchIcon },
+      { name: 'Oportunidades', href: '/oportunidades', icon: Target },
+      { name: 'Próximos contatos', href: '/sequences', icon: Route },
+      { name: 'Negociações', href: '/vendas', icon: DollarSign },
     ],
   },
   {
-    label: 'Resultados e melhoria',
+    label: 'Análise e melhoria',
     items: [
-      { name: 'Sinais e oportunidades', href: '/monitoramento', icon: Radar, analystOnly: true },
-      { name: 'Melhorias da IA', href: '/inteligencia-comercial', icon: TrendingUp, analystOnly: true },
+      { name: 'Monitorar oportunidades', href: '/monitoramento', icon: Radar, analystOnly: true },
+      { name: 'O que está funcionando', href: '/inteligencia-comercial', icon: TrendingUp, analystOnly: true },
       { name: 'Resultados', href: '/relatorios', icon: BarChart3, analystOnly: true },
       { name: 'Qualidade dos dados', href: '/data-health', icon: DatabaseZap, analystOnly: true },
     ],
@@ -63,7 +63,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Administração',
     items: [
-      { name: 'O que vendemos', href: '/configuracoes/vertentes', icon: Layers },
+      { name: 'Serviços e soluções', href: '/configuracoes/vertentes', icon: Layers },
       { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
       { name: 'Integrações', href: '/integracoes', icon: PlugZap, analystOnly: true },
       { name: 'Configurações', href: '/configuracoes', icon: Settings, exact: true },

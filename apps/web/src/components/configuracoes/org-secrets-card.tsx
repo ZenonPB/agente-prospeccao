@@ -165,7 +165,7 @@ export function OrgSecretsCard() {
       <Card data-tour="configuracoes-chaves">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><KeyRound className="h-5 w-5" />Conexões de busca e IA</CardTitle>
-          <CardDescription>Seu administrador cuida destas conexões. Você não precisa configurar nada para usar a carteira.</CardDescription>
+          <CardDescription>Seu administrador cuida destas conexões. Você não precisa configurar nada para começar a usar.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2 rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
@@ -258,7 +258,7 @@ export function OrgSecretsCard() {
                       <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>Remover a conexão própria de {key.label}?</AlertDialogTitle>
-                          <AlertDialogDescription>O workspace voltará a usar a configuração compartilhada, quando ela existir.</AlertDialogDescription>
+                          <AlertDialogDescription>A organização voltará a usar a configuração compartilhada, quando ela existir.</AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>

@@ -6,10 +6,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
-  Play, CheckCircle, XCircle, Loader2,
-  ExternalLink, Sparkles, RefreshCw, WifiOff,
+  Play, CheckCircle, XCircle, Loader2, ChevronDown,
+  ExternalLink, Sparkles, WifiOff,
 } from 'lucide-react';
 import { useStartPipeline, useReanalyzeCampaign, usePipelineJobs, useInvalidateJobs, useDiscoverEvents } from '@/hooks/use-api';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useReconnectableWs } from '@/hooks/use-reconnectable-ws';
 import { createPipelineWsUrl, getPipelineAuthPayload } from '@/lib/api';
@@ -17,6 +33,11 @@ import { toast } from 'sonner';
 
 // Mantém o DOM/renders finitos mesmo em rodadas longas (anti-congelamento).
 const MAX_LOG_LINES = 150;
+
+const STEP_LABELS: Record<string, string> = {
+  coleta: 'Procurando empresas',
+  analise: 'Analisando candidatos',
+};
 
 interface PipelineEvent {
   type: string;
@@ -40,26 +61,36 @@ interface PipelineEvent {
 
 interface CampaignPipelineProps {
   campaignId: string;
-  campaignName: string;
   autoStart?: boolean;
   hasExistingLeads?: boolean;
+  /** Verdadeiro quando a oferta efetiva declara prospecção por eventos. */
+  supportsEventDiscovery?: boolean;
+  /** Quantidade atual de clientes (para contextualizar ações secundárias). */
+  leadCount?: number;
+  /** Trecho que descreve o alvo, ex.: "clínicas de psicologia em Araraquara". */
+  targetDescription?: string;
 }
+
+type PipelineMode = 'collect' | 'events' | 'reanalyze' | 'reanalyze-unscored';
 
 export function CampaignPipeline({
   campaignId,
-  campaignName,
   autoStart,
   hasExistingLeads,
+  supportsEventDiscovery,
+  leadCount,
+  targetDescription,
 }: CampaignPipelineProps) {
   const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
-  const [mode, setMode] = useState<'collect' | 'reanalyze' | 'reanalyze-unscored'>('collect');
+  const [mode, setMode] = useState<PipelineMode>('collect');
   const [events, setEvents] = useState<PipelineEvent[]>([]);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [summary, setSummary] = useState<PipelineEvent['summary'] | null>(null);
   const [hasStarted, setHasStarted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [confirmReanalyze, setConfirmReanalyze] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const autoStartTriggeredRef = useRef(false);
   const startPipeline = useStartPipeline();
@@ -94,13 +125,13 @@ export function CampaignPipeline({
 
       if (event.type === 'error') {
         setIsRunning(false);
-        setErrorMessage(event.message || 'Erro durante o pipeline');
+        setErrorMessage(event.message || 'Não foi possível concluir. Tente novamente.');
         invalidateJobs();
       }
     },
     onOpen: () => {
       if (reconnectCount > 0) {
-        toast.success('Reconectado ao pipeline');
+        toast.success('Conexão restabelecida');
       }
     },
     onClose: () => {
@@ -131,7 +162,7 @@ export function CampaignPipeline({
     }
   }, [activeJobId, connect, wsRef]);
 
-  const handleStart = useCallback(async (startMode: 'collect' | 'reanalyze' | 'reanalyze-unscored' = 'collect') => {
+  const handleStart = useCallback(async (startMode: PipelineMode = 'collect') => {
     setHasStarted(true);
     setIsRunning(true);
     setMode(startMode);
@@ -188,7 +219,7 @@ export function CampaignPipeline({
   const handleDiscoverEvents = useCallback(async () => {
     setHasStarted(true);
     setIsRunning(true);
-    setMode('collect');
+    setMode('events');
     setEvents([]);
     setProgress(0);
     setErrorMessage(null);
@@ -215,61 +246,89 @@ export function CampaignPipeline({
                 <Sparkles className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Pronto para coletar leads</h3>
-                <p className="text-sm text-muted-foreground">
-                  Inicie a coleta de leads para &ldquo;{campaignName}&rdquo;
+                <h3 className="text-lg font-semibold">Pronto para encontrar clientes</h3>
+                <p className="mx-auto mt-1 max-w-xl text-sm text-muted-foreground">
+                  {targetDescription
+                    ? `O sistema vai procurar ${targetDescription} que combinam com os critérios desta busca.`
+                    : 'O sistema vai procurar empresas que combinam com os critérios desta busca.'}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2 justify-center">
+              <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button size="lg" onClick={() => handleStart('collect')} disabled={startPipeline.isPending || reanalyzeCampaign.isPending}>
                   {startPipeline.isPending ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   ) : (
                     <Play className="mr-2 h-5 w-5" />
                   )}
-                  Iniciar Coleta
-                </Button>
-                <Button size="lg" variant="outline" onClick={handleDiscoverEvents} disabled={discoverEvents.isPending || startPipeline.isPending || reanalyzeCampaign.isPending}>
-                  {discoverEvents.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
-                  Descobrir eventos
+                  {hasExistingLeads ? 'Encontrar mais clientes' : 'Encontrar clientes'}
                 </Button>
                 {hasExistingLeads && (
-                  <>
-                    <Button
-                      size="lg"
-                      variant="outline"
-                      onClick={() => handleStart('reanalyze')}
-                      disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
-                      title="Reavalia todos os clientes desta campanha usando as regras mais recentes"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button size="lg" variant="outline" disabled={startPipeline.isPending || reanalyzeCampaign.isPending} aria-label="Mais ações" />
+                      }
                     >
-                      {reanalyzeCampaign.isPending ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="mr-2 h-5 w-5" />
-                      )}
-                      Reavaliar todos os clientes
-                    </Button>
-                    <Button
-                      size="lg"
-                      variant="secondary"
-                      onClick={() => handleStart('reanalyze-unscored')}
-                      disabled={startPipeline.isPending || reanalyzeCampaign.isPending}
-                      title="Avalia apenas os clientes que ainda não possuem pontuação — sem gastar seu limite com clientes já analisados"
-                    >
-                      {reanalyzeCampaign.isPending ? (
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      ) : (
-                        <RefreshCw className="mr-2 h-5 w-5" />
-                      )}
-                      Avaliar apenas pendentes
-                    </Button>
-                  </>
+                      Mais ações
+                      <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" className="w-80">
+                      <DropdownMenuItem
+                        className="flex-col items-start gap-1 py-2.5"
+                        onClick={() => setConfirmReanalyze(true)}
+                      >
+                        <span className="font-medium">Atualizar análise dos clientes</span>
+                        <span className="text-xs text-muted-foreground">
+                          Refaz a análise usando os critérios atuais desta campanha.
+                        </span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex-col items-start gap-1 py-2.5"
+                        onClick={() => handleStart('reanalyze-unscored')}
+                      >
+                        <span className="font-medium">Analisar clientes ainda não avaliados</span>
+                        <span className="text-xs text-muted-foreground">
+                          Analisa somente clientes que ainda não possuem avaliação.
+                        </span>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
               </div>
+              {supportsEventDiscovery && (
+                <div className="w-full max-w-xl rounded-lg border bg-muted/30 p-4 text-left">
+                  <Button variant="outline" onClick={handleDiscoverEvents} disabled={discoverEvents.isPending || startPipeline.isPending || reanalyzeCampaign.isPending}>
+                    {discoverEvents.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                    Encontrar oportunidades em eventos
+                  </Button>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Procura eventos futuros e identifica seus organizadores como possíveis clientes.
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
+
+      <AlertDialog open={confirmReanalyze} onOpenChange={setConfirmReanalyze}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Atualizar análise dos clientes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {leadCount
+                ? `Esta ação refaz a análise dos ${leadCount} clientes desta campanha. Pode levar alguns minutos.`
+                : 'Esta ação refaz a análise de todos os clientes desta campanha. Pode levar alguns minutos.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setConfirmReanalyze(false); void handleStart('reanalyze'); }}>
+              Atualizar análise
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {errorMessage && !isRunning && (
         <Card className="border-red-200 bg-red-50/50">
@@ -304,8 +363,8 @@ export function CampaignPipeline({
             <div className="flex items-center gap-2 text-sm">
               <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
               <span>
-                Há uma coleta/análise em andamento para esta campanha. Você pode sair desta
-                tela — o job continua em segundo plano e o resumo aparecerá aqui.
+                Há uma busca em andamento para esta campanha. Você pode sair desta
+                tela — o processo continua em segundo plano e o resumo aparecerá aqui.
               </span>
             </div>
           </CardContent>
@@ -319,7 +378,11 @@ export function CampaignPipeline({
               <div className="flex items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
                 <CardTitle>
-                  {mode === 'reanalyze' || mode === 'reanalyze-unscored' ? 'Reanalisando leads...' : 'Coletando leads...'}
+                  {mode === 'reanalyze' || mode === 'reanalyze-unscored'
+                    ? 'Atualizando análises...'
+                    : mode === 'events'
+                      ? 'Procurando eventos...'
+                      : 'Procurando clientes...'}
                 </CardTitle>
               </div>
               <Button variant="outline" size="sm" onClick={handleStop}>
@@ -331,11 +394,14 @@ export function CampaignPipeline({
           <CardContent>
             <div className="mb-2 flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {currentStep ? `Etapa: ${currentStep}` : 'Iniciando...'}
+                {STEP_LABELS[currentStep] ?? 'Começando...'}
               </span>
               <span className="font-medium">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-2" />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Você pode sair desta página; o processo continua em segundo plano.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -346,37 +412,47 @@ export function CampaignPipeline({
             <div className="flex items-center gap-2 mb-4">
               <CheckCircle className="h-6 w-6 text-emerald-600" />
               <h3 className="text-lg font-semibold text-emerald-800">
-                {mode === 'reanalyze' || mode === 'reanalyze-unscored' ? 'Reanálise finalizada' : 'Coleta finalizada'}
+                {mode === 'reanalyze' || mode === 'reanalyze-unscored'
+                  ? 'Análise atualizada'
+                  : mode === 'events'
+                    ? 'Busca de eventos finalizada'
+                    : 'Busca finalizada'}
               </h3>
             </div>
             <div className="grid grid-cols-2 gap-4 text-center mb-2 sm:grid-cols-4">
               <div className="rounded-lg bg-white p-3 shadow-sm">
                 <div className="text-2xl font-bold">{restoredSummary.collected}</div>
-                <div className="text-sm text-muted-foreground">Coletados</div>
+                <div className="text-sm text-muted-foreground">Encontrados</div>
               </div>
               <div className="rounded-lg bg-white p-3 shadow-sm">
                 <div className="text-2xl font-bold">{restoredSummary.scored}</div>
-                <div className="text-sm text-muted-foreground">Pontuados</div>
+                <div className="text-sm text-muted-foreground">Analisados</div>
               </div>
               <div className="rounded-lg bg-white p-3 shadow-sm">
                 <div className="text-2xl font-bold text-emerald-600">{restoredSummary.qualified}</div>
-                <div className="text-sm text-muted-foreground">Qualificados</div>
+                <div className="text-sm text-muted-foreground">Boas oportunidades</div>
               </div>
               <div className="rounded-lg bg-white p-3 shadow-sm">
                 <div className={`text-2xl font-bold ${restoredSummary.failed > 0 ? 'text-amber-600' : ''}`}>
                   {restoredSummary.failed}
                 </div>
-                <div className="text-sm text-muted-foreground">Falhas</div>
+                <div className="text-sm text-muted-foreground">Não foi possível analisar</div>
               </div>
+              {mode === 'events' && restoredSummary.events_found !== undefined && (
+                <div className="rounded-lg bg-white p-3 shadow-sm">
+                  <div className="text-2xl font-bold text-emerald-600">{restoredSummary.events_found}</div>
+                  <div className="text-sm text-muted-foreground">Eventos futuros</div>
+                </div>
+              )}
             </div>
             {restoredSummary.failed > 0 && (
               <p className="text-xs text-amber-700 mb-2">
-                Leads não pontuados (falha do provedor) voltam à fila automaticamente no próximo job.
+                Clientes não analisados voltam à fila automaticamente na próxima busca.
               </p>
             )}
             {mode !== 'reanalyze' && (restoredSummary.queue_remaining ?? 0) > 0 && (
               <p className="text-xs text-sky-700 mb-2">
-                {restoredSummary.queue_remaining} leads coletados ainda aguardam pontuação — rode «Coletar» de novo para analisá-los.
+                {restoredSummary.queue_remaining} clientes encontrados ainda aguardam análise — use Encontrar clientes de novo para analisá-los.
               </p>
             )}
             <Button onClick={() => router.push('/oportunidades')}>
@@ -390,7 +466,7 @@ export function CampaignPipeline({
       {(isRunning || events.length > 0) && (
         <Card>
           <CardHeader>
-            <CardTitle>Atividade em Tempo Real</CardTitle>
+            <CardTitle>Andamento</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[400px] overflow-y-auto rounded-lg bg-muted/50 p-4 font-mono text-sm">
@@ -407,14 +483,13 @@ export function CampaignPipeline({
                     return null;
                   }
                   if (event.type === 'lead') {
-                    if (event.score == null) {
-                      return (
-                        <p key={i}>
-                          <span className="text-red-400">→</span> {event.name} — não pontuado
-                          (falha do provedor)
-                        </p>
-                      );
-                    }
+                      if (event.score == null) {
+                        return (
+                          <p key={i}>
+                            <span className="text-red-400">→</span> {event.name} — não foi possível analisar
+                          </p>
+                        );
+                      }
                     const scoreColor = event.score >= 60 ? 'text-emerald-500' : 'text-amber-500';
                     return (
                       <p key={i}>

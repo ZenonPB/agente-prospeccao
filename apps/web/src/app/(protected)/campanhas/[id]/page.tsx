@@ -70,6 +70,14 @@ export default function CampaignDetailPage() {
 
   const leads = leadsData?.leads || [];
 
+  const targetParts = [
+    campaign.target_segment || campaign.target_service || '',
+    [campaign.target_city, campaign.target_state].filter(Boolean).join(', '),
+  ].filter(Boolean);
+  const targetDescription = targetParts.length > 1
+    ? `${targetParts[0]} em ${targetParts[1]}`
+    : targetParts[0] || undefined;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -108,9 +116,11 @@ export default function CampaignDetailPage() {
 
       <CampaignPipeline
         campaignId={campaign.id}
-        campaignName={campaign.name}
         autoStart={autoStart}
         hasExistingLeads={leads.length > 0}
+        supportsEventDiscovery={campaign.supports_event_discovery === true}
+        leadCount={leads.length}
+        targetDescription={targetDescription}
       />
 
       <LearningPanel campaignId={campaign.id} />

@@ -8,7 +8,7 @@ export default function InteligenciaComercialPage() {
       <PageHeader
         eyebrow="Inteligência"
         title="O que está funcionando nas vendas"
-        description="Entenda quais sinais, fontes e segmentos geram avanço comercial, calibre ofertas com replay histórico e acompanhe coaching baseado em evidência sem transformar correlação em causalidade."
+        description="Descubra quais tipos de empresa, abordagens e sinais têm gerado melhores resultados e use esses dados para melhorar as próximas prospecções."
       />
       <CommercialIntelligenceDashboard />
       <LearningCoachingPanel />

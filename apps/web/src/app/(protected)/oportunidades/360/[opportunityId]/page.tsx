@@ -83,7 +83,7 @@ export default function Opportunity360Page(props: { params: Promise<{ opportunit
         <Link href="/oportunidades" className="inline-flex min-h-11 items-center gap-2 rounded-md px-1 text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Voltar para oportunidades
         </Link>
-        <EmptyState title="Não foi possível abrir esta oportunidade" description="Ela pode não existir neste workspace ou você pode não ter acesso a ela." />
+        <EmptyState title="Não foi possível abrir esta oportunidade" description="Ela pode não estar nesta base ou você pode não ter acesso a ela." />
       </div>
     );
   }

@@ -91,7 +91,7 @@ export function CompanySearchPanel({ interpretedFilters }: { interpretedFilters?
             <Field id="company-query" label="Empresa ou termo" value={query} onChange={setQuery} placeholder="Nome, segmento ou domínio" />
             <Field id="company-location" label="Localização" value={locations} onChange={setLocations} placeholder="Araraquara, SP" />
             <Field id="company-industry" label="Segmentos" value={industries} onChange={setIndustries} placeholder="Metalúrgica, clínica" />
-            <Field id="company-cnae" label="CNAE" value={cnaes} onChange={setCnaes} placeholder="Um ou mais códigos, separados por vírgula" />
+            <Field id="company-cnae" label="CNAE (ramo de atividade)" value={cnaes} onChange={setCnaes} placeholder="Ex.: 28.69-1-00, separados por vírgula" />
             <Field id="company-tech" label="Tecnologias utilizadas" value={technologies} onChange={setTechnologies} placeholder="TOTVS, WordPress" />
             <div className="grid grid-cols-2 gap-3">
               <Field id="employees-min" label="Mín. funcionários" value={employeeMin} onChange={setEmployeeMin} type="number" />

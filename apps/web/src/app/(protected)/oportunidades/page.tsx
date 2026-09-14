@@ -8,7 +8,7 @@ export default function OportunidadesPage() {
         <PageHeader
           eyebrow="Operação"
           title="Oportunidades"
-          description="Leads qualificados e prontos para contato"
+          description="Empresas que passaram pela análise do sistema e parecem valer uma abordagem. Revise os motivos antes de entrar em contato."
         />
       </div>
 

@@ -148,7 +148,7 @@ export function ProspectingRadar() {
     try {
       const result = await runWatch.mutateAsync();
       if (result.status === 'disabled') {
-        toast.info('Monitoramento externo desativado neste workspace. Nenhuma fonte externa foi consultada.');
+          toast.info('Monitoramento externo desativado nesta base. Nenhuma fonte externa foi consultada.');
         return;
       }
       toast.success(`Monitoramento concluído: ${result.processed} lead(s), ${result.changed} alteração(ões).`);
@@ -210,7 +210,7 @@ export function ProspectingRadar() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Resumo do radar">
         <Card>
           <CardHeader className="pb-2"><CardDescription>Buscas salvas</CardDescription><CardTitle className="text-3xl">{saved.data?.items.length ?? 0}</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">Critérios reutilizáveis e isolados por workspace.</CardContent>
+          <CardContent className="text-sm text-muted-foreground">Critérios reutilizáveis e isolados por organização.</CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Alertas novos</CardDescription><CardTitle className="text-3xl">{unreadAlerts}</CardTitle></CardHeader>
@@ -337,7 +337,7 @@ export function ProspectingRadar() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Radar className="size-5" aria-hidden="true" />Atualização por fontes externas</CardTitle><CardDescription>Consulta manual protegida pelas permissões e limites configurados para este workspace.</CardDescription></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Radar className="size-5" aria-hidden="true" />Atualização por fontes externas</CardTitle><CardDescription>Consulta manual protegida pelas permissões e limites configurados para esta organização.</CardDescription></CardHeader>
           <CardContent className="space-y-4"><div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">Vagas, notícias e sinais sociais só são consultados quando a fonte estiver habilitada e houver cota disponível.</div><Button onClick={() => void executeWatch()} disabled={runWatch.isPending}>{runWatch.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Radar className="size-4" aria-hidden="true" />}Atualizar sinais agora</Button></CardContent>
         </Card>
       </section>

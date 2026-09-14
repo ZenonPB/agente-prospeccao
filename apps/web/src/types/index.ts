@@ -503,6 +503,7 @@ export interface Campaign {
   search_queries?: string[] | null;
   scoring_template_id?: string | null;
   offer_profile_key?: string | null;
+  supports_event_discovery?: boolean | null;
   status: CampaignStatus;
   lead_count?: number;
   avg_score?: number;

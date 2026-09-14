@@ -1200,6 +1200,7 @@ export interface PipelineJob {
     failed: number;
     total_processed: number;
     queue_remaining?: number;
+    events_found?: number;
   } | null;
 }
 

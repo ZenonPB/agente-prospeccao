@@ -88,7 +88,7 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
 
       setActiveOrganizationId(orgId);
       setOpen(false);
-      toast.success(`Workspace alterado para ${selected.name}.`);
+      toast.success(`Organização alterada para ${selected.name}.`);
       router.refresh();
     },
     [activeOrg?.id, organizations, router],
@@ -123,7 +123,7 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
         size="icon"
         className="ml-auto h-6 w-6"
         onClick={() => setCreateOpen(true)}
-        aria-label="Criar novo workspace"
+          aria-label="Criar nova organização"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
       </Button>
@@ -163,7 +163,7 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
             <Command>
               <CommandList>
                 <CommandEmpty>Nenhuma organização encontrada.</CommandEmpty>
-                <CommandGroup heading="Workspaces">
+                <CommandGroup heading="Organizações">
                   {organizations.map((org) => {
                     const isActive = activeOrg?.id === org.id;
                     return (
@@ -209,11 +209,11 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
           <DialogHeader>
             <DialogTitle>Criar organização</DialogTitle>
             <DialogDescription>
-              Crie um workspace independente. Campanhas, leads, equipe e relatórios ficam isolados dos demais.
+              Crie uma organização independente. Buscas, leads, equipe e relatórios ficam isolados dos demais.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="new-org-name">Nome do workspace</Label>
+            <Label htmlFor="new-org-name">Nome da organização</Label>
             <Input
               id="new-org-name"
               value={name}
@@ -238,7 +238,7 @@ export function OrgSwitcher({ collapsed = false }: { collapsed?: boolean }) {
               {createOrg.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
               ) : null}
-              {createOrg.isPending ? "Criando..." : "Criar workspace"}
+              {createOrg.isPending ? "Criando..." : "Criar organização"}
             </Button>
           </DialogFooter>
         </DialogContent>

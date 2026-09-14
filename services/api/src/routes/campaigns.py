@@ -380,6 +380,8 @@ def get_campaign(
         func.coalesce(func.avg(Lead.qualification_score), 0),
     ).filter(Lead.campaign_id == campaign.id).one()
 
+    from services.prospecting.effective_offer_registry import offer_supports_event_discovery
+
     return {
         "id": str(campaign.id),
         "name": campaign.name,
@@ -394,6 +396,7 @@ def get_campaign(
         "search_queries": campaign.search_queries,
         "scoring_template_id": str(campaign.scoring_template_id) if campaign.scoring_template_id else None,
         "offer_profile_key": campaign.offer_profile_key,
+        "supports_event_discovery": offer_supports_event_discovery(db, _org.id, campaign.offer_profile_key),
         "lead_count": lead_count,
         "avg_score": round(float(avg_score), 1),
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,

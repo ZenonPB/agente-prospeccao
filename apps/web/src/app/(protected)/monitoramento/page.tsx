@@ -6,8 +6,8 @@ export default function MonitoringPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Inteligência contínua"
-        title="Radar comercial"
-        description="Salve buscas, acompanhe novos resultados, identifique eventos recorrentes e organize oportunidades sem perder o controle sobre limites de uso e consultas externas."
+        title="Monitorar oportunidades"
+        description="Acompanhe buscas importantes e veja quando surgirem novas empresas ou sinais que mereçam atenção."
       />
       <ProspectingRadar />
     </div>

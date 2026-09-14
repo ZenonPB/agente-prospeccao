@@ -417,7 +417,7 @@ export function LeadList() {
         ? 'atribuição'
         : `status para ${statusLabels[bulkOperation.status || ''] || bulkOperation.status}`;
       toast.success(
-        `${operationLabel}: ${result.accepted} aplicado(s), ${result.duplicate} já estava(m) no estado e ${result.rejected + result.failed} pendência(s).${result.replayed ? ' Resultado repetido com segurança.' : ''}`,
+        `${operationLabel}: ${result.accepted} aplicado(s), ${result.duplicate} já estava(m) no estado e ${result.rejected + result.failed} pendência(s).${result.replayed ? ' A operação já tinha sido aplicada com segurança.' : ''}`,
       );
       const issues = result.items.filter((item) => item.status === 'REJECTED' || item.status === 'FAILED');
       if (issues.length > 0) {
