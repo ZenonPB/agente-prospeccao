@@ -17,10 +17,20 @@ from services.prospecting.offer_profile import OfferProfile, OfferProfileRegistr
 from services.prospecting.offer_profile_validator import validate_profile
 
 
-def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegistry:
+def _build_equalized_base_registry() -> OfferProfileRegistry:
+    """Materializa o catálogo factory maduro sem mutar o registry global cached."""
+    from services.alphamec_vertente_equalization import equalize_alphamec_vertentes
+
     registry = OfferProfileRegistry()
     for profile in get_base_registry().list():
         registry.register(profile)
+    return equalize_alphamec_vertentes(registry)
+
+
+def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegistry:
+    # A equalização pertence ao catálogo factory. Overlays publicados pela
+    # organização entram depois e, portanto, continuam tendo precedência exata.
+    registry = _build_equalized_base_registry()
 
     if db is None or organization_id is None:
         return registry
