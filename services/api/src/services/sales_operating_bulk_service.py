@@ -21,6 +21,15 @@ from src.services.org_service import consultant_lead_scope
 
 MAX_ITEMS = 100
 OPERATIONS = {"negotiation_stage", "campaign", "add_tag", "remove_tag", "archive", "unarchive", "start_sequence"}
+LEDGER_OPERATION = {
+    "negotiation_stage": "crm:stage",
+    "campaign": "crm:campaign",
+    "add_tag": "crm:add_tag",
+    "remove_tag": "crm:remove_tag",
+    "archive": "crm:archive",
+    "unarchive": "crm:unarchive",
+    "start_sequence": "crm:sequence",
+}
 
 
 class OperatingBulkValidation(ValueError): pass
@@ -187,7 +196,7 @@ class SalesOperatingBulkService:
         normalized = normalize_operating_bulk_payload(payload); self._validate_reference(normalized); fingerprint = _fingerprint(normalized)
         existing = self.db.query(CommercialBulkOperation).filter(CommercialBulkOperation.organization_id == self.organization_id, CommercialBulkOperation.idempotency_key == idempotency_key).first()
         if existing is not None: return _replay(existing, fingerprint)
-        ledger = CommercialBulkOperation(organization_id=self.organization_id, actor_id=self.user.id, idempotency_key=idempotency_key, operation=f"crm:{normalized['operation']}", payload_hash=fingerprint, status="RUNNING", created_at=datetime.now(timezone.utc)); self.db.add(ledger)
+        ledger = CommercialBulkOperation(organization_id=self.organization_id, actor_id=self.user.id, idempotency_key=idempotency_key, operation=LEDGER_OPERATION[normalized["operation"]], payload_hash=fingerprint, status="RUNNING", created_at=datetime.now(timezone.utc)); self.db.add(ledger)
         try: self.db.flush()
         except IntegrityError:
             self.db.rollback(); winner = self.db.query(CommercialBulkOperation).filter(CommercialBulkOperation.organization_id == self.organization_id, CommercialBulkOperation.idempotency_key == idempotency_key).first()
