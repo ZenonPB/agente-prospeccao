@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 from types import SimpleNamespace
@@ -62,8 +63,7 @@ def test_classify_provider_status(status_code: int, expected: str):
     assert classify_provider_status(status_code) == expected
 
 
-@pytest.mark.asyncio
-async def test_diagnostics_is_safe_and_requires_google_and_groq(monkeypatch):
+def test_diagnostics_is_safe_and_requires_google_and_groq(monkeypatch):
     secret = "never-leak-this-secret"
 
     async def resolve_key(_db, _organization_id, _key_name):
@@ -73,9 +73,12 @@ async def test_diagnostics_is_safe_and_requires_google_and_groq(monkeypatch):
         "src.services.provider_diagnostics_service.SecretService.resolve_key",
         resolve_key,
     )
-    client = _Client({"google": 200, "groq": 200, "hunter": 429})
-    result = await ProviderDiagnosticsService().diagnose(
-        _Db(), "00000000-0000-0000-0000-000000000001", client=client
+    result = asyncio.run(
+        ProviderDiagnosticsService().diagnose(
+            _Db(),
+            "00000000-0000-0000-0000-000000000001",
+            client=_Client({"google": 200, "groq": 200, "hunter": 429}),
+        )
     )
 
     assert result["ready_for_basic_prospecting"] is True
@@ -88,8 +91,7 @@ async def test_diagnostics_is_safe_and_requires_google_and_groq(monkeypatch):
     assert all("body" not in item for item in result["providers"])
 
 
-@pytest.mark.asyncio
-async def test_diagnostics_fail_closed_when_essential_provider_is_invalid(monkeypatch):
+def test_diagnostics_fail_closed_when_essential_provider_is_invalid(monkeypatch):
     async def resolve_key(_db, _organization_id, _key_name):
         return "safe-placeholder"
 
@@ -97,22 +99,22 @@ async def test_diagnostics_fail_closed_when_essential_provider_is_invalid(monkey
         "src.services.provider_diagnostics_service.SecretService.resolve_key",
         resolve_key,
     )
-    result = await ProviderDiagnosticsService().diagnose(
-        _Db(),
-        "00000000-0000-0000-0000-000000000001",
-        client=_Client({"google": 403, "groq": 200, "hunter": 200}),
+    result = asyncio.run(
+        ProviderDiagnosticsService().diagnose(
+            _Db(),
+            "00000000-0000-0000-0000-000000000001",
+            client=_Client({"google": 403, "groq": 200, "hunter": 200}),
+        )
     )
     assert result["ready_for_basic_prospecting"] is False
 
 
-@pytest.mark.asyncio
-async def test_diagnostics_rejects_unknown_provider():
+def test_diagnostics_rejects_unknown_provider():
     with pytest.raises(ValueError, match="Provider não suportado"):
-        await ProviderDiagnosticsService().diagnose(_Db(), "org", ["unknown"], client=_Client({}))
+        asyncio.run(ProviderDiagnosticsService().diagnose(_Db(), "org", ["unknown"], client=_Client({})))
 
 
-@pytest.mark.asyncio
-async def test_diagnostics_reports_timeout_without_exposing_exception(monkeypatch):
+def test_diagnostics_reports_timeout_without_exposing_exception(monkeypatch):
     async def resolve_key(_db, _organization_id, _key_name):
         return "safe-placeholder"
 
@@ -127,8 +129,8 @@ async def test_diagnostics_reports_timeout_without_exposing_exception(monkeypatc
         "src.services.provider_diagnostics_service.SecretService.resolve_key",
         resolve_key,
     )
-    result = await ProviderDiagnosticsService().diagnose(
-        _Db(), "org", ["google"], client=TimeoutClient()
+    result = asyncio.run(
+        ProviderDiagnosticsService().diagnose(_Db(), "org", ["google"], client=TimeoutClient())
     )
     assert result["providers"][0]["status"] == "timeout"
     assert "safe-placeholder" not in repr(result)
