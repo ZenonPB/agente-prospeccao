@@ -1,6 +1,6 @@
 # Roadmap — AlphaMec Release Candidate
 
-> **LIVE · atualizado em 2026-09-13.** Leia `docs/README.md` antes dos snapshots
+> **LIVE · atualizado em 2026-09-14.** Leia `docs/README.md` antes dos snapshots
 > de fases antigas. Estado base após PR #173: Opportunity 360 operacionalmente
 > editável, preservando as fontes canônicas do CRM.
 
@@ -59,7 +59,7 @@ verdes no HEAD final que inclui esta documentação antes do merge.
 
 ## Próximas entregas para o RC
 
-### 1. Importador histórico AlphaMec
+### 1. Importador histórico AlphaMec — concluído
 
 Fluxo obrigatório:
 
@@ -75,7 +75,7 @@ Company 360/Person 360 editáveis quando necessário, busca global, filtros,
 tags, ações em massa, ownership, tarefas, notas canônicas, propostas/contratos
 **somente quando houver modelo de domínio real**, exportação e auditoria.
 
-### 3. Filter Context + BI interativo
+### 3. Filter Context + BI interativo — concluído no escopo RC
 
 Um contrato de filtro compartilhado por dashboards e tabelas: período,
 workspace, owner, campanha, oferta/versão, estágio, segmento, região e provider.

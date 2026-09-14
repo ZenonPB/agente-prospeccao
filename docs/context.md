@@ -1,6 +1,6 @@
 # Contexto do projeto
 
-> **LIVE · atualizado em 2026-09-13.** Antes de trabalhar no repositório, leia
+> **LIVE · atualizado em 2026-09-14.** Antes de trabalhar no repositório, leia
 > `docs/README.md`, `docs/00-status-mapa.md`, `docs/architecture.md` e
 > `docs/roadmap.md`.
 
@@ -45,8 +45,9 @@ preview, dry-run, confirmação, processamento assíncrono e relatório de linha
 o import síncrono de campanha e o webhook permanecem compatibilidade legada e
 não são a fonte do novo lifecycle.
 
-B5.1/B5.2 têm filtros server-side e um snapshot comercial compartilhado entre
-as consultas de analytics e a exportação PDF. B6 agora tem `GET /api/leads`
+B5.1/B5.2 usam Filter Context server-side e um snapshot comercial compartilhado entre
+as consultas de analytics, a URL e a exportação PDF. O contrato cobre também segmento,
+cidade/UF e estágio de negociação; esses filtros compõem queries no backend. B6 agora tem `GET /api/leads`
 aditivo, com cursor estável e compatibilidade offset, além de
 `POST /api/leads/bulk/preview` e `POST /api/leads/bulk/execute`. As operações
 allowlist são `status` e `assign`, limitadas a 100 registros, no fluxo

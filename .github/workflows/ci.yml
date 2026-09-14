@@ -29,22 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Export hardening source snapshot
-        uses: actions/upload-artifact@v4
-        with:
-          name: hardening-source
-          path: |
-            services/api/src/services/analytics_service.py
-            apps/web/src/lib/api.ts
-            apps/web/src/hooks/use-api.ts
-            apps/web/src/hooks/use-commercial-filters.ts
-            apps/web/src/types/index.ts
-            apps/web/src/components/campanhas/csv-import-modal.tsx
-            apps/web/src/components/relatorios/report-controls.tsx
-            docs/00-status-mapa.md
-            docs/context.md
-            docs/roadmap.md
-            docs/crm-360-gap-map.md
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"

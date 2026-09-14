@@ -1,6 +1,6 @@
 # CRM 360 — gap map
 
-> **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only, Company 360 e
+> **LIVE · atualizado em 2026-09-14.** Opportunity 360 read-only, Company 360 e
 > Person 360 read-only estão entregues. A edição operacional da Opportunity 360
 > também está entregue. O Historical Importer backend + frontend está integrado,
 > e o bulk de leads B6 foi implementado sem encerrar ainda todas as provas de
@@ -76,7 +76,6 @@ Entregue:
 
 - export server-side auditável;
 - saved views, global search e ações em massa globais integradas ao CRM;
-- E2E/migration/schema/concorrência/tenant real PostgreSQL para B6;
 - decidir via UAT se `Lead.notes` basta ou se notas precisam entidade
   append-only própria;
 - propostas/contratos só devem virar entidades quando houver ciclo de vida real;
@@ -99,10 +98,9 @@ Entregue no backend e frontend:
 - frontend com cursor React Query, seleção limitada, estados parciais, retry
   com a mesma idempotency key e preservação de rejeitados/falhos selecionados.
 
-B6 ainda não deve ser declarado totalmente concluído: E2E/migration/schema/
-concorrência/tenant real PostgreSQL, `verify_migrations` contra banco e
-browser/a11y/responsive smoke permanecem follow-ups bloqueados pela ausência de
-`E2E_DATABASE_URL`/browser.
+B6 está fechado no escopo técnico do RC: o CI aplica migrations em PostgreSQL real,
+executa schema verifier e cobre concorrência/idempotência do bulk em banco real. Smoke
+manual de browser continua parte do UAT, não uma lacuna de consistência do domínio.
 
 ## Company 360
 

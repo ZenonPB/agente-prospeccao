@@ -176,6 +176,20 @@ def apply_commercial_filters(query, filters: CommercialFilterDTO | None):
             Lead.state.ilike(pattern, escape="\\"),
             Lead.email.ilike(pattern, escape="\\"),
         ))
+    if filters.segment:
+        pattern = _like_pattern(filters.segment)
+        query = query.filter(or_(
+            Lead.category.ilike(pattern, escape="\\"),
+            Lead.segment_opportunity.ilike(pattern, escape="\\"),
+        ))
+    if filters.city:
+        query = query.filter(Lead.city.ilike(_like_pattern(filters.city), escape="\\"))
+    if filters.state:
+        query = query.filter(func.upper(Lead.state) == filters.state)
+    if filters.negotiation_stage:
+        query = query.filter(Lead.negotiation_stage.in_(
+            [NegotiationStage[item] for item in filters.negotiation_stage]
+        ))
 
     if filters.channel:
         channels = [MessageChannel[item] for item in filters.channel]
