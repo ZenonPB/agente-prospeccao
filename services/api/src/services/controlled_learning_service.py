@@ -9,7 +9,11 @@ from uuid import UUID
 if TYPE_CHECKING:
     from src.db.models import ControlledLearningProposal
 
-_EVIDENCE_FIELDS = frozenset({"verdict", "recommendation", "delta", "v1", "v2"})
+_EVIDENCE_FIELDS = frozenset({
+    "verdict", "recommendation", "delta", "v1", "v2",
+    "sample_quality", "associations", "baseline_profile_snapshot",
+    "candidate_profile_snapshot", "rank_movements", "methodology",
+})
 
 
 def build_learning_proposal(comparison: Any) -> dict[str, Any]:
@@ -31,6 +35,10 @@ def build_learning_proposal(comparison: Any) -> dict[str, Any]:
     recommendation = result.get("recommendation")
     if result.get("verdict") != expected_verdict or not isinstance(recommendation, str) or not recommendation.strip():
         raise ValueError("somente uma recomendação conclusiva pode gerar learning")
+    candidate = result.get("candidate_profile_snapshot")
+    if approved_version == version_b and candidate is not None:
+        if not isinstance(candidate, dict) or candidate.get("key") != offer_key or candidate.get("version") != approved_version:
+            raise ValueError("snapshot candidato da comparação é inconsistente")
     return {
         "organization_id": getattr(comparison, "organization_id", None),
         "offer_key": offer_key,
@@ -50,12 +58,7 @@ def validate_profile_publication(
     approved_version: str,
     current_version: str | None,
 ) -> Any:
-    """Valida uma publicação sem efeitos colaterais.
-
-    A publicação precisa ser uma versão nova, semanticamente válida e exatamente
-    a versão que foi aprovada. Isso garante que sempre exista um estado anterior
-    distinto para rollback e impede sobrescrever silenciosamente uma versão.
-    """
+    """Valida uma publicação sem efeitos colaterais."""
     from services.prospecting.offer_profile import OfferProfile
     from services.prospecting.offer_profile_validator import validate_profile
 
@@ -71,6 +74,24 @@ def validate_profile_publication(
     if errors:
         raise ValueError("OfferProfile inválido: " + "; ".join(errors))
     return profile
+
+
+def _lock_organization(db: Any, organization_id: UUID) -> None:
+    """Serializa troca da versão ativa por workspace.
+
+    O lock em ``Organization`` existe mesmo quando a oferta ainda usa apenas o
+    perfil implícito do catálogo, evitando duas publicações concorrentes sem uma
+    linha de versão ativa para bloquear. O índice parcial no banco continua sendo
+    a última barreira de integridade.
+    """
+    from sqlalchemy import select
+    from src.db.models import Organization
+
+    row = db.scalars(select(Organization).where(
+        Organization.id == organization_id,
+    ).with_for_update()).first()
+    if row is None:
+        raise ValueError("Organização não encontrada")
 
 
 class ControlledLearningService:
@@ -118,13 +139,14 @@ class ControlledLearningService:
         )
         return proposal
 
-    def publish_profile(self, db: Any, organization_id: UUID, proposal_id: UUID, profile_snapshot: dict[str, Any], actor: Any) -> Any:
-        """Publica exatamente a versão aprovada, com lock e snapshot imutável."""
+    def publish_profile(self, db: Any, organization_id: UUID, proposal_id: UUID, profile_snapshot: dict[str, Any] | None, actor: Any) -> Any:
+        """Publica exatamente o candidato aprovado e persistido, de forma serializada."""
         from sqlalchemy import select
         from database.learning_models import OfferProfileActivation, OfferProfileVersion
         from src.db.models import ControlledLearningProposal
         from services.prospecting.default_profiles import get_default_registry
 
+        _lock_organization(db, organization_id)
         proposal = db.scalars(select(ControlledLearningProposal).where(
             ControlledLearningProposal.id == proposal_id,
             ControlledLearningProposal.organization_id == organization_id,
@@ -141,6 +163,15 @@ class ControlledLearningService:
         if proposal.status != "PROPOSED":
             raise ValueError("Proposta não está disponível para publicação")
 
+        evidence = proposal.evidence_snapshot if isinstance(proposal.evidence_snapshot, dict) else {}
+        persisted_candidate = evidence.get("candidate_profile_snapshot")
+        if profile_snapshot is None:
+            if not isinstance(persisted_candidate, dict):
+                raise ValueError("a proposta não possui snapshot candidato persistido")
+            profile_snapshot = deepcopy(persisted_candidate)
+        elif isinstance(persisted_candidate, dict) and profile_snapshot != persisted_candidate:
+            raise ValueError("o snapshot enviado difere do candidato aprovado e persistido")
+
         existing_version = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
             OfferProfileVersion.offer_key == proposal.offer_key,
@@ -149,11 +180,11 @@ class ControlledLearningService:
         if existing_version is not None:
             raise ValueError("Esta versão de OfferProfile já existe")
 
-        current = db.scalars(select(OfferProfileVersion).where(
+        versions = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
             OfferProfileVersion.offer_key == proposal.offer_key,
-            OfferProfileVersion.is_active.is_(True),
-        ).with_for_update()).first()
+        ).with_for_update()).all()
+        current = next((item for item in versions if item.is_active), None)
         baseline = get_default_registry().get(proposal.offer_key)
         if baseline is None:
             raise ValueError("Oferta base não existe no catálogo")
@@ -165,12 +196,8 @@ class ControlledLearningService:
             current_version=current_version,
         )
 
-        # Primeira publicação persiste o catálogo padrão como baseline exato.
-        any_version = db.scalars(select(OfferProfileVersion).where(
-            OfferProfileVersion.organization_id == organization_id,
-            OfferProfileVersion.offer_key == proposal.offer_key,
-        ).limit(1)).first()
-        if any_version is None:
+        baseline_row = next((item for item in versions if item.version == baseline.version), None)
+        if not versions:
             baseline_row = OfferProfileVersion(
                 organization_id=organization_id,
                 offer_key=baseline.key,
@@ -182,9 +209,14 @@ class ControlledLearningService:
             db.flush()
 
         now = datetime.now(timezone.utc)
+        previous_id = current.id if current is not None else baseline_row.id if baseline_row is not None else None
         if current is not None:
             current.is_active = False
             current.deactivated_at = now
+            # O índice parcial garante uma única versão ativa. Persistimos a
+            # desativação antes de ativar/inserir a próxima para não depender da
+            # ordem interna de UPDATE/INSERT do flush do ORM.
+            db.flush()
 
         row = OfferProfileVersion(
             organization_id=organization_id,
@@ -203,7 +235,7 @@ class ControlledLearningService:
             offer_key=proposal.offer_key,
             action="PUBLISH",
             version_id=row.id,
-            previous_version_id=current.id if current else baseline_row.id if any_version is None else None,
+            previous_version_id=previous_id,
             actor_id=getattr(actor, "id", None),
         ))
         proposal.status = "PUBLISHED"
@@ -213,10 +245,10 @@ class ControlledLearningService:
         return row
 
     def rollback_profile(self, db: Any, organization_id: UUID, offer_key: str, target_version: str, actor: Any) -> Any:
-        """Reativa snapshot histórico sem reescrever seu conteúdo."""
         from sqlalchemy import select
         from database.learning_models import OfferProfileActivation, OfferProfileVersion
 
+        _lock_organization(db, organization_id)
         rows = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
             OfferProfileVersion.offer_key == offer_key,
@@ -227,20 +259,25 @@ class ControlledLearningService:
         current = next((row for row in rows if row.is_active), None)
         if current is not None and current.id == target.id:
             return target
+
         now = datetime.now(timezone.utc)
+        previous_id = current.id if current is not None else None
         if current is not None:
             current.is_active = False
             current.deactivated_at = now
+            db.flush()
+
         target.is_active = True
         target.activated_by_id = getattr(actor, "id", None)
         target.activated_at = now
         target.deactivated_at = None
+        db.flush()
         db.add(OfferProfileActivation(
             organization_id=organization_id,
             offer_key=offer_key,
             action="ROLLBACK",
             version_id=target.id,
-            previous_version_id=current.id if current else None,
+            previous_version_id=previous_id,
             actor_id=getattr(actor, "id", None),
         ))
         db.flush()

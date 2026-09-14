@@ -158,3 +158,5 @@ jobs:
         run: python -m pytest tests/test_sales_operating_system.py -q -W error
       - name: Verify Block B editable CRM, bulk operations and tenant isolation
         run: python -m pytest tests/test_sales_operating_block_b.py -q -W error
+      - name: Verify Block C calibration, controlled learning and coaching
+        run: python -m pytest tests/test_learning_coaching_block_c.py -q -W error

@@ -1,4 +1,4 @@
-"""Endpoints org-scoped para eventos descobertos e learning comercial."""
+"""Endpoints org-scoped para eventos, learning calibrado e coaching comercial."""
 from datetime import date, datetime, timezone
 from typing import Any, Optional
 from uuid import UUID
@@ -28,11 +28,25 @@ class ComparisonApprovalRequest(BaseModel):
 
 
 class OfferProfilePublishRequest(BaseModel):
-    profile_snapshot: dict[str, Any]
+    profile_snapshot: Optional[dict[str, Any]] = None
 
 
 class OfferProfileRollbackRequest(BaseModel):
     target_version: str = Field(..., min_length=3, max_length=32, pattern=r"^\d+\.\d+$")
+
+
+class CalibrationReplayRequest(BaseModel):
+    offer_key: str = Field(..., min_length=1, max_length=64)
+    candidate_profile_snapshot: dict[str, Any]
+    min_samples: int = Field(20, ge=3, le=10000)
+    top_k: int = Field(20, ge=1, le=100)
+
+
+class CalibrationProposalRequest(BaseModel):
+    offer_key: str = Field(..., min_length=1, max_length=64)
+    candidate_profile_snapshot: Optional[dict[str, Any]] = None
+    min_samples: int = Field(20, ge=3, le=10000)
+    top_k: int = Field(20, ge=1, le=100)
 
 
 @router.get("/events")
@@ -104,6 +118,83 @@ def approve_comparison(
     return response
 
 
+@router.get("/calibration/overview")
+def calibration_overview(
+    min_samples: int = Query(20, ge=3, le=10000),
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    from src.services.learning_coaching_service import LearningCalibrationService
+    try:
+        return LearningCalibrationService(db, org.id).overview(min_samples=min_samples)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/calibration/report")
+def calibration_report(
+    offer_key: str = Query(..., min_length=1, max_length=64),
+    min_samples: int = Query(20, ge=3, le=10000),
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    from src.services.learning_coaching_service import LearningCalibrationService
+    try:
+        return LearningCalibrationService(db, org.id).calibration_report(offer_key, min_samples=min_samples)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/calibration/replay")
+def replay_calibration(
+    body: CalibrationReplayRequest,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    from src.services.learning_coaching_service import LearningCalibrationService
+    try:
+        return LearningCalibrationService(db, org.id).replay(
+            body.offer_key, body.candidate_profile_snapshot,
+            min_samples=body.min_samples, top_k=body.top_k,
+        )
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/calibration/comparisons")
+def create_calibration_comparison(
+    body: CalibrationProposalRequest,
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_manager()),
+):
+    """Gera candidato opcionalmente, reexecuta o histórico e persiste só se v2 vencer."""
+    from src.services.learning_coaching_service import LearningCalibrationService
+    try:
+        row = LearningCalibrationService(db, org.id).create_calibration_comparison(
+            body.offer_key, body.candidate_profile_snapshot,
+            min_samples=body.min_samples, top_k=body.top_k,
+        )
+        db.commit(); db.refresh(row)
+        return _comparison_dict(row)
+    except (ValueError, TypeError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/coaching")
+def commercial_coaching(
+    db: Session = Depends(get_db),
+    org: Organization = Depends(get_user_organization),
+    _member: OrganizationMember = Depends(require_analyst()),
+):
+    from src.services.learning_coaching_service import CommercialCoachingService
+    return CommercialCoachingService(db, org.id).dashboard()
+
+
 @router.get("/learning-proposals")
 def list_learning_proposals(
     offer_key: Optional[str] = Query(None, min_length=1, max_length=64),
@@ -119,18 +210,19 @@ def list_learning_proposals(
 @router.post("/learning-proposals/{proposal_id}/publish")
 def publish_learning_proposal(
     proposal_id: str,
-    body: OfferProfilePublishRequest,
+    body: Optional[OfferProfilePublishRequest] = None,
     db: Session = Depends(get_db),
     org: Organization = Depends(get_user_organization),
     actor: User = Depends(get_current_user),
     _member: OrganizationMember = Depends(require_manager()),
 ):
-    """Publica snapshot aprovado; nunca gera/edita pesos silenciosamente."""
+    """Publica somente o snapshot aprovado; proposta calibrada pode usar o snapshot persistido."""
     from src.services.controlled_learning_service import ControlledLearningService
     try:
-        row = ControlledLearningService().publish_profile(db, org.id, UUID(proposal_id), body.profile_snapshot, actor)
-        db.commit()
-        db.refresh(row)
+        row = ControlledLearningService().publish_profile(
+            db, org.id, UUID(proposal_id), body.profile_snapshot if body else None, actor,
+        )
+        db.commit(); db.refresh(row)
     except (ValueError, TypeError) as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -161,8 +253,7 @@ def rollback_offer_profile(
     from src.services.controlled_learning_service import ControlledLearningService
     try:
         row = ControlledLearningService().rollback_profile(db, org.id, offer_key, body.target_version, actor)
-        db.commit()
-        db.refresh(row)
+        db.commit(); db.refresh(row)
     except (ValueError, TypeError) as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -218,7 +309,6 @@ def list_outcomes(
     org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(require_analyst()),
 ):
-    from src.db.models import CommercialOutcomeRow
     from services.prospecting.commercial_outcome_service import CommercialOutcomeService
     rows = CommercialOutcomeService().list_for_organization(db, org.id, offer_key=offer_key, offer_version=offer_version, date_from=date_from, date_to=date_to)
     return CommercialOutcomeService().metrics(rows) | {"outcomes": [{
