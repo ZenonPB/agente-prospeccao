@@ -1,211 +1,63 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AlertCircle, CalendarClock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Loader2, UserPlus, CalendarClock, Target, AlertTriangle } from 'lucide-react';
-import { useLeads, useAssignLead, useSlaAlerts } from '@/hooks/use-api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
+import { useOperatingQueue } from '@/hooks/use-sales-operating';
 
-function endOfTodayIso(): string {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d.toISOString();
-}
-
-function formatDue(date?: string): string {
-  if (!date) return '';
-  const due = new Date(date);
-  const diffDays = Math.floor((due.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) {
-    return `atrasado há ${Math.abs(diffDays)} dia${Math.abs(diffDays) !== 1 ? 's' : ''}`;
-  }
-  if (diffDays === 0) return 'hoje';
-  return `em ${diffDays} dia${diffDays !== 1 ? 's' : ''}`;
-}
-
-function ActionsSkeleton() {
-  return (
-    <div className="space-y-3">
-      {[1, 2].map((i) => (
-        <div key={i} className="flex items-center gap-3 rounded-lg border p-3">
-          <Skeleton className="h-8 w-8 rounded-full" />
-          <div className="flex-1 space-y-1.5">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-20" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+function formatDue(value?: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
 }
 
 export function TodayActions() {
-  const { data: session } = useSession();
-  const currentUserId = (session?.user as { id?: string } | undefined)?.id;
-  const assignLead = useAssignLead();
-  // Calculada no render (valor estável dentro do dia) — evita congelar o
-  // "hoje" quando a sessão atravessa a virada do dia.
-  const dueIso = endOfTodayIso();
-
-  const { data: overdueData, isLoading: loadingDue } = useLeads({
-    next_action_before: dueIso,
-    limit: 5,
-  });
-  const { data: unassignedData, isLoading: loadingUnassigned } = useLeads({
-    status: 'QUALIFICADO',
-    assigned: 'none',
-    limit: 5,
-  });
-  const { data: slaData, isLoading: loadingSla } = useSlaAlerts(5);
-
-  const overdue = overdueData?.leads || [];
-  const unassigned = unassignedData?.leads || [];
-  const slaAlerts = slaData?.alerts || [];
-  const loading = loadingDue || loadingUnassigned || loadingSla;
-
-  const onAssignToMe = (leadId: string) => {
-    if (!currentUserId) return;
-    assignLead.mutate(
-      { id: leadId, assignedToId: currentUserId },
-      {
-        onSuccess: () => toast.success('Lead atribuído a você.'),
-        onError: () => toast.error('Não foi possível atribuir o lead.'),
-      }
-    );
-  };
+  const queue = useOperatingQueue(6);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Ações de hoje</CardTitle>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle>O que precisa de você hoje</CardTitle>
+          {queue.data ? <Badge variant="secondary">{queue.data.total}</Badge> : null}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-5">
-        {loading ? (
-          <ActionsSkeleton />
+      <CardContent>
+        {queue.isLoading ? (
+          <div className="space-y-2">{[1, 2, 3].map((item) => <Skeleton key={item} className="h-16 w-full rounded-lg" />)}</div>
+        ) : queue.isError ? (
+          <div role="alert" className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />Fila indisponível no momento.
+          </div>
+        ) : queue.data?.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Tudo em dia. Nenhuma ação prioritária agora.</p>
         ) : (
-          <>
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
-                  <CalendarClock className="h-4 w-4 text-amber-600" aria-hidden="true" />
-                  Mensagens e tarefas agendadas para hoje
-                </p>
-                <Badge variant="secondary" className="text-xs">
-                  {overdue.length}
-                </Badge>
-              </div>
-              {overdue.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma ação marcada para hoje.</p>
-              ) : (
-                <div className="space-y-2">
-                  {overdue.map((lead) => (
-                    <Link
-                      key={lead.id}
-                      href={`/oportunidades/${lead.id}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border p-3 transition-colors hover:border-primary hover:bg-muted/50"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{lead.company_name}</p>
-                        <p className="text-xs text-muted-foreground">{formatDue(lead.next_action_at)}</p>
-                      </div>
-                      {lead.qualification_score != null && (
-                        <Badge className="bg-emerald-100 text-emerald-700 text-xs shrink-0">
-                          {lead.qualification_score}
-                        </Badge>
-                      )}
-                    </Link>
-                  ))}
+          <div className="space-y-2">
+            {queue.data?.items.map((item) => (
+              <Link
+                key={item.lead_id}
+                href={`/oportunidades/${item.lead_id}`}
+                className="block rounded-lg border p-3 transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{item.company_name}</p>
+                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{item.recommended_action || item.reasons[0]}</p>
+                  </div>
+                  {item.opportunity_score != null ? <Badge variant="secondary" className="shrink-0">{item.opportunity_score}</Badge> : null}
                 </div>
-              )}
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
-                  <Target className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                  Aptos sem dono
-                </p>
-                <Badge variant="secondary" className="text-xs">
-                  {unassigned.length}
-                </Badge>
-              </div>
-              {unassigned.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Todos os aptos estão atribuídos.</p>
-              ) : (
-                <div className="space-y-2">
-                  {unassigned.map((lead) => (
-                    <div
-                      key={lead.id}
-                      className="flex items-center justify-between gap-2 rounded-lg border p-3"
-                    >
-                      <Link
-                        href={`/oportunidades/${lead.id}`}
-                        className="min-w-0 flex-1 transition-colors hover:text-primary"
-                      >
-                        <p className="truncate text-sm font-medium">{lead.company_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {lead.category || 'Sem categoria'} • {lead.city || '—'}
-                        </p>
-                      </Link>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 shrink-0 gap-1 text-[11px]"
-                        disabled={assignLead.isPending && assignLead.variables?.id === lead.id}
-                        onClick={() => onAssignToMe(lead.id)}
-                      >
-                        {assignLead.isPending && assignLead.variables?.id === lead.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <UserPlus className="h-3 w-3" />
-                        )}
-                        Atribuir a mim
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="flex items-center gap-1.5 text-sm font-medium">
-                  <AlertTriangle className="h-4 w-4 text-red-500" aria-hidden="true" />
-                  Clientes aguardando atendimento
-                </p>
-                <Badge variant="destructive" className="text-xs">
-                  {slaAlerts.length}
-                </Badge>
-              </div>
-              {slaAlerts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum cliente aguardando — tudo em dia.</p>
-              ) : (
-                <div className="space-y-2">
-                  {slaAlerts.map((alert) => (
-                    <Link
-                      key={alert.id}
-                      href={`/oportunidades/${alert.id}`}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-red-100 p-3 transition-colors hover:border-primary hover:bg-muted/50"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{alert.company_name}</p>
-                        <p className="text-xs text-muted-foreground">{alert.alert_label}</p>
-                      </div>
-                      {alert.qualification_score != null && (
-                        <Badge className="bg-emerald-100 text-emerald-700 text-xs shrink-0">
-                          {alert.qualification_score}
-                        </Badge>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
+                {item.due_at ? (
+                  <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+                    <CalendarClock className="h-3 w-3" aria-hidden="true" />{formatDue(item.due_at)}
+                  </p>
+                ) : null}
+              </Link>
+            ))}
+            <Link href="/crm" className="block pt-1 text-center text-xs font-medium text-primary hover:underline">Ver toda a fila comercial</Link>
+          </div>
         )}
       </CardContent>
     </Card>

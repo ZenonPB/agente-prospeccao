@@ -21,6 +21,7 @@ import {
   Route,
   PlugZap,
   TrendingUp,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/stores/useAppStore';
@@ -42,6 +43,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'Operação',
     items: [
+      { name: 'Central comercial', href: '/crm', icon: BriefcaseBusiness, exact: true },
       { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
       { name: 'Buscar', href: '/buscar', icon: SearchIcon },
       { name: 'Oportunidades', href: '/oportunidades', icon: Target },

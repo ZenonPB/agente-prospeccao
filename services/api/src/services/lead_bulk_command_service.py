@@ -1,22 +1,21 @@
 """Comandos bulk tenant-safe para operações comerciais em leads.
 
 A tabela de operações é apenas uma âncora técnica de idempotência. O estado
-comercial continua em ``Lead`` e a trilha continua em ``LeadActivity``.
+comercial continua em ``Lead`` e a trilha/tarefas continuam nas fontes canônicas.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import binascii
 import hashlib
 import json
 import logging
 import uuid
-import binascii
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 from sqlalchemy.exc import IntegrityError
 
+from database.engagement_models import CommercialTask
 from src.db.models import (
     CommercialBulkOperation,
     Lead,
@@ -32,6 +31,7 @@ from src.services.lead_activity_service import log_activity
 from src.services.lead_status_service import transition_lead_status
 from src.services.org_service import consultant_lead_scope, is_full_access
 
+logger = logging.getLogger(__name__)
 MAX_ITEMS = 100
 
 
@@ -74,17 +74,15 @@ def normalize_bulk_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Normaliza o corpo sem a chave de idempotência para fingerprint estável."""
     allowed_fields = {
         "operation", "lead_ids", "status", "lost_reason", "assigned_to_id",
-        "expected_updated_at",
+        "expected_updated_at", "task_type", "task_title", "task_description", "task_due_at",
     }
     unknown = sorted(set(payload) - allowed_fields)
     if unknown:
-        raise BulkCommandValidation(
-            "Campo(s) não permitido(s): " + ", ".join(unknown)
-        )
+        raise BulkCommandValidation("Campo(s) não permitido(s): " + ", ".join(unknown))
 
     operation = str(_enum_value(payload.get("operation") or "")).strip().lower()
-    if operation not in {"status", "assign"}:
-        raise BulkCommandValidation("operation deve ser status ou assign")
+    if operation not in {"status", "assign", "create_task"}:
+        raise BulkCommandValidation("operation deve ser status, assign ou create_task")
 
     raw_ids = payload.get("lead_ids")
     if not isinstance(raw_ids, list) or not 1 <= len(raw_ids) <= MAX_ITEMS:
@@ -119,6 +117,20 @@ def normalize_bulk_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if operation == "assign" and payload.get("assigned_to_id") is not None:
         assigned_to_id = str(_as_uuid(payload["assigned_to_id"], "assigned_to_id"))
 
+    task_type = task_title = task_description = task_due_at = None
+    if operation == "create_task":
+        task_type = str(payload.get("task_type") or "FOLLOW_UP").strip().upper()
+        task_title = str(payload.get("task_title") or "").strip()
+        task_description = str(payload.get("task_description") or "").strip() or None
+        if not task_title or len(task_title) > 180:
+            raise BulkCommandValidation("task_title deve ter entre 1 e 180 caracteres")
+        if not task_type or len(task_type) > 32:
+            raise BulkCommandValidation("task_type inválido")
+        if task_description and len(task_description) > 2000:
+            raise BulkCommandValidation("task_description deve ter no máximo 2000 caracteres")
+        if payload.get("task_due_at"):
+            task_due_at = _parse_datetime(payload["task_due_at"], "task_due_at").astimezone(timezone.utc).isoformat()
+
     expected = payload.get("expected_updated_at") or {}
     if not isinstance(expected, dict):
         raise BulkCommandValidation("expected_updated_at deve ser um mapa")
@@ -136,12 +148,15 @@ def normalize_bulk_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "status": status,
         "lost_reason": lost_reason,
         "assigned_to_id": assigned_to_id,
+        "task_type": task_type,
+        "task_title": task_title,
+        "task_description": task_description,
+        "task_due_at": task_due_at,
         "expected_updated_at": dict(sorted(normalized_expected.items())),
     }
 
 
 def fingerprint_payload(payload: dict[str, Any]) -> str:
-    """Calcula o hash do contrato normalizado, sem ``idempotency_key``."""
     canonical = normalize_bulk_payload(payload)
     encoded = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -156,12 +171,6 @@ def _result_item(lead_id: str, status: str, reason: str | None = None) -> dict[s
 
 
 def _replay_existing(operation: CommercialBulkOperation, payload_hash: str) -> dict[str, Any]:
-    """Retorna replay somente quando a execução anterior terminou.
-
-    Uma corrida pode enxergar a UNIQUE antes de o vencedor persistir ``result``.
-    Retornar um payload vazio nesse intervalo quebra o contrato idempotente; por
-    isso o chamador recebe conflito transitório e pode repetir a mesma chave.
-    """
     if operation.payload_hash != payload_hash:
         raise BulkCommandConflict("idempotency_key já foi usada com outro payload")
     if operation.status != "COMPLETED" or not operation.result:
@@ -180,8 +189,6 @@ class LeadBulkCommandService:
         self.user_id = user.id
 
     def _assert_write(self) -> None:
-        # ANALYST permanece explicitamente read-only mesmo quando possui papel
-        # administrativo herdado no workspace.
         if self.member.sales_role == SalesRole.ANALYST:
             raise BulkCommandForbidden("ANALYST possui acesso somente de leitura")
         if self.member.role in (OrganizationRole.OWNER, OrganizationRole.ADMIN):
@@ -228,8 +235,6 @@ class LeadBulkCommandService:
                 rejected.append({"id": lead_id, "reason": "NOT_FOUND_OR_UNAUTHORIZED"})
                 continue
             current_versions[lead_id] = _iso(lead.updated_at)
-            # Optimistic concurrency é fail-closed: toda mutação exige a versão
-            # vista no preview, inclusive quando o registro já possui timestamp.
             if lead.updated_at is None or lead_id not in expected:
                 rejected.append({"id": lead_id, "reason": "VERSION_CONFLICT"})
                 continue
@@ -265,17 +270,10 @@ class LeadBulkCommandService:
     def _apply_status(self, lead: Lead, payload: dict[str, Any]) -> tuple[bool, str | None]:
         new_status = LeadStatus(payload["status"])
         new_reason = LostReason(payload["lost_reason"]) if payload["lost_reason"] else None
-        previous_status = lead.status
-        previous_reason = lead.lost_reason
-        if previous_status == new_status and previous_reason == new_reason:
+        if lead.status == new_status and lead.lost_reason == new_reason:
             return False, "ALREADY_IN_DESIRED_STATE"
-
         activity = transition_lead_status(
-            self.db,
-            lead,
-            new_status,
-            user_id=str(self.user_id),
-            lost_reason=new_reason,
+            self.db, lead, new_status, user_id=str(self.user_id), lost_reason=new_reason,
         )
         outcome_by_status = {
             LeadStatus.RESPONDIDO: "RESPONDED",
@@ -287,17 +285,11 @@ class LeadBulkCommandService:
         if outcome:
             try:
                 from services.prospecting.commercial_outcome_service import CommercialOutcomeService
-
                 CommercialOutcomeService().record_for_lead(
-                    self.db,
-                    lead.organization_id,
-                    lead.id,
-                    outcome=outcome,
+                    self.db, lead.organization_id, lead.id, outcome=outcome,
                     event_key=f"activity:{getattr(activity, 'id', None)}",
                 )
             except Exception as exc:  # noqa: BLE001
-                # O status/trilha são a fonte operacional; outcome alimenta
-                # learning e não deve desfazer a transição comercial.
                 logger.warning("Falha ao persistir outcome bulk do lead %s: %s", lead.id, exc)
         return True, None
 
@@ -309,12 +301,35 @@ class LeadBulkCommandService:
         lead.assigned_at = datetime.now(timezone.utc) if target_id else None
         action = LeadActivityAction.ASSIGNED if target_id else LeadActivityAction.UNASSIGNED
         log_activity(
-            self.db,
-            lead,
-            action=action,
-            user_id=str(self.user_id),
+            self.db, lead, action=action, user_id=str(self.user_id),
             detail=f"Bulk: atribuído a {target_id}" if target_id else "Bulk: lead desatribuído",
         )
+        return True, None
+
+    def _apply_task(self, lead: Lead, payload: dict[str, Any], bulk_key: str) -> tuple[bool, str | None]:
+        item_key = f"bulk:{bulk_key}:{lead.id}"
+        existing = self.db.query(CommercialTask).filter(
+            CommercialTask.organization_id == self.organization_id,
+            CommercialTask.idempotency_key == item_key,
+        ).first()
+        if existing is not None:
+            return False, "ALREADY_CREATED"
+        due_at = _parse_datetime(payload["task_due_at"], "task_due_at") if payload.get("task_due_at") else None
+        task = CommercialTask(
+            organization_id=self.organization_id,
+            lead_id=lead.id,
+            owner_user_id=lead.assigned_to_id or self.user_id,
+            task_type=payload["task_type"],
+            title=payload["task_title"],
+            description=payload.get("task_description"),
+            due_at=due_at,
+            status="OPEN",
+            source="bulk",
+            source_ref=bulk_key,
+            idempotency_key=item_key,
+            task_metadata={"created_by": str(self.user_id)},
+        )
+        self.db.add(task)
         return True, None
 
     def execute(self, payload: dict[str, Any], idempotency_key: str) -> dict[str, Any]:
@@ -365,17 +380,16 @@ class LeadBulkCommandService:
                 continue
             lead = by_id.get(lead_id)
             if lead is None:
-                item_results[lead_id] = _result_item(
-                    lead_id, "REJECTED", "NOT_FOUND_OR_UNAUTHORIZED"
-                )
+                item_results[lead_id] = _result_item(lead_id, "REJECTED", "NOT_FOUND_OR_UNAUTHORIZED")
                 continue
             try:
                 with self.db.begin_nested():
-                    changed, reason = (
-                        self._apply_status(lead, normalized)
-                        if normalized["operation"] == "status"
-                        else self._apply_assign(lead, normalized)
-                    )
+                    if normalized["operation"] == "status":
+                        changed, reason = self._apply_status(lead, normalized)
+                    elif normalized["operation"] == "assign":
+                        changed, reason = self._apply_assign(lead, normalized)
+                    else:
+                        changed, reason = self._apply_task(lead, normalized, idempotency_key)
                     self.db.flush()
                 if changed:
                     accepted += 1
@@ -384,10 +398,9 @@ class LeadBulkCommandService:
                     duplicate += 1
                     item_results[lead_id] = _result_item(lead_id, "DUPLICATE", reason)
             except Exception:
+                logger.exception("Falha em item da operação bulk %s", normalized["operation"])
                 failed += 1
-                item_results[lead_id] = _result_item(
-                    lead_id, "FAILED", "ITEM_MUTATION_FAILED"
-                )
+                item_results[lead_id] = _result_item(lead_id, "FAILED", "ITEM_MUTATION_FAILED")
 
         items = [item_results[lead_id] for lead_id in normalized["lead_ids"]]
         rejected_count = sum(item["status"] == "REJECTED" for item in items)

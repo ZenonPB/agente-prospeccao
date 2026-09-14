@@ -114,6 +114,70 @@ class ProspectListMember(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class CommercialSavedView(Base):
+    """Preferência operacional de filtros, sem duplicar estado comercial."""
+
+    __tablename__ = "commercial_saved_views"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "owner_user_id", "view_kind", "name",
+            name="uq_commercial_saved_views_owner_name",
+        ),
+        Index("ix_commercial_saved_views_org_kind", "organization_id", "view_kind", "shared"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=False)
+    view_kind = Column(String(24), nullable=False)
+    filters = Column(JSONB, nullable=False, default=dict)
+    shared = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class LeadCrmMetadata(Base):
+    """Extensão 1:1 do Lead para metadados puramente operacionais do CRM.
+
+    Não duplica status, owner ou oportunidade. Guarda apenas rótulos livres e
+    arquivamento, preocupações que não pertencem ao motor de prospecção.
+    """
+
+    __tablename__ = "lead_crm_metadata"
+    __table_args__ = (
+        UniqueConstraint("lead_id", name="uq_lead_crm_metadata_lead"),
+        Index("ix_lead_crm_metadata_org_archived", "organization_id", "archived_at"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
+    tags = Column(JSONB, nullable=False, default=list)
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    archived_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class CrmEntityAudit(Base):
+    """Log append-only de alterações manuais em Company/Person/Lead CRM."""
+
+    __tablename__ = "crm_entity_audit"
+    __table_args__ = (
+        Index("ix_crm_entity_audit_org_entity", "organization_id", "entity_type", "entity_id", "created_at"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    entity_type = Column(String(32), nullable=False)
+    entity_id = Column(String(80), nullable=False)
+    action = Column(String(48), nullable=False)
+    changes = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
 class ProviderQualitySnapshot(Base):
     __tablename__ = "provider_quality_snapshots"
     __table_args__ = (
