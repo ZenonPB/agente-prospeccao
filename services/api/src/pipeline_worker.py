@@ -1308,16 +1308,20 @@ async def run_pipeline(
                             "timestamp": _ts(),
                         }
 
-                _, scoring_result = await process_single_lead(
-                    lead, enrichment_service, scoring_service, db,
-                    analysis_profile=analysis_profile,
-                    campaign_target_service=campaign.target_service if campaign else "",
-                    campaign_target_segment=campaign.target_segment if campaign else "",
-                    scoring_template=scoring_template,
-                    allow_business_fallback=reanalyze_only,
-                    learned_instructions=learned_instructions,
-                    explicit_reanalyze=reanalyze_only,
-                )
+                scoring_result = None
+                try:
+                    _, scoring_result = await process_single_lead(
+                        lead, enrichment_service, scoring_service, db,
+                        analysis_profile=analysis_profile,
+                        campaign_target_service=campaign.target_service if campaign else "",
+                        campaign_target_segment=campaign.target_segment if campaign else "",
+                        scoring_template=scoring_template,
+                        allow_business_fallback=reanalyze_only,
+                        learned_instructions=learned_instructions,
+                        explicit_reanalyze=reanalyze_only,
+                    )
+                except Exception:  # noqa: BLE001 — falha isolada por lead: registra com traceback e segue o lote
+                    logger.exception("Falha ao processar lead %s (será reprocessado)", lead.company_name)
 
                 if scoring_result is None:
                     # Falha na pontuação (ex.: Groq rate-limit apesar do retry).
@@ -1327,8 +1331,8 @@ async def run_pipeline(
                     yield {
                         "type": "log",
                         "message": (
-                            f"{lead.company_name} NÃO foi pontuado (rate-limit/falha do provedor) — "
-                            "será reprocessado no próximo batch."
+                            f"{lead.company_name} NÃO foi pontuado agora (falha temporária) — "
+                            "será reprocessado no próximo lote."
                         ),
                         "timestamp": _ts(),
                     }
