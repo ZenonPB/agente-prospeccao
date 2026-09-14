@@ -80,7 +80,9 @@ async def atualizar_planilha(
 from src.routes.crm_sync import router as crm_sync_router  # noqa: E402
 from src.routes.commercial_intelligence import router as intelligence_router  # noqa: E402
 from src.routes.prospect_lists import router as prospect_lists_router  # noqa: E402
+from src.routes.sales_operating import router as sales_operating_router  # noqa: E402
 
 router.include_router(crm_sync_router)
 router.include_router(intelligence_router)
 router.include_router(prospect_lists_router)
+router.include_router(sales_operating_router)
