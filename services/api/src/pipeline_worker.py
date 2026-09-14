@@ -27,6 +27,7 @@ from services.places_service import GooglePlacesService
 from services.technical_enrichment_service import TechnicalEnrichmentService
 from services.scoring_service import AIScoringService
 from services.enrichment_orchestrator import process_single_lead, resolve_enrichment_steps
+from services.lead_processing_guard import run_guarded_lead_operation
 from services.template_router import route_scoring_template
 from services.template_generation_service import TemplateGenerationService
 from services.prospecting_profile_service import resolve_prospecting_profile
@@ -574,6 +575,8 @@ async def run_pipeline(
                 {**(scoring_template or {}), **offer_template},
                 offer_signals=offer_resolution.signals,
                 icp=offer_resolution.icp,
+                offer_key=offer_resolution.key,
+                offer_archetype=offer_resolution.archetype,
             )
             prospecting_profile = dict(prospecting_profile)
             offer_prescoring = offer_resolution.prescoring or {}
@@ -1314,9 +1317,8 @@ async def run_pipeline(
                             "timestamp": _ts(),
                         }
 
-                scoring_result = None
-                try:
-                    _, scoring_result = await process_single_lead(
+                async def _score_current_lead():
+                    return await process_single_lead(
                         lead, enrichment_service, scoring_service, db,
                         analysis_profile=analysis_profile,
                         campaign_target_service=campaign.target_service if campaign else "",
@@ -1326,20 +1328,35 @@ async def run_pipeline(
                         learned_instructions=learned_instructions,
                         explicit_reanalyze=reanalyze_only,
                     )
-                except Exception:  # noqa: BLE001 — falha isolada por lead: registra com traceback e segue o lote
-                    logger.exception("Falha ao processar lead %s (será reprocessado)", lead.company_name)
+
+                guarded = await run_guarded_lead_operation(
+                    db,
+                    _score_current_lead,
+                    lead_name=lead.company_name,
+                    correlation_id=correlation_id,
+                )
+                scoring_result = None
+                processing_failure = guarded.failure
+                if guarded.ok and guarded.value is not None:
+                    _, scoring_result = guarded.value
 
                 if scoring_result is None:
                     # Falha na pontuação (ex.: Groq rate-limit apesar do retry).
                     # O orchestrator mantém o lead em NOVO para reprocesso; aqui
                     # só deixamos o feed honesto (nada de "Score: 0" forjado).
                     failed_count += 1
+                    failure_message = (
+                        f"Não foi possível analisar {lead.company_name} agora. "
+                        "O restante da busca continua e este lead ficará pendente para nova tentativa."
+                        if processing_failure
+                        else (
+                            f"{lead.company_name} NÃO foi pontuado agora (serviço de análise indisponível) — "
+                            "será reprocessado no próximo lote."
+                        )
+                    )
                     yield {
                         "type": "log",
-                        "message": (
-                            f"{lead.company_name} NÃO foi pontuado agora (falha temporária) — "
-                            "será reprocessado no próximo lote."
-                        ),
+                        "message": failure_message,
                         "timestamp": _ts(),
                     }
                     yield {
