@@ -38,7 +38,7 @@ export type SavedCommercialView = {
   id: string;
   name: string;
   view_kind: 'crm' | 'analytics';
-  filters: CommercialFilterSnapshot & Record<string, unknown>;
+  filters: CommercialFilterSnapshot;
   shared: boolean;
   owner_user_id: string;
   editable: boolean;
@@ -59,7 +59,7 @@ export const salesOperatingApi = {
   createSavedView: (body: {
     name: string;
     view_kind: 'crm' | 'analytics';
-    filters: Record<string, unknown>;
+    filters: CommercialFilterSnapshot;
     shared?: boolean;
   }) => request<SavedCommercialView>('/api/crm/operating/saved-views', {
     method: 'POST', body: JSON.stringify(body),
