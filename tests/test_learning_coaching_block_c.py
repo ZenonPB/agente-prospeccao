@@ -78,23 +78,29 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
 
     for index in range(12):
         signal_a = index < 6
-        # IDs altos nos casos B garantem que o ranking empatado do baseline
-        # privilegie B; o candidato precisa mudar o ranking de fato.
+        # O grupo A tem o sinal que de fato concentra reuniões/vendas. O grupo
+        # B começa acima no ranking porque combina ICP + sinais opcionais. A
+        # calibração conservadora precisa inverter essa ordenação sem fabricar
+        # FALSE para sinais ausentes.
         opp_id = uuid.UUID(int=(index + 1) if signal_a else ((1 << 128) - (index + 1)))
         lead = Lead(
             organization_id=org_a.id,
             company_name=f"Empresa C {index}", city="Araraquara",
+            category=None if signal_a else "psicologia",
             status=LeadStatus.QUALIFICADO, qualification_score=70,
             assigned_to_id=manager.id,
             next_action_at=now - timedelta(days=1) if index < 3 else now + timedelta(days=3),
             created_at=now - timedelta(days=2), updated_at=now - timedelta(days=1),
         )
         db.add(lead); db.flush()
+        matched = ["NO_OWN_WEBSITE"] if signal_a else [
+            "HAS_INSTAGRAM", "HAS_ADS", "WEAK_CTA", "NO_CONTACT_FORM", "WEAK_CONVERSION_FLOW",
+        ]
         opportunity = LeadOpportunityRow(
             id=opp_id, organization_id=org_a.id, lead_id=lead.id,
             offer_key="landing_page", offer_version=baseline_version, profile_key="web_presence",
             score=35,
-            signals_matched=["NO_OWN_WEBSITE"] if signal_a else ["HAS_INSTAGRAM"],
+            signals_matched=matched,
             signals_missing=["HAS_INSTAGRAM"] if signal_a else ["NO_OWN_WEBSITE"],
         )
         db.add(opportunity); db.flush()
