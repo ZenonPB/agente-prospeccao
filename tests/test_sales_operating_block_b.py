@@ -42,6 +42,12 @@ def test_saved_views_crm_accept_operational_filters_without_pagination():
     }) == {"archived": "active", "min_score": "75", "search": "clínica", "tag": "MEJ"}
 
 
+def _entity_version(row) -> str:
+    value = row.updated_at or row.created_at
+    assert value is not None
+    return value.isoformat()
+
+
 @pytest.mark.skipif(not is_database_reachable(DB_URL), reason="Postgres indisponível")
 def test_block_b_company_person_bulk_metadata_and_tenant_isolation_postgres():
     from database.crm_models import CrmEntityAudit, LeadCrmMetadata
@@ -80,16 +86,16 @@ def test_block_b_company_person_bulk_metadata_and_tenant_isolation_postgres():
 
     try:
         commands = CrmEntityCommandService(db, org_a.id, member, user)
-        old_company_version = company_a.updated_at.isoformat()
+        old_company_version = _entity_version(company_a)
         updated_company = commands.update_company(company_a.id, expected_updated_at=old_company_version, values={"company_name": "Empresa A Editada", "website": "https://empresa-a.example.com"})
         assert updated_company.company_name == "Empresa A Editada"
         assert updated_company.normalized_domain == "empresa-a.example.com"
         with pytest.raises(CrmEntityConflict):
             commands.update_company(company_a.id, expected_updated_at=old_company_version, values={"city": "Matão"})
 
-        updated_person = commands.update_person(person_a.id, expected_updated_at=person_a.updated_at.isoformat(), values={"role_label": "Diretora Comercial", "routable": True})
+        updated_person = commands.update_person(person_a.id, expected_updated_at=_entity_version(person_a), values={"role_label": "Diretora Comercial", "routable": True})
         assert updated_person.role_label == "Diretora Comercial"
-        verified = commands.human_verify_person(person_a.id, expected_updated_at=updated_person.updated_at.isoformat())
+        verified = commands.human_verify_person(person_a.id, expected_updated_at=_entity_version(updated_person))
         assert verified.verification_status == "human_verified"
         assert verified.last_verified_at is not None
 
