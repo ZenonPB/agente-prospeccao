@@ -1,23 +1,21 @@
-"""Adapter OfferProfile → critérios de scoring (`CampaignScoringTemplate`).
+"""Adapter OfferProfile → critérios e política de scoring.
 
-Contrato entre as camadas (fonte única desta conversão):
+Contrato entre as camadas:
 
-- `OfferProfile.signals` usa chaves canônicas (`SignalKey`): listas de str
-  (`{"positive": ["NO_OWN_WEBSITE"], "negative": [...], "weights": {...}}`).
-- `CampaignScoringTemplate` usa critérios estruturados:
-  `[{"label": ..., "description": ..., "weight_hint": "high|medium|low"}]`.
-- `OfferProfile.icp` é um dict declarativo (segments, company_sizes, cnaes,
-  exclusions, geography); `context_signals` do template é lista de critérios.
+- `OfferProfile.signals` usa chaves canônicas (`SignalKey`): listas de str.
+- `CampaignScoringTemplate` usa critérios estruturados com label/description/peso.
+- `OfferProfile.icp` é declarativo; `context_signals` é lista estruturada.
+- A semântica de scoring que muda o comportamento do prompt é transportada em
+  `scoring_policy`, derivada de chaves técnicas estáveis do OfferProfile — nunca
+  de texto exibido ao usuário (`service_label`).
 
-Regras do merge (`merge_template_signals`):
+Regras do merge:
 
-1. Critérios estruturados já existentes no template são PRESERVADOS — nunca
-   sobrescritos por strings do OfferProfile.
-2. Só quando o template não tem critérios (vazio/ausente) é que os sinais
-   canônicos são convertidos, com metadata do `Signal Registry` (descrição
-   real, sem invenção) e peso do mapa `weights` do próprio perfil.
-3. Chave desconhecida (fora do registry) é ignorada com warning — nunca vira
-   critério vazio nem derruba o scoring.
+1. Critérios estruturados existentes são preservados.
+2. Sinais canônicos só são adaptados quando o grupo correspondente está vazio.
+3. Sinal desconhecido é ignorado com warning, sem derrubar o scoring.
+4. A política semântica é explícita e validável: `mode` e
+   `website_absence` não dependem de nomes em português.
 """
 from __future__ import annotations
 
@@ -26,11 +24,45 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Mapeamento peso numérico do perfil → weight_hint do template.
-# Regra explícita e testada (não calibrada por vertical: o hint só pondera
-# ênfase no prompt, o peso real continua no prescoring do perfil).
 HIGH_WEIGHT = 20
 MEDIUM_WEIGHT = 10
+
+SCORING_MODE_GENERIC = "generic"
+SCORING_MODE_WEB_PRESENCE = "web_presence"
+SCORING_MODE_ERP = "erp"
+WEBSITE_ABSENCE_NEUTRAL = "neutral"
+WEBSITE_ABSENCE_OPPORTUNITY = "opportunity"
+
+_ARCHETYPE_TO_MODE = {
+    "web_presence": SCORING_MODE_WEB_PRESENCE,
+    "digital_systems": SCORING_MODE_ERP,
+}
+
+
+def build_scoring_policy(
+    offer_key: Optional[str],
+    offer_archetype: Optional[str],
+) -> Dict[str, str]:
+    """Cria a política runtime de scoring a partir do contrato do OfferProfile.
+
+    `archetype` é vocabulário técnico estável do domínio. O label comercial pode
+    mudar livremente sem alterar comportamento. Arquétipos desconhecidos caem
+    de forma conservadora em `generic` + ausência de site neutra.
+    """
+    archetype = str(offer_archetype or "generic").strip() or "generic"
+    mode = _ARCHETYPE_TO_MODE.get(archetype, SCORING_MODE_GENERIC)
+    website_absence = (
+        WEBSITE_ABSENCE_OPPORTUNITY
+        if mode == SCORING_MODE_WEB_PRESENCE
+        else WEBSITE_ABSENCE_NEUTRAL
+    )
+    return {
+        "source": "offer_profile",
+        "offer_key": str(offer_key or ""),
+        "archetype": archetype,
+        "mode": mode,
+        "website_absence": website_absence,
+    }
 
 
 def weight_hint_for(weight: Any) -> str:
@@ -80,7 +112,10 @@ def adapt_offer_signals(signals: Optional[Dict[str, Any]]) -> Dict[str, List[Dic
             logger.warning("Grupo de sinais '%s' em formato inesperado: %r", group, keys)
             continue
         for key in keys:
-            criterion = criterion_from_signal_key(key, weights.get(key) if isinstance(key, str) else None)
+            criterion = criterion_from_signal_key(
+                key,
+                weights.get(key) if isinstance(key, str) else None,
+            )
             if criterion is not None:
                 adapted[group].append(criterion)
     return adapted
@@ -129,12 +164,11 @@ def merge_template_signals(
     template: Optional[Dict[str, Any]],
     offer_signals: Optional[Dict[str, Any]] = None,
     icp: Optional[Dict[str, Any]] = None,
+    *,
+    offer_key: Optional[str] = None,
+    offer_archetype: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Mescla sinais do OfferProfile no template SEM destruir critérios ricos.
-
-    Retorna cópia do template (ou dict novo) com `positive/negative/context_signals`
-    sempre como listas de critérios estruturados.
-    """
+    """Mescla OfferProfile no template sem destruir critérios ricos."""
     merged: Dict[str, Any] = dict(template or {})
     adapted = adapt_offer_signals(offer_signals)
     if not merged.get("positive_signals"):
@@ -148,9 +182,11 @@ def merge_template_signals(
         if signals is None:
             merged[group] = []
         elif isinstance(signals, dict):
-            # Formato legado/divergente (ex.: icp dictado direto): converte.
             merged[group] = adapt_icp_to_context(signals)
         elif not isinstance(signals, list):
             logger.warning("Grupo de sinais '%s' em formato inesperado: %r", group, signals)
             merged[group] = []
+
+    if offer_key or offer_archetype:
+        merged["scoring_policy"] = build_scoring_policy(offer_key, offer_archetype)
     return merged
