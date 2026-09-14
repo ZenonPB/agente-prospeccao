@@ -135,7 +135,7 @@ export function OutreachMessagesModal({
             <Tabs defaultValue="email" className="w-full">
               <TabsList className="grid h-11 w-full grid-cols-3 overflow-x-auto">
                 <TabsTrigger value="email" className="h-11">E-mail</TabsTrigger>
-                <TabsTrigger value="followups" className="h-11">Follow-ups</TabsTrigger>
+                <TabsTrigger value="followups" className="h-11">Acompanhamentos</TabsTrigger>
                 <TabsTrigger value="whatsapp" className="h-11">WhatsApp</TabsTrigger>
               </TabsList>
               <TabsContent value="email" className="space-y-4 pt-4">

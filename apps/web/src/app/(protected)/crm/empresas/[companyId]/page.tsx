@@ -36,7 +36,7 @@ export default function Company360Page(props: { params: Promise<{ companyId: str
   const canEdit = membership.data?.membership?.sales_role !== 'ANALYST';
 
   if (query.isLoading) return <CompanySkeleton />;
-  if (query.isError || !query.data) return <div className="space-y-6"><Back /><EmptyState title="Não foi possível abrir esta empresa" description="Ela pode não existir neste workspace ou não pertencer à sua carteira." /></div>;
+  if (query.isError || !query.data) return <div className="space-y-6"><Back /><EmptyState title="Não foi possível abrir esta empresa" description="Ela pode não estar nesta base ou você pode não ter acesso a ela." /></div>;
 
   const data = query.data;
   const current = data.company;

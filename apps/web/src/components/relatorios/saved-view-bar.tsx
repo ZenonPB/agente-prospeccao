@@ -49,7 +49,7 @@ export function SavedViewBar({
         {views.isLoading ? <span className="text-xs text-muted-foreground">Carregando...</span> : null}
         {views.data?.items.map((view) => (
           <span key={view.id} className="inline-flex items-center overflow-hidden rounded-full border bg-background">
-            <button type="button" onClick={() => onApply(view.filters)} className="px-3 py-1.5 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title={view.shared ? 'Compartilhada com o workspace' : 'Somente você'}>
+            <button type="button" onClick={() => onApply(view.filters)} className="px-3 py-1.5 text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title={view.shared ? 'Compartilhada com a equipe' : 'Somente você'}>
               {view.name}{view.shared ? ' · equipe' : ''}
             </button>
             {view.editable ? (

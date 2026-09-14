@@ -23,17 +23,17 @@ export const metadata: Metadata = buildPageMetadata({
 
 const WORKFLOW = [
   { step: '1', title: 'Diga o que quer vender', description: 'Crie uma busca escrevendo em linguagem normal o serviço e o tipo de cliente que você procura.', href: '/campanhas/nova', action: 'Criar uma busca', icon: Megaphone },
-  { step: '2', title: 'Revise quem vale abordar', description: 'Confira os leads encontrados, os motivos da recomendação e as evidências antes de gastar tempo no contato.', href: '/oportunidades', action: 'Ver leads', icon: Target },
-  { step: '3', title: 'Trabalhe a fila do dia', description: 'Use a carteira para saber quem precisa de atenção agora, sem depender de memória ou planilhas paralelas.', href: '/crm', action: 'Abrir minha carteira', icon: BriefcaseBusiness },
-  { step: '4', title: 'Registre o que aconteceu', description: 'Mantenha estágio, próxima ação, responsável, reunião, proposta e resultado atualizados no funil.', href: '/vendas', action: 'Abrir funil', icon: ArrowRight },
-  { step: '5', title: 'Veja o que está funcionando', description: 'Use os resultados para comparar campanhas, períodos e desempenho sem confundir associação com causa.', href: '/relatorios', action: 'Ver resultados', icon: BarChart3 },
-  { step: '6', title: 'Ensine o sistema com fatos reais', description: 'Feedbacks e outcomes ajudam a sugerir melhorias; nenhuma mudança de pontuação é publicada sem revisão humana.', href: '/inteligencia-comercial', action: 'Ver melhorias da IA', icon: Lightbulb },
+  { step: '2', title: 'Revise quem vale abordar', description: 'Confira os leads encontrados, os motivos da recomendação e as evidências antes de gastar tempo no contato.', href: '/oportunidades', action: 'Ver oportunidades', icon: Target },
+  { step: '3', title: 'Trabalhe a fila do dia', description: 'Use Minha carteira para saber quem precisa de atenção agora, sem depender de memória ou planilhas paralelas.', href: '/crm', action: 'Abrir minha carteira', icon: BriefcaseBusiness },
+  { step: '4', title: 'Registre o que aconteceu', description: 'Mantenha estágio, próxima ação, responsável, reunião, proposta e resultado atualizados nas negociações.', href: '/vendas', action: 'Abrir negociações', icon: ArrowRight },
+  { step: '5', title: 'Veja o que está funcionando', description: 'Use os resultados para comparar buscas, períodos e desempenho sem confundir coincidência com causa.', href: '/relatorios', action: 'Ver resultados', icon: BarChart3 },
+  { step: '6', title: 'Ensine o sistema com fatos reais', description: 'Avaliações e resultados ajudam a sugerir melhorias; nenhuma mudança na avaliação é publicada sem revisão humana.', href: '/inteligencia-comercial', action: 'Ver o que está funcionando', icon: Lightbulb },
 ] as const;
 
 const FAQ_ITEMS = [
   {
     question: 'O que eu faço quando abro o sistema?',
-    answer: 'Comece por Minha carteira. Ela reúne o que precisa de atenção hoje. Se a equipe precisa de novos leads, vá em Buscar clientes e descreva em uma frase o serviço que quer vender e para quem.',
+    answer: 'Comece por Minha carteira. Ela reúne o que precisa de atenção hoje. Se a equipe precisa de novos leads, vá em Encontrar novos clientes e descreva em uma frase o serviço que quer vender e para quem.',
   },
   {
     question: 'A nota da IA decide sozinha se devo falar com uma empresa?',
@@ -41,19 +41,23 @@ const FAQ_ITEMS = [
   },
   {
     question: 'De onde vêm as empresas e contatos?',
-    answer: 'O sistema combina fontes habilitadas no workspace, como busca de empresas, dados públicos, importações autorizadas e provedores de contato. Cada fonte tem limites e provenance. As conexões externas podem ser testadas por administradores em Configurações.',
+    answer: 'O sistema combina fontes habilitadas pela equipe, como busca de empresas, dados públicos, importações autorizadas e serviços de contato. Cada fonte tem limites. As conexões externas podem ser testadas por administradores em Configurações.',
   },
   {
     question: 'Como evito esquecer follow-ups?',
-    answer: 'Registre a próxima ação e use a fila da carteira. Sequências ajudam a organizar os próximos passos, mas o envio e a abordagem continuam sujeitos às permissões, limites e regras configuradas pela organização.',
+    answer: 'Registre a próxima ação e use a fila de Minha carteira. Acompanhamentos automáticos ajudam a organizar os próximos passos, mas o envio e a abordagem continuam sujeitos às permissões e regras da organização.',
   },
   {
     question: 'Como o sistema aprende?',
-    answer: 'Feedback humano e resultados comerciais atribuídos corretamente viram evidência para análise. Quando há amostra suficiente, o sistema pode propor uma nova versão da estratégia. Gestores revisam, aprovam e publicam explicitamente; também existe rollback.',
+    answer: 'Avaliações humanas e resultados registrados viram evidência para análise. Quando há amostra suficiente, o sistema pode propor uma nova versão da estratégia. Gestores revisam, aprovam e publicam explicitamente; também é possível voltar para uma versão anterior.',
   },
   {
-    question: 'Os dados de um workspace aparecem em outro?',
-    answer: 'Não. Campanhas, leads, empresas, pessoas, resultados, chaves e configurações são isolados por workspace. O backend valida o workspace autenticado e os gates de CI cobrem cenários adversariais de isolamento.',
+    question: 'Qual a diferença entre Encontrar novos clientes, Pesquisar na base e Minha carteira?',
+    answer: 'Encontrar novos clientes busca empresas novas para prospectar. Pesquisar na base pesquisa empresas e pessoas que já estão cadastradas. Minha carteira mostra o que precisa da sua atenção agora.',
+  },
+  {
+    question: 'Os dados de uma organização aparecem em outra?',
+    answer: 'Não. Buscas, leads, empresas, pessoas, resultados, chaves e configurações são separados por organização. A separação é validada a cada acesso.',
   },
   {
     question: 'Posso testar Google, IA e busca de contatos sem expor minhas chaves?',
@@ -134,9 +138,9 @@ export default function AjudaPage() {
         </div>
         <Card>
           <CardContent className="space-y-4 p-5 text-sm leading-relaxed text-muted-foreground">
-            <p><strong className="text-foreground">Separação por workspace.</strong> Cada organização acessa apenas seus próprios dados, configurações e credenciais.</p>
-            <p><strong className="text-foreground">Segredos.</strong> Chaves externas são armazenadas de forma protegida e a interface nunca devolve o valor salvo. Em produção, a chave mestra de criptografia é obrigatória.</p>
-            <p><strong className="text-foreground">Contato comercial.</strong> Opt-out deve ser respeitado. Campanhas externas e automações permanecem condicionadas às permissões, limites, provedores habilitados e base legal aplicável.</p>
+            <p><strong className="text-foreground">Separação por organização.</strong> Cada organização acessa apenas seus próprios dados, configurações e credenciais.</p>
+            <p><strong className="text-foreground">Chaves de acesso.</strong> Chaves externas são armazenadas de forma protegida e a interface nunca devolve o valor salvo. Em produção, a chave mestra de criptografia é obrigatória.</p>
+            <p><strong className="text-foreground">Contato comercial.</strong> Opt-out deve ser respeitado. Campanhas externas e automações permanecem condicionadas às permissões, limites, serviços habilitados e base legal aplicável.</p>
             <p><strong className="text-foreground">Dados e evidências.</strong> O sistema distingue fatos, inferências e informação desconhecida. Análises automáticas não substituem revisão humana quando uma decisão comercial exige contexto.</p>
             <p><strong className="text-foreground">Auditoria.</strong> Alterações administrativas e operações comerciais relevantes mantêm trilha para permitir investigação, aprendizado e correção.</p>
           </CardContent>

@@ -6,8 +6,8 @@ export default function BuscarPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Prospecção"
-        title="Buscar empresas e pessoas"
-        description="Explore a base do seu workspace com filtros avançados ou descreva o perfil ideal em linguagem natural."
+        title="Pesquisar empresas e pessoas"
+        description="Encontre empresas e contatos que já estão cadastrados no sistema. Use filtros ou descreva em uma frase quem você procura."
       />
       <SearchWorkspace />
     </div>

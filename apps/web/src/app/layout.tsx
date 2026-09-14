@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
   title: {
-    default: "Prospect.ai — Radar comercial inteligente",
+    default: "Prospect.ai — Prospecção e vendas",
     template: "%s · Prospect.ai",
   },
   description:
@@ -45,13 +45,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     siteName: "Prospect.ai",
-    title: "Prospect.ai — Radar comercial inteligente",
+    title: "Prospect.ai — Prospecção e vendas",
     description:
       "Plataforma de prospecção B2B com coleta, enriquecimento e qualificação por IA.",
   },
   twitter: {
     card: "summary",
-    title: "Prospect.ai — Radar comercial inteligente",
+    title: "Prospect.ai — Prospecção e vendas",
     description:
       "Plataforma de prospecção B2B com coleta, enriquecimento e qualificação por IA.",
   },

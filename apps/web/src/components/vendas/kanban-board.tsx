@@ -41,6 +41,12 @@ const NEG_STAGE_LABELS: Record<string, string> = {
   RP: 'Proposta',
 };
 
+const OUTCOME_LABELS: Record<string, string> = {
+  EM_ANALISE: 'Em análise',
+  APROVADO: 'Aprovado',
+  REPROVADO: 'Reprovado',
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LeadData = Record<string, any>;
 
@@ -219,7 +225,7 @@ const KanbanCard = memo(function KanbanCard({
                         ? 'bg-red-50 text-xs text-red-700'
                         : 'bg-amber-50 text-xs text-amber-700'}
                   >
-                    {lead.contract_outcome === 'EM_ANALISE' ? 'Em análise' : lead.contract_outcome}
+                    {OUTCOME_LABELS[lead.contract_outcome] || lead.contract_outcome}
                   </Badge>
                 )}
               </div>

@@ -75,7 +75,7 @@ export default function RelatoriosPage() {
       const t = filters.to || 'hoje';
       downloadBlob(blob, `relatorio-prospeccao-${f}-${t}.pdf`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Falha ao gerar o PDF. O runtime de renderização pode estar indisponível no servidor.';
+      const msg = err instanceof Error ? err.message : 'Falha ao gerar o PDF. Tente novamente em alguns instantes.';
       toast.error(msg);
     }
   };

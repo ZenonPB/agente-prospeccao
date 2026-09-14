@@ -5,9 +5,9 @@ export default function SequencesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Engagement"
-        title="Sequências e workflows"
-        description="Organize abordagens, tarefas e automações comerciais com rastreabilidade, pausas seguras e controle humano sobre ações externas."
+        eyebrow="Operação"
+        title="Próximos contatos"
+        description="Organize quem precisa ser contatado, quando fazer o próximo contato e quais tarefas ainda precisam ser concluídas."
       />
       <EngagementWorkspace />
     </div>

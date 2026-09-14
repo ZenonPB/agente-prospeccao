@@ -65,8 +65,8 @@ export default function CrmHomePage() {
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Buscar cliente, pessoa ou oportunidade</CardTitle>
-          <CardDescription>Uma busca única no seu workspace. Resultados de outros workspaces nunca aparecem aqui.</CardDescription>
+          <CardTitle className="text-base">Encontrar algo no sistema</CardTitle>
+          <CardDescription>Pesquise uma empresa, pessoa, oportunidade ou campanha já cadastrada.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative">
@@ -77,7 +77,7 @@ export default function CrmHomePage() {
           {searchQuery.isLoading && deferredSearch.length >= 2 ? <Skeleton className="h-24 w-full" /> : null}
           {searchQuery.isError ? <div role="alert" className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />Não foi possível concluir a busca agora.</div> : null}
           {groups && visibleResultCount > 0 ? <div className="space-y-5">{SEARCH_GROUPS.map(([key, title, Icon]) => <SearchGroup key={key} title={title} icon={Icon} items={groups[key]} />)}</div> : null}
-          {groups && deferredSearch.length >= 2 && visibleResultCount === 0 && !searchQuery.isLoading ? <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">Nenhum resultado encontrado neste workspace.</p> : null}
+          {groups && deferredSearch.length >= 2 && visibleResultCount === 0 && !searchQuery.isLoading ? <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">Nenhum resultado encontrado nesta base.</p> : null}
         </CardContent>
       </Card>
 

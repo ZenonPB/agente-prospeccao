@@ -35,7 +35,7 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
   const canEdit = membership.data?.membership?.sales_role !== 'ANALYST';
 
   if (query.isLoading) return <PersonSkeleton />;
-  if (query.isError || !query.data) return <div className="space-y-6"><Back /><EmptyState title="Não foi possível abrir esta pessoa" description="Ela pode não existir neste workspace ou não pertencer à sua carteira." /></div>;
+  if (query.isError || !query.data) return <div className="space-y-6"><Back /><EmptyState title="Não foi possível abrir esta pessoa" description="Ela pode não estar nesta base ou você pode não ter acesso a ela." /></div>;
 
   const data = query.data;
   const current = data.person;

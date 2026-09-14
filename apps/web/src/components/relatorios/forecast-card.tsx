@@ -115,7 +115,7 @@ export function ForecastCard({ forecast }: { forecast: ForecastData }) {
               <span>Motivos de Perda (LOST — oportunidade válida perdida)</span>
             </h4>
             <p className="mb-2 text-[11px] text-muted-foreground">
-              Desqualificados (inadequados) não entram aqui — são outcome distinto.
+              Desqualificados (inadequados) não entram aqui — são um resultado à parte.
             </p>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {forecast.lost_reasons_breakdown

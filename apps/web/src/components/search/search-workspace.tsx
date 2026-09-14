@@ -43,9 +43,9 @@ export function SearchWorkspace() {
             <Sparkles className="size-4" aria-hidden="true" />
             Busca assistida
           </div>
-          <CardTitle className="text-xl">Descreva quem você quer encontrar</CardTitle>
+          <CardTitle className="text-xl">Descreva o que procura na sua base</CardTitle>
           <CardDescription>
-            Escreva o perfil desejado em linguagem comum. O sistema prepara os filtros, mas só faz a busca depois que você revisar e confirmar.
+            Escreva o perfil desejado em linguagem comum. A pesquisa usa apenas dados que já estão no sistema, e só mostra resultados depois que você revisar e confirmar.
           </CardDescription>
         </CardHeader>
         <CardContent>

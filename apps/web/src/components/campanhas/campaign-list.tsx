@@ -66,8 +66,8 @@ export function CampaignList() {
     updateCampaign.mutate(
       { id, data: { status } },
       {
-        onSuccess: () => toast.success(status === 'PAUSED' ? 'Busca pausada.' : status === 'ARCHIVED' ? 'Campanha arquivada.' : 'Busca retomada.'),
-        onError: () => toast.error('Não foi possível atualizar a campanha.'),
+        onSuccess: () => toast.success(status === 'PAUSED' ? 'Busca pausada.' : status === 'ARCHIVED' ? 'Busca arquivada.' : 'Busca retomada.'),
+        onError: () => toast.error('Não foi possível atualizar a busca.'),
       }
     );
   };
@@ -90,7 +90,7 @@ export function CampaignList() {
         onSuccess: (created) => {
           const scoringTemplateId = campaign.scoring_template_id;
           const finish = () => {
-            toast.success('Campanha duplicada. Ajuste a cidade e inicie a coleta.');
+            toast.success('Busca duplicada. Ajuste a cidade e inicie a coleta.');
             router.push(`/campanhas/${created.id}`);
           };
           if (scoringTemplateId) {
@@ -102,7 +102,7 @@ export function CampaignList() {
             finish();
           }
         },
-        onError: () => toast.error('Não foi possível duplicar a campanha.'),
+        onError: () => toast.error('Não foi possível duplicar a busca.'),
       }
     );
   };
@@ -110,11 +110,11 @@ export function CampaignList() {
   return (
     <div className="space-y-4">
       <div data-tour="campanhas-lista" className="flex flex-wrap items-center justify-between gap-3">
-        <h3 className="text-lg font-medium">Todas as Campanhas</h3>
+        <h3 className="text-lg font-medium">Suas buscas</h3>
         <Link href="/campanhas/nova">
           <Button className="h-10">
             <Plus className="mr-2 h-4 w-4" />
-            Nova Campanha
+            Nova busca
           </Button>
         </Link>
       </div>
@@ -131,7 +131,7 @@ export function CampaignList() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-red-600">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              <p className="text-sm font-medium">Erro ao carregar campanhas</p>
+              <p className="text-sm font-medium">Erro ao carregar buscas</p>
             </div>
             <p className="mt-1 text-xs text-red-500">
               {error instanceof Error ? error.message : 'Tente novamente mais tarde'}
@@ -141,13 +141,13 @@ export function CampaignList() {
       ) : campaigns.length === 0 ? (
         <EmptyState
           icon={<Megaphone className="h-5 w-5" aria-hidden="true" />}
-          title="Nenhuma campanha ainda"
-          description="Crie sua primeira campanha escolhendo o segmento e a cidade — nós coletamos as oportunidades automaticamente."
+          title="Nenhuma busca ainda"
+          description="Crie sua primeira busca escolhendo o segmento e a cidade — nós encontramos as oportunidades automaticamente."
           action={
             <Link href="/campanhas/nova">
               <Button className="h-10">
                 <Plus className="mr-2 h-4 w-4" />
-                Criar primeira campanha
+                Criar primeira busca
               </Button>
             </Link>
           }

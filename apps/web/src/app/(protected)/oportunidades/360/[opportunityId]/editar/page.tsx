@@ -99,7 +99,7 @@ export default function EditOpportunity360Page(props: { params: Promise<{ opport
         </Link>
         <EmptyState
           title="Não foi possível editar esta oportunidade"
-          description="Ela pode não existir neste workspace ou você pode não ter acesso a ela."
+          description="Ela pode não estar nesta base ou você pode não ter acesso a ela."
         />
       </main>
     );
@@ -310,7 +310,7 @@ function OpportunityEditor({ opportunityId, data }: { opportunityId: string; dat
                       <option key={member.user_id} value={member.user_id}>{member.name || member.email || member.user_id}</option>
                     ))}
                   </select>
-                  {membersQ.isError && <p className="text-xs text-destructive">Não foi possível carregar os membros do workspace.</p>}
+                  {membersQ.isError && <p className="text-xs text-destructive">Não foi possível carregar os membros da equipe.</p>}
                 </div>
               ) : !data.owner && currentUserId ? (
                 <div className="sm:col-span-2">

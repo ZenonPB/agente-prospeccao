@@ -65,7 +65,7 @@ export function ProcessBanner() {
           </div>
           <Link href="/campanhas/nova">
             <Button size="sm" className="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90">
-              Nova Busca Rápida
+              Encontrar novos clientes
               <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
           </Link>
