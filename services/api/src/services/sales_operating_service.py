@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 import uuid
 
-from sqlalchemy import and_, or_
+from sqlalchemy import or_
 
 from database.crm_models import CommercialSavedView
 from database.engagement_models import CommercialTask, NextBestActionDecision
@@ -23,6 +23,7 @@ SAVED_FILTER_KEYS = {
     "channel", "status", "score_bucket", "outcome", "attribution", "search",
     "segment", "city", "state", "negotiation_stage", "priority", "assigned",
 }
+EPHEMERAL_FILTER_KEYS = {"cursor"}
 ARRAY_FILTER_KEYS = {"channel", "status", "score_bucket", "outcome", "negotiation_stage"}
 
 
@@ -39,14 +40,20 @@ def _iso(value: Any) -> str | None:
 
 
 def normalize_saved_filters(filters: dict[str, Any]) -> dict[str, Any]:
-    """Mantém somente filtros serializáveis e conhecidos, de modo determinístico."""
+    """Mantém somente filtros serializáveis e conhecidos, de modo determinístico.
+
+    Cursores são deliberadamente descartados: uma visão salva representa critérios
+    comerciais, não a página que estava aberta no momento do salvamento.
+    """
     if not isinstance(filters, dict):
         raise SalesOperatingValidation("filters deve ser um objeto")
-    unknown = sorted(set(filters) - SAVED_FILTER_KEYS)
+    unknown = sorted(set(filters) - SAVED_FILTER_KEYS - EPHEMERAL_FILTER_KEYS)
     if unknown:
         raise SalesOperatingValidation("Filtro(s) não suportado(s): " + ", ".join(unknown))
     normalized: dict[str, Any] = {}
     for key in sorted(filters):
+        if key in EPHEMERAL_FILTER_KEYS:
+            continue
         value = filters[key]
         if value is None or value == "":
             continue
@@ -78,7 +85,7 @@ class SalesOperatingService:
         return consultant_lead_scope(self.member, query)
 
     def queue(self, limit: int = 20) -> dict[str, Any]:
-        """Monta uma fila priorizada a partir de tarefas, NBA e estado do lead."""
+        """Monta uma fila priorizada a partir de tarefas, recomendações e estado do lead."""
         limit = max(1, min(int(limit), 50))
         now = datetime.now(timezone.utc)
         leads = self._visible_leads_query().order_by(
@@ -209,7 +216,6 @@ class SalesOperatingService:
                 company_query = company_query.filter(Company.id.in_(company_ids))
             else:
                 company_query = company_query.filter(False)
-            # Pessoas da carteira podem ser primary_person ou pertencer às companies visíveis.
             if company_ids or person_ids:
                 person_query = person_query.filter(or_(Person.id.in_(person_ids), Person.company_id.in_(company_ids)))
             else:
