@@ -9,14 +9,15 @@ interface OnboardingState {
   currentStepIndex: number;
   isActive: boolean;
   isWaitingForElement: boolean;
-  
+
   startTour: (fromStepIndex?: number) => void;
   nextStep: () => void;
   prevStep: () => void;
+  pauseTour: () => void;
   skipTour: () => void;
   completeTour: () => void;
   resetTour: () => void;
-  
+
   setStatus: (status: OnboardingStatus) => void;
   setStepIndex: (index: number) => void;
   setIsWaitingForElement: (waiting: boolean) => void;
@@ -35,7 +36,7 @@ const getInitialStep = (): number => {
   if (typeof window === 'undefined') return 0;
   const saved = localStorage.getItem(STEP_STORAGE_KEY);
   const parsed = saved ? parseInt(saved, 10) : 0;
-  return isNaN(parsed) ? 0 : parsed;
+  return Number.isNaN(parsed) ? 0 : Math.max(0, parsed);
 };
 
 export const useOnboardingStore = create<OnboardingState>((set, get) => ({
@@ -45,32 +46,32 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
   isWaitingForElement: false,
 
   startTour: (fromStepIndex = 0) => {
+    const index = Math.max(0, fromStepIndex);
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, 'IN_PROGRESS');
-      localStorage.setItem(STEP_STORAGE_KEY, String(fromStepIndex));
+      localStorage.setItem(STEP_STORAGE_KEY, String(index));
     }
-    set({
-      status: 'IN_PROGRESS',
-      currentStepIndex: fromStepIndex,
-      isActive: true,
-      isWaitingForElement: false,
-    });
+    set({ status: 'IN_PROGRESS', currentStepIndex: index, isActive: true, isWaitingForElement: false });
   },
 
   nextStep: () => {
     const nextIndex = get().currentStepIndex + 1;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STEP_STORAGE_KEY, String(nextIndex));
-    }
+    if (typeof window !== 'undefined') localStorage.setItem(STEP_STORAGE_KEY, String(nextIndex));
     set({ currentStepIndex: nextIndex, isWaitingForElement: false });
   },
 
   prevStep: () => {
     const prevIndex = Math.max(0, get().currentStepIndex - 1);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STEP_STORAGE_KEY, String(prevIndex));
-    }
+    if (typeof window !== 'undefined') localStorage.setItem(STEP_STORAGE_KEY, String(prevIndex));
     set({ currentStepIndex: prevIndex, isWaitingForElement: false });
+  },
+
+  pauseTour: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY, 'IN_PROGRESS');
+      localStorage.setItem(STEP_STORAGE_KEY, String(get().currentStepIndex));
+    }
+    set({ status: 'IN_PROGRESS', isActive: false, isWaitingForElement: false });
   },
 
   skipTour: () => {
@@ -78,11 +79,7 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       localStorage.setItem(STORAGE_KEY, 'DISMISSED');
       localStorage.removeItem(STEP_STORAGE_KEY);
     }
-    set({
-      status: 'DISMISSED',
-      isActive: false,
-      isWaitingForElement: false,
-    });
+    set({ status: 'DISMISSED', isActive: false, isWaitingForElement: false });
   },
 
   completeTour: () => {
@@ -90,38 +87,26 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
       localStorage.setItem(STORAGE_KEY, 'COMPLETED');
       localStorage.removeItem(STEP_STORAGE_KEY);
     }
-    set({
-      status: 'COMPLETED',
-      isActive: false,
-      isWaitingForElement: false,
-    });
+    set({ status: 'COMPLETED', isActive: false, isWaitingForElement: false });
   },
 
   resetTour: () => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, 'NOT_STARTED');
+      localStorage.setItem(STORAGE_KEY, 'IN_PROGRESS');
       localStorage.setItem(STEP_STORAGE_KEY, '0');
     }
-    set({
-      status: 'NOT_STARTED',
-      currentStepIndex: 0,
-      isActive: true,
-      isWaitingForElement: false,
-    });
+    set({ status: 'IN_PROGRESS', currentStepIndex: 0, isActive: true, isWaitingForElement: false });
   },
 
   setStatus: (status) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, status);
-    }
+    if (typeof window !== 'undefined') localStorage.setItem(STORAGE_KEY, status);
     set({ status });
   },
 
   setStepIndex: (index) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STEP_STORAGE_KEY, String(index));
-    }
-    set({ currentStepIndex: index });
+    const safeIndex = Math.max(0, index);
+    if (typeof window !== 'undefined') localStorage.setItem(STEP_STORAGE_KEY, String(safeIndex));
+    set({ currentStepIndex: safeIndex });
   },
 
   setIsWaitingForElement: (isWaitingForElement) => set({ isWaitingForElement }),
