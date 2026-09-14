@@ -39,6 +39,8 @@ jobs:
           python -m compileall -q services/api services/workers
       - name: Unit tests (sem banco)
         run: python -m pytest tests -q -W error
+      - name: Prospecting Intelligence quality gate
+        run: python -m pytest tests/test_prospecting_intelligence_block_a.py -q -W error
 
   migrations:
     name: Migrations (alembic upgrade head)
