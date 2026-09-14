@@ -18,6 +18,13 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
+// O Base UI resolve o texto do valor selecionado a partir da prop `items` do
+// Root — que nunca passamos aqui — e não a partir dos <SelectItem> visíveis.
+// Por isso um <SelectValue /> sem `children` exibe o valor cru (enum, slug,
+// id) com o select fechado. Sempre informe `children` como função que traduz
+// o valor para o rótulo em português usando o mesmo mapa/opções dos
+// <SelectItem>, tratando vazio com o texto do placeholder:
+//   <SelectValue placeholder="...">{(value) => LABELS[value] ?? "..."}</SelectValue>
 function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value

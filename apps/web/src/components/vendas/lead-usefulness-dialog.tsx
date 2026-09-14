@@ -94,7 +94,7 @@ export function LeadUsefulnessDialog({ lead, open, onOpenChange }: LeadUsefulnes
                 </label>
                 <Select value={reason || undefined} onValueChange={(value) => setReason(value as LeadUsefulnessReason)}>
                   <SelectTrigger id="usefulness-reason">
-                    <SelectValue placeholder="Escolha o motivo" />
+                    <SelectValue placeholder="Escolha o motivo">{(value) => (value ? (LEAD_USEFULNESS_REASONS.find((item) => item.value === value)?.label ?? (value as string)) : 'Escolha o motivo')}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {LEAD_USEFULNESS_REASONS.map((item) => (

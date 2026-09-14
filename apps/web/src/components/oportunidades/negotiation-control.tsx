@@ -95,7 +95,7 @@ export function NegotiationControl({
           <Label htmlFor="neg-stage">Estágio</Label>
           <Select value={stage} onValueChange={(v) => setStage((v || "") as NegotiationStage | "")}>
             <SelectTrigger id="neg-stage" className="w-full">
-              <SelectValue>{labelFor(STAGE_OPTIONS, stage)}</SelectValue>
+              <SelectValue>{(value) => labelFor(STAGE_OPTIONS, (value ?? '') as NegotiationStage | '')}</SelectValue>
             </SelectTrigger>
             <SelectContent align="start">
               <SelectItem value="">Sem estágio</SelectItem>
@@ -109,7 +109,7 @@ export function NegotiationControl({
           <Label htmlFor="neg-outcome">Contrato</Label>
           <Select value={outcome} onValueChange={(v) => setOutcome((v || "") as ContractOutcome | "")}>
             <SelectTrigger id="neg-outcome" className="w-full">
-              <SelectValue>{labelFor(OUTCOME_OPTIONS, outcome)}</SelectValue>
+              <SelectValue>{(value) => labelFor(OUTCOME_OPTIONS, (value ?? '') as ContractOutcome | '')}</SelectValue>
             </SelectTrigger>
             <SelectContent align="start">
               <SelectItem value="">Sem resultado</SelectItem>

@@ -243,7 +243,7 @@ export function ProspectingRadar() {
                 <div className="space-y-2">
                   <Label htmlFor="offer-key">Oferta</Label>
                   <Select value={offerKey || 'any'} onValueChange={(value) => setOfferKey(value === 'any' || value == null ? '' : value)}>
-                    <SelectTrigger id="offer-key" className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="offer-key" className="w-full"><SelectValue>{(value) => (value === 'any' ? 'Qualquer oferta' : offerProfileLabel(value as string))}</SelectValue></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="any">Qualquer oferta</SelectItem>
                       {OFFER_PROFILE_OPTIONS.map((offer) => <SelectItem key={offer.key} value={offer.key}>{offer.label}</SelectItem>)}

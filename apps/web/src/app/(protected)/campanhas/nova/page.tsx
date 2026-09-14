@@ -301,7 +301,7 @@ export default function NovaCampanhaPage() {
                   </Field>
                   <Field label="Estado (opcional)" htmlFor="state">
                     <Select value={briefDraft.target_state || ''} onValueChange={(value) => updateBriefDraft({ target_state: value ?? '' })}>
-                      <SelectTrigger id="state"><SelectValue placeholder="Todo o Brasil" /></SelectTrigger>
+                      <SelectTrigger id="state"><SelectValue placeholder="Todo o Brasil">{(value) => (value ? (brazilianStates.find(([uf]) => uf === value)?.[1] ?? (value as string)) : 'Todo o Brasil')}</SelectValue></SelectTrigger>
                       <SelectContent>{brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}</SelectContent>
                     </Select>
                   </Field>
@@ -318,7 +318,7 @@ export default function NovaCampanhaPage() {
                     <div className="w-full md:w-72">
                       <Label htmlFor="offer">Corrigir, se necessário</Label>
                       <Select value={suggestedOfferKey || ''} onValueChange={(value) => setSelectedOfferKey(value ?? null)}>
-                        <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha o serviço" /></SelectTrigger>
+                        <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha o serviço">{(value) => (value ? offerProfileLabel(value as string) : 'Escolha o serviço')}</SelectValue></SelectTrigger>
                         <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
@@ -346,7 +346,7 @@ export default function NovaCampanhaPage() {
             <div className="space-y-2">
               <Label htmlFor="manual-offer">O que você quer vender</Label>
               <Select value={manual.offerKey} onValueChange={(offerKey) => setManual((current) => ({ ...current, offerKey: offerKey ?? '' }))}>
-                <SelectTrigger id="manual-offer"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="manual-offer"><SelectValue>{(value) => offerProfileLabel(value as string)}</SelectValue></SelectTrigger>
                 <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
               </Select>
               {selectedOffer ? <p className="text-sm text-muted-foreground">{selectedOffer.description}</p> : null}
@@ -362,7 +362,7 @@ export default function NovaCampanhaPage() {
               </Field>
               <Field label="Estado (opcional)" htmlFor="manual-state">
                 <Select value={manual.state} onValueChange={(state) => setManual((current) => ({ ...current, state: state ?? '' }))}>
-                  <SelectTrigger id="manual-state"><SelectValue placeholder="Todo o Brasil" /></SelectTrigger>
+                  <SelectTrigger id="manual-state"><SelectValue placeholder="Todo o Brasil">{(value) => (value ? (brazilianStates.find(([uf]) => uf === value)?.[1] ?? (value as string)) : 'Todo o Brasil')}</SelectValue></SelectTrigger>
                   <SelectContent>{brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>

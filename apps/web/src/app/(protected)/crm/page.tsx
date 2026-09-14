@@ -60,7 +60,7 @@ export default function CrmHomePage() {
         eyebrow="Operação comercial"
         title="Central comercial"
         description="Encontre qualquer cliente e veja, em ordem de prioridade, o que precisa da sua atenção hoje."
-        actions={<Link href="/crm/operacao" className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Layers3 className="mr-2 h-4 w-4" />Operar carteira</Link>}
+        actions={<Link href="/crm/operacao" className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Layers3 className="mr-2 h-4 w-4" />Oportunidades</Link>}
       />
 
       <Card>

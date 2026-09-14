@@ -52,7 +52,7 @@ export function PostSaleControl({ leadId }: { leadId: string }) {
         <Label htmlFor="pos-channel">Canal</Label>
         <Select value={channel} onValueChange={(v) => setChannel((v || "WHATSAPP") as "WHATSAPP" | "EMAIL")}>
           <SelectTrigger id="pos-channel" className="w-full">
-            <SelectValue>{CHANNELS.find((c) => c.value === channel)?.label}</SelectValue>
+            <SelectValue>{(value) => CHANNELS.find((c) => c.value === value)?.label ?? (value as string)}</SelectValue>
           </SelectTrigger>
           <SelectContent align="start">
             {CHANNELS.map((c) => (

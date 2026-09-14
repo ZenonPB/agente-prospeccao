@@ -104,14 +104,13 @@ export function IntegrationsWorkspace() {
               <div className="space-y-2">
                 <Label>Sistema</Label>
                 <Select value={provider} onValueChange={(value) => { if (value) setProvider(value as CRMProvider); }}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>{Object.entries(PROVIDER_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="w-full"><SelectValue>{(value) => PROVIDER_LABELS[value as CRMProvider] ?? (value as string)}</SelectValue></SelectTrigger>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label>Forma de atualização</Label>
                 <Select value={mode} onValueChange={(value) => { if (value) setMode(value as CRMSyncMode); }}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue>{(value) => MODE_LABELS[value as CRMSyncMode] ?? (value as string)}</SelectValue></SelectTrigger>
                   <SelectContent>{Object.entries(MODE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>

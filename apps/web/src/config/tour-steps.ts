@@ -90,7 +90,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'crm-operate', chapter: 'Vendendo', targetRoute: '/crm/operacao', elementSelector: null,
     title: 'Trabalhe várias oportunidades de uma vez',
-    description: 'Na operação da carteira você pode filtrar, salvar visões, criar tarefas, aplicar tags, mover estágio e iniciar follow-ups em lote. O sistema mostra uma prévia antes de alterações em massa.',
+    description: 'Na página de Oportunidades você pode filtrar, salvar visões, criar tarefas, aplicar etiquetas, mover etapa e iniciar acompanhamentos em lote. O sistema mostra uma prévia antes de aplicar alterações.',
   },
   {
     id: 'reports', chapter: 'Melhorando', targetRoute: '/relatorios', elementSelector: '[data-tour="relatorios-header"]',
