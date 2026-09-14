@@ -43,12 +43,12 @@ def operating_leads(
         (LeadCrmMetadata.lead_id == Lead.id) & (LeadCrmMetadata.organization_id == org.id),
     ).filter(Lead.organization_id == org.id)
 
-    # consultant_lead_scope opera sobre Query[Lead]. Reaplicamos a mesma regra
-    # através do conjunto de ids visíveis para manter a junção tipada e fail-closed.
+    # Query[Lead.id] pode ser usada diretamente no IN; materializar `.subquery()`
+    # faria o SQLAlchemy emitir SAWarning de coerção implícita (a suíte usa -W error).
     visible_ids = consultant_lead_scope(
         member,
         db.query(Lead.id).filter(Lead.organization_id == org.id),
-    ).subquery()
+    )
     query = query.filter(Lead.id.in_(visible_ids))
 
     if search:
