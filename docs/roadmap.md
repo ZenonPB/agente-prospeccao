@@ -1,8 +1,8 @@
 # Roadmap — AlphaMec Release Candidate
 
 > **LIVE · atualizado em 2026-09-14.** Leia `docs/README.md` antes dos snapshots
-> de fases antigas. Estado base após PR #173: Opportunity 360 operacionalmente
-> editável, preservando as fontes canônicas do CRM.
+> de fases antigas. O estado atual inclui a consolidação do Bloco A de
+> Prospecting Intelligence; código/testes prevalecem sobre snapshots antigos.
 
 ## Objetivo
 
@@ -26,89 +26,76 @@ oferta por meio de `OfferProfile` e isolamento estrito por workspace.
 - Kanban comercial;
 - Opportunity 360 read-only e editável;
 - Company 360 e Person 360;
+- Historical Importer com contexto comercial e gate PostgreSQL;
+- Filter Context compartilhado + BI no escopo RC;
 - OfferProfile efetivo por workspace em todo o pipeline;
+- Prospecting Intelligence com quality gates e política `UNKNOWN != FALSE`;
+- Golden Paths para landing pages, sistemas web, engenharia e troféus;
+- Event Intelligence declarativa para eventos gerais, esportivos e MEJ;
+- timing comercial e persistência idempotente de oportunidades de evento;
+- benchmark sintético de regressão como quality gate;
+- criação de campanha natural-language-first sem exigir jargão técnico;
 - CI com backend `-W error`, migrations PostgreSQL, E2E crítico e web build.
 
-## Batch 3 — Opportunity 360 editável — ✅
+## Bloco A — Prospecting Intelligence + Golden Paths — ✅ técnico
 
-Objetivo cumprido: operar a oportunidade sem criar uma segunda fonte de verdade.
+Objetivo cumprido no código e nos gates automatizados:
 
-Entregue:
+- diferenças de oferta ficam em `OfferProfile`/configuração de portfólio;
+- Event Intelligence recebe regras declarativas em vez de conhecer MEJ/esporte no core;
+- MEJ e esporte roteiam para ofertas específicas sem criar entidades paralelas;
+- contexto derivado é `INFERENCE`, ausência permanece `UNKNOWN`;
+- quantidade estimada de premiações só é calculada a partir de campos estruturados e continua inferência;
+- timing evita tratar evento imediato como oportunidade perfeita e reconhece janela ideal de venda/execução;
+- matching de evento é idempotente e mantém provenance/evidence;
+- benchmark verifica roteamento, cobertura de evidência, recall de alta confiança e hard negatives;
+- ratchet de genericidade impede reintrodução de conhecimento de domínio no core;
+- Event Intelligence/Golden Paths possuem gate explícito em PostgreSQL real;
+- frontend de nova campanha passou a partir do objetivo comercial, sem expor provider/query/template/profile ao usuário comum.
 
-- `OpportunityCommandService` sobre `LeadOpportunityRow`, `Lead` e
-  `CommercialTask` existentes;
-- edição de owner, status, estágio, valor, previsão, próxima ação, motivo de
-  perda e notas;
-- validação atômica de status/motivo de perda para respeitar constraints do DB;
-- criação idempotente de tarefas protegida também contra requests concorrentes
-  pela UNIQUE do PostgreSQL + recuperação do vencedor da corrida;
-- atualização de tarefas existentes;
-- ANALYST read-only; CONSULTOR restrito à própria carteira; MANAGER/OWNER/ADMIN
-  com gestão de ownership;
-- validação de membership no workspace e lookup fail-closed;
-- editor web em `/oportunidades/360/[id]/editar` com controles semânticos,
-  navegação por teclado, feedback de operação e mutations/cache via React Query;
-- optimistic update com rollback para conclusão/dispensa de tarefa;
-- migration idempotente que alinha `LeadActivityAction.NEGOTIATION_UPDATED` ao
-  enum PostgreSQL;
-- suíte PostgreSQL de permissões, idempotência, validação e relações;
-- gate explícito da suíte no job E2E do CI.
-
-O batch foi submetido aos mesmos gates de merge do projeto; todos devem estar
-verdes no HEAD final que inclui esta documentação antes do merge.
+**Limite:** o benchmark é sintético. Este bloco não declara `precision@20`,
+conversão, reuniões ou receita reais. Esses indicadores só entram como evidência
+quando campanhas autorizadas gerarem outcomes reais atribuídos.
 
 ## Próximas entregas para o RC
 
-### 1. Importador histórico AlphaMec — concluído
+### 1. CRM como sistema operacional de vendas
 
-Fluxo obrigatório:
+Completar a experiência necessária para abandonar a planilha: fila diária do
+consultor, busca/visões salvas quando justificadas pelo fluxo, ações em massa
+seguras e superfícies 360 editáveis onde ainda forem read-only. Não criar
+Proposal/Contract/Note paralelos sem regra de domínio real.
 
-`upload → preview → mapping de colunas → validação → dedupe → import → relatório`
+### 2. BI de gestão / cross-filter
 
-Requisitos: dry-run, org-scope, idempotência, erro por linha, nenhuma escrita
-parcial silenciosa e auditoria da origem.
+Evoluir o BI já server-side para interação estilo Power BI: seleção visual que
+compõe filtros entre gráficos/tabelas, comparação de períodos, aging, tempo por
+estágio, motivos de perda, SLA de follow-up e visão de qualidade de prospecção.
 
-### 2. CRM para substituir a planilha
+### 3. Feedback, coaching e calibração
 
-Completar:
-Company 360/Person 360 editáveis quando necessário, busca global, filtros,
-tags, ações em massa, ownership, tarefas, notas canônicas, propostas/contratos
-**somente quando houver modelo de domínio real**, exportação e auditoria.
+Consolidar feedback, score feedback e outcomes em coaching útil ao vendedor e à
+gestão. Learning continua controlado: proposta → evidência → aprovação humana →
+publicação versionada → rollback. Nunca aplicar mudança de produção
+silenciosamente.
 
-### 3. Filter Context + BI interativo — concluído no escopo RC
-
-Um contrato de filtro compartilhado por dashboards e tabelas: período,
-workspace, owner, campanha, oferta/versão, estágio, segmento, região e provider.
-Filtros devem compor queries no backend; não carregar universo inteiro para
-filtrar no navegador.
-
-### 4. Feedback, coaching e calibração
-
-Consolidar feedback de utilidade, score feedback e outcomes em análises úteis ao
-vendedor e à gestão. Learning continua controlado: proposta → evidência →
-aprovação humana → publicação versionada → rollback. Nunca aplicar mudança de
-produção silenciosamente.
-
-### 5. Golden Path AlphaMec
-
-Prioridade funcional: troféus/eventos/MEJ, sem hardcode do núcleo. Provar:
-discovery → empresa → decisor → oportunidade → ação → contato → outcome → BI.
-
-### 6. UAT multi-workspace
+### 4. UAT multi-workspace
 
 Cenários mínimos:
 - A não lê/escreve B por UUID conhecido;
 - overlays OfferProfile distintos não contaminam jobs concorrentes;
 - providers/secrets/quotas separados;
 - CRM e dashboards respeitam carteira e organização;
-- importador nunca resolve entidades fora do workspace.
+- importador nunca resolve entidades fora do workspace;
+- usuário membro de dois ou mais workspaces alterna contexto sem mistura de cache, jobs ou analytics.
 
-### 7. Campanha real e hardening final
+### 5. Campanhas reais e hardening final
 
-Rodar campanha AlphaMec real com credenciais autorizadas; medir coverage,
-precision, custo, latência, bounce/routability, conversão e problemas de UX.
-Achados são classificados em `BLOCKS_ALPHAMEC`, `IMPORTANT_ALPHAMEC` ou
-`DEFER_TO_V2`.
+Rodar campanhas AlphaMec autorizadas para landing pages, sistemas, engenharia,
+troféus gerais/esportivos e MEJ. Medir coverage, `precision@10/20`, contatos e
+decisores válidos, resposta, reunião, proposta, contrato, custo, latência e
+problemas de UX. Achados são classificados em `BLOCKS_ALPHAMEC`,
+`IMPORTANT_ALPHAMEC` ou `DEFER_TO_V2`.
 
 ## Depois do RC
 
@@ -126,6 +113,7 @@ Achados são classificados em `BLOCKS_ALPHAMEC`, `IMPORTANT_ALPHAMEC` ou
 4. `python -m pytest tests -q -W error`;
 5. migrations em PostgreSQL real + idempotência + schema verifier;
 6. E2E crítico e invariantes tenant-safe relevantes;
-7. `npm ci`, lint, `tsc --noEmit` e production build;
-8. documentação LIVE atualizada;
-9. todos os checks verdes no **mesmo HEAD** que será mergeado.
+7. para Bloco A, Event Intelligence/Golden Paths persistentes em PostgreSQL real;
+8. `npm ci`, lint, `tsc --noEmit` e production build;
+9. documentação LIVE atualizada;
+10. todos os checks verdes no **mesmo HEAD** que será mergeado.
