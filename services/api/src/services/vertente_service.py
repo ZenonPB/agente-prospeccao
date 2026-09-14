@@ -10,8 +10,18 @@ from typing import Any
 
 from database.learning_models import OfferProfileVersion
 from services.prospecting.effective_offer_registry import build_effective_registry
+from services.prospecting.offer_profile import OfferProfile
 from services.prospecting.offer_profile_maturity import evaluate_offer_profile_maturity
+from services.prospecting.offer_profile_validator import validate_profile
 from services.signal_registry import SIGNAL_REGISTRY
+
+
+_ENRICHMENT_LABELS = {
+    "cnpj_receita": "Consultar dados empresariais",
+    "cnpj_qsa": "Consultar quadro societário",
+    "technical_site": "Analisar site e presença digital",
+    "business_social": "Analisar presença e contexto comercial",
+}
 
 
 def _humanize(value: str) -> str:
@@ -34,14 +44,49 @@ def _analysis_profile(archetype: str) -> str:
     return "web_presence" if archetype in {"web_presence", "digital_systems"} else "business_opportunity"
 
 
-def _origin_keys(db: Any, organization_id: Any) -> set[str]:
+def _valid_org_profile_keys(db: Any, organization_id: Any) -> set[str]:
+    """Retorna somente overlays que realmente entram no registry efetivo.
+
+    Uma linha ativa mas inválida é ignorada pelo runtime. A UI deve refletir a
+    mesma decisão e não rotular o fallback factory como configuração da org.
+    """
     if db is None or organization_id is None:
         return set()
-    rows = db.query(OfferProfileVersion.offer_key).filter(
+    rows = db.query(OfferProfileVersion).filter(
         OfferProfileVersion.organization_id == organization_id,
         OfferProfileVersion.is_active.is_(True),
     ).all()
-    return {str(row[0]) for row in rows}
+    valid: set[str] = set()
+    for row in rows:
+        try:
+            profile = OfferProfile.from_dict(dict(row.profile_snapshot or {}))
+        except (TypeError, ValueError):
+            continue
+        problems = [item for item in validate_profile(profile) if not str(item).startswith("aviso:")]
+        if not problems:
+            valid.add(str(profile.key))
+    return valid
+
+
+def _analysis_flow(profile: Any) -> list[str]:
+    """Traduz a estratégia real da Vertente para uma sequência compreensível."""
+    flow = ["Encontrar possíveis clientes"]
+    prescoring = profile.prescoring or {}
+    if prescoring.get("weights") or prescoring.get("threshold") is not None:
+        flow.append("Aplicar pré-filtro de aderência")
+
+    enrichment = profile.enrichment or {}
+    for step in list(enrichment.get("steps") or []):
+        label = _ENRICHMENT_LABELS.get(str(step), _humanize(str(step)))
+        if label not in flow:
+            flow.append(label)
+    if enrichment.get("people_discovery"):
+        flow.append("Identificar possíveis decisores")
+
+    if profile.signals:
+        flow.append("Avaliar sinais e evidências")
+    flow.append("Priorizar oportunidade")
+    return flow
 
 
 def _serialize(profile: Any, *, origin: str) -> dict[str, Any]:
@@ -96,13 +141,7 @@ def _serialize(profile: Any, *, origin: str) -> dict[str, Any]:
             "decision_makers": list(decision_makers.get("priority") or decision_makers.get("roles") or []),
             "channels": list(channels.get("priority") or []),
             "qualification_questions": list(qualification.get("questions") or []),
-            "analysis_flow": [
-                "Encontrar possíveis clientes",
-                "Coletar informações relevantes",
-                "Avaliar evidências e contexto",
-                "Calcular aderência",
-                "Priorizar oportunidade",
-            ],
+            "analysis_flow": _analysis_flow(profile),
         },
         "advanced": profile_dict,
     }
@@ -115,7 +154,7 @@ class VertenteService:
 
     def list(self) -> list[dict[str, Any]]:
         registry = build_effective_registry(self.db, self.organization_id)
-        org_keys = _origin_keys(self.db, self.organization_id)
+        org_keys = _valid_org_profile_keys(self.db, self.organization_id)
         items = [
             _serialize(profile, origin="organization" if profile.key in org_keys else "factory")
             for profile in registry.list()
@@ -127,5 +166,5 @@ class VertenteService:
         profile = registry.get(key)
         if profile is None:
             return None
-        origin = "organization" if key in _origin_keys(self.db, self.organization_id) else "factory"
+        origin = "organization" if key in _valid_org_profile_keys(self.db, self.organization_id) else "factory"
         return _serialize(profile, origin=origin)
