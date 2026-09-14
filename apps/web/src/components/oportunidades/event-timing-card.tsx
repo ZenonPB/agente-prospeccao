@@ -1,18 +1,19 @@
 'use client';
 
-import { CalendarDays, ExternalLink, Hourglass, Megaphone } from 'lucide-react';
+import { CalendarDays, ExternalLink, Hourglass, Megaphone, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useIntelligenceEvents } from '@/hooks/use-api';
+import { offerProfileLabel } from '@/lib/offers';
 
-const urgencyLabels: Record<string, string> = {
-  today: 'hoje',
-  high: 'alta',
-  medium: 'média',
-  low: 'baixa',
-  very_low: 'muito baixa',
-  expired: 'expirado',
-  unknown: 'indefinida',
+const windowLabels: Record<string, string> = {
+  ideal: 'Bom momento para abordar',
+  closing: 'Vale agir logo',
+  late: 'Prazo apertado',
+  planning: 'Ainda em planejamento',
+  early: 'Ainda cedo para abordagem ativa',
+  closed: 'Evento já passou',
+  unknown: 'Momento ainda incerto',
 };
 
 const channelLabels: Record<string, string> = {
@@ -20,6 +21,7 @@ const channelLabels: Record<string, string> = {
   phone: 'Telefone',
   whatsapp: 'WhatsApp',
   instagram: 'Instagram',
+  linkedin: 'LinkedIn',
 };
 
 function timingNumber(timing: Record<string, unknown>, key: string): number | null {
@@ -33,8 +35,16 @@ function formatEventDate(iso: string): string {
   return parsed.toLocaleDateString('pt-BR');
 }
 
-// Card "Evento → timing → canal" para leads vindos de evento: usa o endpoint
-// de inteligência já existente (filtrado pelo lead) em vez de inventar dado.
+function eventContext(provenance?: Record<string, unknown>): string | null {
+  const intelligence = provenance?.intelligence;
+  if (!intelligence || typeof intelligence !== 'object') return null;
+  const context = (intelligence as Record<string, unknown>).context;
+  if (context === 'mej') return 'Movimento Empresa Júnior';
+  if (context === 'sports') return 'Evento esportivo';
+  if (context === 'general') return 'Evento ou premiação';
+  return null;
+}
+
 export function EventTimingCard({ leadId }: { leadId: string }) {
   const eventsQ = useIntelligenceEvents(100, !!leadId);
   const event = eventsQ.data?.events.find((item) => item.lead_id === leadId) ?? null;
@@ -43,74 +53,66 @@ export function EventTimingCard({ leadId }: { leadId: string }) {
 
   const timing = event.timing ?? {};
   const daysUntil = timingNumber(timing, 'days_until');
-  const timingScore = timingNumber(timing, 'timing_score');
-  const urgencyRaw = typeof timing.urgency === 'string' ? timing.urgency : 'unknown';
-  const timingText =
-    daysUntil != null
-      ? `faltam ${daysUntil} dias · urgência ${urgencyLabels[urgencyRaw] ?? urgencyRaw}`
-      : `urgência ${urgencyLabels[urgencyRaw] ?? urgencyRaw}`;
+  const purchaseWindow = typeof timing.purchase_window === 'string' ? timing.purchase_window : 'unknown';
+  const context = eventContext(event.provenance);
 
   return (
     <Card className="border-l-4 border-l-emerald-500">
-      <CardContent className="space-y-3 pt-6">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Oportunidade de evento
-          </span>
+      <CardContent className="space-y-4 pt-6">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Oportunidade ligada a um evento</p>
+            <p className="mt-1 text-sm font-medium">{offerProfileLabel(event.offer_key)}</p>
+          </div>
           {event.action_status === 'ready' ? (
-            <Badge className="bg-emerald-100 text-emerald-800">Pronto para abordar</Badge>
+            <Badge className="bg-emerald-100 text-emerald-800">Contato pronto para revisão</Badge>
           ) : event.action_status === 'needs_review' ? (
-            <Badge className="bg-amber-100 text-amber-800">Precisa de revisão</Badge>
+            <Badge className="bg-amber-100 text-amber-800">Precisa completar informações</Badge>
           ) : null}
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1">
             <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-              Evento
+              <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />Evento
             </p>
             <p className="text-sm font-medium leading-snug">{event.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatEventDate(event.event_date)}
-              {event.location ? ` · ${event.location}` : ''}
-            </p>
+            <p className="text-xs text-muted-foreground">{formatEventDate(event.event_date)}{event.location ? ` · ${event.location}` : ''}</p>
           </div>
           <div className="space-y-1">
             <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />
-              Timing
+              <Users className="h-3.5 w-3.5" aria-hidden="true" />Contexto
             </p>
-            <p className="text-sm font-medium leading-snug">{timingText}</p>
-            {timingScore != null && (
-              <p className="text-xs text-muted-foreground">score de timing {timingScore}/100</p>
-            )}
+            <p className="text-sm font-medium">{context ?? 'Ainda em análise'}</p>
+            <p className="text-xs text-muted-foreground">A classificação é baseada nas evidências encontradas e pode ser revisada.</p>
           </div>
           <div className="space-y-1">
             <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <Megaphone className="h-3.5 w-3.5" aria-hidden="true" />
-              Canal
+              <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />Melhor momento
             </p>
-            <p className="text-sm font-medium leading-snug">
-              {event.recommended_channel
-                ? (channelLabels[event.recommended_channel] ?? event.recommended_channel)
-                : 'A definir'}
+            <p className="text-sm font-medium">{windowLabels[purchaseWindow] ?? 'Momento ainda incerto'}</p>
+            {daysUntil != null ? <p className="text-xs text-muted-foreground">{daysUntil >= 0 ? `Faltam ${daysUntil} dias` : 'Evento encerrado'}</p> : null}
+          </div>
+          <div className="space-y-1">
+            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <Megaphone className="h-3.5 w-3.5" aria-hidden="true" />Próximo contato
             </p>
-            {event.next_action && (
-              <p className="text-xs text-muted-foreground">{event.next_action}</p>
-            )}
+            <p className="text-sm font-medium">{event.recommended_channel ? (channelLabels[event.recommended_channel] ?? event.recommended_channel) : 'A definir'}</p>
+            {event.next_action ? <p className="text-xs text-muted-foreground">{event.next_action}</p> : null}
           </div>
         </div>
-        {event.source_url && (
+
+        {event.source_url ? (
           <a
-            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             href={event.source_url}
             target="_blank"
             rel="noreferrer"
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            Abrir fonte do evento
+            Ver a fonte usada para identificar o evento
           </a>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );
