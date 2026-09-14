@@ -1106,6 +1106,14 @@ export interface ScoringTemplate {
   cadence_schedule?: number[] | null;
   extra_instructions?: string;
   playbook?: Playbook;
+  prescoring_config?: {
+    profile?: string;
+    enabled?: boolean;
+    threshold?: number;
+    top_k?: number | null;
+    weights?: Record<string, number>;
+  } | null;
+  enrichment_strategy?: { skip?: string[]; stop_after?: string | null } | null;
   is_generated: boolean;
   is_active: boolean;
   organization_id: string | null;

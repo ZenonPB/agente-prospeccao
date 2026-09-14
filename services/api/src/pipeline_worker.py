@@ -552,11 +552,10 @@ async def run_pipeline(
         )
         prospecting_profile = resolve_prospecting_profile(scoring_template)
         if offer_resolution.resolved_from != "generic":
+            from services.offer_signal_adapter import merge_template_signals
+
             offer_template = {
                 "service_label": (offer_resolution.offer or {}).get("name") or offer_resolution.key,
-                "positive_signals": (offer_resolution.signals or {}).get("positive", []),
-                "negative_signals": (offer_resolution.signals or {}).get("negative", []),
-                "context_signals": offer_resolution.icp or {},
                 "requires_technical_report": "technical_site" in (offer_resolution.enrichment or {}).get("steps", []),
                 "requires_business_data": True,
                 "enrichment_steps": (offer_resolution.enrichment or {}).get("steps", []),
@@ -568,7 +567,14 @@ async def run_pipeline(
             }
             # O profile declarativo é a fonte de scoring quando foi resolvido;
             # o template legado segue disponível como fallback de compatibilidade.
-            scoring_template = {**(scoring_template or {}), **offer_template}
+            # Sinais: critérios estruturados do template são PRESERVADOS; os
+            # sinais canônicos do OfferProfile só viram critérios quando o
+            # template não tem nenhum (adapter central, sem heurística aqui).
+            scoring_template = merge_template_signals(
+                {**(scoring_template or {}), **offer_template},
+                offer_signals=offer_resolution.signals,
+                icp=offer_resolution.icp,
+            )
             prospecting_profile = dict(prospecting_profile)
             offer_prescoring = offer_resolution.prescoring or {}
             prospecting_profile["prescoring"] = {

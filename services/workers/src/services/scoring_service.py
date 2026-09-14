@@ -410,11 +410,22 @@ def _cap_items(items: Optional[List[Any]], limit: int = 6, per_item: int = 120) 
 
 
 def _format_signals(signals: List[Dict[str, Any]], header: str) -> str:
-    """Formata uma lista de sinais (positive/negative/context) em texto para o prompt."""
+    """Formata uma lista de sinais (positive/negative/context) em texto para o prompt.
+
+    Defesa secundária (o contrato é garantido pelo adapter): item fora do
+    formato `{label, description, weight_hint}` é ignorado com warning em vez
+    de derrubar o job com AttributeError.
+    """
     if not signals:
+        return f"{header}:\n  (nenhum)\n"
+    if not isinstance(signals, list):
+        logger.warning("Sinais em formato inesperado (%s), ignorados.", type(signals).__name__)
         return f"{header}:\n  (nenhum)\n"
     lines = [f"{header}:"]
     for s in signals:
+        if not isinstance(s, dict):
+            logger.warning("Sinal em formato inesperado ignorado: %r", s)
+            continue
         label = _cap(s.get("label", ""), 120)
         desc = _cap(s.get("description", ""), 200)
         weight = s.get("weight_hint", "medium")
