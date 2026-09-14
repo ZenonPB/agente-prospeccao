@@ -278,6 +278,78 @@ def equalize_alphamec_vertentes(registry: OfferProfileRegistry) -> OfferProfileR
         outreach={"angle": "evento_com_janela_de_compra", "evidence_requirements": ["EVENT_SCHEDULED", "HOSTS_EVENTS"]},
     )
 
+    _enhance(
+        registry,
+        "3d_printing",
+        icp={"exclusions": ["varejo sem desenvolvimento de produto", "demanda exclusiva por produção seriada de alto volume"]},
+        signals={
+            "negative": ["RETAIL_FOCUSED"],
+            "negative_penalty_each": 20,
+            "weights": {"NEW_PRODUCT": 1.25, "PROTOTYPE": 1.5, "R_AND_D": 1.35, "CUSTOM_PARTS": 1.15},
+        },
+        qualification={
+            "questions": [
+                "O objetivo é validar um conceito, produzir um protótipo funcional ou fabricar uma peça final?",
+                "Qual material, dimensão, quantidade e prazo são necessários?",
+                "Existe modelo 3D pronto ou será preciso apoiar o desenvolvimento?",
+            ],
+            "quality_gates": {
+                "strong_evidence_any": ["PROTOTYPE", "R_AND_D", "NEW_PRODUCT", "CUSTOM_PARTS"],
+                "min_observed_signals": 1,
+                "max_score_without_strong_evidence": 56,
+                "high_confidence_score": 80,
+            },
+        },
+    )
+
+    _enhance(
+        registry,
+        "laser_cutting_technical",
+        icp={"exclusions": ["varejo sem demanda técnica", "serviço sem necessidade de fabricação"]},
+        signals={
+            "negative": ["RETAIL_FOCUSED", "SERVICE_ONLY"],
+            "negative_penalty_each": 20,
+            "weights": {"CUSTOM_PARTS": 1.4, "USINAGEM": 1.0, "CUSTOM_MANUFACTURING": 1.3, "NEW_EQUIPMENT": 1.1},
+        },
+        qualification={
+            "questions": [
+                "Qual peça ou chapa precisa ser cortada e em qual material/espessura?",
+                "Existe desenho técnico ou arquivo de fabricação disponível?",
+                "Qual quantidade, tolerância e prazo de entrega?",
+            ],
+            "quality_gates": {
+                "strong_evidence_any": ["CUSTOM_PARTS", "CUSTOM_MANUFACTURING", "USINAGEM"],
+                "min_observed_signals": 1,
+                "max_score_without_strong_evidence": 56,
+                "high_confidence_score": 80,
+            },
+        },
+    )
+
+    _enhance(
+        registry,
+        "laser_custom_products",
+        icp={"exclusions": ["revenda genérica sem personalização ou evento"]},
+        signals={
+            "negative": ["ONLINE_ONLY_RESALE"],
+            "negative_penalty_each": 24,
+            "weights": {"EVENT_SCHEDULED": 1.5, "SEASONAL_DEMAND": 1.25, "HAS_INSTAGRAM": 0.65, "CUSTOM_PRODUCTS": 1.35},
+        },
+        qualification={
+            "questions": [
+                "Qual produto será personalizado e para qual ocasião ou público?",
+                "Qual quantidade, material e nível de personalização são necessários?",
+                "Existe uma data de evento ou prazo de entrega definido?",
+            ],
+            "quality_gates": {
+                "strong_evidence_any": ["EVENT_SCHEDULED", "CUSTOM_PRODUCTS", "SEASONAL_DEMAND"],
+                "min_observed_signals": 1,
+                "max_score_without_strong_evidence": 55,
+                "high_confidence_score": 79,
+            },
+        },
+    )
+
     for key in ("trophies_sports", "trophies_mej"):
         _enhance(
             registry,

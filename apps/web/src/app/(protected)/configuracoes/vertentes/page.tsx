@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowRight,
   CheckCircle2,
@@ -319,6 +320,11 @@ export default function VertentesPage() {
         eyebrow="Estratégia comercial"
         title="Vertentes"
         description="Cada vertente reúne, em um só lugar, quem procurar, onde encontrar, quais sinais observar e como qualificar uma oportunidade."
+        actions={
+          <Button variant="outline" render={<Link href="/configuracoes/vertentes/criterios" />}>
+            Critérios personalizados
+          </Button>
+        }
       />
 
       <Card className="border-primary/20 bg-primary/5">
