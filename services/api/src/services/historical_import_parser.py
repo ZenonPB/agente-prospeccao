@@ -6,6 +6,7 @@ import hashlib
 import html
 import io
 import json
+import re
 import zipfile
 from dataclasses import dataclass
 from typing import Any
@@ -26,6 +27,7 @@ SUPPORTED_FIELDS = {
     "name", "website", "phone", "whatsapp", "email", "city", "state",
     "address", "cnpj", "category", "contact_name", "linkedin", "instagram",
 }
+_SAFE_SIGNED_NUMERIC = re.compile(r"^[+-]\d[\d\s().-]*$")
 
 
 class ImportParseError(ValueError):
@@ -49,10 +51,23 @@ class ParsedSource:
 
 
 def _reject_formula(value: Any) -> None:
+    """Bloqueia fórmulas reais sem rejeitar telefones e números assinados.
+
+    CSVs comerciais brasileiros frequentemente contêm telefones no formato
+    ``+5516...`` e valores negativos. Esses valores são texto/dado, não fórmula.
+    Como o importer nunca avalia conteúdo e o preview é escapado, aceitamos
+    apenas literais numéricos com ``+``/``-`` e continuamos bloqueando expressões
+    iniciadas por ``=``, ``@`` ou operadores seguidos de conteúdo não numérico.
+    """
     if not isinstance(value, str):
         return
     stripped = value.lstrip()
-    if stripped and stripped[0] in "=+-@":
+    if not stripped:
+        return
+    first = stripped[0]
+    if first in "=@":
+        raise ImportParseError("FORMULA_NOT_ALLOWED", "A origem contém uma fórmula ou expressão não permitida.")
+    if first in "+-" and not _SAFE_SIGNED_NUMERIC.fullmatch(stripped):
         raise ImportParseError("FORMULA_NOT_ALLOWED", "A origem contém uma fórmula ou expressão não permitida.")
 
 
@@ -205,9 +220,15 @@ def parse_source(content: bytes, filename: str | None, content_type: str | None 
         delimiter = _csv_delimiter(text)
         try:
             raw_rows = []
+            total_cells = 0
             for row in csv.reader(io.StringIO(text), delimiter=delimiter, strict=True):
                 if len(row) > MAX_COLUMNS:
                     raise ImportParseError("COLUMN_LIMIT", f"O arquivo excede o limite de {MAX_COLUMNS} colunas.")
+                total_cells += len(row)
+                if total_cells > MAX_CELLS:
+                    raise ImportParseError("CELL_LIMIT", f"O arquivo excede o limite de {MAX_CELLS} células.")
+                if len(raw_rows) > MAX_DATA_ROWS + 15:
+                    raise ImportParseError("ROW_LIMIT", f"O arquivo excede o limite de {MAX_DATA_ROWS} linhas.")
                 raw_rows.append([_cell_to_text(value) for value in row])
         except csv.Error as exc:
             raise ImportParseError("CSV_INVALID", "O arquivo CSV está malformado.") from exc
