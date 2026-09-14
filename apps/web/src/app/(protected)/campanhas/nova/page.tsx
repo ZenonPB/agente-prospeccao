@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useCampaignFromBrief, useCreateCampaign, type CampaignBrief } from '@/hooks/use-api';
+import { useCampaignFromBrief, useCreateCampaign, useUpdateCampaign, type CampaignBrief } from '@/hooks/use-api';
 import { useVertentes } from '@/hooks/use-vertentes';
 import { offerOriginLabel, offerProfileLabel } from '@/lib/offers';
 import { cn } from '@/lib/utils';
@@ -58,6 +58,7 @@ type ManualDraft = {
 export default function NovaCampanhaPage() {
   const router = useRouter();
   const createCampaign = useCreateCampaign();
+  const updateCampaign = useUpdateCampaign();
   const campaignFromBrief = useCampaignFromBrief();
   const { data: vertentesData, isLoading: loadingVertentes, isError: vertentesError, refetch: refetchVertentes } = useVertentes();
 
@@ -109,6 +110,31 @@ export default function NovaCampanhaPage() {
     setBriefDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
+  const handleOfferChange = (offerKey: string | null) => {
+    setSelectedOfferKey(offerKey);
+    if (!offerKey) return;
+    const nextVertente = vertentes.find((item) => item.key === offerKey);
+    if (!nextVertente) return;
+
+    setBriefDraft((current) => {
+      if (!current || current.offer_profile_key === offerKey) return current;
+      return {
+        ...current,
+        offer_profile_key: offerKey,
+        offer_profile_label: nextVertente.name,
+        offer_resolved_from: 'manual',
+        target_service: nextVertente.name,
+        // A busca e o scoring sugeridos pertenciam à Vertente anterior. Ao
+        // corrigir a estratégia, descartamos esses derivados para que o
+        // pipeline os resolva novamente a partir da escolha atual.
+        places_query: '',
+        scoring_template_id: null,
+        scoring_template_label: '',
+        template_route: 'VERTENTE_CHANGED',
+      };
+    });
+  };
+
   const createFromAssistant = async () => {
     if (!briefDraft) return;
     const vertenteKey = selectedOfferKey || briefDraft.offer_profile_key || undefined;
@@ -133,6 +159,18 @@ export default function NovaCampanhaPage() {
         places_query: briefDraft.places_query || undefined,
         offer_profile_key: vertente.key,
       });
+
+      // O preview pode ter criado/resolvido um adapter de scoring específico.
+      // Preserve essa decisão em vez de pedir ao pipeline que classifique de
+      // novo. Se a Vertente foi corrigida manualmente, handleOfferChange limpa
+      // o ID para que o adapter seja recalculado de forma coerente.
+      if (briefDraft.scoring_template_id) {
+        await updateCampaign.mutateAsync({
+          id: campaign.id,
+          data: { scoring_template_id: briefDraft.scoring_template_id },
+        });
+      }
+
       router.push(`/campanhas/${campaign.id}?start=true`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar a campanha.');
@@ -168,7 +206,7 @@ export default function NovaCampanhaPage() {
     }
   };
 
-  const busy = createCampaign.isPending;
+  const busy = createCampaign.isPending || updateCampaign.isPending;
 
   if (loadingVertentes) {
     return <div className="mx-auto max-w-4xl py-16 text-center text-sm text-muted-foreground">Carregando as vertentes disponíveis...</div>;
@@ -328,7 +366,7 @@ export default function NovaCampanhaPage() {
                     </div>
                     <div className="w-full md:w-72">
                       <Label htmlFor="offer">Corrigir, se necessário</Label>
-                      <Select value={suggestedOfferKey || ''} onValueChange={(value) => setSelectedOfferKey(value ?? null)}>
+                      <Select value={suggestedOfferKey || ''} onValueChange={(value) => handleOfferChange(value ?? null)}>
                         <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha a vertente">{(value) => (value ? (vertentes.find((item) => item.key === value)?.name ?? offerProfileLabel(value as string)) : 'Escolha a vertente')}</SelectValue></SelectTrigger>
                         <SelectContent>{vertentes.map((item) => <SelectItem key={item.key} value={item.key}>{item.name}</SelectItem>)}</SelectContent>
                       </Select>
@@ -380,7 +418,7 @@ export default function NovaCampanhaPage() {
             </div>
 
             <div className="rounded-xl bg-muted/40 p-4 text-sm">
-              <div className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><p><span className="font-medium">A Vertente cuida da estratégia.</span> O sistema usa as fontes, sinais e critérios declarados nela e mantém a campanha vinculada a essa versão efetiva.</p></div>
+              <div className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><p><span className="font-medium">A Vertente cuida da estratégia.</span> O sistema usa as fontes, sinais e critérios declarados nela e mantém a campanha vinculada a essa Vertente efetiva.</p></div>
             </div>
 
             <Button onClick={() => void createManual()} disabled={busy || !selectedOffer}>
