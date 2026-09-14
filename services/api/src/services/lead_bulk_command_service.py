@@ -44,7 +44,7 @@ class BulkCommandForbidden(PermissionError):
 
 
 class BulkCommandConflict(RuntimeError):
-    """A chave de idempotência já foi usada com outro payload."""
+    """A chave de idempotência já foi usada com outro payload ou está em andamento."""
 
 
 def _as_uuid(value: Any, field: str) -> uuid.UUID:
@@ -155,6 +155,22 @@ def _result_item(lead_id: str, status: str, reason: str | None = None) -> dict[s
     return {"id": lead_id, "status": status, "reason": reason}
 
 
+def _replay_existing(operation: CommercialBulkOperation, payload_hash: str) -> dict[str, Any]:
+    """Retorna replay somente quando a execução anterior terminou.
+
+    Uma corrida pode enxergar a UNIQUE antes de o vencedor persistir ``result``.
+    Retornar um payload vazio nesse intervalo quebra o contrato idempotente; por
+    isso o chamador recebe conflito transitório e pode repetir a mesma chave.
+    """
+    if operation.payload_hash != payload_hash:
+        raise BulkCommandConflict("idempotency_key já foi usada com outro payload")
+    if operation.status != "COMPLETED" or not operation.result:
+        raise BulkCommandConflict("operação idempotente ainda está em andamento; repita a mesma chave")
+    replay = dict(operation.result)
+    replay["replayed"] = True
+    return replay
+
+
 class LeadBulkCommandService:
     def __init__(self, db, organization_id: Any, member: OrganizationMember, user: User):
         self.db = db
@@ -212,15 +228,15 @@ class LeadBulkCommandService:
                 rejected.append({"id": lead_id, "reason": "NOT_FOUND_OR_UNAUTHORIZED"})
                 continue
             current_versions[lead_id] = _iso(lead.updated_at)
-            if lead.updated_at is None:
+            # Optimistic concurrency é fail-closed: toda mutação exige a versão
+            # vista no preview, inclusive quando o registro já possui timestamp.
+            if lead.updated_at is None or lead_id not in expected:
                 rejected.append({"id": lead_id, "reason": "VERSION_CONFLICT"})
                 continue
-            expected_value = expected.get(lead_id)
-            if expected_value is not None:
-                current_value = _parse_datetime(expected_value, "expected_updated_at")
-                if lead.updated_at != current_value:
-                    rejected.append({"id": lead_id, "reason": "VERSION_CONFLICT"})
-                    continue
+            current_value = _parse_datetime(expected[lead_id], "expected_updated_at")
+            if lead.updated_at != current_value:
+                rejected.append({"id": lead_id, "reason": "VERSION_CONFLICT"})
+                continue
             if normalized["operation"] == "assign" and not is_full_access(self.member):
                 if lead.assigned_to_id not in (None, self.member.user_id):
                     rejected.append({"id": lead_id, "reason": "NOT_AUTHORIZED"})
@@ -312,11 +328,7 @@ class LeadBulkCommandService:
             CommercialBulkOperation.idempotency_key == idempotency_key,
         ).first()
         if existing is not None:
-            if existing.payload_hash != payload_hash:
-                raise BulkCommandConflict("idempotency_key já foi usada com outro payload")
-            replay = dict(existing.result or {})
-            replay["replayed"] = True
-            return replay
+            return _replay_existing(existing, payload_hash)
 
         operation = CommercialBulkOperation(
             organization_id=self.organization_id,
@@ -336,12 +348,8 @@ class LeadBulkCommandService:
                 CommercialBulkOperation.organization_id == self.organization_id,
                 CommercialBulkOperation.idempotency_key == idempotency_key,
             ).first()
-            if existing is not None and existing.payload_hash == payload_hash:
-                replay = dict(existing.result or {})
-                replay["replayed"] = True
-                return replay
             if existing is not None:
-                raise BulkCommandConflict("idempotency_key já foi usada com outro payload")
+                return _replay_existing(existing, payload_hash)
             raise
 
         plan = self._plan(normalized, lock=True)
