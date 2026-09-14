@@ -1,6 +1,6 @@
 # Mapa de status — fonte de verdade operacional
 
-> **LIVE · atualizado em 2026-09-13.** Código/migrations/testes prevalecem.
+> **LIVE · atualizado em 2026-09-14.** Código/migrations/testes prevalecem.
 > Leia também `docs/README.md` e `docs/roadmap.md`.
 
 Legenda: ✅ completo no escopo atual · 🟠 parcial · ⬜ pendente.
@@ -33,9 +33,9 @@ Legenda: ✅ completo no escopo atual · 🟠 parcial · ⬜ pendente.
 | Company 360 read-only | ✅ | PR #172; backend + frontend + testes PostgreSQL. |
 | Person 360 read-only | ✅ | PR #172; backend + frontend + testes PostgreSQL. |
 | Opportunity 360 editável | ✅ | PR #173: comandos canônicos, RBAC, tarefas idempotentes/race-safe, editor web e suíte PostgreSQL no CI. |
-| Importador histórico AlphaMec | ⬜ | precisa preview/mapping/validation/dedupe/import/report. |
-| Filter Context compartilhado | ⬜ | dashboards ainda não usam um contrato único de filtros. |
-| BI interativo final | 🟠 | analytics existem; falta Filter Context e UX integrada. |
+| Importador histórico AlphaMec | ✅ | lifecycle CSV/XLSX com preview/mapping/dry-run, dedupe conservador, contexto comercial histórico, confirmação idempotente, relatório por linha e E2E PostgreSQL. |
+| Filter Context compartilhado | ✅ | contrato único URL/API para período, campanha, consultor, oferta/versão, canal, status, score, outcome, atribuição, busca, segmento, cidade/UF e estágio de negociação. |
+| BI interativo final | ✅ | analytics e export usam o mesmo Filter Context; filtros são server-side, restauráveis por URL e cobrem dimensões comerciais principais. |
 | Coaching comercial | 🟠 | sinais/tarefas/feedback existem; falta produto de coaching consolidado. |
 | Golden Path troféus/eventos/MEJ | 🟠 | peças existem; falta UAT de ponta a ponta e critérios de aceite finais. |
 | UAT multi-workspace | 🟠 | testes automatizados fortes; falta sessão UAT formal do RC. |
@@ -50,4 +50,4 @@ Legenda: ✅ completo no escopo atual · 🟠 parcial · ⬜ pendente.
 
 ## Próximo corte do RC
 
-Importador histórico → Filter Context/BI → coaching/calibração → Golden Path → UAT → campanha real/hardening.
+Coaching/calibração → Golden Path → UAT multi-workspace → campanha real autorizada/hardening final.

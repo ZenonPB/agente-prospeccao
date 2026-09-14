@@ -62,6 +62,20 @@ const FIELD_LABELS: Record<ImportMappingField, string> = {
   contact_name: "Nome do contato",
   linkedin: "LinkedIn",
   instagram: "Instagram",
+  status: "Status histórico",
+  owner_email: "E-mail do responsável",
+  assigned_at: "Data de prospecção/atribuição",
+  notes: "Observações comerciais",
+  next_action_at: "Próxima ação",
+  last_contacted_at: "Último contato",
+  negotiation_stage: "Estágio da negociação",
+  contract_outcome: "Resultado do contrato",
+  outcome_date: "Data do resultado",
+  post_sale_contacted_at: "Contato pós-venda",
+  post_sale_channel: "Canal pós-venda",
+  value: "Valor",
+  expected_close_date: "Previsão de fechamento",
+  lost_reason: "Motivo da perda",
 };
 
 const FIELD_OPTIONS = Object.entries(FIELD_LABELS) as [ImportMappingField, string][];
@@ -147,7 +161,6 @@ export function CsvImportModal({ campaignId, campaignName, onSuccess }: CsvImpor
   const [actionError, setActionError] = useState<string | null>(null);
   const [rowStatus, setRowStatus] = useState<ImportRowStatus | undefined>();
   const [rowsOffset, setRowsOffset] = useState(0);
-  const uploadKeyRef = useRef<string>(makeIdempotencyKey("historical-import-upload"));
   const confirmKeyRef = useRef<string>(makeIdempotencyKey("historical-import-confirm"));
 
   const jobQuery = useImportJob(importId, open);
@@ -183,7 +196,6 @@ export function CsvImportModal({ campaignId, campaignName, onSuccess }: CsvImpor
     setActionError(null);
     setRowStatus(undefined);
     setRowsOffset(0);
-    uploadKeyRef.current = makeIdempotencyKey("historical-import-upload");
     confirmKeyRef.current = makeIdempotencyKey("historical-import-confirm");
   };
 
@@ -213,7 +225,7 @@ export function CsvImportModal({ campaignId, campaignName, onSuccess }: CsvImpor
     }
     setActionError(null);
     try {
-      const uploaded = await uploadMutation.mutateAsync({ campaignId, file, idempotencyKey: uploadKeyRef.current });
+      const uploaded = await uploadMutation.mutateAsync({ campaignId, file });
       setImportId(uploaded.id);
       setJobSnapshot(uploaded);
       setMapping(normalizeSuggestedMapping(uploaded.headers ?? [], uploaded.suggested_mapping));

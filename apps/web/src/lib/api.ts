@@ -506,14 +506,13 @@ export const campaignsApi = {
 };
 
 export const importsApi = {
-  upload: (campaignId: string, file: File, idempotencyKey?: string) => {
+  upload: (campaignId: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);
     return request<import("@/types").ImportJob>("/api/imports", {
       method: "POST",
       params: { campaign_id: campaignId },
       body: formData,
-      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     });
   },
 
@@ -733,7 +732,7 @@ export const orgsApi = {
     }),
 };
 
-export type CommercialFilterArrayKey = "channel" | "status" | "score_bucket" | "outcome";
+export type CommercialFilterArrayKey = "channel" | "status" | "score_bucket" | "outcome" | "negotiation_stage";
 export type CommercialFilterKey =
   | "from"
   | "to"
@@ -744,6 +743,9 @@ export type CommercialFilterKey =
   | CommercialFilterArrayKey
   | "attribution"
   | "search"
+  | "segment"
+  | "city"
+  | "state"
   | "cursor";
 export type CommercialFilterValue = string | string[] | undefined;
 
@@ -760,6 +762,10 @@ export interface CommercialFilterSnapshot {
   outcome?: string[];
   attribution?: "attributed" | "unattributed";
   search?: string;
+  segment?: string;
+  city?: string;
+  state?: string;
+  negotiation_stage?: string[];
   cursor?: string;
 }
 
@@ -782,6 +788,10 @@ const COMMERCIAL_FILTER_KEYS: ReadonlyArray<keyof CommercialFilterParams> = [
   "outcome",
   "attribution",
   "search",
+  "segment",
+  "city",
+  "state",
+  "negotiation_stage",
   "cursor",
   "limit",
 ];

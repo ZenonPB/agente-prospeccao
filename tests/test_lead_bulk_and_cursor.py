@@ -297,10 +297,11 @@ def test_apply_status_duplicate_nao_chama_transicao(monkeypatch):
 
 def test_plano_rejeita_consultor_fora_da_carteira(monkeypatch):
     other_user = uuid.UUID("44444444-4444-4444-8444-444444444444")
+    current = datetime(2026, 9, 15, 12, tzinfo=timezone.utc)
     lead = _lead(
         LEAD_A,
         assigned_to_id=other_user,
-        updated_at=datetime(2026, 9, 15, 12, tzinfo=timezone.utc),
+        updated_at=current,
     )
     monkeypatch.setattr(
         "src.services.lead_bulk_command_service.consultant_lead_scope",
@@ -309,18 +310,15 @@ def test_plano_rejeita_consultor_fora_da_carteira(monkeypatch):
     service = LeadBulkCommandService(
         _FakeDB([lead]), ORG_A, _member(SalesRole.CONSULTOR), SimpleNamespace(id=uuid.uuid4())
     )
-    plan = service.preview(_payload())
+    expected = {str(LEAD_A): current.isoformat()}
+    plan = service.preview(_payload(expected_updated_at=expected))
     assert plan["accepted_ids"] == [str(LEAD_A)]
     # O helper de escopo normalmente remove o lead antes; este teste cobre a
     # defesa adicional do plano quando um query customizado devolve carteira alheia.
-    monkeypatch.setattr(
-        "src.services.lead_bulk_command_service.consultant_lead_scope",
-        lambda _member, query: query,
-    )
     service = LeadBulkCommandService(
         _FakeDB([lead]), ORG_A, _member(SalesRole.CONSULTOR), SimpleNamespace(id=uuid.uuid4())
     )
-    plan = service._plan(dict(_payload(operation="assign", assigned_to_id=None)))
+    plan = service._plan(dict(_payload(operation="assign", assigned_to_id=None, expected_updated_at=expected)))
     assert plan["rejected"][0]["reason"] == "NOT_AUTHORIZED"
 
 

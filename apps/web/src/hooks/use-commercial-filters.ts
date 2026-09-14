@@ -14,6 +14,7 @@ const ARRAY_KEYS = new Set<CommercialFilterKey>([
   'status',
   'score_bucket',
   'outcome',
+  'negotiation_stage',
 ]);
 
 const URL_KEYS: ReadonlyArray<{ key: CommercialFilterKey; query: string }> = [
@@ -27,6 +28,10 @@ const URL_KEYS: ReadonlyArray<{ key: CommercialFilterKey; query: string }> = [
   { key: 'outcome', query: 'outcome' },
   { key: 'attribution', query: 'attribution' },
   { key: 'search', query: 'search' },
+  { key: 'segment', query: 'segment' },
+  { key: 'city', query: 'city' },
+  { key: 'state', query: 'state' },
+  { key: 'negotiation_stage', query: 'negotiation_stage' },
   { key: 'cursor', query: 'cursor' },
 ];
 
@@ -92,6 +97,9 @@ export function normalizeCommercialFilters(
     'offer_key',
     'offer_version',
     'search',
+    'segment',
+    'city',
+    'state',
     'cursor',
   ];
 
@@ -102,7 +110,7 @@ export function normalizeCommercialFilters(
   if (input.attribution === 'attributed' || input.attribution === 'unattributed') {
     normalized.attribution = input.attribution;
   }
-  for (const key of ['channel', 'status', 'score_bucket', 'outcome'] as const) {
+  for (const key of ['channel', 'status', 'score_bucket', 'outcome', 'negotiation_stage'] as const) {
     const values = input[key];
     if (values && values.length > 0) {
       normalized[key] = [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort();
@@ -169,6 +177,10 @@ export function useCommercialFilters() {
       outcome: undefined,
       attribution: undefined,
       search: undefined,
+      segment: undefined,
+      city: undefined,
+      state: undefined,
+      negotiation_stage: undefined,
       cursor: undefined,
     });
   }, [updateFilters]);

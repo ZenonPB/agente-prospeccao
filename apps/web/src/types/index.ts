@@ -819,7 +819,21 @@ export type ImportMappingField =
   | "category"
   | "contact_name"
   | "linkedin"
-  | "instagram";
+  | "instagram"
+  | "status"
+  | "owner_email"
+  | "assigned_at"
+  | "notes"
+  | "next_action_at"
+  | "last_contacted_at"
+  | "negotiation_stage"
+  | "contract_outcome"
+  | "outcome_date"
+  | "post_sale_contacted_at"
+  | "post_sale_channel"
+  | "value"
+  | "expected_close_date"
+  | "lost_reason";
 
 export type ImportMapping = Record<string, ImportMappingField | null>;
 

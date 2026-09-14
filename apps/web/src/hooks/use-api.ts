@@ -1225,8 +1225,8 @@ export function useImportRows(
 export function useUploadImport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ campaignId, file, idempotencyKey }: { campaignId: string; file: File; idempotencyKey: string }) =>
-      importsApi.upload(campaignId, file, idempotencyKey),
+    mutationFn: ({ campaignId, file }: { campaignId: string; file: File }) =>
+      importsApi.upload(campaignId, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["imports"] });
     },

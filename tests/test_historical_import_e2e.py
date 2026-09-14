@@ -33,8 +33,8 @@ def import_db():
         ImportRowResult, Lead, Organization, OrganizationMember, Person, User,
     )
 
-    engine = create_engine(E2E_DATABASE_URL)
-    Session = sessionmaker(bind=engine)
+    engine = create_engine(E2E_DATABASE_URL, pool_pre_ping=True)
+    Session = sessionmaker(bind=engine, expire_on_commit=False)
     db = Session()
     suffix = uuid.uuid4().hex[:10]
     org = Organization(name=f"Import E2E {suffix}", slug=f"import-e2e-{suffix}")
@@ -46,7 +46,7 @@ def import_db():
     db.add(campaign)
     db.commit()
     try:
-        yield db, org, user, campaign
+        yield db, org, user, campaign, Session
     finally:
         db.rollback()
         job_ids = [item.id for item in db.query(ImportJob).filter(ImportJob.organization_id == org.id).all()]
@@ -54,8 +54,6 @@ def import_db():
             db.query(ImportAuditEvent).filter(ImportAuditEvent.import_job_id.in_(job_ids)).delete(synchronize_session=False)
             db.query(ImportRowResult).filter(ImportRowResult.import_job_id.in_(job_ids)).delete(synchronize_session=False)
             db.query(ImportJob).filter(ImportJob.id.in_(job_ids)).delete(synchronize_session=False)
-        # O processamento cria entidades canônicas que referenciam a org e a
-        # campanha; removê-las antes da org evita violação de FK no teardown.
         lead_ids = [item.id for item in db.query(Lead).filter(Lead.organization_id == org.id).all()]
         if lead_ids:
             db.query(Contact).filter(Contact.lead_id.in_(lead_ids)).delete(synchronize_session=False)
@@ -77,10 +75,9 @@ def _mapping():
 
 
 def test_import_vertical_preview_dry_run_confirm_processa_isolado_e_idempotente(import_db, monkeypatch):
-    db, org, user, campaign = import_db
-    from sqlalchemy.orm import sessionmaker
+    db, org, user, campaign, Session = import_db
     import src.db.session as api_session
-    monkeypatch.setattr(api_session, "SessionLocal", sessionmaker(bind=db.get_bind()))
+    monkeypatch.setattr(api_session, "SessionLocal", Session)
     content = b"Nome,Site,Contato\nEmpresa E2E,empresa-e2e.com.br,Ana\n"
     job = create_preview(db, org.id, user.id, content, "historico.csv", "text/csv", campaign.id)
     preview_version = job.expected_version
@@ -88,13 +85,15 @@ def test_import_vertical_preview_dry_run_confirm_processa_isolado_e_idempotente(
     assert result["report"]["accepted"] == 1
     assert result["job"]["expected_version"] == preview_version + 1
 
+    stale_version = result["job"]["expected_version"]
     confirmed = confirm(
         db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
-        result["job"]["expected_version"], "e2e-import-key",
+        stale_version, "e2e-import-key",
     )
+    # Retry pode chegar com a versão anterior: mesma key + mesmo mapping é replay.
     repeated = confirm(
         db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
-        confirmed.expected_version, "e2e-import-key",
+        stale_version, "e2e-import-key",
     )
     assert repeated.id == confirmed.id
     with pytest.raises(ImportJobError) as cross_tenant:
@@ -104,22 +103,83 @@ def test_import_vertical_preview_dry_run_confirm_processa_isolado_e_idempotente(
     claimed = claim_next_import_job(db)
     assert claimed == (str(job.id), str(org.id))
     process_import_job(*claimed)
-    # O processamento roda em sessão própria; expirar o mapa de identidade
-    # desta sessão evita ler o estado RUNNING anterior ao commit do consumer.
     db.expire_all()
     finished = get_job(db, org.id, job.id)
     assert finished.status.value in {"SUCCEEDED", "PARTIAL"}
     assert finished.accepted_rows == 1
 
-    # Reprocessar o mesmo job não duplica linhas terminais.
     process_import_job(*claimed)
     db.expire_all()
     again = get_job(db, org.id, job.id)
     assert again.accepted_rows == 1
 
 
+def test_import_preserva_contexto_comercial_historico(import_db, monkeypatch):
+    from database.models import ContractOutcome, Lead, LeadStatus, NegotiationStage, PostSaleChannel
+    import src.db.session as api_session
+
+    db, org, user, campaign, Session = import_db
+    monkeypatch.setattr(api_session, "SessionLocal", Session)
+    content = (
+        "Nome;Telefone;Status;Responsavel;Prospeccao;Observacoes;Estagio Negociacao;"
+        "Contrato Final;Data status;Data Contato Pos Venda;Pos Venda Por;Valor;Previsao Fechamento\n"
+        f"Cliente Historico;+5516999999999;RESPONDIDO;{user.email};01/09/2026;Lead vindo da planilha;"
+        "ORCAMENTO;EM_ANALISE;05/09/2026;10/09/2026;WHATSAPP;1.234,56;30/09/2026\n"
+    ).encode("utf-8")
+    job = create_preview(db, org.id, user.id, content, "historico.csv", "text/csv", campaign.id)
+    mapping = dict(job.mapping)
+    result = dry_run(db, org.id, user.id, job.id, mapping, job.expected_version)
+    assert result["report"]["accepted"] == 1
+    confirm(
+        db, org.id, user.id, job.id, mapping, result["job"]["mapping_version"],
+        result["job"]["expected_version"], "historical-commercial-context",
+    )
+    claimed = claim_next_import_job(db)
+    assert claimed == (str(job.id), str(org.id))
+    process_import_job(*claimed)
+    db.expire_all()
+
+    lead = db.query(Lead).filter(Lead.organization_id == org.id, Lead.company_name == "Cliente Historico").one()
+    assert lead.status == LeadStatus.RESPONDIDO
+    assert lead.assigned_to_id == user.id
+    assert lead.notes == "Lead vindo da planilha"
+    assert lead.negotiation_stage == NegotiationStage.ORCAMENTO
+    assert lead.contract_outcome == ContractOutcome.EM_ANALISE
+    assert lead.post_sale_channel == PostSaleChannel.WHATSAPP
+    assert str(lead.value) == "1234.56"
+    assert lead.phone == "+5516999999999"
+    assert lead.assigned_at is not None
+    assert lead.expected_close_date is not None
+    assert "status" in (lead.discovery_provenance or {}).get("historical_fields", [])
+
+
+def test_import_rejeita_owner_de_outro_workspace_e_perdido_sem_motivo(import_db):
+    from database.models import Organization, OrganizationMember, User
+
+    db, org, user, campaign, _Session = import_db
+    suffix = uuid.uuid4().hex[:8]
+    foreign_org = Organization(name=f"Foreign {suffix}", slug=f"foreign-{suffix}")
+    foreign_user = User(email=f"foreign-{suffix}@test.local", password_hash="test", name="Foreign")
+    db.add_all([foreign_org, foreign_user])
+    db.flush()
+    db.add(OrganizationMember(organization_id=foreign_org.id, user_id=foreign_user.id))
+    db.commit()
+    try:
+        content = f"Nome,Status,Responsavel\nLead Ruim,PERDIDO,{foreign_user.email}\n".encode()
+        job = create_preview(db, org.id, user.id, content, "invalid.csv", "text/csv", campaign.id)
+        result = dry_run(db, org.id, user.id, job.id, dict(job.mapping), job.expected_version)
+        assert result["report"]["accepted"] == 0
+        assert result["report"]["rejected"] == 1
+        assert result["report"]["errors"][0]["reason_code"] == "COMMERCIAL_DATA_INVALID"
+    finally:
+        db.query(OrganizationMember).filter(OrganizationMember.organization_id == foreign_org.id).delete(synchronize_session=False)
+        db.delete(foreign_org)
+        db.delete(foreign_user)
+        db.commit()
+
+
 def test_import_cancelamento_antes_do_claim(import_db):
-    db, org, user, campaign = import_db
+    db, org, user, campaign, _Session = import_db
     job = create_preview(db, org.id, user.id, b"Nome\nEmpresa\n", "cancel.csv", "text/csv", campaign.id)
     cancelled = cancel(db, org.id, user.id, job.id, job.expected_version)
     assert cancelled.status.value == "CANCELLED"

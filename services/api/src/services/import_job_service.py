@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
+import unicodedata
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy import or_
@@ -20,6 +23,7 @@ from src.db.models import (
     CompanyAlias,
     Contact,
     ContactRole,
+    ContractOutcome,
     ImportAuditEvent,
     ImportJob,
     ImportJobStatus,
@@ -27,7 +31,12 @@ from src.db.models import (
     ImportRowStatus,
     Lead,
     LeadStatus,
+    LostReason,
+    NegotiationStage,
+    OrganizationMember,
     Person,
+    PostSaleChannel,
+    User,
 )
 from src.services.csv_import_service import clean_cnpj, normalize_import_website
 from src.services.org_service import is_full_access
@@ -80,11 +89,7 @@ def _status_value(status: ImportJobStatus | str | None) -> str | None:
 
 
 def _lock_query(query: Any, **kwargs: Any) -> Any:
-    """Aplica lock pessimista quando a sessão é SQLAlchemy real.
-
-    O fallback mantém os testes de isolamento baseados em consultas de memória
-    determinísticas, sem transformar o harness em uma falsa prova de corrida.
-    """
+    """Aplica lock pessimista quando a sessão é SQLAlchemy real."""
     with_for_update = getattr(query, "with_for_update", None)
     if not callable(with_for_update):
         return query
@@ -117,8 +122,6 @@ def _assert_actor_authorized(job: ImportJob, actor_id: Any, member: Any = None) 
         if not is_full_access(member) and str(job.actor_id) != str(actor_id):
             raise ImportJobError("UNAUTHORIZED", "A autorização não foi concedida.", 403)
         return
-    # Serviços chamados fora da rota não possuem membership confiável para
-    # elevar privilégios: somente o ator que criou o job pode mutá-lo.
     if job.actor_id is None or str(job.actor_id) != str(actor_id):
         raise ImportJobError("UNAUTHORIZED", "A autorização não foi concedida.", 403)
 
@@ -232,14 +235,17 @@ def serialize_job(job: ImportJob, include_preview: bool = True) -> dict[str, Any
     return payload
 
 
-def _mapping_for_job(job: ImportJob, mapping: dict[str, str | None], expected_version: int) -> tuple[dict[str, str | None], str]:
-    if job.expected_version != expected_version:
-        raise ImportJobError("VERSION_CONFLICT", "A versão da importação está desatualizada.", 409)
+def _validated_mapping(job: ImportJob, mapping: dict[str, str | None]) -> tuple[dict[str, str | None], str]:
     try:
         valid = validate_mapping(list(job.source_headers), mapping)
     except ImportParseError as exc:
         raise ImportJobError(exc.code, exc.message, 422) from exc
     return valid, mapping_version(list(job.source_headers), valid)
+
+
+def _mapping_for_job(job: ImportJob, mapping: dict[str, str | None], expected_version: int) -> tuple[dict[str, str | None], str]:
+    _assert_expected_version(job, expected_version)
+    return _validated_mapping(job, mapping)
 
 
 def create_preview(
@@ -419,23 +425,34 @@ def confirm(
 
     job = _locked_job(db, organization_id, job_id)
     _assert_actor_authorized(job, actor_id, member)
-    _assert_expected_version(job, expected_version)
-    if job.idempotency_key == idempotency_key:
-        return job
+    valid_mapping, computed_version = _validated_mapping(job, mapping)
+
+    # Retry da mesma confirmação é aceito mesmo com expected_version antigo,
+    # desde que chave e snapshot de mapping sejam exatamente os persistidos.
+    if job.idempotency_key is not None:
+        if (
+            job.idempotency_key == idempotency_key
+            and job.mapping_version == computed_version
+            and mapping_version_value == computed_version
+        ):
+            return job
+        raise ImportJobError("IDEMPOTENCY_CONFLICT", "A importação já foi confirmada com outro contrato.", 409)
 
     existing = _lock_query(db.query(ImportJob).filter(
         ImportJob.organization_id == organization_id,
         ImportJob.idempotency_key == idempotency_key,
     )).first()
     if existing:
+        _assert_actor_authorized(existing, actor_id, member)
         if existing.source_hash != job.source_hash:
             raise ImportJobError("IDEMPOTENCY_CONFLICT", "A chave já foi usada por outro arquivo.", 409)
-        _assert_actor_authorized(existing, actor_id, member)
+        if existing.mapping_version != computed_version or mapping_version_value != computed_version:
+            raise ImportJobError("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro mapping.", 409)
         return existing
 
+    _assert_expected_version(job, expected_version)
     if job.status != ImportJobStatus.PREVIEWED or not job.dry_run_report:
         raise ImportJobError("DRY_RUN_REQUIRED", "Execute o dry-run antes de confirmar.", 409)
-    valid_mapping, computed_version = _mapping_for_job(job, mapping, expected_version)
     if computed_version != mapping_version_value or computed_version != job.mapping_version:
         raise ImportJobError("MAPPING_VERSION_CONFLICT", "O mapping mudou; execute um novo dry-run.", 409)
     _transition(
@@ -461,7 +478,12 @@ def confirm(
         )).first()
         if existing:
             _assert_actor_authorized(existing, actor_id, member)
-            return existing
+            if (
+                existing.source_hash == job.source_hash
+                and existing.mapping_version == computed_version
+                and mapping_version_value == computed_version
+            ):
+                return existing
         raise ImportJobError("IDEMPOTENCY_CONFLICT", "Não foi possível confirmar a importação concorrente.", 409) from exc
     db.refresh(job)
     return job
@@ -542,6 +564,77 @@ def recover(
     return job
 
 
+def _normalize_token(value: str) -> str:
+    raw = unicodedata.normalize("NFKD", value.strip().upper())
+    raw = "".join(ch for ch in raw if not unicodedata.combining(ch))
+    return re.sub(r"[^A-Z0-9]+", "_", raw).strip("_")
+
+
+def _parse_datetime_field(value: str, field: str) -> datetime | None:
+    value = value.strip()
+    if not value:
+        return None
+    candidate = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError:
+        parsed = None
+        for fmt in ("%d/%m/%Y", "%d/%m/%Y %H:%M", "%d/%m/%Y %H:%M:%S"):
+            try:
+                parsed = datetime.strptime(value, fmt)
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            raise ValueError(f"{field} deve ser data ISO ou DD/MM/AAAA")
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _parse_decimal_field(value: str, field: str) -> Decimal | None:
+    value = value.strip()
+    if not value:
+        return None
+    compact = re.sub(r"[^0-9,.-]", "", value)
+    if "," in compact and "." in compact and compact.rfind(",") > compact.rfind("."):
+        compact = compact.replace(".", "").replace(",", ".")
+    elif "," in compact:
+        compact = compact.replace(",", ".")
+    try:
+        parsed = Decimal(compact)
+    except InvalidOperation as exc:
+        raise ValueError(f"{field} inválido") from exc
+    if parsed < 0:
+        raise ValueError(f"{field} não pode ser negativo")
+    return parsed
+
+
+def _parse_enum_field(value: str, enum_cls: type, field: str):
+    value = value.strip()
+    if not value:
+        return None
+    token = _normalize_token(value)
+    aliases = {
+        "REUNIAO_MARCADA": "REUNIAO_MARCADA",
+        "REUNIAO_FEITA": "REUNIAO_FEITA",
+        "PROPOSTA_ENVIADA": "PROPOSTA_ENVIADA",
+        "ORCAMENTO": "ORCAMENTO",
+        "EM_ANALISE": "EM_ANALISE",
+        "NAO_RESPONDEU": "NAO_RESPONDEU",
+        "PRECO": "PRECO",
+        "WHATSAPP": "WHATSAPP",
+        "E_MAIL": "EMAIL",
+        "EMAIL": "EMAIL",
+    }
+    token = aliases.get(token, token)
+    for item in enum_cls:
+        if token in {_normalize_token(item.name), _normalize_token(str(item.value))}:
+            return item
+    allowed = ", ".join(str(item.value) for item in enum_cls)
+    raise ValueError(f"{field} inválido; use: {allowed}")
+
+
 def _normalized_row(job: ImportJob, row: list[str]) -> dict[str, str]:
     result: dict[str, str] = {}
     mapping = job.mapping or {}
@@ -552,6 +645,7 @@ def _normalized_row(job: ImportJob, row: list[str]) -> dict[str, str]:
     result["website"] = normalize_import_website(result.get("website")) or ""
     result["cnpj"] = clean_cnpj(result.get("cnpj")) or ""
     result["email"] = result.get("email", "").strip().lower()
+    result["owner_email"] = result.get("owner_email", "").strip().lower()
     return result
 
 
@@ -579,7 +673,9 @@ def _company_decision(db: Session, organization_id: Any, data: dict[str, str]) -
         matches["domain"] = db.query(Company).filter(
             Company.organization_id == organization_id, Company.normalized_domain == data["normalized_domain"]
         ).all()
-    alias_values = [value for value in (data.get("normalized_domain"), data.get("place_id")) if value]
+    # O place_id sintético serve para idempotência do histórico, não é tratado
+    # como identificador externo forte para merge de Company.
+    alias_values = [value for value in (data.get("normalized_domain"),) if value]
     if alias_values:
         aliases = db.query(CompanyAlias).filter(
             CompanyAlias.organization_id == organization_id,
@@ -597,7 +693,7 @@ def _company_decision(db: Session, organization_id: Any, data: dict[str, str]) -
         return "REVIEW", None, {"classification": "HYPOTHESIS", "reason": "AMBIGUOUS_IDENTIFIER", "candidates": list(unique)}
     if unique:
         kind = next(kind for kind, values in matches.items() if values)
-        return "CONFIRMED", next(iter(unique.values())), {"classification": "FACT", "match_kind": kind}
+        return "CONFIRMED", next(iter(unique.values())), {"classification": "FACT", "match_kind": kind, "strong_identifier": True}
 
     name = data.get("name", "").strip()
     if name:
@@ -607,9 +703,14 @@ def _company_decision(db: Session, organization_id: Any, data: dict[str, str]) -
         ).all()
         if candidates:
             return "REVIEW", None, {"classification": "HYPOTHESIS", "reason": "NAME_ONLY_MATCH", "candidates": [str(item.id) for item in candidates]}
-    if not data.get("cnpj") and not data.get("normalized_domain") and not data.get("place_id"):
-        return "UNKNOWN", None, {"classification": "UNKNOWN", "reason": "NO_STRONG_IDENTIFIER"}
-    return "NOT_FOUND", None, {"classification": "FACT", "reason": "IDENTIFIER_NOT_FOUND"}
+    if not data.get("cnpj") and not data.get("normalized_domain"):
+        return "NEW", None, {
+            "classification": "FACT",
+            "reason": "HISTORICAL_NEW_ENTITY",
+            "strong_identifier": False,
+            "note": "A fonte histórica afirma a existência; nenhum merge por nome é feito.",
+        }
+    return "NOT_FOUND", None, {"classification": "FACT", "reason": "IDENTIFIER_NOT_FOUND", "strong_identifier": True}
 
 
 def _person_decision(db: Session, organization_id: Any, company_id: Any, data: dict[str, str]) -> tuple[str, Person | None, dict[str, Any]]:
@@ -637,6 +738,54 @@ def _person_decision(db: Session, organization_id: Any, company_id: Any, data: d
     return "NOT_FOUND", None, {"classification": "FACT", "reason": "PERSON_IDENTIFIER_NOT_FOUND"}
 
 
+def _commercial_decision(db: Session, job: ImportJob, data: dict[str, str]) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        status = _parse_enum_field(data.get("status", ""), LeadStatus, "status") or LeadStatus.NOVO
+        lost_reason = _parse_enum_field(data.get("lost_reason", ""), LostReason, "lost_reason")
+        if status == LeadStatus.PERDIDO and lost_reason is None:
+            return None, "PERDIDO exige lost_reason."
+        if status != LeadStatus.PERDIDO and lost_reason is not None:
+            return None, "lost_reason só pode ser usado com status PERDIDO."
+        negotiation_stage = _parse_enum_field(data.get("negotiation_stage", ""), NegotiationStage, "negotiation_stage")
+        contract_outcome = _parse_enum_field(data.get("contract_outcome", ""), ContractOutcome, "contract_outcome")
+        post_sale_channel = _parse_enum_field(data.get("post_sale_channel", ""), PostSaleChannel, "post_sale_channel")
+        value = _parse_decimal_field(data.get("value", ""), "value")
+        fields = {
+            "status": status,
+            "lost_reason": lost_reason,
+            "negotiation_stage": negotiation_stage,
+            "contract_outcome": contract_outcome,
+            "post_sale_channel": post_sale_channel,
+            "value": value,
+            "assigned_at": _parse_datetime_field(data.get("assigned_at", ""), "assigned_at"),
+            "next_action_at": _parse_datetime_field(data.get("next_action_at", ""), "next_action_at"),
+            "last_contacted_at": _parse_datetime_field(data.get("last_contacted_at", ""), "last_contacted_at"),
+            "outcome_date": _parse_datetime_field(data.get("outcome_date", ""), "outcome_date"),
+            "post_sale_contacted_at": _parse_datetime_field(data.get("post_sale_contacted_at", ""), "post_sale_contacted_at"),
+            "expected_close_date": _parse_datetime_field(data.get("expected_close_date", ""), "expected_close_date"),
+            "notes": data.get("notes", "").strip() or None,
+            "owner_user_id": None,
+        }
+    except ValueError as exc:
+        return None, str(exc)
+
+    owner_email = data.get("owner_email", "").strip().lower()
+    if owner_email:
+        owner = (
+            db.query(User)
+            .join(OrganizationMember, OrganizationMember.user_id == User.id)
+            .filter(
+                OrganizationMember.organization_id == job.organization_id,
+                User.email == owner_email,
+            )
+            .first()
+        )
+        if owner is None:
+            return None, "owner_email não pertence ao workspace."
+        fields["owner_user_id"] = owner.id
+    return fields, None
+
+
 def _inspect_row(db: Session, job: ImportJob, row: list[str]) -> dict[str, Any]:
     data = _normalized_row(job, row)
     if not data.get("name"):
@@ -652,12 +801,22 @@ def _inspect_row(db: Session, job: ImportJob, row: list[str]) -> dict[str, Any]:
     duplicate = _lead_duplicate(db, job.organization_id, data, place_id)
     if duplicate:
         return {"status": ImportRowStatus.DUPLICATE, "reason_code": "LEAD_ALREADY_EXISTS", "message": "Lead já reconhecido no workspace.", "lead": duplicate, "data": data, "place_id": place_id}
-    company_kind, company, company_decision = _company_decision(db, job.organization_id, {**data, "place_id": place_id})
+    company_kind, company, company_decision = _company_decision(db, job.organization_id, data)
     if company_kind == "REVIEW":
         return {"status": ImportRowStatus.REJECTED, "reason_code": "COMPANY_REVIEW_REQUIRED", "message": "Identidade da empresa requer revisão.", "identity_decision": {"company": company_decision}, "data": data, "place_id": place_id}
     person_kind, person, person_decision = _person_decision(db, job.organization_id, company.id if company else None, data)
     if person_kind == "REVIEW":
         return {"status": ImportRowStatus.REJECTED, "reason_code": "PERSON_REVIEW_REQUIRED", "message": "Identidade da pessoa requer revisão.", "identity_decision": {"company": company_decision, "person": person_decision}, "data": data, "place_id": place_id}
+    commercial, commercial_error = _commercial_decision(db, job, data)
+    if commercial_error:
+        return {
+            "status": ImportRowStatus.REJECTED,
+            "reason_code": "COMMERCIAL_DATA_INVALID",
+            "message": commercial_error,
+            "identity_decision": {"company": company_decision, "person": person_decision},
+            "data": data,
+            "place_id": place_id,
+        }
     return {
         "status": ImportRowStatus.ACCEPTED,
         "reason_code": None,
@@ -668,6 +827,7 @@ def _inspect_row(db: Session, job: ImportJob, row: list[str]) -> dict[str, Any]:
         "company_decision": company_decision,
         "person": person,
         "person_decision": person_decision,
+        "commercial": commercial,
         "identity_decision": {"company": company_decision, "person": person_decision},
     }
 
@@ -693,6 +853,7 @@ def _create_canonical_row(db: Session, job: ImportJob, inspected: dict[str, Any]
     if inspected["status"] != ImportRowStatus.ACCEPTED:
         return inspected
     data = inspected["data"]
+    commercial = inspected.get("commercial") or {}
     company = inspected.get("company")
     if company is None:
         company = Company(
@@ -734,7 +895,20 @@ def _create_canonical_row(db: Session, job: ImportJob, inspected: dict[str, Any]
         address=data.get("address") or None,
         category=data.get("category") or None,
         instagram_url=data.get("instagram") or None,
-        status=LeadStatus.NOVO,
+        status=commercial.get("status") or LeadStatus.NOVO,
+        lost_reason=commercial.get("lost_reason"),
+        negotiation_stage=commercial.get("negotiation_stage"),
+        contract_outcome=commercial.get("contract_outcome"),
+        post_sale_channel=commercial.get("post_sale_channel"),
+        value=commercial.get("value"),
+        assigned_to_id=commercial.get("owner_user_id"),
+        assigned_at=commercial.get("assigned_at"),
+        next_action_at=commercial.get("next_action_at"),
+        last_contacted_at=commercial.get("last_contacted_at"),
+        outcome_date=commercial.get("outcome_date"),
+        post_sale_contacted_at=commercial.get("post_sale_contacted_at"),
+        expected_close_date=commercial.get("expected_close_date"),
+        notes=commercial.get("notes"),
         discovery_provenance={
             "source": "historical_import",
             "import_job_id": str(job.id),
@@ -742,6 +916,12 @@ def _create_canonical_row(db: Session, job: ImportJob, inspected: dict[str, Any]
             "line_number": line_number,
             "classification": "FACT",
             "observed_at": _now().isoformat(),
+            "historical_fields": sorted(key for key in data if key in {
+                "status", "owner_email", "assigned_at", "notes", "next_action_at",
+                "last_contacted_at", "negotiation_stage", "contract_outcome",
+                "outcome_date", "post_sale_contacted_at", "post_sale_channel",
+                "value", "expected_close_date", "lost_reason",
+            } and data.get(key)),
         },
     )
     db.add(lead)
@@ -749,7 +929,6 @@ def _create_canonical_row(db: Session, job: ImportJob, inspected: dict[str, Any]
     person = inspected.get("person")
     contact_name = data.get("contact_name")
     if person is None and contact_name:
-        from services.company_person_service import CompanyPersonService
         person = CompanyPersonService.get_or_create_person(
             db, job.organization_id, company.id,
             {

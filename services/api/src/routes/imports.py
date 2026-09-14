@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -51,19 +51,50 @@ def _assert_job_scope(job: Any, user: User, member: OrganizationMember) -> None:
         raise HTTPException(status_code=404, detail="Importação não encontrada")
 
 
+def _confirmed_replay(
+    db: Session,
+    org_id: Any,
+    import_id: str,
+    body: ConfirmRequest,
+    user: User,
+    member: OrganizationMember,
+):
+    """Reconhece retry idempotente após uma corrida de confirmação.
+
+    ``confirm`` protege a escrita com lock/versionamento. Se outra request vencer
+    a corrida, esta request pode carregar uma versão antiga. Depois do rollback
+    relemos o job e só aceitamos replay quando chave *e* mapping são exatamente
+    os já persistidos, evitando transformar VERSION_CONFLICT real em sucesso.
+    """
+    current = get_job(db, org_id, import_id)
+    _assert_job_scope(current, user, member)
+    if (
+        current.idempotency_key == body.idempotency_key
+        and current.mapping_version == body.mapping_version
+        and current.status.value in {"QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "CANCEL_REQUESTED", "CANCELLED"}
+    ):
+        return current
+    return None
+
+
 @router.post("", status_code=201)
 @limiter.limit("10/minute")
 def upload_import(
     request: Request,
     file: UploadFile = File(...),
     campaign_id: str | None = Query(default=None),
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
     _member: OrganizationMember = Depends(get_user_membership),
 ):
-    """Valida e cria um preview; não cria entidades comerciais."""
+    """Valida e cria um preview sem efeitos comerciais.
+
+    O preview é deliberadamente descartável e pode ser repetido; a fronteira
+    idempotente do import é a confirmação, onde a chave passa a ser persistida
+    e protegida por UNIQUE por workspace. Isso evita prometer idempotência de
+    upload enquanto o usuário ainda pode trocar mapping/dry-run.
+    """
     content = file.file.read(MAX_FILE_BYTES + 1)
     if len(content) > MAX_FILE_BYTES:
         _raise(ImportJobError("FILE_TOO_LARGE", "O arquivo excede o limite de 25 MiB.", 413))
@@ -76,7 +107,7 @@ def upload_import(
             filename=file.filename,
             content_type=file.content_type,
             campaign_id=campaign_id,
-            idempotency_key=idempotency_key,
+            idempotency_key=None,
             correlation_id=request.headers.get("X-Request-ID"),
             member=_member,
         )
@@ -153,6 +184,14 @@ def confirm_import(
         )
         return serialize_job(job, include_preview=False)
     except ImportJobError as error:
+        if error.code in {"VERSION_CONFLICT", "IDEMPOTENCY_CONFLICT"}:
+            db.rollback()
+            try:
+                replay = _confirmed_replay(db, _org.id, import_id, body, user, _member)
+            except ImportJobError:
+                replay = None
+            if replay is not None:
+                return serialize_job(replay, include_preview=False)
         _raise(error)
 
 
