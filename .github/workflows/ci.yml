@@ -35,8 +35,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
       - name: Compile Python
-        run: |
-          python -m compileall -q services/api services/workers
+        run: python -m compileall -q services/api services/workers
       - name: Unit tests (sem banco)
         run: python -m pytest tests -q -W error
       - name: Prospecting Intelligence quality gate
@@ -52,8 +51,7 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test
-        ports:
-          - 5432:5432
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U test -d test"
           --health-interval 5s
@@ -71,7 +69,7 @@ jobs:
           pip install -r requirements.txt
       - name: Alembic upgrade head
         working-directory: services/workers
-        env:
+        env: &migration-env
           DATABASE_URL: postgresql://test:test@localhost:5432/test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
@@ -84,34 +82,15 @@ jobs:
         run: alembic upgrade head
       - name: Alembic upgrade head (idempotente)
         working-directory: services/workers
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-          PGADMIN_EMAIL: admin@test.local
-          PGADMIN_PASSWORD: admin
-          GROQ_API_KEY: test
-          GOOGLE_API_KEY: test
-          SECRETS_ENCRYPTION_KEY: ""
+        env: *migration-env
         run: alembic upgrade head
       - name: Verify schema contract
-        working-directory: .
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
         run: python scripts/verify_migrations.py --database-url "$DATABASE_URL"
       - name: Seed templates (smoke)
         working-directory: services/workers
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-          PGADMIN_EMAIL: admin@test.local
-          PGADMIN_PASSWORD: admin
-          GROQ_API_KEY: test
-          GOOGLE_API_KEY: test
-          SECRETS_ENCRYPTION_KEY: ""
+        env: *migration-env
         run: python -m src.seeds.scoring_templates
 
   e2e:
@@ -124,8 +103,7 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test
-        ports:
-          - 5432:5432
+        ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U test -d test"
           --health-interval 5s
@@ -172,3 +150,5 @@ jobs:
         run: python -m pytest tests/test_crm_360_entities.py -q -W error
       - name: Verify Event Intelligence and Golden Paths persistence
         run: python -m pytest tests/test_event_outcome_persistence.py -q -W error
+      - name: Verify Sales Operating System tenant, queue and saved views
+        run: python -m pytest tests/test_sales_operating_system.py -q -W error
