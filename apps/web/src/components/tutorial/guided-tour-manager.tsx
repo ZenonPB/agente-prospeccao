@@ -6,7 +6,7 @@ import { driver, Driver } from 'driver.js';
 import { Compass, Loader2 } from 'lucide-react';
 import { TOUR_STEPS, type TourStep } from '@/config/tour-steps';
 import { useOnboardingStore } from '@/stores/useOnboardingStore';
-import { useCampaigns, useOnboardingStatus, useOrgMembership, useUpdateOnboardingStatus, useUserMe } from '@/hooks/use-api';
+import { useCampaigns, useOrgMembership, useUpdateOnboardingStatus, useUserMe } from '@/hooks/use-api';
 import { toast } from 'sonner';
 import './tour-styles.css';
 
