@@ -22,8 +22,9 @@ SAVED_FILTER_KEYS = {
     "from", "to", "campaign_id", "consultant_id", "offer_key", "offer_version",
     "channel", "status", "score_bucket", "outcome", "attribution", "search",
     "segment", "city", "state", "negotiation_stage", "priority", "assigned",
+    "min_score", "archived", "tag",
 }
-EPHEMERAL_FILTER_KEYS = {"cursor"}
+EPHEMERAL_FILTER_KEYS = {"cursor", "offset", "page", "limit"}
 ARRAY_FILTER_KEYS = {"channel", "status", "score_bucket", "outcome", "negotiation_stage"}
 
 
@@ -42,7 +43,7 @@ def _iso(value: Any) -> str | None:
 def normalize_saved_filters(filters: dict[str, Any]) -> dict[str, Any]:
     """Mantém somente filtros serializáveis e conhecidos, de modo determinístico.
 
-    Cursores são deliberadamente descartados: uma visão salva representa critérios
+    Paginação é deliberadamente descartada: uma visão salva representa critérios
     comerciais, não a página que estava aberta no momento do salvamento.
     """
     if not isinstance(filters, dict):
