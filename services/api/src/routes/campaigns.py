@@ -157,11 +157,18 @@ def create_campaign(
     user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
 ):
+    analysis_profile = request.analysis_profile
     if request.offer_profile_key:
-        from services.prospecting.default_profiles import get_default_registry
+        from services.prospecting.effective_offer_registry import get_effective_profile
 
-        if get_default_registry().get(request.offer_profile_key) is None:
-            raise HTTPException(status_code=422, detail="Perfil de oferta não encontrado")
+        profile = get_effective_profile(db, _org.id, request.offer_profile_key)
+        if profile is None:
+            raise HTTPException(status_code=422, detail="Vertente não encontrada nesta organização")
+        analysis_profile = (
+            "web_presence"
+            if profile.archetype in {"web_presence", "digital_systems"}
+            else "business_opportunity"
+        )
 
     campaign = Campaign(
         user_id=user.id,
@@ -172,7 +179,7 @@ def create_campaign(
         target_city=request.target_city,
         target_state=request.target_state,
         target_country=request.target_country or "Brasil",
-        analysis_profile=request.analysis_profile,
+        analysis_profile=analysis_profile,
         places_query=request.places_query,
         search_queries=request.search_queries,
         offer_profile_key=request.offer_profile_key,
@@ -337,9 +344,9 @@ async def create_campaign_from_brief(
     offer_profile_label = None
     offer_resolved_from = "generic"
     try:
-        from services.prospecting.default_profiles import get_default_registry
+        from services.prospecting.effective_offer_registry import build_effective_registry
         from services.prospecting.offer_profile import OfferProfileResolver
-        resolved_offer = OfferProfileResolver(get_default_registry()).resolve_campaign(
+        resolved_offer = OfferProfileResolver(build_effective_registry(db, _org.id)).resolve_campaign(
             target_service=suggestion.get("target_service") or "",
             target_segment=suggestion.get("target_segment") or "",
         )
@@ -449,13 +456,19 @@ def patch_campaign(
 
     if "offer_profile_key" in updates:
         if updates["offer_profile_key"]:
-            from services.prospecting.default_profiles import get_default_registry
+            from services.prospecting.effective_offer_registry import get_effective_profile
 
-            if get_default_registry().get(updates["offer_profile_key"]) is None:
-                raise HTTPException(status_code=422, detail="Perfil de oferta não encontrado")
+            profile = get_effective_profile(db, _org.id, updates["offer_profile_key"])
+            if profile is None:
+                raise HTTPException(status_code=422, detail="Vertente não encontrada nesta organização")
+            campaign.analysis_profile = (
+                "web_presence"
+                if profile.archetype in {"web_presence", "digital_systems"}
+                else "business_opportunity"
+            )
         campaign.offer_profile_key = updates["offer_profile_key"]
-
-    if "analysis_profile" in updates:
+    elif "analysis_profile" in updates:
+        # Campanhas legadas sem Vertente explícita ainda aceitam o campo.
         campaign.analysis_profile = updates["analysis_profile"]
 
     # Pausar/retomar/arquivar pelo menu da campanha.
