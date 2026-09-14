@@ -9,7 +9,11 @@ from uuid import UUID
 if TYPE_CHECKING:
     from src.db.models import ControlledLearningProposal
 
-_EVIDENCE_FIELDS = frozenset({"verdict", "recommendation", "delta", "v1", "v2"})
+_EVIDENCE_FIELDS = frozenset({
+    "verdict", "recommendation", "delta", "v1", "v2",
+    "sample_quality", "associations", "baseline_profile_snapshot",
+    "candidate_profile_snapshot", "rank_movements", "methodology",
+})
 
 
 def build_learning_proposal(comparison: Any) -> dict[str, Any]:
@@ -31,6 +35,10 @@ def build_learning_proposal(comparison: Any) -> dict[str, Any]:
     recommendation = result.get("recommendation")
     if result.get("verdict") != expected_verdict or not isinstance(recommendation, str) or not recommendation.strip():
         raise ValueError("somente uma recomendação conclusiva pode gerar learning")
+    candidate = result.get("candidate_profile_snapshot")
+    if approved_version == version_b and candidate is not None:
+        if not isinstance(candidate, dict) or candidate.get("key") != offer_key or candidate.get("version") != approved_version:
+            raise ValueError("snapshot candidato da comparação é inconsistente")
     return {
         "organization_id": getattr(comparison, "organization_id", None),
         "offer_key": offer_key,
@@ -50,12 +58,7 @@ def validate_profile_publication(
     approved_version: str,
     current_version: str | None,
 ) -> Any:
-    """Valida uma publicação sem efeitos colaterais.
-
-    A publicação precisa ser uma versão nova, semanticamente válida e exatamente
-    a versão que foi aprovada. Isso garante que sempre exista um estado anterior
-    distinto para rollback e impede sobrescrever silenciosamente uma versão.
-    """
+    """Valida uma publicação sem efeitos colaterais."""
     from services.prospecting.offer_profile import OfferProfile
     from services.prospecting.offer_profile_validator import validate_profile
 
@@ -118,8 +121,8 @@ class ControlledLearningService:
         )
         return proposal
 
-    def publish_profile(self, db: Any, organization_id: UUID, proposal_id: UUID, profile_snapshot: dict[str, Any], actor: Any) -> Any:
-        """Publica exatamente a versão aprovada, com lock e snapshot imutável."""
+    def publish_profile(self, db: Any, organization_id: UUID, proposal_id: UUID, profile_snapshot: dict[str, Any] | None, actor: Any) -> Any:
+        """Publica exatamente o candidato aprovado e persistido, com lock."""
         from sqlalchemy import select
         from database.learning_models import OfferProfileActivation, OfferProfileVersion
         from src.db.models import ControlledLearningProposal
@@ -140,6 +143,15 @@ class ControlledLearningService:
                 return existing
         if proposal.status != "PROPOSED":
             raise ValueError("Proposta não está disponível para publicação")
+
+        evidence = proposal.evidence_snapshot if isinstance(proposal.evidence_snapshot, dict) else {}
+        persisted_candidate = evidence.get("candidate_profile_snapshot")
+        if profile_snapshot is None:
+            if not isinstance(persisted_candidate, dict):
+                raise ValueError("a proposta não possui snapshot candidato persistido")
+            profile_snapshot = deepcopy(persisted_candidate)
+        elif isinstance(persisted_candidate, dict) and profile_snapshot != persisted_candidate:
+            raise ValueError("o snapshot enviado difere do candidato aprovado e persistido")
 
         existing_version = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
@@ -165,7 +177,6 @@ class ControlledLearningService:
             current_version=current_version,
         )
 
-        # Primeira publicação persiste o catálogo padrão como baseline exato.
         any_version = db.scalars(select(OfferProfileVersion).where(
             OfferProfileVersion.organization_id == organization_id,
             OfferProfileVersion.offer_key == proposal.offer_key,
@@ -213,7 +224,6 @@ class ControlledLearningService:
         return row
 
     def rollback_profile(self, db: Any, organization_id: UUID, offer_key: str, target_version: str, actor: Any) -> Any:
-        """Reativa snapshot histórico sem reescrever seu conteúdo."""
         from sqlalchemy import select
         from database.learning_models import OfferProfileActivation, OfferProfileVersion
 
