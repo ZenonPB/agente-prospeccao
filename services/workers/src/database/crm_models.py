@@ -114,6 +114,29 @@ class ProspectListMember(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
 
+class CommercialSavedView(Base):
+    """Preferência operacional de filtros, sem duplicar estado comercial."""
+
+    __tablename__ = "commercial_saved_views"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "owner_user_id", "view_kind", "name",
+            name="uq_commercial_saved_views_owner_name",
+        ),
+        Index("ix_commercial_saved_views_org_kind", "organization_id", "view_kind", "shared"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=False)
+    view_kind = Column(String(24), nullable=False)
+    filters = Column(JSONB, nullable=False, default=dict)
+    shared = Column(Boolean, nullable=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
 class ProviderQualitySnapshot(Base):
     __tablename__ = "provider_quality_snapshots"
     __table_args__ = (
