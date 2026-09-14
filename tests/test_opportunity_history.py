@@ -164,9 +164,27 @@ class TestOpportunityHistory:
         snaps = service.list_snapshots(db_session, sample_lead.id)
         assert len(snaps) >= 2
 
-    def test_replace_preserva_removida_no_historico(self, db_session, sample_lead):
+    def test_replace_preserva_removida_no_historico(self, db_session, sample_lead, monkeypatch):
+        from services.prospecting.default_profiles import get_default_registry
         from services.prospecting.lead_opportunity_service import LeadOpportunityService
         from services.prospecting.offer_matcher import LeadOpportunity
+        from services.prospecting.offer_profile import OfferProfileRegistry
+
+        # O replace de enrichment recalcula o match efetivo; sem site o lead é
+        # público-alvo de presença web e landing_page volta legítimamente.
+        # Isola troféus no registry efetivo para exercitar a remoção de verdade
+        # sem remover o perfil do registry global.
+        def registry_sem_landing(db, organization_id):
+            registry = OfferProfileRegistry()
+            for profile in get_default_registry().list():
+                if profile.key != "landing_page":
+                    registry.register(profile)
+            return registry
+
+        monkeypatch.setattr(
+            "services.prospecting.effective_offer_registry.build_effective_registry",
+            registry_sem_landing,
+        )
 
         service = LeadOpportunityService()
         service.persist_opportunities(
