@@ -1,0 +1,360 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Mapear e fechar os limites tenant-first antes do import": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862603
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340872731
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341389840
+      }
+    ],
+    "1.3 Criar o gate de schema para jobs e constraints comerciais observadas": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862647
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341396298
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341600647
+      }
+    ],
+    "2.1 Implementar o lifecycle persistido do Import Job e seus resultados": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862691
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341850735
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789342218111
+      }
+    ],
+    "3.1 Implementar validação de CSV/XLSX e preview sem efeitos canônicos": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862742
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789342225435
+      }
+    ],
+    "3.3 Integrar mapping versionado e confirmação autorizada": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862796
+      }
+    ],
+    "4.1 Processar lotes, resolver identidade e gerar relatório operacional": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862840
+      }
+    ],
+    "4.3 Encerrar B4 com compatibilidade e gate vertical": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862881
+      }
+    ],
+    "5. Checkpoint B4 — garantir testes e perguntar ao usuário se houver questões": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862921
+      }
+    ],
+    "6.1 Implementar filtros comerciais versionados sem quebrar consumidores": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340862968
+      }
+    ],
+    "7.1 Integrar contexto compartilhado, URL e React Query": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863009
+      }
+    ],
+    "7.2 Implementar export autorizado com snapshot exato": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863050
+      }
+    ],
+    "8. Checkpoint B5 — garantir filtros, export e UI sem divergência": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863120
+      }
+    ],
+    "9.1 Unificar Company/People/Opportunity/Activity/Task/Outcome/Timeline": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863163
+      }
+    ],
+    "9.3 Implementar escala operacional: cursor, bulk, saved views e estados de UI": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863206
+      }
+    ],
+    "10. Checkpoint B6 — garantir CRM sem estado paralelo": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863247
+      }
+    ],
+    "11.1 Implementar métricas por bucket com baseline, amostra e disponibilidade": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863291
+      }
+    ],
+    "11.3 Integrar feedback, attribution e UI de calibração": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863333
+      }
+    ],
+    "12. Checkpoint B7 — garantir aprendizado somente observacional e aprovado": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863375
+      }
+    ],
+    "13.1 Fechar contrato de provenance FACT/INFERENCE/HYPOTHESIS/UNKNOWN": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863525
+      }
+    ],
+    "13.3 Integrar evento → entidade → oferta/snapshot → NBA → outcome": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863583
+      }
+    ],
+    "14. Checkpoint B8 — garantir Golden Path passivo e auditável": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863640
+      }
+    ],
+    "15.1 Criar matriz UAT em PostgreSQL real para dois ou mais workspaces": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863691
+      }
+    ],
+    "15.3 Executar smoke E2E das superfícies frontend afetadas": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863748
+      }
+    ],
+    "16. Checkpoint B9 — garantir UAT negativo e concorrente": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863812
+      }
+    ],
+    "17.1 Executar campanha Tecnologia e campanha Engenharia com dados reais controlados": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863875
+      }
+    ],
+    "17.2 Executar Troféus/MEJ e hardening técnico P0–P3": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863932
+      }
+    ],
+    "17.3 Fechar documentação LIVE, operação e abandono da planilha": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340863991
+      }
+    ],
+    "18. Checkpoint B10 — decisão de release baseada em evidência": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864050
+      }
+    ],
+    "19.1 Reunir evidências e decidir o release gate": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864108
+      }
+    ],
+    "19.2 Tenant-first completo em rotas, services, jobs, WebSocket, providers, analytics, export, cache e migrations relevantes.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864165
+      }
+    ],
+    "19.3 RBAC/membership/carteira, allowlist de campos, import, bulk, secrets, learning, export e publicação testados.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864219
+      }
+    ],
+    "19.4 Schema Alembic com uma cabeça, migrations novas/expand-compatible, backfills verificados, índices medidos e seed idempotente.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864279
+      }
+    ],
+    "19.5 CRM canônico com lifecycle, timeline, attribution, provenance, idempotência e optimistic concurrency; sem entidades paralelas não justificadas.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864333
+      }
+    ],
+    "19.6 Import CSV/XLSX com upload seguro, preview, mapping, dry-run, job, progresso, dedupe, relatório, retry/cancelamento/recovery e idempotência.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864392
+      }
+    ],
+    "19.7 BI com FilterContext URL/React Query, agregação server-side, amostra/disponibilidade, cursor e export do mesmo snapshot.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864480
+      }
+    ],
+    "19.8 Learning com Precision@K/NDCG/outcomes observacionais, baseline/versão, aprovação manual, publicação auditada e rollback exato.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864551
+      }
+    ],
+    "19.9 Golden Path evento→evidência→entidade→contactability→fit/score/confidence→oferta/snapshot→NBA→outcome, separando FACT/INFERENCE/HYPOTHESIS/UNKNOWN.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864602
+      }
+    ],
+    "19.10 UAT multi-workspace em Postgres real, incluindo cross-tenant, jobs/registry/cache/ContextVar, WebSocket, providers e exports.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864661
+      }
+    ],
+    "19.11 Três campanhas reais controladas, consentimento aplicável, provenance/custo/amostra/correlation ID e estados de provider diferenciados.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864717
+      }
+    ],
+    "19.12 Segurança sem P0 aberto; performance com p50/p95 e plano de índice; backup/restore, incident response, observabilidade e rollback evidenciados.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864769
+      }
+    ],
+    "19.13 Gates de qualidade: compileall; pytest completo com `-W error`; migrations/seed/schema verifier; E2E comercial; `npm ci`, lint, TypeScript sem emissão, production build, a11y e responsive para mudanças web.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864827
+      }
+    ],
+    "19.14 Documentação LIVE atualizada e snapshots históricos preservados.": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789340864885
+      }
+    ],
+    "1. Preparação: contratos tenant-first, RBAC, auditoria e schema gates": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341600725
+      }
+    ],
+    "1.2 Escrever a prova de isolamento tenant-first": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341618249
+      },
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789341844490
+      }
+    ],
+    "2. B4.1: contrato e schema do Import Job tenant-scoped": [
+      {
+        "executionId": "3a7e21e6-5168-4a56-bcee-8ecb7b1a3f86",
+        "chatSessionId": "sess_ff2d8d24-1b19-47d6-ab5b-606a12e0b95e",
+        "timestamp": 1789342218162
+      }
+    ]
+  }
+}

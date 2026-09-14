@@ -24,7 +24,7 @@ analytics, feedback, controlled learning, Opportunity 360 read-only,
 Company 360, Person 360, OfferProfile efetivo tenant-safe no pipeline inteiro e
 Opportunity 360 editável.
 
-O PR #173 fecha a edição operacional da Opportunity 360:
+A edição operacional da Opportunity 360 está entregue:
 - comandos sobre `Lead`/`CommercialTask`, sem estado comercial paralelo;
 - RBAC e isolamento para owner/status/estágio/valor/previsão/próxima ação/notas;
 - status perdido + motivo validados atomicamente antes de flush;
@@ -32,6 +32,36 @@ O PR #173 fecha a edição operacional da Opportunity 360:
 - editor web acessível, semântico e responsivo;
 - suíte PostgreSQL específica no gate E2E;
 - migration que elimina drift entre o enum de activities do runtime e o PostgreSQL.
+
+A tela de relatórios usa um snapshot comercial único derivado da URL (`period`,
+`campaign`, `consultant`, busca, status e score, além das dimensões suportadas),
+compartilhado pelas consultas de analytics e pela exportação PDF. O snapshot é
+normalizado para query keys determinísticas, restaura navegação/reload e mantém
+loading, erro e dados parciais independentes por visão.
+
+O Historical Importer backend e frontend estão integrados em
+`apps/web/src/components/campanhas/csv-import-modal.tsx`. O fluxo usa upload,
+preview, dry-run, confirmação, processamento assíncrono e relatório de linhas;
+o import síncrono de campanha e o webhook permanecem compatibilidade legada e
+não são a fonte do novo lifecycle.
+
+B5.1/B5.2 têm filtros server-side e um snapshot comercial compartilhado entre
+as consultas de analytics e a exportação PDF. B6 agora tem `GET /api/leads`
+aditivo, com cursor estável e compatibilidade offset, além de
+`POST /api/leads/bulk/preview` e `POST /api/leads/bulk/execute`. As operações
+allowlist são `status` e `assign`, limitadas a 100 registros, no fluxo
+preview → confirmação → execute, com resultados `accepted`, `duplicate`,
+`rejected` e `failed`. A execução usa `expected_updated_at` fail-closed,
+tenant/RBAC e `CommercialBulkOperation` como ledger técnico; a migration
+`f2b3c4d5e6f7` faz o backfill/default de `Lead.updated_at`. Bulk status usa a
+transição canônica, registra `LeadActivity`/outcome e cancela a cadência em
+estados terminais. No frontend, a seleção é limitada, a paginação usa cursor
+com React Query, estados parciais são preservados, retry reutiliza a mesma
+idempotency key e rejeitados/falhos selecionados não são descartados. A
+implementação não declara B6 nem o RC totalmente concluídos: permanecem os
+follow-ups de validação PostgreSQL, migration/schema/concorrência/tenant real,
+`verify_migrations`, browser/a11y/responsive smoke e export server-side
+auditável, bloqueados pela ausência de `E2E_DATABASE_URL`/browser.
 
 ## Invariantes que não podem regredir
 
@@ -76,10 +106,21 @@ Não criar tabelas duplicadas de Proposal/Contract/Note até existir regra de
 domínio e UAT que justifiquem entidade própria. Edição de Opportunity 360 deve
 mutar essas fontes canônicas, não introduzir estado paralelo.
 
+## Historical Importer
+
+O backend agora expõe `/api/imports` para upload seguro CSV/XLSX, preview,
+dry-run, confirmação, consulta paginada de resultados, cancelamento e
+recovery. A confirmação cria um `ImportJob` tenant-scoped e o consumer
+processa lotes de até 1.000 linhas com dedupe conservador, provenance,
+idempotência por workspace e estados explícitos. O frontend está integrado em
+`apps/web/src/components/campanhas/csv-import-modal.tsx`; o import síncrono de
+campanha e o webhook permanecem compatibilidade legada, e não são a fonte do
+novo lifecycle.
+
 ## Prioridades atuais
 
-1. importador histórico seguro da planilha AlphaMec;
-2. Filter Context compartilhado + BI interativo;
+1. export server-side auditável, saved views e global CRM bulk;
+2. E2E/migration/schema/concorrência/tenant real PostgreSQL para B6;
 3. coaching e calibração com feedback/outcomes;
 4. Golden Path troféus/eventos/MEJ;
 5. UAT multi-workspace;
@@ -109,3 +150,10 @@ Uma entrega só é concluída se o **mesmo HEAD** passar:
 
 Falha pré-existente não é justificativa para normalizar suíte vermelha. Ou é
 corrigida, ou se prova por que o gate oficial a isola corretamente.
+
+Os gates locais atuais passaram: pytest completo (`1458 passed`, `53 skipped`),
+compileall, lint, `tsc`, build e diff check. Os skips são dependentes de
+PostgreSQL. Permanecem como follow-ups bloqueados pela ausência de
+`E2E_DATABASE_URL`/browser: E2E/migration/schema/concorrência/tenant real
+PostgreSQL, `verify_migrations` contra banco, browser/a11y/responsive smoke e
+export server-side auditável.
