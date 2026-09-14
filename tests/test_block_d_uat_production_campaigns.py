@@ -129,9 +129,6 @@ def test_d1_d2_d3_multi_workspace_rehearsal_and_measurement_postgres():
     )
     db.add_all([campaign_a, campaign_b]); db.flush()
 
-    # Mesmo nome/segmento em workspaces distintos: identidade comercial não
-    # pode ser colapsada pelo tenant switch.
-    leads_a = []
     for index in range(4):
         lead = Lead(
             organization_id=org_a.id, campaign_id=campaign_a.id,
@@ -140,11 +137,12 @@ def test_d1_d2_d3_multi_workspace_rehearsal_and_measurement_postgres():
             qualification_score=80 - index, assigned_to_id=shared.id,
             created_at=now, updated_at=now,
         )
-        db.add(lead); db.flush(); leads_a.append(lead)
+        db.add(lead); db.flush()
+        profile = build_effective_registry(db, org_a.id).get("landing_page")
+        assert profile is not None
         opp = LeadOpportunityRow(
             organization_id=org_a.id, lead_id=lead.id, offer_key="landing_page",
-            offer_version=build_effective_registry(db, org_a.id).get("landing_page").version,
-            profile_key="web_presence", score=80 - index,
+            offer_version=profile.version, profile_key="web_presence", score=80 - index,
             signals_matched=["NO_OWN_WEBSITE"], signals_missing=["HAS_ADS"],
         )
         db.add(opp); db.flush()
@@ -163,9 +161,11 @@ def test_d1_d2_d3_multi_workspace_rehearsal_and_measurement_postgres():
         assigned_to_id=shared.id, created_at=now, updated_at=now,
     )
     db.add(foreign); db.flush()
+    foreign_profile = build_effective_registry(db, org_b.id).get("landing_page")
+    assert foreign_profile is not None
     foreign_opp = LeadOpportunityRow(
         organization_id=org_b.id, lead_id=foreign.id, offer_key="landing_page",
-        offer_version=build_effective_registry(db, org_b.id).get("landing_page").version,
+        offer_version=foreign_profile.version,
         profile_key="web_presence", score=100, signals_matched=["NO_OWN_WEBSITE"],
     )
     db.add(foreign_opp); db.flush()
@@ -180,7 +180,6 @@ def test_d1_d2_d3_multi_workspace_rehearsal_and_measurement_postgres():
     try:
         service_a = BlockDService(db, org_a.id)
         service_b = BlockDService(db, org_b.id)
-
         readiness = service_a.readiness()
         assert readiness["status"] == "READY"
         assert readiness["external_providers"] == "OPT_IN_REQUIRED"
@@ -212,13 +211,15 @@ def test_d1_d2_d3_multi_workspace_rehearsal_and_measurement_postgres():
         assert funnel_b["leads"] == 1 and funnel_b["revenue"] == 999999.0
         assert funnel_a["revenue"] != funnel_b["revenue"]
 
-        # Registry também precisa ser resolvido no tenant certo mesmo com o
-        # mesmo usuário alternando workspaces.
-        assert build_effective_registry(db, org_a.id).get("landing_page") is not None
-        assert build_effective_registry(db, org_b.id).get("landing_page") is not None
+        registry_a = build_effective_registry(db, org_a.id)
+        registry_b = build_effective_registry(db, org_b.id)
+        assert registry_a.get("landing_page") is not None
+        assert registry_b.get("landing_page") is not None
 
         matrix = {row["offer_key"] for row in BlockDService.release_matrix()}
-        assert {"landing_page", "web_systems_erp", "mechanical_engineering", "trophies_sports", "trophies_mej"} <= matrix
+        expected = {"landing_page", "web_systems_erp", "mechanical_project", "trophies_sports", "trophies_mej"}
+        assert expected <= matrix
+        assert all(registry_a.get(offer_key) is not None for offer_key in expected)
     finally:
         db.rollback()
         db.close()
