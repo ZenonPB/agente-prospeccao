@@ -15,6 +15,7 @@ from typing import Any, Iterable
 
 from database.models import EventOpportunityRow, Lead
 from database.phase56_models import CaseStudy, EventSeries
+from services.prospecting.event_intelligence import canonical_event_series_key
 
 
 def _norm(value: str | None) -> str:
@@ -26,11 +27,9 @@ def _norm(value: str | None) -> str:
 
 
 def event_series_key(event: EventOpportunityRow) -> str:
-    organizer = _norm(event.organizer)
-    name = _norm(event.name)
-    family = _norm(event.event_type)
-    base = "|".join(part for part in (organizer, name, family) if part)
-    return base[:180] or str(event.id)
+    """Usa a mesma identidade canônica da camada de Event Intelligence."""
+    key = canonical_event_series_key(event.name, event.organizer, event.event_type)
+    return key or str(event.id)
 
 
 def _median_days(events: list[EventOpportunityRow]) -> int | None:
@@ -56,6 +55,12 @@ def _recurrence_confidence(events: list[EventOpportunityRow], interval_days: int
     if organizers and Counter(organizers).most_common(1)[0][1] >= 2:
         confidence += 0.05
     return round(min(0.99, confidence), 3)
+
+
+def _event_context(event: EventOpportunityRow) -> tuple[str | None, str | None]:
+    provenance = event.provenance if isinstance(event.provenance, dict) else {}
+    intelligence = provenance.get("intelligence") if isinstance(provenance.get("intelligence"), dict) else {}
+    return intelligence.get("context"), intelligence.get("recommended_offer_key")
 
 
 class EventSeriesService:
@@ -88,6 +93,7 @@ class EventSeriesService:
                     "end": (expected + timedelta(days=tolerance)).isoformat(),
                     "interval_days": interval,
                     "computed_at": now.isoformat(),
+                    "epistemic": "INFERENCE",
                 }
 
             row = (
@@ -98,6 +104,7 @@ class EventSeriesService:
             if row is None:
                 row = EventSeries(organization_id=organization_id, series_key=key, name=latest.name)
                 db.add(row)
+            context, recommended_offer = _event_context(latest)
             row.name = latest.name
             row.family = latest.event_type
             row.recurrence_confidence = confidence
@@ -108,6 +115,10 @@ class EventSeriesService:
                 "event_count": len(items),
                 "providers": sorted({str(item.provider) for item in items if item.provider}),
                 "organizer": latest.organizer,
+                "context": context,
+                "recommended_offer_key": recommended_offer or latest.offer_key,
+                "epistemic": "INFERENCE",
+                "note": "Recorrência derivada de edições observadas; não é confirmação de evento futuro.",
             }
             result.append(row)
         db.flush()
@@ -137,6 +148,8 @@ class EventSeriesService:
                 "recurrence_confidence": float(row.recurrence_confidence or 0),
                 "expected_next_window": window,
                 "latest_event_id": str(row.latest_event_id) if row.latest_event_id else None,
+                "series_metadata": row.series_metadata or {},
+                "epistemic": "INFERENCE",
             })
         return sorted(candidates, key=lambda item: item["expected_next_window"].get("start") or "")
 
