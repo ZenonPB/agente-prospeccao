@@ -34,7 +34,7 @@ def _signal_item(key: str, weights: dict[str, Any]) -> dict[str, Any]:
     description = str(meta.get("description") or _humanize(key))
     return {
         "key": key,
-        "label": _humanize(description),
+        "label": _humanize(key),
         "description": description,
         "weight": weights.get(key),
     }
@@ -61,6 +61,8 @@ def _valid_org_profile_keys(db: Any, organization_id: Any) -> set[str]:
         try:
             profile = OfferProfile.from_dict(dict(row.profile_snapshot or {}))
         except (TypeError, ValueError):
+            continue
+        if str(profile.key) != str(row.offer_key) or str(profile.version) != str(row.version):
             continue
         problems = [item for item in validate_profile(profile) if not str(item).startswith("aviso:")]
         if not problems:
