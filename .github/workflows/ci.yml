@@ -158,6 +158,10 @@ jobs:
         run: python -m pytest tests/e2e_outreach_cycle.py -q -m e2e
       - name: Verify conversion concurrency invariant
         run: python -m pytest tests/test_conversion_unique_concurrency.py -q
+      - name: Verify Historical Importer lifecycle, tenant and idempotency
+        run: python -m pytest tests/test_historical_import_e2e.py -q -W error
+      - name: Verify bulk lead concurrency, locking and optimistic versioning
+        run: python -m pytest tests/test_lead_bulk_postgres.py -q -W error
       - name: Verify Opportunity 360 tenant and performance invariants
         run: python -m pytest tests/test_opportunity_360.py -q -W error
       - name: Verify Opportunity 360 command and permission invariants
