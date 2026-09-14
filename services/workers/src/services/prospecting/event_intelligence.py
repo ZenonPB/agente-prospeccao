@@ -59,8 +59,15 @@ class EventIntelligence:
     demand: dict[str, Any]
     series_key: str
 
+    @property
+    def award_demand(self) -> dict[str, Any]:
+        """Alias de compatibilidade para consumidores anteriores do Bloco A."""
+        return self.demand
+
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        data["award_demand"] = dict(self.demand)
+        return data
 
 
 def context_rules_from_profiles(profiles: Iterable[Any]) -> list[EventContextRule]:
@@ -139,8 +146,6 @@ def infer_event_intelligence(
         "estimated_min_units": None,
     }
 
-    # Estimativa quantitativa só nasce de contagens estruturadas fornecidas pela
-    # fonte. Continua INFERENCE porque categoria x colocações não prova compra.
     try:
         categories = int(event.get("category_count")) if event.get("category_count") is not None else None
         placements = int(event.get("placements_per_category")) if event.get("placements_per_category") is not None else None
