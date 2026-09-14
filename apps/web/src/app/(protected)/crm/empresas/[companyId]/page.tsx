@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState, type ReactNode } from 'react';
+import { use, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Building2, ExternalLink, MapPin, Pencil, Phone, Star, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,23 +33,21 @@ export default function Company360Page(props: { params: Promise<{ companyId: str
   const membership = useOrgMembership();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
-
   const canEdit = membership.data?.membership?.sales_role !== 'ANALYST';
-  const company = query.data?.company;
-  useEffect(() => {
-    if (!company || !editing) return;
-    setForm({
-      company_name: company.company_name ?? '', name: company.name ?? '', category: company.category ?? '',
-      website: company.website ?? '', phone: company.phone ?? '', address: company.address ?? '', city: company.city ?? '',
-      state: company.state ?? '', country: company.country ?? '', company_linkedin_url: company.linkedin_url ?? '', instagram_url: company.instagram_url ?? '',
-    });
-  }, [company, editing]);
 
   if (query.isLoading) return <CompanySkeleton />;
   if (query.isError || !query.data) return <div className="space-y-6"><Back /><EmptyState title="Não foi possível abrir esta empresa" description="Ela pode não existir neste workspace ou não pertencer à sua carteira." /></div>;
 
   const data = query.data;
   const current = data.company;
+  const beginEditing = () => {
+    setForm({
+      company_name: current.company_name ?? '', name: current.name ?? '', category: current.category ?? '',
+      website: current.website ?? '', phone: current.phone ?? '', address: current.address ?? '', city: current.city ?? '',
+      state: current.state ?? '', country: current.country ?? '', company_linkedin_url: current.linkedin_url ?? '', instagram_url: current.instagram_url ?? '',
+    });
+    setEditing(true);
+  };
   const save = async () => {
     if (!current.updated_at) return toast.error('Recarregue a empresa antes de editar.');
     if (!form.company_name.trim()) return toast.error('O nome da empresa é obrigatório.');
@@ -69,7 +67,7 @@ export default function Company360Page(props: { params: Promise<{ companyId: str
         eyebrow="CRM · Empresa"
         title={current.company_name}
         description={[current.category, current.city, current.state].filter(Boolean).join(' · ') || 'Conta consolidada do workspace'}
-        actions={<div className="flex flex-wrap gap-2">{canEdit ? <Button variant="outline" onClick={() => setEditing(true)}><Pencil className="mr-2 h-4 w-4" />Editar empresa</Button> : null}<Badge variant="secondary" className="px-3 py-1.5">{data.summary.opportunity_count} oportunidade(s)</Badge></div>}
+        actions={<div className="flex flex-wrap gap-2">{canEdit ? <Button variant="outline" onClick={beginEditing}><Pencil className="mr-2 h-4 w-4" />Editar empresa</Button> : null}<Badge variant="secondary" className="px-3 py-1.5">{data.summary.opportunity_count} oportunidade(s)</Badge></div>}
       />
 
       <section aria-label="Resumo da conta" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -114,7 +112,7 @@ export default function Company360Page(props: { params: Promise<{ companyId: str
         <aside aria-label="Histórico da empresa"><CrmTimeline items={data.timeline} /></aside>
       </div>
 
-      <Dialog open={editing} onOpenChange={setEditing}>
+      <Dialog open={editing} onOpenChange={(open) => { if (!open) setEditing(false); }}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader><DialogTitle>Editar empresa canônica</DialogTitle><DialogDescription>CNPJ permanece protegido como chave forte de identidade. As alterações são auditadas e usam concorrência otimista.</DialogDescription></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
