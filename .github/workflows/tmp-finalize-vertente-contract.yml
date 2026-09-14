@@ -1,0 +1,37 @@
+name: Finalize Vertente contract
+
+on:
+  push:
+    branches: [feat/vertentes-offerprofile-consolidation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test:
+    if: ${{ !contains(github.event.head_commit.message, '[vertente-contract-final]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply final contract fixes
+        run: python scripts/finalize_vertente_contract.py
+      - name: Install backend test dependencies
+        run: python -m pip install -q -r requirements-dev.txt
+      - name: Focused tests
+        run: python -m pytest tests/test_from_brief_offer_profile.py tests/test_vertentes_contract.py tests/test_prospecting_intelligence_block_a.py -q -W error
+      - name: Compile
+        run: python -m compileall -q services/api services/workers
+      - name: Commit validated patch
+        run: |
+          rm scripts/finalize_vertente_contract.py
+          rm .github/workflows/tmp-finalize-vertente-contract.yml
+          git config user.name "openai-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services tests scripts .github/workflows
+          git commit -m "fix: fecha contrato de resolucao e golden paths [vertente-contract-final]"
+          git push origin HEAD:feat/vertentes-offerprofile-consolidation
