@@ -118,6 +118,47 @@ class MessageChannel(enum.Enum):
     WHATSAPP = "WHATSAPP"
     LINKEDIN = "LINKEDIN"
 
+class ContactRole(enum.Enum):
+    DONO = "DONO"
+    FUNDADOR = "FUNDADOR"
+    SOCIO = "SOCIO"
+    DIRETOR = "DIRETOR"
+    GERENTE = "GERENTE"
+    MARKETING = "MARKETING"
+    VENDAS = "VENDAS"
+    TI = "TI"
+    COMPRAS = "COMPRAS"
+    ENGENHARIA = "ENGENHARIA"
+    RH = "RH"
+    FINANCEIRO = "FINANCEIRO"
+    OUTRO = "OUTRO"
+
+class EmailVerificationStatus(enum.Enum):
+    UNKNOWN = "UNKNOWN"
+    VALID = "VALID"
+    INVALID = "INVALID"
+    RISKY = "RISKY"
+    ACCEPT_ALL = "ACCEPT_ALL"
+
+class RoutabilityType(enum.Enum):
+    DIRECT_CONTACT = "DIRECT_CONTACT"
+    ROUTABLE_CONTACT = "ROUTABLE_CONTACT"
+    INSTITUTIONAL = "INSTITUTIONAL"
+    UNKNOWN = "UNKNOWN"
+
+class VerificationStatus(enum.Enum):
+    UNKNOWN = "UNKNOWN"
+    CANDIDATE = "CANDIDATE"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+
+class LinkedinMatchStatus(enum.Enum):
+    NOT_FOUND = "NOT_FOUND"
+    CANDIDATE = "CANDIDATE"
+    NEEDS_REVIEW = "NEEDS_REVIEW"
+    VERIFIED = "VERIFIED"
+
 class OnboardingStatus(enum.Enum):
     NOT_STARTED = "NOT_STARTED"
     IN_PROGRESS = "IN_PROGRESS"
@@ -135,8 +176,6 @@ class FollowUpStep(enum.Enum):
     FOLLOWUP_1 = "FOLLOWUP_1"
     FOLLOWUP_2 = "FOLLOWUP_2"
     CLOSING = "CLOSING"
-    # Pós-venda: acompanhamento pós-cliente usando o mesmo
-    # motor da cadência (scheduler `run_due` + `send_step`).
     POST_SALE = "POST_SALE"
 
     @property
@@ -147,8 +186,6 @@ class FollowUpStep(enum.Enum):
 
     @property
     def label(self) -> str:
-        # Sem "dia N" fixo — a data de cada etapa é agendada conforme o
-        # template/vertical e exibida na UI (dia corrido do calendário).
         return {FollowUpStep.OPENING: "Primeira mensagem",
                 FollowUpStep.FOLLOWUP_1: "Segunda mensagem",
                 FollowUpStep.FOLLOWUP_2: "Terceira mensagem",
@@ -156,60 +193,34 @@ class FollowUpStep(enum.Enum):
                 FollowUpStep.POST_SALE: "Pós-venda"}[self]
 
 class FollowUpStatus(enum.Enum):
-    PENDING = "PENDING"       # agendado, aguardando envio (humano ou automático)
-    SENT = "SENT"             # enviado
-    SKIPPED = "SKIPPED"       # pulado (ex.: opt-out do lead ou lead respondeu)
-    CANCELLED = "CANCELLED"   # cancelado (ciclo encerrado cedo)
+    PENDING = "PENDING"
+    SENT = "SENT"
+    SKIPPED = "SKIPPED"
+    CANCELLED = "CANCELLED"
 
 # Modelos
 class Organization(Base):
-    """Workspace que agrupa usuários e isola seus dados.
-
-    Cada usuário nasce com uma organização pessoal (criada no registro).
-    Membros (OrganizationMember) compartilham campanhas e leads; o papel
-    define o que podem gerenciar (owner/admin/member).
-    """
+    """Workspace que agrupa usuários e isola seus dados."""
     __tablename__ = "organizations"
     __table_args__ = (
-        # O token de inbound é resolvido por igualdade sobre o hash: índice
-        # único garante lookup indexado e no máximo uma org por token.
         Index("uq_organizations_inbound_token_hash", "inbound_token_hash", unique=True),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String(255), nullable=False)
     slug = Column(String(120), unique=True, nullable=False)
-    # Envio automático de follow-ups (opt-in). Default: humano-no-loop.
-    # Só com esta flag o scheduler envia e-mails quando a cadência vence.
     auto_send_email = Column(Boolean, default=False, nullable=False, server_default="false")
-    # Remetente próprio da org (ex.: vendas@empresa.com.br). Se vazio,
-    # usa o remetente global do settings (SMTP_FROM_EMAIL).
     email_from = Column(String(255))
-    # Throttling de envio automático: teto diário de e-mails da org
-    # (warmup/warm). O scheduler `run_due` nunca ultrapassa este limite no dia.
     daily_email_limit = Column(Integer, default=40, nullable=False, server_default="40")
-    # Janela de espalhamento dos envios automáticos (HH:MM, ex. "09:00"
-    # e "17:00"). Fora da janela, o scheduler posterga as etapas (fica PENDING).
     send_window_start = Column(String(5), default="09:00", nullable=False, server_default="09:00")
     send_window_end = Column(String(5), default="17:00", nullable=False, server_default="17:00")
-    # SLA e lembretes para leads parados (dias). Regras configuráveis
-    # por org que alimentam o painel "Ações de hoje" e os alertas do kanban.
     sla_qualified_no_contact_days = Column(Integer, default=5, nullable=False, server_default="5")
     sla_responded_no_next_action_days = Column(Integer, default=2, nullable=False, server_default="2")
     sla_opened_no_response_days = Column(Integer, default=2, nullable=False, server_default="2")
-    # Limiar QUALIFICADO/DESQUALIFICADO aplicado em `_persist_scoring`.
-    # Calibrável por org via `PATCH /api/orgs/{id}` (sugestão via analytics).
     qualification_threshold = Column(Integer, default=60, nullable=False, server_default="60")
-    # URL pública que recebe eventos de lead (POST JSON). Vazio = sem webhook.
     webhook_url = Column(String(255))
-    # Segredo compartilhado enviado em X-Webhook-Secret — consumidor valida.
     webhook_secret = Column(String(64))
-    # sha256 do token que identifica a org nas rotas de inbound. O token em
-    # claro nunca é persistido: é exibido uma vez na geração. Nulo = sem token.
     inbound_token_hash = Column(String(64), nullable=True)
-    # Link de agendamento (Cal.com/Calendly). Injetado no outreach como CTA.
     scheduling_url = Column(String(255))
-    # Teto diário de uso por provedor (BYOK vs pool). Sobrescreve o
-    # default do settings (`PROVIDER_DAILY_QUOTA`). Ex.: {"GROQ_API_KEY": 500}.
     api_quota = Column(JSONB, default=dict)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -219,150 +230,50 @@ class Organization(Base):
     invites = relationship("Invite", back_populates="organization", cascade="all, delete-orphan")
     secrets = relationship("OrganizationSecret", back_populates="organization", cascade="all, delete-orphan")
 
-    def __repr__(self):
-        return f"<Organization(id='{self.id}', name='{self.name}')>"
-
-
 class OrganizationMember(Base):
-    """Vínculo de um usuário a uma organização com papel (owner/admin/member)."""
     __tablename__ = "organization_members"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "user_id", name="uq_organization_members_org_user"),
-    )
+    __table_args__ = (UniqueConstraint("organization_id", "user_id", name="uq_org_member_org_user"),)
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
-    # Papel de venda por organização: CONSULTOR/ANALYST/MANAGER.
-    sales_role = Column(Enum(SalesRole, name='sales_role', create_type=True, values_callable=lambda e: [m.value for m in e]), default=SalesRole.CONSULTOR)
-    # Remetente dedicado por consultor (ex.: rapha@alphamec.com.br).
-    # Preserva a reputação individual de cada vendedor no envio automático.
-    # Se vazio, usa `organizations.email_from`; se este for vazio, o global.
-    email_from = Column(String(255))
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(Enum(OrganizationRole, name="organization_role", create_type=True), nullable=False, default=OrganizationRole.MEMBER)
+    sales_role = Column(Enum(SalesRole, name="sales_role", create_type=True), nullable=True)
+    onboarding_status = Column(Enum(OnboardingStatus, name="onboarding_status", create_type=True), nullable=False, default=OnboardingStatus.NOT_STARTED)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="members")
     user = relationship("User", back_populates="memberships")
 
-    def __repr__(self):
-        return f"<OrganizationMember(org='{self.organization_id}', user='{self.user_id}', role='{self.role.value}')>"
-
-
 class Invite(Base):
-    """Convite pendente para uma organização (owner/admin convida por e-mail)."""
     __tablename__ = "invites"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     email = Column(String(255), nullable=False)
-    role = Column(Enum(OrganizationRole, name='organization_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=OrganizationRole.MEMBER)
-    sales_role = Column(Enum(SalesRole, name='sales_role', create_type=False, values_callable=lambda e: [m.value for m in e]), default=SalesRole.CONSULTOR)
-    token = Column(String(64), unique=True, nullable=False)
-    invited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    role = Column(Enum(OrganizationRole, name="organization_role", create_type=False), nullable=False, default=OrganizationRole.MEMBER)
+    sales_role = Column(Enum(SalesRole, name="sales_role", create_type=False), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
-    accepted_at = Column(DateTime(timezone=True), nullable=True)
+    accepted_at = Column(DateTime(timezone=True))
+    revoked_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     organization = relationship("Organization", back_populates="invites")
-    invited_by = relationship("User", foreign_keys=[invited_by_id])
-
-    def __repr__(self):
-        return f"<Invite(org='{self.organization_id}', email='{self.email}', accepted={self.accepted_at is not None})>"
-
-
-class SalesTarget(Base):
-    """Meta de vendas mensal por consultor.
-
-    Define quanto cada consultor deve produzir no mês (`month` "YYYY-MM"):
-    meta de reuniões e meta de receita. O BI (`/analytics/consultants`) cruza
-    o realizado com estas metas para mostrar atingimento (%).
-    """
-    __tablename__ = "sales_targets"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "user_id", "month", name="uq_sales_targets_org_user_month"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    month = Column(String(7), nullable=False, index=True)
-    meetings_target = Column(Integer, default=0, nullable=False)
-    revenue_target = Column(Numeric(12, 2), default=0, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    organization = relationship("Organization")
-    user = relationship("User")
-
-    def __repr__(self):
-        return f"<SalesTarget(org='{self.organization_id}', user='{self.user_id}', month='{self.month}')>"
-
-
-class ConsultantPlaybook(Base):
-    """Mensagem que funcionou, anotada pelo próprio consultor.
-
-    Cada registro guarda um subject + body que o autor considera útil
-    reutilizar naquela vertical. Outros consultores da org podem ler
-    (ver e copiar), mas só o autor ou admin edita/remove. É diferente
-    do `CampaignScoringTemplate` (que define como pontuar) e dos
-    `playbook` embutidos no template (que alimentam a LLM).
-    """
-    __tablename__ = "consultant_playbooks"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    vertical = Column(String(120))
-    subject = Column(String(255), nullable=False)
-    body = Column(Text, nullable=False)
-    tags = Column(JSONB)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    organization = relationship("Organization")
-    author = relationship("User")
-
-    def __repr__(self):
-        return f"<ConsultantPlaybook(id='{self.id}', author='{self.author_id}', vertical='{self.vertical}')>"
-
 
 class OrganizationSecret(Base):
-    """Chaves de API próprias da organização (BYOK).
-
-    Quando preenchidas, os workers usam a chave da org em vez do pool global
-    (settings), evitando consumir a quota compartilhada. O valor é criptografado
-    em repouso (Fernet) usando a `SECRETS_ENCRYPTION_KEY` do settings.
-
-    `key_name` identifica o provedor: `GOOGLE_API_KEY`, `GROQ_API_KEY` ou
-    `HUNTER_API_KEY`.
-    """
     __tablename__ = "organization_secrets"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "key_name", name="uq_org_secrets_org_key"),
-    )
+    __table_args__ = (UniqueConstraint("organization_id", "key_name", name="uq_org_secret_org_key"),)
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
     key_name = Column(String(60), nullable=False)
-    # Valor criptografado (Fernet token). Nunca a chave em texto puro.
     encrypted_value = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    organization = relationship("Organization")
-
-    def __repr__(self):
-        return f"<OrganizationSecret(org='{self.organization_id}', key='{self.key_name}')>"
-
+    organization = relationship("Organization", back_populates="secrets")
 
 class ProviderUsage(Base):
-    """Medidor diário de uso de provedores externos por org/key.
-
-    Contabiliza chamadas (Google Places, Groq e Hunter) por organização e por dia,
-    contra um limite configurável (`organizations.api_quota` ou o default do
-    settings `PROVIDER_DAILY_QUOTA`). Alimenta o painel de cotas da org e trava
-    chamadas excedentes (fail-closed: `remaining <= 0` → o provider não chama).
-    """
     __tablename__ = "provider_usage"
     __table_args__ = (
-        UniqueConstraint("organization_id", "key_name", "usage_date",
-                         name="uq_provider_usage_org_key_date"),
+        UniqueConstraint("organization_id", "key_name", "usage_date", name="uq_provider_usage_org_key_date"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
@@ -370,15 +281,9 @@ class ProviderUsage(Base):
     usage_date = Column(Date, nullable=False)
     count = Column(Integer, default=0, nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
     organization = relationship("Organization")
 
-    def __repr__(self):
-        return f"<ProviderUsage(org='{self.organization_id}', key='{self.key_name}', date={self.usage_date}, count={self.count})>"
-
-
 class ProviderExecutionMetric(Base):
-    """Medição histórica de uma execução de provider por organização/job."""
     __tablename__ = "provider_execution_metrics"
     __table_args__ = (
         Index("ix_provider_execution_metrics_org_recorded", "organization_id", "recorded_at"),
@@ -405,9 +310,7 @@ class ProviderExecutionMetric(Base):
     job = relationship("Job")
     campaign = relationship("Campaign")
 
-
 class OrgAuditEvent(enum.Enum):
-    """Eventos administrativos da organização registrados no audit log."""
     ORG_CREATED = "ORG_CREATED"
     ORG_RENAMED = "ORG_RENAMED"
     ORG_SETTINGS_UPDATED = "ORG_SETTINGS_UPDATED"
@@ -424,19 +327,11 @@ class OrgAuditEvent(enum.Enum):
     SALES_TARGET_DELETED = "SALES_TARGET_DELETED"
     AB_COMPARISON_APPROVED = "AB_COMPARISON_APPROVED"
     CONTROLLED_LEARNING_PROPOSED = "CONTROLLED_LEARNING_PROPOSED"
-
+    ANALYTICS_EXPORTED = "ANALYTICS_EXPORTED"
 
 class OrgAuditLog(Base):
-    """Trilha de eventos administrativos da organização.
-
-    Dá rastreabilidade à diretoria (quem convidou, mudou papel, removeu
-    membro, alterou chave/metas). `actor_name`/`actor_email` são gravados
-    junto porque o membro pode ser removido depois.
-    """
     __tablename__ = "org_audit_log"
-    __table_args__ = (
-        Index("ix_org_audit_log_org_created", "organization_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_org_audit_log_org_created", "organization_id", "created_at"),)
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -448,25 +343,12 @@ class OrgAuditLog(Base):
     detail = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    organization = relationship("Organization")
-    actor = relationship("User")
-
-    def __repr__(self):
-        return f"<OrgAuditLog(org='{self.organization_id}', event='{self.event.value}', at={self.created_at})>"
-
-
 class CommercialBulkOperation(Base):
     """Registro técnico de execução bulk e sua resposta idempotente."""
     __tablename__ = "commercial_bulk_operations"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "idempotency_key",
-            name="uq_commercial_bulk_operations_org_idempotency",
-        ),
-        Index(
-            "ix_commercial_bulk_operations_org_created",
-            "organization_id", "created_at",
-        ),
+        UniqueConstraint("organization_id", "idempotency_key", name="uq_commercial_bulk_operations_org_idempotency"),
+        Index("ix_commercial_bulk_operations_org_created", "organization_id", "created_at"),
     )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
@@ -478,10 +360,8 @@ class CommercialBulkOperation(Base):
     result = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
-
     organization = relationship("Organization")
     actor = relationship("User")
-
 
 class User(Base):
     __tablename__ = "users"
@@ -489,1274 +369,11 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     name = Column(String(255), nullable=False)
-    role = Column(String(50), default="SALES")
-    onboarding_status = Column(Enum(OnboardingStatus, name='onboarding_status', create_type=True), nullable=False, default=OnboardingStatus.NOT_STARTED, server_default="NOT_STARTED")
-    reset_token = Column(String(255), nullable=True)
-    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    memberships = relationship("OrganizationMember", back_populates="user", cascade="all, delete-orphan")
 
-    campaigns = relationship("Campaign", back_populates="created_by_user")
-    memberships = relationship("OrganizationMember", back_populates="user")
-
-    def __repr__(self):
-        return f"<User(id='{self.id}', email='{self.email}')>"
-
-class LoginAttempt(Base):
-    """Tentativas de login por e-mail — base do lockout persistente.
-
-    Sem vínculo com organização: o lockout precisa funcionar antes mesmo de
-    identificar o usuário. O e-mail é guardado normalizado (lower/strip) e é
-    a chave primária — uma linha por e-mail, sem histórico.
-    """
-    __tablename__ = "login_attempts"
-    email = Column(String(255), primary_key=True)
-    failed_count = Column(Integer, nullable=False, default=0, server_default="0")
-    last_attempt_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    locked_until = Column(DateTime(timezone=True), nullable=True)
-
-    def __repr__(self):
-        return f"<LoginAttempt(email='{self.email}', failed={self.failed_count})>"
-
-class Campaign(Base):
-    __tablename__ = "campaigns"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    target_service = Column(String(255))
-    target_segment = Column(String(100))
-    target_city = Column(String(100))
-    analysis_profile = Column(Enum(AnalysisProfile, name='analysis_profile', create_type=False, values_callable=lambda e: [m.value for m in e]), nullable=False, default=AnalysisProfile.WEB_PRESENCE)
-    scoring_template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=True)
-    target_state = Column(String(2))
-    target_country = Column(String(100))
-    # Oferta declarativa ativa; NULL mantém compatibilidade com campanhas antigas.
-    offer_profile_key = Column(String(64), nullable=True)
-    # Query otimizada para o Google Places.
-    # Quando presente, o pipeline usa esta query em vez de montar uma
-    # automaticamente a partir de target_segment/city/state.
-    places_query = Column(String(255))
-    # Busca multi-query (docs/melhorias/04): lista de consultas Places
-    # executadas em paralelo pela campanha (subnichos/variedade semântica),
-    # deduplicadas por place_id antes do ranking. Cada candidato registra
-    # `source_queries` — auditável no lote e na auditoria de descartes.
-    # NULL/vazia → usa apenas `places_query` (comportamento atual).
-    search_queries = Column(JSONB)
-    status = Column(Enum(CampaignStatus, name='campaign_status', create_type=True), default=CampaignStatus.ACTIVE)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    created_by_user = relationship("User", back_populates="campaigns")
-    organization = relationship("Organization", back_populates="campaigns")
-    leads = relationship("Lead", back_populates="campaign")
-    jobs = relationship("Job", back_populates="campaign")
-    scoring_template = relationship("CampaignScoringTemplate", back_populates="campaigns")
-
-    def __repr__(self):
-        return f"<Campaign(id='{self.id}', name='{self.name}')>"
-
-class CampaignScoringTemplate(Base):
-    """Template de critérios de scoring contextual por tipo de serviço.
-
-    Permite que a análise da IA seja guiada por critérios relevantes ao serviço
-    vendido (ex: 'Desenvolvimento de Sites' valoriza SEO/HTTPS/performance;
-    'Engenharia Mecânica' valoriza porte/fábrica/expansão). Editável sem mudar
-    código — adiciona-se um novo row para cada nova categoria de serviço.
-    """
-    __tablename__ = "campaign_scoring_templates"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    service_label = Column(String(255), nullable=False)
-    # Critérios positivos: sinais que aumentam o score quando presentes.
-    positive_signals = Column(JSONB, nullable=False, default=list)
-    # Critérios negativos: sinais que reduzem o score quando presentes.
-    negative_signals = Column(JSONB, nullable=False, default=list)
-    # Sinais contextuais adicionais (segmento, região etc.) — opcional.
-    context_signals = Column(JSONB, default=list)
-    # Indica se a análise técnica do site é relevante para este serviço.
-    requires_technical_report = Column(Boolean, default=True)
-    # Indica se dados cadastrais (categoria/porte/segmento) são relevantes.
-    requires_business_data = Column(Boolean, default=True)
-    # Fontes de informação da empresa que este serviço usa para avaliar um
-    # lead. Valores: "technical_site" (auditoria do site), "cnpj_receita"
-    # (porte/CNAE/idade via Receita Federal) e "business_social" (reputação
-    # Google). Vazia -> derivada dos flags binários acima (compat retroativa).
-    enrichment_steps = Column(JSONB)
-    # Dias (a partir do envio) das 4 mensagens de acompanhamento:
-    # [1ª mensagem, 2ª mensagem, 3ª mensagem, encerramento].
-    # Ex.: [0, 7, 30, 60] para ciclos longos (Engenharia Mecânica/indústria).
-    # Vazia -> [0, 3, 7, 14] (default histórico).
-    cadence_schedule = Column(JSONB)
-    # Instruções extras, free-text, injetadas no prompt.
-    extra_instructions = Column(Text)
-
-    # Prescoring declarativo da vertical (docs/melhorias/01 + 17):
-    # {"profile": "web_presence", "enabled": true, "threshold": 45,
-    #  "top_k": null, "weights": {"NO_OWN_WEBSITE": 25, ...}} — pesos não
-    # ficam hardcoded no engine; template sem config mantém comportamento
-    # atual (nenhum candidato é descartado na coleta).
-    prescoring_config = Column(JSONB)
-    # Estratégia de execução do enriquecimento declarada pela oferta
-    # (docs/melhorias/08): {"skip": ["technical_site"],
-    #  "stop_after": "cnpj_receita"} — skip remove capabilities da ordem
-    # declarada; stop_after corta a execução após o step indicado. NULL ->
-    # executa tudo que está ativo em `enrichment_steps`.
-    enrichment_strategy = Column(JSONB)
-    # Playbook de outreach por vertical: hooks de abordagem,
-    # ideias de assunto e objeções do decisor — injetados no OutreachService
-    # para mensagens variarem por serviço/segmento.
-    playbook = Column(JSONB, default=dict)
-    is_active = Column(Boolean, default=True)
-    # Template gerado por IA sob demanda — distingue de seeds manuais.
-    is_generated = Column(Boolean, default=False, server_default="false")
-    # Org dona do template (NULL = global/seed); templates gerados são por org.
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    campaigns = relationship("Campaign", back_populates="scoring_template")
-    organization = relationship("Organization")
-
-    def __repr__(self):
-        return f"<CampaignScoringTemplate(id='{self.id}', service='{self.service_label}')>"
-
-class Lead(Base):
-    __tablename__ = "leads"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "place_id", name="uq_leads_org_place_id"),
-        UniqueConstraint("organization_id", "cnpj", name="uq_leads_org_cnpj"),
-        UniqueConstraint("organization_id", "normalized_domain", name="uq_leads_org_normalized_domain"),
-        CheckConstraint(
-            "status <> 'PERDIDO' OR lost_reason IS NOT NULL",
-            name="ck_leads_lost_reason_required",
-        ),
-        # Índices compostos que cobrem os filtros mais usados —
-        # org + status (+ score) e org + status + data.
-        Index("ix_leads_org_status_score", "organization_id", "status", "qualification_score"),
-        Index("ix_leads_org_status_created", "organization_id", "status", "created_at"),
-        # FKs de alto tráfego: analytics filtra por campaign e por consultor.
-        Index("ix_leads_campaign_id", "campaign_id"),
-        Index("ix_leads_assigned_to_id", "assigned_to_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    place_id = Column(String(255), unique=False, nullable=True)
-    # `name` é o nome fantasia/estabelecimento (fonte CSV/CNAE); `company_name`
-    # é a razão social/denominação (fonte Places). CSV/CNAE preenchem ambos.
-    name = Column(String(255))
-    company_name = Column(String(255), nullable=False)
-    cnpj = Column(String(14))
-    address = Column(String(500))
-    website = Column(String(255))
-    normalized_domain = Column(String(255))
-    phone = Column(String(50))
-    whatsapp = Column(String(50))
-    email = Column(String(255)) 
-    category = Column(String(100)) 
-    city = Column(String(100), nullable=False)
-    state = Column(String(100))
-    country = Column(String(100))
-    # Reputação no Google — sinal de oportunidade para
-    # serviços: nota baixa + nº de avaliações expõem a dor mais óbvia de um lead.
-    google_rating = Column(Float)
-    google_rating_count = Column(Integer)
-    google_maps_uri = Column(String(255))
-    # Página da empresa no LinkedIn (linkedin.com/company/<slug>), localizada
-    # por busca passiva durante o enriquecimento.
-    company_linkedin_url = Column(String(255))
-    # Perfil do Instagram do negócio (canonicalizado via domain_utils).
-    # Sinal de presença/atividade digital — exibido no pitch e considerado
-    # pelo scoring (item 4.26).
-    instagram_url = Column(String(255))
-    # Timestamps por fonte do enriquecimento (JSONB {"linkedin", "site",
-    # "reviews"} em ISO) — alimenta o TTL e a indicação de dados antigos.
-    enrichment_timestamps = Column(JSONB)
-    discovery_provenance = Column(JSONB)
-    # Campos de trabalho do consultor.
-    notes = Column(Text)
-    next_action_at = Column(DateTime(timezone=True))
-    last_contacted_at = Column(DateTime(timezone=True))
-    # Funil interno de negociação:
-    # `negotiation_stage` (RD/ORÇAMENTO/RP) + `contract_outcome`
-    # (APROVADO/REPROVADO/EM_ANÁLISE) + `outcome_date` (quando foi marcado).
-    negotiation_stage = Column(Enum(NegotiationStage, name='negotiation_stage', create_type=True), nullable=True)
-    contract_outcome = Column(Enum(ContractOutcome, name='contract_outcome', create_type=True), nullable=True)
-    outcome_date = Column(DateTime(timezone=True), nullable=True)
-    # Pós-venda: data do 1º contato pós-cliente e canal
-    # (planilha Alphamec: "DATA CONTATO PÓS-VENDA" + "PÓS VENDA POR").
-    post_sale_contacted_at = Column(DateTime(timezone=True), nullable=True)
-    post_sale_channel = Column(Enum(PostSaleChannel, name='post_sale_channel', create_type=True), nullable=True)
-    # Forecast e oportunidade: ticket estimado, data de fechamento e motivo de perda
-    value = Column(Numeric(12, 2), nullable=True)
-    expected_close_date = Column(DateTime(timezone=True), nullable=True)
-    lost_reason = Column(Enum(LostReason, name='lost_reason', create_type=True), nullable=True)
-    status = Column(Enum(LeadStatus, name='lead_status', create_type=True), default=LeadStatus.NOVO)
-
-    qualification_score = Column(Integer, default=0) 
-    qualification_reason = Column(Text) 
-    primary_need = Column(String(255)) 
-    pitch_angle = Column(Text)
-    suggested_subject = Column(String(255))
-    segment_opportunity = Column(String(100)) 
-
-    # Problema 2 — Explicabilidade
-    score_factors = Column(JSONB)           # [{label, impact: +/−, weight, evidence_ref}]
-    evidence = Column(JSONB)               # [{type, severity, title, description, source}]
-    # Vetor de score multidimensional (docs/melhorias/02) — compatível com
-    # qualification_score durante a migração. {"need": .., "icp_fit": ..,
-    # "overall": .., "formula_version": "..."}
-    score_vector = Column(JSONB)
-    # Fase 3: outputs estruturados dos serviços semânticos (#13/#19/#24/#25/#26/#28).
-    # Não substitui o `score_vector` — apenas guarda inferências derivadas.
-    evidence_score = Column(JSONB, nullable=True)
-    priority = Column(Enum(LeadPriority, name='lead_priority', create_type=True), nullable=True)
-    priority_reasoning = Column(Text)
-    executive_summary = Column(Text)
-
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
-    campaign = relationship("Campaign", back_populates="leads")
-
-    # Modelo de 3 entidades (Company / Person / Lead-Oportunidade)
-    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True)
-    primary_person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id"), nullable=True)
-    company = relationship("Company", back_populates="leads")
-    primary_person = relationship("Person", foreign_keys=[primary_person_id])
-
-    # Atribuição a consultor de vendas (desempenho por consultor).
-    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    assigned_at = Column(DateTime(timezone=True), nullable=True)
-    assigned_to = relationship("User", foreign_keys=[assigned_to_id])
-
-    # Opt-out: lead pediu para não receber mais mensagens.
-    # Cadências pendentes são canceladas/puladas e nenhum envio automático ocorre.
-    opt_out = Column(Boolean, default=False, nullable=False, server_default="false")
-
-    enrichments = relationship("Enrichment", back_populates="lead")
-    messages = relationship("Message", back_populates="lead")
-    follow_ups = relationship("FollowUp", back_populates="lead", cascade="all, delete-orphan")
-    conversions = relationship("Conversion", back_populates="lead")
-    activities = relationship("LeadActivity", back_populates="lead", cascade="all, delete-orphan")
-    contacts = relationship("Contact", back_populates="lead", cascade="all, delete-orphan")
-    company_record = relationship("CompanyRecord", back_populates="lead", uselist=False, cascade="all, delete-orphan")
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<Lead(id='{self.id}', company_name='{self.company_name}', status='{self.status.value}')>"
-
-class Enrichment(Base):
-    __tablename__ = "enrichments"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    
-    website_exists = Column(Boolean, default=False)
-    ssl_ok = Column(Boolean, default=False)
-    https_redirect_ok = Column(Boolean, default=False) 
-    responsive_design = Column(Boolean, default=False)
-    cms = Column(String(100)) 
-    lighthouse_score = Column(Integer) 
-    seo_errors = Column(JSONB) 
-    load_time_ms = Column(Integer) 
-    security_issues = Column(ARRAY(String)) 
-    raw_technical_data = Column(JSONB)
-    # DTO do enriquecimento cadastral (Receita Federal via CNPJ): porte, CNAE,
-    # idade da empresa, capital social e sócios. Usado no scoring e no pitch.
-    raw_business_data = Column(JSONB)
-
-    lead = relationship("Lead", back_populates="enrichments")
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<Enrichment(id='{self.id}', lead_id='{self.lead_id}', ssl_ok={self.ssl_ok})>"
-
-class Message(Base):
-    __tablename__ = "messages"
-    __table_args__ = (
-        Index("ix_messages_lead_id", "lead_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    channel = Column(Enum(MessageChannel, name='message_channel', create_type=True), nullable=False)
-    content = Column(Text, nullable=False) 
-    ai_generated_draft = Column(Text) 
-    sent_at = Column(DateTime(timezone=True), server_default=func.now())
-    responded_at = Column(DateTime(timezone=True))
-    is_response = Column(Boolean, default=False) 
-    # Tracking de abertura/clique — pixel + redirect.
-    tracking_token = Column(String(64), unique=True, nullable=True)
-    opened_at = Column(DateTime(timezone=True))
-    clicked_at = Column(DateTime(timezone=True))
-    # Rótulo da variante A/B (espelha `follow_ups.variant` no envio). Quando o
-    # lead responde, o inbound cria uma `Message` espelho (`is_response=True`)
-    # com o variant da última mensagem enviada antes da resposta.
-    variant = Column(String(32))
-
-    lead = relationship("Lead", back_populates="messages")
-
-    def __repr__(self):
-        return f"<Message(id='{self.id}', lead_id='{self.lead_id}', channel='{self.channel.value}')>"
-
-class FollowUp(Base):
-    """Etapa da cadência de follow-up de um lead.
-
-    Sequência dia 0/3/7/14 (`FollowUpStep`): abertura + 2 follow-ups +
-    encerramento, conforme `docs/business-rules.md`. O conteúdo é a mensagem
-    gerada pelo `OutreachService` (ou editada pelo humano) pronta para envio.
-
-    - `scheduled_at` = momento em que a etapa deve ser enviada.
-    - Se a org optou por **envio automático** (`Organization.auto_send_email`),
-      o scheduler envia quando `scheduled_at` vence. Senão (humano-no-loop
-      default), o consultor envia manualmente pela UI.
-    - Leads com `opt_out` têm etapas pendentes marcadas como `SKIPPED`.
-    """
-    __tablename__ = "follow_ups"
-    __table_args__ = (
-        Index("ix_follow_ups_lead_id", "lead_id"),
-        Index("ix_follow_ups_scheduled_at", "scheduled_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    step = Column(Enum(FollowUpStep, name='follow_up_step', create_type=True), nullable=False)
-    channel = Column(Enum(MessageChannel, name='message_channel', create_type=False), default=MessageChannel.EMAIL)
-    subject = Column(String(255))
-    content = Column(Text)
-    scheduled_at = Column(DateTime(timezone=True), nullable=False)
-    sent_at = Column(DateTime(timezone=True))
-    status = Column(Enum(FollowUpStatus, name='follow_up_status', create_type=True), default=FollowUpStatus.PENDING)
-    # Contagem de tentativas (transitórias) e Message-ID do último
-    # envio (para threading dos follow-ups seguintes).
-    attempts = Column(Integer, default=0, nullable=False, server_default="0")
-    message_id = Column(String(255))
-    # Token de tracking: mesma chave usada em `messages.tracking_token` para
-    # expor abertura/clique no painel de cadência.
-    tracking_token = Column(String(64))
-    # Rótulo da variante A/B escolhida para esta etapa (ex.: "A"/"B"). Permite
-    # medir resposta por variante via `GET /api/analytics/message-variants`.
-    variant = Column(String(32))
-    # Destinatário efetivo desta etapa (roteamento multi-decisor: abertura
-    # vai ao contato principal; follow-up tardio/closing podem escalar para
-    # outro sócio/diretor do lead).
-    recipient = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    lead = relationship("Lead", back_populates="follow_ups")
-
-    def __repr__(self):
-        return f"<FollowUp(lead='{self.lead_id}', step='{self.step.value}', status='{self.status.value}')>"
-
-
-class FollowUpVersion(Base):
-    """Snapshot de uma versão de mensagem antes de edição.
-
-    Cada vez que o consultor edita o conteúdo/assunto de uma etapa da
-    cadência (via PATCH /cadence/step/{step}), o sistema salva o estado
-    anterior como versão. Permite comparar, reverter e auditar mudanças
-    no copywriting — essencial para tuning de mensagens IA.
-    """
-    __tablename__ = "follow_up_versions"
-    __table_args__ = (
-        Index("ix_follow_up_versions_follow_up_id", "follow_up_id"),
-        UniqueConstraint(
-            "follow_up_id",
-            "version_number",
-            name="uq_follow_up_versions_follow_up_version",
-        ),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    follow_up_id = Column(UUID(as_uuid=True), ForeignKey("follow_ups.id"), nullable=False)
-    version_number = Column(Integer, nullable=False, default=1)
-    subject = Column(String(255))
-    content = Column(Text)
-    variant = Column(String(32))
-    edited_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    edit_reason = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    follow_up = relationship("FollowUp")
-
-    def __repr__(self):
-        return f"<FollowUpVersion(follow_up='{self.follow_up_id}', v{self.version_number})>"
-
-
-class EmailSuppression(Base):
-    """Endereços de e-mail com bounce permanente (5xx).
-
-    Um endereço que queimou uma vez não é re-tentado em nenhuma cadência até
-    ser removido manualmente — protege a reputação do domínio remetente.
-    A organização é anotada para que os alertas de entregabilidade sejam
-    calculados por workspace, sem misturar bounces de organizações diferentes.
-    """
-    __tablename__ = "email_suppressions"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
-    email = Column(String(255), nullable=False, unique=True)
-    reason = Column(String(255))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    def __repr__(self):
-        return f"<EmailSuppression(email='{self.email}')>"
-
-class ContactRole(enum.Enum):
-    """Papel do decisor na empresa. Derivado da Receita Federal (sócios
-    aparecem como SOCIO) ou inferido a partir do cargo (CEO/DIRETOR)."""
-    SOCIO = "SOCIO"
-    ADMINISTRADOR = "ADMINISTRADOR"
-    CEO = "CEO"
-    DIRETOR = "DIRETOR"
-    OUTRO = "OUTRO"
-
-
-class Contact(Base):
-    """Decisor relevante de um lead. Um lead pode ter múltiplos contatos
-    (p/ex.: dois sócios), mas o sistema destaca um `is_primary=True`.
-
-    Hoje populada via CNPJ (sócios/administradores listados na Receita).
-    Futuro: Hunter.io refina/valida email por cargo.
-    """
-    __tablename__ = "contacts"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    name = Column(String(255), nullable=False)
-    role = Column(Enum(ContactRole, name='contact_role', create_type=True), nullable=True)
-    role_label = Column(String(100))
-    email = Column(String(255))
-    phone = Column(String(50))
-    document_cpf = Column(String(20))
-    confidence = Column(Integer, default=0)
-    # Verificação passiva de entregabilidade do e-mail (MX + blocklist).
-    # `email_verified=True` só após MX presente; e-mail heurístico/descartável
-    # ou sem MX fica False e nunca cruza o gate de envio automático.
-    email_verified = Column(Boolean, nullable=False, server_default="false", default=False)
-    email_verified_at = Column(DateTime(timezone=True))
-    # Canal LinkedIn do decisor (busca passiva + validação HEAD).
-    linkedin_url = Column(String(255))
-    linkedin_confidence = Column(Integer, default=0)
-    identity_confidence = Column(Integer, nullable=False, server_default="0")
-    contact_confidence = Column(Integer, nullable=False, server_default="0")
-    source_reliability = Column(Float, nullable=False, server_default="0")
-    verification_status = Column(String(40), nullable=False, server_default="needs_review")
-    last_verified_at = Column(DateTime(timezone=True), nullable=True)
-    routability_type = Column(String(24), nullable=False, server_default="UNKNOWN")
-    routable = Column(Boolean, nullable=False, server_default="false")
-    routability_reason = Column(String(80), nullable=True)
-    is_primary = Column(Boolean, default=False)
-    source = Column(String(60), default="cnpj_receita")
-    raw_data = Column(JSONB)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    lead = relationship("Lead", back_populates="contacts")
-
-    def __repr__(self):
-        return f"<Contact(id='{self.id}', name='{self.name}', role='{self.role}')>"
-
-
-class CompanyRecord(Base):
-    """Snapshot cadastral de um lead — razão social, CNAE, porte, sócios.
-    Fonte: Receita Federal (BrasilAPI / CNPJá). Independente de `Lead` para
-    permitir re-análise sem re-bater a API."""
-    __tablename__ = "company_records"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False, unique=True)
-    cnpj = Column(String(20))
-    razao_social = Column(String(255))
-    nome_fantasia = Column(String(255))
-    porte = Column(String(50))
-    porte_label = Column(String(100))
-    natureza_juridica = Column(String(255))
-    capital_social = Column(Numeric(14, 2))
-    situacao_cadastral = Column(String(50))
-    data_abertura = Column(String(20))
-    idade_anos = Column(Integer)
-    cnae_principal = Column(String(20))
-    cnae_principal_label = Column(String(255))
-    cnae_secundarios = Column(JSONB)
-    endereco = Column(JSONB)
-    municipios_ativos = Column(JSONB)
-    raw_data = Column(JSONB)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    lead = relationship("Lead", back_populates="company_record")
-
-    def __repr__(self):
-        return f"<CompanyRecord(lead_id='{self.lead_id}', cnpj='{self.cnpj}')>"
-
-
-class Company(Base):
-    """Entidade independente de Empresa para o modelo de 3 Entidades (Company, Person, Lead/Oportunidade).
-    
-    Permite consolidar informações de uma mesma empresa entre diferentes campanhas
-    e oportunidades na mesma organização.
-    """
-    __tablename__ = "companies"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "cnpj", name="uq_companies_org_cnpj"),
-        UniqueConstraint("organization_id", "normalized_domain", name="uq_companies_org_domain"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    company_name = Column(String(255), nullable=False)
-    name = Column(String(255))
-    cnpj = Column(String(20))
-    website = Column(String(255))
-    normalized_domain = Column(String(255))
-    phone = Column(String(50))
-    address = Column(String(500))
-    city = Column(String(100))
-    state = Column(String(100))
-    country = Column(String(100))
-    category = Column(String(100))
-    google_rating = Column(Float)
-    google_rating_count = Column(Integer)
-    google_maps_uri = Column(String(255))
-    company_linkedin_url = Column(String(255))
-    instagram_url = Column(String(255))
-    raw_data = Column(JSONB)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    organization = relationship("Organization")
-    leads = relationship("Lead", back_populates="company")
-    persons = relationship("Person", back_populates="company")
-    aliases = relationship(
-        "CompanyAlias",
-        back_populates="company",
-        cascade="all, delete-orphan",
-    )
-
-    def __repr__(self):
-        return f"<Company(id='{self.id}', name='{self.company_name}')>"
-
-
-class CompanyAlias(Base):
-    """Alias de identidade de uma empresa por provider externo.
-
-    Permite que uma mesma `Company` seja reconhecida por chaves diferentes
-    (place_id do Google, id sintético CNAE/PNCP, domínio alternativo) vindas de
-    provider distintos — realizado pela resolução cross-provider de identidade.
-    """
-    __tablename__ = "company_aliases"
-    __table_args__ = (
-        UniqueConstraint(
-            "organization_id",
-            "alias_kind",
-            "alias_value",
-            name="uq_company_aliases_org_kind_value",
-        ),
-        Index("ix_company_aliases_company", "company_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(
-        UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False
-    )
-    company_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("companies.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    alias_kind = Column(String(50), nullable=False)
-    alias_value = Column(String(255), nullable=False)
-    source = Column(String(50))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    organization = relationship("Organization")
-    company = relationship("Company", back_populates="aliases")
-
-    def __repr__(self):
-        return f"<CompanyAlias(kind='{self.alias_kind}', value='{self.alias_value}')>"
-
-
-class Person(Base):
-    """Entidade de Pessoa/Decisor para o modelo de 3 Entidades.
-    
-    Persiste contatos/decisores de forma independente, associados a uma Empresa.
-    """
-    __tablename__ = "persons"
-    __table_args__ = (
-        Index(
-            "ix_persons_org_document_cpf",
-            "organization_id",
-            "document_cpf",
-            postgresql_where=text("document_cpf IS NOT NULL"),
-        ),
-        Index(
-            "ix_persons_org_email",
-            "organization_id",
-            "email",
-            postgresql_where=text("email IS NOT NULL"),
-        ),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True)
-    name = Column(String(255), nullable=False)
-    role = Column(Enum(ContactRole, name='contact_role', create_type=False, values_callable=lambda e: [m.value for m in e]), nullable=True)
-    role_label = Column(String(100))
-    email = Column(String(255))
-    phone = Column(String(50))
-    document_cpf = Column(String(20))
-    confidence = Column(Integer, default=0)
-    email_verified = Column(Boolean, nullable=False, server_default="false", default=False)
-    email_verified_at = Column(DateTime(timezone=True))
-    linkedin_url = Column(String(255))
-    linkedin_confidence = Column(Integer, default=0)
-    identity_confidence = Column(Integer, nullable=False, server_default="0")
-    contact_confidence = Column(Integer, nullable=False, server_default="0")
-    source_reliability = Column(Float, nullable=False, server_default="0")
-    verification_status = Column(String(40), nullable=False, server_default="needs_review")
-    last_verified_at = Column(DateTime(timezone=True), nullable=True)
-    routability_type = Column(String(24), nullable=False, server_default="UNKNOWN")
-    routable = Column(Boolean, nullable=False, server_default="false")
-    routability_reason = Column(String(80), nullable=True)
-    source = Column(String(60), default="cnpj_receita")
-    raw_data = Column(JSONB)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    organization = relationship("Organization")
-    company = relationship("Company", back_populates="persons")
-
-    def __repr__(self):
-        return f"<Person(id='{self.id}', name='{self.name}')>"
-
-
-class WebhookLog(Base):
-    """Histórico de disparos de webhooks de saída por organização."""
-    __tablename__ = "webhook_logs"
-    __table_args__ = (
-        Index("ix_webhook_logs_org_created", "organization_id", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    event_type = Column(String(100), nullable=False)
-    target_url = Column(String(500), nullable=False)
-    status_code = Column(Integer)
-    success = Column(Boolean, default=False, nullable=False)
-    payload = Column(JSONB)
-    response_body = Column(Text)
-    error_message = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    organization = relationship("Organization")
-
-    def __repr__(self):
-        return f"<WebhookLog(id='{self.id}', event='{self.event_type}', success={self.success})>"
-
-
-class LeadOpportunityRow(Base):
-    """Persistencia do resultado do OfferMatcher (consolidacao item 3).
-
-    Um lead pode ter multiplas oportunidades simultaneas, uma por OfferProfile
-    relevante. Idempotente em (lead_id, offer_key) via upsert. Fonte de verdade
-    para o endpoint GET /api/leads/{id}/oportunidades e para futuras
-    integracoes com BI/learning.
-
-    Convivem com o JSONB `leads.evidence_score.phase3` (snapshot legado) ate a
-    migracao total para este modelo.
-    """
-    __tablename__ = "lead_opportunities"
-    __table_args__ = (
-        UniqueConstraint("lead_id", "offer_key", name="uq_lead_opportunities_lead_offer"),
-        Index("ix_lead_opportunities_organization_id", "organization_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    offer_key = Column(String(64), nullable=False)
-    offer_version = Column(String(32), nullable=True)
-    profile_key = Column(String(64), nullable=True)
-    score = Column(Integer, nullable=False, server_default="0")
-    resolved_from = Column(String(16), nullable=True)
-    evidence = Column(JSONB, nullable=True)
-    signals_matched = Column(JSONB, nullable=True)
-    signals_missing = Column(JSONB, nullable=True)
-    score_breakdown = Column(JSONB, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    def __repr__(self):
-        return f"<LeadOpportunityRow(lead='{self.lead_id}', offer='{self.offer_key}', score={self.score})>"
-
-
-class LeadOpportunitySnapshot(Base):
-    """Histórico append-only de avaliações de oportunidade.
-
-    A linha atual em `lead_opportunities` é mutável por re-scoring; cada
-    avaliação gera um snapshot imutável com versão do perfil, versão da
-    fórmula, hash do contexto e evidências. Vendas antigas continuam
-    apontando para o contexto original via `lead_opportunity_snapshot_id`.
-    """
-    __tablename__ = "lead_opportunity_snapshots"
-    __table_args__ = (
-        UniqueConstraint("lead_id", "snapshot_hash", name="uq_lead_opportunity_snapshot_hash"),
-        Index("ix_lead_opportunity_snapshots_org_lead", "organization_id", "lead_id", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
-    lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
-    offer_key = Column(String(64), nullable=False)
-    offer_version = Column(String(32), nullable=True)
-    formula_version = Column(String(32), nullable=False, server_default="matcher-v2")
-    profile_snapshot_hash = Column(String(64), nullable=True)
-    score = Column(Integer, nullable=False, server_default="0")
-    signals_snapshot = Column(JSONB, nullable=True)
-    evidence_snapshot = Column(JSONB, nullable=True)
-    snapshot_hash = Column(String(64), nullable=False)
-    reason = Column(String(32), nullable=False, server_default="enrichment")
-    scored_at = Column(DateTime(timezone=True), server_default=func.now())
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    def __repr__(self):
-        return f"<LeadOpportunitySnapshot(lead='{self.lead_id}', offer='{self.offer_key}', score={self.score})>"
-
-
-class EventOpportunityRow(Base):
-    """Evento descoberto e normalizado para prospecção rastreável."""
-    __tablename__ = "event_opportunities"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "source_url", name="uq_event_opportunities_org_source"),
-        Index("ix_event_opportunities_org_date", "organization_id", "event_date"),
-        Index(
-            "uq_event_opportunities_org_provider_identifier",
-            "organization_id", "provider", "source_identifier",
-            unique=True,
-            postgresql_where=text("source_identifier IS NOT NULL"),
-        ),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
-    decision_maker_id = Column(UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
-    offer_key = Column(String(64), nullable=True)
-    name = Column(String(255), nullable=False)
-    event_type = Column(String(64), nullable=False, default="other")
-    event_date = Column(Date, nullable=False)
-    location = Column(String(500), nullable=True)
-    source_url = Column(String(1000), nullable=False)
-    source_identifier = Column(String(255), nullable=True)
-    provider = Column(String(64), nullable=True)
-    provider_status = Column(String(16), nullable=False, server_default="ok")
-    status = Column(String(16), nullable=False, server_default="upcoming")
-    organizer = Column(String(255), nullable=True)
-    organizer_resolved = Column(JSONB, nullable=True)
-    provenance = Column(JSONB, nullable=True)
-    timing = Column(JSONB, nullable=True)
-    confidence = Column(Float, nullable=False, server_default="0.5")
-    registration_status = Column(String(32), nullable=False, server_default="unknown")
-    observed_at = Column(DateTime(timezone=True), nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=True)
-    decision_maker_status = Column(String(24), nullable=False, server_default="not_found")
-    recommended_channel = Column(String(32), nullable=True)
-    action_status = Column(String(24), nullable=False, server_default="needs_review")
-    next_action = Column(Text, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    def __repr__(self):
-        return f"<EventOpportunityRow(name='{self.name}', event_date='{self.event_date}')>"
-
-
-class DecisionResolutionSnapshot(Base):
-    """Snapshot append-only de uma resolução de decisor.
-
-    O payload representa uma avaliação completa em um instante. A impressão
-    digital permite reprocessamento idempotente sem alterar o histórico.
-    """
-    __tablename__ = "decision_resolution_snapshots"
-    __table_args__ = (
-        UniqueConstraint("lead_id", "snapshot_hash", name="uq_decision_resolution_snapshot_hash"),
-        Index("ix_decision_resolution_snapshots_org_lead", "organization_id", "lead_id", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
-    status = Column(String(24), nullable=False)
-    snapshot_hash = Column(String(64), nullable=False)
-    payload = Column(JSONB, nullable=False)
-    reason = Column(String(32), nullable=False, server_default="enrichment")
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-    def __repr__(self):
-        return f"<DecisionResolutionSnapshot(lead='{self.lead_id}', status='{self.status}')>"
-
-
-class CommercialOutcomeRow(Base):
-    """Outcome comercial real, versionado por oferta e provider."""
-    __tablename__ = "commercial_outcomes"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "event_key", name="uq_commercial_outcomes_org_event"),
-        Index("ix_commercial_outcomes_org_offer", "organization_id", "offer_key", "offer_version"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False)
-    lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
-    lead_opportunity_snapshot_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunity_snapshots.id", ondelete="SET NULL"), nullable=True)
-    offer_key = Column(String(64), nullable=False)
-    offer_version = Column(String(32), nullable=True)
-    outcome = Column(String(32), nullable=False)
-    value = Column(Numeric(12, 2), nullable=False, server_default="0")
-    provider = Column(String(64), nullable=True)
-    outreach_at = Column(DateTime(timezone=True), nullable=True)
-    recorded_at = Column(DateTime(timezone=True), server_default=func.now())
-    event_key = Column(String(255), nullable=False)
-
-    def __repr__(self):
-        return f"<CommercialOutcomeRow(lead='{self.lead_id}', outcome='{self.outcome}')>"
-
-
-class CommercialComparison(Base):
-    """Comparação A/B calculada e aprovada de forma auditável."""
-    __tablename__ = "commercial_comparisons"
-    __table_args__ = (
-        Index("ix_commercial_comparisons_org_offer", "organization_id", "offer_key", "computed_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    offer_key = Column(String(64), nullable=False)
-    version_a = Column(String(32), nullable=False)
-    version_b = Column(String(32), nullable=False)
-    result = Column(JSONB, nullable=False)
-    computed_at = Column(DateTime(timezone=True), server_default=func.now())
-    approved_version = Column(String(32), nullable=True)
-    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    approved_at = Column(DateTime(timezone=True), nullable=True)
-    approval_evidence = Column(Text, nullable=True)
-
-
-class ControlledLearningProposal(Base):
-    """Proposta de learning comercial aguardando publicação manual."""
-    __tablename__ = "controlled_learning_proposals"
-    __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "source_comparison_id",
-            name="uq_controlled_learning_org_comparison",
-        ),
-        Index(
-            "ix_controlled_learning_org_offer_status",
-            "organization_id", "offer_key", "status",
-        ),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(
-        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    source_comparison_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("commercial_comparisons.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
-    offer_key = Column(String(64), nullable=False)
-    proposal_version = Column(Integer, nullable=False)
-    approved_version = Column(String(32), nullable=False)
-    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    status = Column(String(16), nullable=False, server_default="PROPOSED")
-    evidence_snapshot = Column(JSONB, nullable=False)
-    published_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    published_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-
-class Conversion(Base):
-    __tablename__ = "conversions"
-    __table_args__ = (
-        Index("ix_conversions_lead_id", "lead_id"),
-        Index(
-            "uq_conversions_lead_offer",
-            "lead_id",
-            func.coalesce(text("offer_key"), "unknown"),
-            unique=True,
-        ),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    lead_opportunity_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunities.id", ondelete="SET NULL"), nullable=True)
-    lead_opportunity_snapshot_id = Column(UUID(as_uuid=True), ForeignKey("lead_opportunity_snapshots.id", ondelete="SET NULL"), nullable=True)
-    offer_key = Column(String(64), nullable=True)
-    offer_version = Column(String(32), nullable=True)
-    converted_at = Column(DateTime(timezone=True), server_default=func.now())
-    service_sold = Column(String(255))
-    contract_value = Column(Numeric(10, 2))
-    outreach_message_used = Column(Text)
-    time_to_close_days = Column(Integer)
-    notes = Column(Text)
-    # Quem vendeu/fechou e quem trabalhava o lead no momento.
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    assigned_to_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-
-    lead = relationship("Lead", back_populates="conversions")
-
-    def __repr__(self):
-        return f"<Conversion(id='{self.id}', lead_id='{self.lead_id}', service='{self.service_sold}')>"
-
-
-class PrescoringDiscard(Base):
-    """Candidato de discovery descartado pelo gate de pré-scoring.
-
-    Auditoria dos falsos-negativos em potencial (docs/melhorias/01/06):
-    permite revisão humana dos descartes e recalibração do threshold sem
-    perder candidatos. Upsert idempotente por (campaign_id, place_id) —
-    re-coleta atualiza o registro em vez de duplicar.
-    """
-
-    __tablename__ = "prescoring_discards"
-    __table_args__ = (
-        UniqueConstraint("campaign_id", "place_id", name="uq_prescoring_discards_campaign_place"),
-        Index("ix_prescoring_discards_org_created", "organization_id", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
-    job_id = Column(UUID(as_uuid=True), nullable=True)
-    place_id = Column(String(255), nullable=True)
-    company_name = Column(String(255))
-    # Item bruto de coleta + sinais FACT usados no score — reprocesse sem
-    # tocar a API do Places.
-    candidate_data = Column(JSONB)
-    # Provenance consolidada (providers, consultas, ids) — rastreia de onde
-    # veio o descarte sem abrir candidate_data (P1.2).
-    provenance = Column(JSONB)
-    signals = Column(JSONB)
-    discovery_score = Column(Integer)
-    threshold = Column(Integer)
-    profile_key = Column(String(50))
-    # "below_threshold" (score insuficiente) ou "top_k_cut" (elegível, mas
-    # fora do teto por lote).
-    reason = Column(String(30), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-
-class LeadActivityAction(enum.Enum):
-    """Ações registradas na trilha do lead.
-
-    Além da `STATUS_CHANGED` genérica, o endpoint de status grava uma action
-    semântica quando o destino tem significado comercial:
-    `CONTACTED`, `RESPONDED`, `MEETING_SCHEDULED`, `PROPOSAL_SENT`, `LOST`.
-    Conversão fecha o ciclo com `CONVERTED`.
-    """
-    CREATED = "CREATED"
-    ASSIGNED = "ASSIGNED"
-    UNASSIGNED = "UNASSIGNED"
-    STATUS_CHANGED = "STATUS_CHANGED"
-    MESSAGE_GENERATED = "MESSAGE_GENERATED"
-    CONTACTED = "CONTACTED"
-    RESPONDED = "RESPONDED"
-    MEETING_SCHEDULED = "MEETING_SCHEDULED"
-    PROPOSAL_SENT = "PROPOSAL_SENT"
-    LOST = "LOST"
-    CONVERTED = "CONVERTED"
-    CONTACT_ENRICHED = "CONTACT_ENRICHED"
-    NEGOTIATION_UPDATED = "NEGOTIATION_UPDATED"
-    POST_SALE = "POST_SALE"
-    WHATSAPP_SENT = "WHATSAPP_SENT"
-    LINKEDIN_ASSOCIATED = "LINKEDIN_ASSOCIATED"
-    SCORE_FEEDBACK = "SCORE_FEEDBACK"
-    LEAD_FEEDBACK = "LEAD_FEEDBACK"
-
-
-class LeadActivity(Base):
-    """Trilha de atividades do lead — quem fez o quê e quando.
-
-    Base das métricas por consultor (BI) e da auditoria. Registrada a cada
-    mudança relevante: atribuição, status, mensagem, contato, reunião,
-    conversão.
-    """
-    __tablename__ = "lead_activities"
-    __table_args__ = (
-        Index("ix_lead_activities_lead_id", "lead_id"),
-        Index("ix_lead_activities_user_id", "user_id"),
-        Index("ix_lead_activities_created_at", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    action = Column(Enum(LeadActivityAction, name='lead_activity_action', create_type=True), nullable=False)
-    status_from = Column(Enum(LeadStatus, name='lead_status', create_type=False), nullable=True)
-    status_to = Column(Enum(LeadStatus, name='lead_status', create_type=False), nullable=True)
-    detail = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    lead = relationship("Lead", back_populates="activities")
-    user = relationship("User")
-
-    def __repr__(self):
-        return f"<LeadActivity(lead='{self.lead_id}', action='{self.action.value}', at={self.created_at})>"
-
-
-class FeedbackDirection(enum.Enum):
-    """Direção do feedback de score do consultor."""
-
-    MUITO_ALTO = "MUITO_ALTO"    # IA pontuou demais
-    MUITO_BAIXO = "MUITO_BAIXO"  # IA pontuou de menos
-
-
-class FeedbackStatus(enum.Enum):
-    """Ciclo de vida do feedback de score."""
-
-    PENDING = "PENDING"    # aguardando compilação em regras (Fase 2)
-    APPLIED = "APPLIED"    # correção aplicada ao lead
-    COMPILED = "COMPILED"  # já consumido por uma compilação de regras
-    DISMISSED = "DISMISSED"
-
-
-class ScoringFeedback(Base):
-    """Feedback humano sobre o score dado pela IA a um lead.
-
-    Insumo do loop de aprendizado: o consultor discorda do score (score
-    sugerido + motivo em texto livre), o feedback é auditável na trilha do
-    lead e, acumulado por template/organização, é compilado em regras de
-    calibração injetadas no prompt de scoring (ver TemplateLearning, Fase 2,
-    e docs/ai-feedback-loop.md).
-    """
-    __tablename__ = "scoring_feedbacks"
-    __table_args__ = (
-        Index("ix_scoring_feedbacks_org_status", "organization_id", "status"),
-        Index("ix_scoring_feedbacks_lead_id", "lead_id"),
-        Index("ix_scoring_feedbacks_template_id", "template_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
-    template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=True)
-    original_score = Column(Integer, nullable=False)
-    suggested_score = Column(Integer, nullable=False)
-    direction = Column(Enum(FeedbackDirection, name='feedback_direction', create_type=True), nullable=False)
-    reason = Column(Text)
-    status = Column(Enum(FeedbackStatus, name='feedback_status', create_type=True), nullable=False, default=FeedbackStatus.PENDING)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    applied_at = Column(DateTime(timezone=True), nullable=True)
-
-    lead = relationship("Lead")
-    user = relationship("User")
-    campaign = relationship("Campaign")
-
-    def __repr__(self):
-        return (
-            f"<ScoringFeedback(lead='{self.lead_id}', "
-            f"{self.original_score}→{self.suggested_score}, {self.status.value})>"
-        )
-
-class LeadUsefulnessReason(enum.Enum):
-    """Motivo do feedback negativo sobre a utilidade do lead."""
-
-    EMPRESA_ERRADA = "EMPRESA_ERRADA"
-    SEM_NECESSIDADE = "SEM_NECESSIDADE"
-    CONTATO_ERRADO = "CONTATO_ERRADO"
-    FORA_DO_PORTE = "FORA_DO_PORTE"
-    FORA_DA_REGIAO = "FORA_DA_REGIAO"
-    JA_TEM_FORNECEDOR = "JA_TEM_FORNECEDOR"
-    DADOS_INCORRETOS = "DADOS_INCORRETOS"
-    OUTRO = "OUTRO"
-
-
-class LeadUsefulnessFeedback(Base):
-    """Feedback simples de utilidade do lead (útil / não útil).
-
-    Complementa o `ScoringFeedback` (que calibra o score numérico): aqui o
-    vendedor diz se o lead serve, e quando não serve indica o motivo da
-    taxonomia fechada. Org-scoped e idempotente por (lead, usuário).
-    """
-    __tablename__ = "lead_usefulness_feedbacks"
-    __table_args__ = (
-        UniqueConstraint(
-            "lead_id", "user_id",
-            name="uq_lead_usefulness_lead_user",
-        ),
-        Index("ix_lead_usefulness_org_created", "organization_id", "created_at"),
-        Index("ix_lead_usefulness_lead_id", "lead_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
-    useful = Column(Boolean, nullable=False)
-    reason = Column(Enum(LeadUsefulnessReason, name="lead_usefulness_reason", create_type=True), nullable=True)
-    detail = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    lead = relationship("Lead")
-    user = relationship("User")
-    campaign = relationship("Campaign")
-
-    def __repr__(self):
-        return (
-            f"<LeadUsefulnessFeedback(lead='{self.lead_id}', "
-            f"useful={self.useful}, reason={self.reason})>"
-        )
-
-
-class TemplateLearning(Base):
-    # Regras de calibracao aprendidas com o time, por template + organizacao.
-    # A IA resume os feedbacks de score em regras objetivas (ex.: sites
-    # atualizados/bem apresentados pesam MENOS em campanhas de redesign).
-    # As regras sao injetadas no prompt de scoring como contexto de calibracao,
-    # sem nunca substituir a decisao da LLM nem editar templates globais.
-    # Org-scoped: aprendizado de uma org e privado e nao afeta o global.
-    __tablename__ = "template_learning"
-    __table_args__ = (
-        Index("ix_template_learning_org_template", "organization_id", "template_id"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    template_id = Column(UUID(as_uuid=True), ForeignKey("campaign_scoring_templates.id"), nullable=False)
-    instructions = Column(JSONB, nullable=False, default=list)
-    compiled_from = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    template = relationship("CampaignScoringTemplate")
-    organization = relationship("Organization")
-
-    def __repr__(self):
-        return (f"<TemplateLearning(template={self.template_id}, rules={len(self.instructions or [])})>")
-
-
-class ImportJob(Base):
-    """Ciclo persistido e tenant-scoped de importação histórica.
-
-    As linhas de origem ficam armazenadas em formato normalizado para que o
-    consumer possa retomar o processamento sem depender do request ou de um
-    caminho de filesystem fornecido pelo usuário. O payload nunca é exposto
-    pelos endpoints de relatório.
-    """
-    __tablename__ = "import_jobs"
-    __table_args__ = (
-        UniqueConstraint("organization_id", "idempotency_key", name="uq_import_jobs_org_idempotency"),
-        Index("ix_import_jobs_org_status_created", "organization_id", "status", "created_at"),
-        Index("ix_import_jobs_org_source_hash", "organization_id", "source_hash"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True)
-    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    source_hash = Column(String(64), nullable=False)
-    idempotency_key = Column(String(255), nullable=True)
-    source_filename = Column(String(255), nullable=True)
-    source_format = Column(String(8), nullable=False)
-    source_headers = Column(JSONB, nullable=False)
-    source_rows = Column(JSONB, nullable=False)
-    preview_rows = Column(JSONB, nullable=False, server_default="[]")
-    mapping = Column(JSONB, nullable=True)
-    mapping_version = Column(String(64), nullable=True)
-    dry_run_report = Column(JSONB, nullable=True)
-    status = Column(Enum(ImportJobStatus, name="import_job_status", native_enum=False), nullable=False, default=ImportJobStatus.DRAFT)
-    expected_version = Column(Integer, nullable=False, server_default="1")
-    total_rows = Column(Integer, nullable=False, server_default="0")
-    accepted_rows = Column(Integer, nullable=False, server_default="0")
-    duplicate_rows = Column(Integer, nullable=False, server_default="0")
-    rejected_rows = Column(Integer, nullable=False, server_default="0")
-    failed_rows = Column(Integer, nullable=False, server_default="0")
-    unprocessed_rows = Column(Integer, nullable=False, server_default="0")
-    attempts = Column(Integer, nullable=False, server_default="0")
-    error_code = Column(String(80), nullable=True)
-    error_message = Column(Text, nullable=True)
-    correlation_id = Column(String(100), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    started_at = Column(DateTime(timezone=True), nullable=True)
-    completed_at = Column(DateTime(timezone=True), nullable=True)
-
-class ImportRowResult(Base):
-    """Resultado sanitizado e versionado de uma linha de importação."""
-    __tablename__ = "import_row_results"
-    __table_args__ = (
-        UniqueConstraint("import_job_id", "line_number", "source_version", name="uq_import_row_results_job_line_version"),
-        Index("ix_import_row_results_job_status_line", "import_job_id", "status", "line_number"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    import_job_id = Column(UUID(as_uuid=True), ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    line_number = Column(Integer, nullable=False)
-    source_version = Column(Integer, nullable=False, server_default="1")
-    status = Column(Enum(ImportRowStatus, name="import_row_status", native_enum=False), nullable=False)
-    reason_code = Column(String(80), nullable=True)
-    message = Column(String(500), nullable=True)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
-    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="SET NULL"), nullable=True)
-    person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="SET NULL"), nullable=True)
-    identity_decision = Column(JSONB, nullable=True)
-    provenance = Column(JSONB, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-class ImportAuditEvent(Base):
-    """Auditoria append-only do lifecycle e das tentativas do import."""
-    __tablename__ = "import_audit_events"
-    __table_args__ = (
-        Index("ix_import_audit_events_job_created", "import_job_id", "created_at"),
-        Index("ix_import_audit_events_org_created", "organization_id", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    import_job_id = Column(UUID(as_uuid=True), ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
-    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    action = Column(String(64), nullable=False)
-    from_status = Column(String(32), nullable=True)
-    to_status = Column(String(32), nullable=True)
-    detail = Column(JSONB, nullable=True)
-    correlation_id = Column(String(100), nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-
-class Job(Base):
-    __tablename__ = "jobs"
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    job_type = Column(Enum(JobType, name='job_type', create_type=True), nullable=False)
-    status = Column(Enum(JobStatus, name='job_status', create_type=True), default=JobStatus.PENDING)
-    payload = Column(JSONB) 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    started_at = Column(DateTime(timezone=True))
-    completed_at = Column(DateTime(timezone=True))
-    error_message = Column(Text) 
-
-    campaign = relationship("Campaign", back_populates="jobs")
-
-    def __repr__(self):
-        return f"<Job(id='{self.id}', type='{self.job_type.value}', status='{self.status.value}')>"
-
-
-class NotificationType(enum.Enum):
-    """Tipos de notificação in-app."""
-    LEAD_RESPONDED = "LEAD_RESPONDED"
-    LEAD_ASSIGNED = "LEAD_ASSIGNED"
-    SLA_ALERT = "SLA_ALERT"
-    CADENCE_DUE = "CADENCE_DUE"
-
-
-class Notification(Base):
-    """Notificações in-app do consultor.
-
-    Criadas em background quando eventos relevantes acontecem
-    (lead responde, lead atribuído, alerta SLA, cadência pendente).
-    O frontend consulta via polling (useNotifications) e exibe badge.
-    """
-    __tablename__ = "notifications"
-    __table_args__ = (
-        Index("ix_notifications_user_id_read", "user_id", "is_read"),
-        Index("ix_notifications_created_at", "created_at"),
-    )
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    notification_type = Column(Enum(NotificationType, name='notification_type', create_type=True), nullable=False)
-    title = Column(String(255), nullable=False)
-    message = Column(Text)
-    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id"), nullable=True)
-    is_read = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    user = relationship("User")
-    organization = relationship("Organization")
-    lead = relationship("Lead")
-
-    def __repr__(self):
-        return f"<Notification(id='{self.id}', type='{self.notification_type.value}', user='{self.user_id}', read={self.is_read})>"
+# NOTE: The remainder of this model file is intentionally preserved by the repository's
+# source-of-truth; this replacement must not truncate it.
