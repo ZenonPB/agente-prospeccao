@@ -1,7 +1,7 @@
 """Persistência e qualificação das oportunidades descobertas em eventos."""
 from datetime import date, datetime, timezone
 from dataclasses import replace
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from database.models import Company, Contact, EventOpportunityRow, Lead
 from services.prospecting.default_profiles import get_default_registry
-from services.prospecting.event_intelligence import infer_event_intelligence, score_event_timing
+from services.prospecting.event_intelligence import EventContextRule, infer_event_intelligence, score_event_timing
 from services.prospecting.lead_opportunity_service import LeadOpportunityService
 from services.prospecting.offer_matcher import OfferMatcher
 from services.prospecting.next_best_action_service import NextBestActionService
@@ -45,17 +45,23 @@ def parse_event_datetime(value: Any) -> datetime | None:
 class EventOpportunityService:
     """Upsert e leitura org-scoped da saída do EventDiscoveryExecutor.
 
-    O serviço acrescenta uma camada determinística de inteligência comercial:
-    eventos MEJ, esportivos e gerais continuam sendo o mesmo domínio de evento,
-    mas podem usar Golden Paths diferentes sem duplicar a entidade persistente.
+    Regras de contexto são injetadas como configuração. O serviço não conhece
+    nomes de ofertas ou verticais: apenas persiste a classificação recebida,
+    resolve o perfil escolhido e transforma evidência observada em oportunidade.
     """
+
+    def __init__(self, context_rules: Sequence[EventContextRule] | None = None):
+        if context_rules is None:
+            from services.alphamec_event_intelligence import event_context_rules
+            context_rules = event_context_rules()
+        self.context_rules = tuple(context_rules)
 
     def replace_events(
         self,
         db: Session,
         organization_id: UUID,
         events: Iterable[Dict[str, Any]],
-        offer_key: str | None = "trophies",
+        offer_key: str | None = None,
         resolve_leads: bool = True,
     ) -> List[EventOpportunityRow]:
         rows: List[EventOpportunityRow] = []
@@ -66,15 +72,12 @@ class EventOpportunityService:
             if not event_date or not source_url or not name:
                 continue
 
-            intelligence = infer_event_intelligence(event).to_dict()
-            # ``trophies`` é o fallback legado. Nesse caso deixamos a camada
-            # de inteligência escolher o Golden Path específico; uma oferta
-            # explicitamente passada pelo chamador continua sendo respeitada.
-            selected_offer = (
-                intelligence["recommended_offer_key"]
-                if offer_key in (None, "trophies")
-                else offer_key
-            )
+            intelligence = infer_event_intelligence(
+                event,
+                self.context_rules,
+                fallback_offer_key=offer_key,
+            ).to_dict()
+            selected_offer = offer_key or intelligence.get("recommended_offer_key")
             timing = score_event_timing(event_date)
 
             provider = (event.get("provider") or "unknown").strip()
@@ -146,13 +149,7 @@ class EventOpportunityService:
         db: Session,
         events: Iterable[EventOpportunityRow],
     ) -> Dict[str, Any]:
-        """Conecta eventos futuros à oferta correta de premiação.
-
-        MEJ, esporte e demais eventos usam perfis declarativos diferentes. O
-        ``OfferMatcher`` continua sendo a única regra de score; este serviço só
-        fornece fatos observáveis do evento e escolhe o perfil recomendado pela
-        inteligência persistida. Nenhuma mensagem é enviada automaticamente.
-        """
+        """Conecta eventos futuros ao OfferProfile recomendado pela configuração."""
         matcher = OfferMatcher(get_default_registry())
         opportunity_service = LeadOpportunityService()
         result: Dict[str, Any] = {"matched": 0, "skipped": 0, "failed": 0, "errors": []}
@@ -167,9 +164,11 @@ class EventOpportunityService:
             try:
                 provenance = event.provenance if isinstance(event.provenance, dict) else {}
                 intelligence = provenance.get("intelligence") if isinstance(provenance.get("intelligence"), dict) else {}
-                context = intelligence.get("context") or "general"
-                selected_offer = event.offer_key or intelligence.get("recommended_offer_key") or "trophies"
-                segment = "MEJ" if context == "mej" else "campeonatos" if context == "sports" else (lead.category or "eventos")
+                selected_offer = event.offer_key or intelligence.get("recommended_offer_key")
+                if not selected_offer:
+                    result["skipped"] += 1
+                    continue
+                segment = intelligence.get("segment_hint") or lead.category or "eventos"
 
                 lead_data = {
                     "company_name": lead.company_name or lead.name,
@@ -178,8 +177,6 @@ class EventOpportunityService:
                     "company_size": getattr(lead, "company_size", None),
                     "has_phone": bool(lead.phone),
                     "has_instagram": bool(getattr(lead, "instagram_url", None)),
-                    # A existência do EventOpportunity com data válida sustenta
-                    # esses fatos. Não inferimos sazonalidade sem série recorrente.
                     "hosts_events": True,
                     "event_scheduled": True,
                 }
@@ -191,6 +188,7 @@ class EventOpportunityService:
 
                 organizer_confidence = float((event.organizer_resolved or {}).get("confidence") or 0)
                 organizer_evidence = "ORGANIZER_RESOLVED" if organizer_confidence >= 0.8 else "ORGANIZER_REQUIRES_REVIEW"
+                context = intelligence.get("context") or "unknown"
                 evidence = list(dict.fromkeys([
                     *opportunity.evidence,
                     "EVENT_SCHEDULED",
@@ -231,7 +229,7 @@ class EventOpportunityService:
                 result["not_found"] += 1
                 continue
             try:
-                profile = registry.get(event.offer_key or "trophies") or registry.get("trophies")
+                profile = registry.get(event.offer_key) if event.offer_key else None
                 channels = (profile.channels or {}).get("priority", []) if profile else ["email", "phone"]
                 contacts = list(db.scalars(select(Contact).where(
                     Contact.lead_id == event.lead_id,
@@ -258,6 +256,7 @@ class EventOpportunityService:
                 event.decision_maker_status = "resolved"
                 event.recommended_channel = channel
                 event.action_status = "ready" if contact.email_verified or contact.phone else "needs_review"
+                opportunities = [{"offer_key": event.offer_key, "score": 1}] if event.offer_key else []
                 recommendation = next_action_service.recommend({
                     "status": "QUALIFICADO",
                     "has_verified_email": bool(contact.email_verified and contact.email),
@@ -265,7 +264,7 @@ class EventOpportunityService:
                     "phone": contact.phone,
                     "routability_type": getattr(contact, "routability_type", None),
                     "has_primary_contact": bool(contact.is_primary),
-                    "opportunities": [{"offer_key": event.offer_key or "trophies", "score": 1}],
+                    "opportunities": opportunities,
                 })
                 event.next_action = (
                     f"Revisar {contact.name} e preparar contato por {channel}; "
