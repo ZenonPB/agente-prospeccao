@@ -16,7 +16,6 @@ import {
   Wand2,
 } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -171,13 +170,18 @@ export default function NovaCampanhaPage() {
   };
 
   const busy = createCampaign.isPending || updateCampaign.isPending;
+  const suggestedOfferKey = selectedOfferKey ?? briefDraft?.offer_profile_key ?? undefined;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-10">
       <div className="flex items-start gap-3">
-        <Button asChild variant="ghost" size="icon" className="mt-1 shrink-0" aria-label="Voltar para campanhas">
-          <Link href="/campanhas"><ArrowLeft className="h-4 w-4" /></Link>
-        </Button>
+        <Link
+          href="/campanhas"
+          aria-label="Voltar para campanhas"
+          className="mt-1 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        </Link>
         <PageHeader
           eyebrow="Nova prospecção"
           title="O que você quer vender?"
@@ -296,7 +300,7 @@ export default function NovaCampanhaPage() {
                     <Input id="city" value={briefDraft.target_city} onChange={(event) => updateBriefDraft({ target_city: event.target.value })} placeholder="Ex.: Araraquara" />
                   </Field>
                   <Field label="Estado (opcional)" htmlFor="state">
-                    <Select value={briefDraft.target_state || ''} onValueChange={(value) => updateBriefDraft({ target_state: value })}>
+                    <Select value={briefDraft.target_state || ''} onValueChange={(value) => updateBriefDraft({ target_state: value ?? '' })}>
                       <SelectTrigger id="state"><SelectValue placeholder="Todo o Brasil" /></SelectTrigger>
                       <SelectContent>{brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}</SelectContent>
                     </Select>
@@ -307,13 +311,13 @@ export default function NovaCampanhaPage() {
                   <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div className="min-w-0 space-y-1">
                       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estratégia identificada</p>
-                      <p className="font-semibold">{offerProfileLabel(selectedOfferKey || briefDraft.offer_profile_key)}</p>
-                      <p className="max-w-xl text-sm text-muted-foreground">{offerProfileDescription(selectedOfferKey || briefDraft.offer_profile_key)}</p>
+                      <p className="font-semibold">{offerProfileLabel(suggestedOfferKey)}</p>
+                      <p className="max-w-xl text-sm text-muted-foreground">{offerProfileDescription(suggestedOfferKey)}</p>
                       <p className="text-xs text-muted-foreground">{offerOriginLabel(briefDraft.offer_resolved_from)}.</p>
                     </div>
                     <div className="w-full md:w-72">
                       <Label htmlFor="offer">Corrigir, se necessário</Label>
-                      <Select value={selectedOfferKey || briefDraft.offer_profile_key || ''} onValueChange={setSelectedOfferKey}>
+                      <Select value={suggestedOfferKey || ''} onValueChange={(value) => setSelectedOfferKey(value ?? null)}>
                         <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha o serviço" /></SelectTrigger>
                         <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
                       </Select>
@@ -341,7 +345,7 @@ export default function NovaCampanhaPage() {
           <CardContent className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="manual-offer">O que você quer vender</Label>
-              <Select value={manual.offerKey} onValueChange={(offerKey) => setManual((current) => ({ ...current, offerKey }))}>
+              <Select value={manual.offerKey} onValueChange={(offerKey) => setManual((current) => ({ ...current, offerKey: offerKey ?? '' }))}>
                 <SelectTrigger id="manual-offer"><SelectValue /></SelectTrigger>
                 <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
               </Select>
@@ -357,7 +361,7 @@ export default function NovaCampanhaPage() {
                 <Input id="manual-city" value={manual.city} onChange={(event) => setManual((current) => ({ ...current, city: event.target.value }))} placeholder="Ex.: Araraquara" />
               </Field>
               <Field label="Estado (opcional)" htmlFor="manual-state">
-                <Select value={manual.state} onValueChange={(state) => setManual((current) => ({ ...current, state }))}>
+                <Select value={manual.state} onValueChange={(state) => setManual((current) => ({ ...current, state: state ?? '' }))}>
                   <SelectTrigger id="manual-state"><SelectValue placeholder="Todo o Brasil" /></SelectTrigger>
                   <SelectContent>{brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}</SelectContent>
                 </Select>
