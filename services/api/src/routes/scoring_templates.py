@@ -133,6 +133,8 @@ def _serialize(tmpl: CampaignScoringTemplate) -> dict:
         "cadence_schedule": getattr(tmpl, "cadence_schedule", None) or None,
         "extra_instructions": tmpl.extra_instructions,
         "playbook": tmpl.playbook or {},
+        "prescoring_config": getattr(tmpl, "prescoring_config", None) or None,
+        "enrichment_strategy": getattr(tmpl, "enrichment_strategy", None) or None,
         "is_generated": tmpl.is_generated,
         "is_active": tmpl.is_active,
         "organization_id": str(tmpl.organization_id) if tmpl.organization_id else None,
@@ -279,6 +281,8 @@ def create_scoring_template(
             "cadence_schedule": source.cadence_schedule,
             "extra_instructions": source.extra_instructions,
             "playbook": source.playbook or {},
+            "prescoring_config": getattr(source, "prescoring_config", None),
+            "enrichment_strategy": getattr(source, "enrichment_strategy", None),
         }
         fields.update({k: v for k, v in updates.items() if k not in ("source_template_id",)})
     else:
@@ -309,6 +313,8 @@ def create_scoring_template(
         cadence_schedule=fields["cadence_schedule"],
         extra_instructions=fields["extra_instructions"],
         playbook=fields["playbook"],
+        prescoring_config=fields.get("prescoring_config"),
+        enrichment_strategy=fields.get("enrichment_strategy"),
         is_active=True,
         organization_id=org.id,
     )
