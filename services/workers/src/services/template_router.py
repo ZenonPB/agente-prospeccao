@@ -79,11 +79,13 @@ def _visible_clause(organization_id: Optional[str]):
 def _templates_snapshot(
     db: Session, organization_id: Optional[str] = None
 ) -> List[CampaignScoringTemplate]:
-    """Templates ativos visíveis à org, ordenados por criação (mais antigo primeiro).
+    """Templates ativos visíveis à org, com override local antes do global.
 
     O escopo nunca inclui vertentes privadas de outras organizações: elas não
     podem ser listadas, resolvidas por exact/fuzzy, enviadas como labels à LLM
-    nem usadas como fallback.
+    nem usadas como fallback. Quando existe um template da organização com o
+    mesmo label de um global, o local precisa vencer: ele é o adapter de scoring
+    personalizado daquele workspace.
     """
     query = db.query(CampaignScoringTemplate).filter(
         CampaignScoringTemplate.is_active.is_(True)
@@ -91,6 +93,10 @@ def _templates_snapshot(
     clause = _visible_clause(organization_id)
     if clause is not None:
         query = query.filter(clause)
+        return query.order_by(
+            CampaignScoringTemplate.organization_id.is_(None),
+            CampaignScoringTemplate.created_at.asc(),
+        ).all()
     return query.order_by(CampaignScoringTemplate.created_at.asc()).all()
 
 

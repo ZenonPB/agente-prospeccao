@@ -24,12 +24,8 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useCampaignFromBrief, useCreateCampaign, useUpdateCampaign, type CampaignBrief } from '@/hooks/use-api';
-import {
-  OFFER_PROFILE_OPTIONS,
-  offerOriginLabel,
-  offerProfileDescription,
-  offerProfileLabel,
-} from '@/lib/offers';
+import { useVertentes } from '@/hooks/use-vertentes';
+import { offerOriginLabel, offerProfileLabel } from '@/lib/offers';
 import { cn } from '@/lib/utils';
 
 const examples = [
@@ -59,17 +55,12 @@ type ManualDraft = {
   state: string;
 };
 
-const DIGITAL_OFFERS = new Set(['landing_page', 'web_systems_erp']);
-
-function analysisProfileFor(offerKey: string): 'web_presence' | 'business_opportunity' {
-  return DIGITAL_OFFERS.has(offerKey) ? 'web_presence' : 'business_opportunity';
-}
-
 export default function NovaCampanhaPage() {
   const router = useRouter();
   const createCampaign = useCreateCampaign();
   const updateCampaign = useUpdateCampaign();
   const campaignFromBrief = useCampaignFromBrief();
+  const { data: vertentesData, isLoading: loadingVertentes, isError: vertentesError, refetch: refetchVertentes } = useVertentes();
 
   const [mode, setMode] = useState<Mode>('assistant');
   const [brief, setBrief] = useState('');
@@ -83,9 +74,15 @@ export default function NovaCampanhaPage() {
     state: '',
   });
 
+  const vertentes = useMemo(() => vertentesData?.items ?? [], [vertentesData]);
   const selectedOffer = useMemo(
-    () => OFFER_PROFILE_OPTIONS.find((item) => item.key === manual.offerKey),
-    [manual.offerKey],
+    () => vertentes.find((item) => item.key === manual.offerKey),
+    [manual.offerKey, vertentes],
+  );
+  const suggestedOfferKey = selectedOfferKey ?? briefDraft?.offer_profile_key ?? undefined;
+  const suggestedVertente = useMemo(
+    () => vertentes.find((item) => item.key === suggestedOfferKey),
+    [suggestedOfferKey, vertentes],
   );
 
   const resetSuggestion = () => {
@@ -113,9 +110,39 @@ export default function NovaCampanhaPage() {
     setBriefDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
+  const handleOfferChange = (offerKey: string | null) => {
+    setSelectedOfferKey(offerKey);
+    if (!offerKey) return;
+    const nextVertente = vertentes.find((item) => item.key === offerKey);
+    if (!nextVertente) return;
+
+    setBriefDraft((current) => {
+      if (!current || current.offer_profile_key === offerKey) return current;
+      return {
+        ...current,
+        offer_profile_key: offerKey,
+        offer_profile_label: nextVertente.name,
+        offer_resolved_from: 'manual',
+        target_service: nextVertente.name,
+        // A busca e o scoring sugeridos pertenciam à Vertente anterior. Ao
+        // corrigir a estratégia, descartamos esses derivados para que o
+        // pipeline os resolva novamente a partir da escolha atual.
+        places_query: '',
+        scoring_template_id: null,
+        scoring_template_label: '',
+        template_route: 'VERTENTE_CHANGED',
+      };
+    });
+  };
+
   const createFromAssistant = async () => {
     if (!briefDraft) return;
-    const offerKey = selectedOfferKey || briefDraft.offer_profile_key || undefined;
+    const vertenteKey = selectedOfferKey || briefDraft.offer_profile_key || undefined;
+    const vertente = vertentes.find((item) => item.key === vertenteKey);
+    if (!vertenteKey || !vertente) {
+      setError('Escolha uma vertente disponível para esta organização.');
+      return;
+    }
     if (!briefDraft.target_service.trim() || !briefDraft.target_segment.trim()) {
       setError('Confirme o serviço e o público que você quer alcançar.');
       return;
@@ -124,20 +151,26 @@ export default function NovaCampanhaPage() {
     try {
       const campaign = await createCampaign.mutateAsync({
         name: briefDraft.name || `${briefDraft.target_service} — ${briefDraft.target_segment}`,
-        analysis_profile: briefDraft.analysis_profile,
+        analysis_profile: vertente.analysis_profile,
         target_service: briefDraft.target_service,
         target_segment: briefDraft.target_segment,
         target_city: briefDraft.target_city || undefined,
         target_state: briefDraft.target_state || undefined,
         places_query: briefDraft.places_query || undefined,
-        offer_profile_key: offerKey,
+        offer_profile_key: vertente.key,
       });
+
+      // O preview pode ter criado/resolvido um adapter de scoring específico.
+      // Preserve essa decisão em vez de pedir ao pipeline que classifique de
+      // novo. Se a Vertente foi corrigida manualmente, handleOfferChange limpa
+      // o ID para que o adapter seja recalculado de forma coerente.
       if (briefDraft.scoring_template_id) {
         await updateCampaign.mutateAsync({
           id: campaign.id,
           data: { scoring_template_id: briefDraft.scoring_template_id },
         });
       }
+
       router.push(`/campanhas/${campaign.id}?start=true`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Não foi possível criar a campanha.');
@@ -150,18 +183,22 @@ export default function NovaCampanhaPage() {
       setError('Escolha o que você quer vender e informe o público que deseja alcançar.');
       return;
     }
+    const vertente = vertentes.find((item) => item.key === manual.offerKey);
+    if (!vertente) {
+      setError('A vertente escolhida não está disponível para esta organização.');
+      return;
+    }
     try {
-      const offer = OFFER_PROFILE_OPTIONS.find((item) => item.key === manual.offerKey);
-      const service = offer?.label ?? offerProfileLabel(manual.offerKey);
+      const service = vertente.name;
       const location = manual.city.trim() ? ` — ${manual.city.trim()}${manual.state ? `, ${manual.state}` : ''}` : '';
       const campaign = await createCampaign.mutateAsync({
         name: `${service} — ${manual.segment.trim()}${location}`,
-        analysis_profile: analysisProfileFor(manual.offerKey),
+        analysis_profile: vertente.analysis_profile,
         target_service: service,
         target_segment: manual.segment.trim(),
         target_city: manual.city.trim() || undefined,
         target_state: manual.state || undefined,
-        offer_profile_key: manual.offerKey,
+        offer_profile_key: vertente.key,
       });
       router.push(`/campanhas/${campaign.id}?start=true`);
     } catch (err) {
@@ -170,7 +207,19 @@ export default function NovaCampanhaPage() {
   };
 
   const busy = createCampaign.isPending || updateCampaign.isPending;
-  const suggestedOfferKey = selectedOfferKey ?? briefDraft?.offer_profile_key ?? undefined;
+
+  if (loadingVertentes) {
+    return <div className="mx-auto max-w-4xl py-16 text-center text-sm text-muted-foreground">Carregando as vertentes disponíveis...</div>;
+  }
+
+  if (vertentesError) {
+    return (
+      <div className="mx-auto flex max-w-4xl flex-col items-center gap-3 py-16 text-center">
+        <p className="text-sm text-muted-foreground">Não foi possível carregar as vertentes desta organização.</p>
+        <Button variant="outline" onClick={() => void refetchVertentes()}>Tentar novamente</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 pb-10">
@@ -185,13 +234,13 @@ export default function NovaCampanhaPage() {
         <PageHeader
           eyebrow="Nova prospecção"
           title="O que você quer vender?"
-          description="Descreva o objetivo como falaria com outra pessoa. O sistema prepara a estratégia de busca e qualificação para você."
+          description="Descreva o objetivo como falaria com outra pessoa. O sistema escolhe uma vertente e prepara a busca e a qualificação para você."
         />
       </div>
 
       <section className="grid gap-3 sm:grid-cols-3" aria-label="Como a prospecção funciona">
         <InfoCard icon={Target} title="Você define o objetivo" text="Diga o serviço e o tipo de cliente que procura." />
-        <InfoCard icon={Search} title="O sistema procura sinais reais" text="Empresas, eventos, contexto e pessoas são analisados antes do ranking." />
+        <InfoCard icon={Search} title="A vertente define a estratégia" text="Fontes, sinais, filtros e critérios vêm da mesma configuração comercial." />
         <InfoCard icon={ShieldCheck} title="Só sobe quem tem evidência" text="Falta de informação não vira ponto positivo nem fato inventado." />
       </section>
 
@@ -310,16 +359,16 @@ export default function NovaCampanhaPage() {
                 <div className="rounded-xl border p-4">
                   <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div className="min-w-0 space-y-1">
-                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estratégia identificada</p>
-                      <p className="font-semibold">{offerProfileLabel(suggestedOfferKey)}</p>
-                      <p className="max-w-xl text-sm text-muted-foreground">{offerProfileDescription(suggestedOfferKey)}</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Vertente recomendada</p>
+                      <p className="font-semibold">{suggestedVertente?.name ?? offerProfileLabel(suggestedOfferKey)}</p>
+                      <p className="max-w-xl text-sm text-muted-foreground">{suggestedVertente?.tagline || 'Estratégia comercial preparada para esta oferta.'}</p>
                       <p className="text-xs text-muted-foreground">{offerOriginLabel(briefDraft.offer_resolved_from)}.</p>
                     </div>
                     <div className="w-full md:w-72">
                       <Label htmlFor="offer">Corrigir, se necessário</Label>
-                      <Select value={suggestedOfferKey || ''} onValueChange={(value) => setSelectedOfferKey(value ?? null)}>
-                        <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha o serviço">{(value) => (value ? offerProfileLabel(value as string) : 'Escolha o serviço')}</SelectValue></SelectTrigger>
-                        <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
+                      <Select value={suggestedOfferKey || ''} onValueChange={(value) => handleOfferChange(value ?? null)}>
+                        <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha a vertente">{(value) => (value ? (vertentes.find((item) => item.key === value)?.name ?? offerProfileLabel(value as string)) : 'Escolha a vertente')}</SelectValue></SelectTrigger>
+                        <SelectContent>{vertentes.map((item) => <SelectItem key={item.key} value={item.key}>{item.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                   </div>
@@ -327,7 +376,7 @@ export default function NovaCampanhaPage() {
 
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <Button variant="outline" onClick={resetSuggestion} disabled={busy}>Voltar</Button>
-                  <Button onClick={() => void createFromAssistant()} disabled={busy}>
+                  <Button onClick={() => void createFromAssistant()} disabled={busy || !suggestedVertente}>
                     {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
                     Criar e buscar oportunidades
                   </Button>
@@ -340,16 +389,16 @@ export default function NovaCampanhaPage() {
         <Card>
           <CardHeader>
             <CardTitle>Preencher a prospecção</CardTitle>
-            <CardDescription>Escolha o serviço e o público. As fontes e os critérios de qualificação continuam automáticos.</CardDescription>
+            <CardDescription>Escolha a Vertente e o público. Fontes, pré-filtros, enriquecimento e critérios de qualificação vêm dela automaticamente.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="manual-offer">O que você quer vender</Label>
+              <Label htmlFor="manual-offer">Vertente</Label>
               <Select value={manual.offerKey} onValueChange={(offerKey) => setManual((current) => ({ ...current, offerKey: offerKey ?? '' }))}>
-                <SelectTrigger id="manual-offer"><SelectValue>{(value) => offerProfileLabel(value as string)}</SelectValue></SelectTrigger>
-                <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
+                <SelectTrigger id="manual-offer"><SelectValue>{(value) => vertentes.find((item) => item.key === value)?.name ?? offerProfileLabel(value as string)}</SelectValue></SelectTrigger>
+                <SelectContent>{vertentes.map((item) => <SelectItem key={item.key} value={item.key}>{item.name}</SelectItem>)}</SelectContent>
               </Select>
-              {selectedOffer ? <p className="text-sm text-muted-foreground">{selectedOffer.description}</p> : null}
+              {selectedOffer ? <p className="text-sm text-muted-foreground">{selectedOffer.tagline}</p> : null}
             </div>
 
             <Field label="Quem você quer encontrar" htmlFor="manual-segment">
@@ -369,10 +418,10 @@ export default function NovaCampanhaPage() {
             </div>
 
             <div className="rounded-xl bg-muted/40 p-4 text-sm">
-              <div className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><p><span className="font-medium">Você não precisa escolher onde procurar.</span> O sistema usa as fontes adequadas para a oferta, cruza evidências e prioriza os melhores candidatos.</p></div>
+              <div className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><p><span className="font-medium">A Vertente cuida da estratégia.</span> O sistema usa as fontes, sinais e critérios declarados nela e mantém a campanha vinculada a essa Vertente efetiva.</p></div>
             </div>
 
-            <Button onClick={() => void createManual()} disabled={busy}>
+            <Button onClick={() => void createManual()} disabled={busy || !selectedOffer}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
               Criar e buscar oportunidades
             </Button>

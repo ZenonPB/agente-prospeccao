@@ -35,12 +35,13 @@ def test_existing_profiles_receive_phase5_signals_without_penalizing_unknowns():
     manual = registry.get("machine_manual")
 
     assert landing is not None and "WEAK_CTA" in landing.signals["optional_positive"]
-    assert mechanical is not None and "EXPANDING_FACTORY" in mechanical.signals["optional_positive"]
-    assert drawing is not None and "REVERSE_ENGINEERING" in drawing.signals["optional_positive"]
-    assert manual is not None and "NR12" in manual.signals["optional_positive"]
-    # Alterar pesos/gates muda a semântica de scoring e precisa gerar versão
-    # nova para manter attribution e rollback confiáveis.
-    assert all(profile.version == "2.0" for profile in (landing, mechanical, drawing, manual))
+    assert mechanical is not None and "HAS_CNPJ" in mechanical.signals["optional_positive"]
+    assert drawing is not None and "HAS_CNPJ" in drawing.signals["optional_positive"]
+    assert manual is not None and "HAS_CNPJ" in manual.signals["optional_positive"]
+    # A equalização de engenharia muda pesos, gates e estratégia e, portanto,
+    # avança a versão para preservar attribution e rollback. Landing não mudou.
+    assert landing.version == "2.0"
+    assert all(profile.version == "2.1" for profile in (mechanical, drawing, manual))
 
 
 def test_phase5_signal_registry_contains_offer_specific_vocabulary():

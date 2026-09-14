@@ -9,6 +9,7 @@ workspace A contamine a construção do workspace B em fluxos concorrentes.
 """
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from database.learning_models import OfferProfileVersion
@@ -16,8 +17,12 @@ from services.prospecting.default_profiles import get_base_registry
 from services.prospecting.offer_profile import OfferProfile, OfferProfileRegistry
 from services.prospecting.offer_profile_validator import validate_profile
 
+logger = logging.getLogger(__name__)
+
 
 def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegistry:
+    # O catálogo base já contém as políticas e a equalização factory. Copiamos
+    # seus profiles para um registry novo antes de aplicar qualquer overlay.
     registry = OfferProfileRegistry()
     for profile in get_base_registry().list():
         registry.register(profile)
@@ -31,7 +36,30 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
     ).all()
     for row in rows:
         snapshot = dict(row.profile_snapshot or {})
-        profile = OfferProfile.from_dict(snapshot)
+        try:
+            profile = OfferProfile.from_dict(snapshot)
+        except (TypeError, ValueError):
+            logger.warning("OfferProfile ativo inválido ignorado: org=%s row=%s", organization_id, getattr(row, "id", None))
+            continue
+
+        # A coluna relacional é a âncora de integridade em runtime. Alguns
+        # doubles unitários históricos representam apenas `profile_snapshot`;
+        # nesses casos a própria identidade do snapshot preserva o contrato
+        # antigo sem enfraquecer a validação das linhas ORM reais.
+        row_offer_key = getattr(row, "offer_key", profile.key)
+        row_version = getattr(row, "version", profile.version)
+        if str(profile.key) != str(row_offer_key) or str(profile.version) != str(row_version):
+            logger.warning(
+                "OfferProfile ativo com identidade divergente ignorado: org=%s row=%s row_key=%s snapshot_key=%s row_version=%s snapshot_version=%s",
+                organization_id,
+                getattr(row, "id", None),
+                row_offer_key,
+                profile.key,
+                row_version,
+                profile.version,
+            )
+            continue
+
         problems = [
             problem
             for problem in validate_profile(profile)
@@ -39,6 +67,12 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
         ]
         if problems:
             # Publicações inválidas não entram silenciosamente no runtime.
+            logger.warning(
+                "OfferProfile ativo semanticamente inválido ignorado: org=%s key=%s problemas=%s",
+                organization_id,
+                row_offer_key,
+                "; ".join(str(item) for item in problems),
+            )
             continue
         registry.register(profile)
     return registry

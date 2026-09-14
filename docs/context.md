@@ -25,6 +25,27 @@ sequences/workflows/tasks, Kanban, CRM sync, Historical Importer, analytics,
 Filter Context, feedback, controlled learning, Opportunity 360 editável,
 Company/Person 360 read-only e OfferProfile efetivo tenant-safe no pipeline.
 
+### Vertentes
+
+No produto, **Vertente** é a estratégia comercial completa de uma oferta. Sua
+representação técnica canônica é o `OfferProfile` efetivo do workspace.
+
+- catálogo factory + versão ativa da organização formam a Vertente efetiva;
+- equalizações do catálogo factory acontecem antes dos overlays tenant-scoped;
+- `CampaignScoringTemplate` permanece apenas como compatibilidade da etapa de
+  avaliação, sem competir com o OfferProfile por ICP/discovery/pesos/timing;
+- `/api/vertentes` entrega a estratégia efetiva já agregada para a UI;
+- `/configuracoes/vertentes` usa essa API e oferece visão simples e avançada da
+  mesma configuração;
+- critérios de scoring personalizados legados continuam acessíveis em uma área
+  avançada separada enquanto a migração permanece gradual;
+- campanhas novas selecionam uma Vertente por `offer_profile_key`; o backend
+  valida a chave no registry efetivo da organização e deriva o profile de
+  análise, impedindo combinações contraditórias;
+- o catálogo factory possui gate explícito de maturidade e Golden Paths. A
+  AlphaMec prioriza Troféus/MEJ, Troféus esportivos e as ofertas de Engenharia,
+  sem deixar Impressão 3D e Laser abaixo do contrato mínimo.
+
 O Bloco A adiciona a camada de Prospecting Intelligence de produção:
 
 - Golden Paths de landing pages, sistemas web sob medida, engenharia mecânica e

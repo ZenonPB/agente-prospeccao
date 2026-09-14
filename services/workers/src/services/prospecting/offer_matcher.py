@@ -149,12 +149,12 @@ class OfferMatcher:
             cap = int(quality_gates.get("max_score_without_strong_evidence") or 100)
             if score > cap:
                 score = cap
-                capped_by.append("missing_strong_evidence")
+            capped_by.append("missing_strong_evidence")
         if min_observed and observed_count < min_observed:
             cap = int(quality_gates.get("max_score_with_sparse_evidence") or 100)
             if score > cap:
                 score = cap
-                capped_by.append("sparse_evidence")
+            capped_by.append("sparse_evidence")
 
         if strong_matched and score >= int(quality_gates.get("high_confidence_score") or 80):
             confidence_band = "high"
