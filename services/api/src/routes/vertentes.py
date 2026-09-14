@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from src.auth.dependencies import get_user_organization, require_analyst
+from src.auth.dependencies import get_user_membership, get_user_organization
 from src.db.dependencies import get_db
 from src.db.models import Organization, OrganizationMember
 from src.services.vertente_service import VertenteService
@@ -14,8 +14,14 @@ router = APIRouter(prefix="/vertentes", tags=["vertentes"])
 def list_vertentes(
     db: Session = Depends(get_db),
     org: Organization = Depends(get_user_organization),
-    _member: OrganizationMember = Depends(require_analyst()),
+    _member: OrganizationMember = Depends(get_user_membership),
 ):
+    """Lista a estratégia efetiva para qualquer membro autenticado da organização.
+
+    Esta é uma superfície somente leitura usada também pela criação operacional
+    de campanhas. Consultores precisam acessá-la; gates de analyst/manager ficam
+    reservados para BI e mutações administrativas.
+    """
     items = VertenteService(db, org.id).list()
     return {"items": items, "total": len(items)}
 
@@ -25,7 +31,7 @@ def get_vertente(
     offer_key: str,
     db: Session = Depends(get_db),
     org: Organization = Depends(get_user_organization),
-    _member: OrganizationMember = Depends(require_analyst()),
+    _member: OrganizationMember = Depends(get_user_membership),
 ):
     item = VertenteService(db, org.id).get(offer_key)
     if item is None:
