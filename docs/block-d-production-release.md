@@ -47,7 +47,7 @@ Isto prova o procedimento em PostgreSQL efêmero de CI. Não substitui política
 - mais de uma versão ativa de OfferProfile no mesmo workspace/oferta;
 - drift de cabeça Alembic.
 
-O endpoint interno de serviço também distingue DB pronta, integridade tenant, provider opt-in e autorização humana para live outreach. Health verde sozinho não é tratado como prova de worker/provider/campanha.
+O serviço interno do Bloco D também distingue DB pronta, integridade tenant, provider opt-in e autorização humana para live outreach. Health verde sozinho não é tratado como prova de worker/provider/campanha.
 
 ## D3 — Campanhas controladas e calibração final
 
