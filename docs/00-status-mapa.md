@@ -1,7 +1,7 @@
 # Mapa de status — fonte de verdade operacional
 
 > **LIVE · atualizado em 2026-09-14.** Código/migrations/testes prevalecem.
-> Leia também `docs/README.md`, `docs/roadmap.md` e `docs/block-d-production-release.md`.
+> Leia também `docs/README.md`, `docs/roadmap.md`, `docs/block-d-production-release.md` e `docs/block-e-alphamec-1.0.md`.
 
 Legenda: ✅ completo no escopo técnico atual · 🟠 depende de evidência externa/produção · ⬜ pendente.
 
@@ -45,6 +45,7 @@ Legenda: ✅ completo no escopo técnico atual · 🟠 depende de evidência ext
 | UAT multi-workspace — D1 | ✅ | cenário adversarial AlphaMec × Vendas Samuel e Zenon no PostgreSQL real, mesmo usuário em papéis distintos, UUID cross-tenant conhecido, dados espelhados e registry efetivo isolado. |
 | Production readiness — D2 | ✅ | retry/backoff/circuit-breaker/cache tenant-first/redaction, verifier fail-closed, migrations idempotentes e backup→restore ensaiado na CI; health isolado não é tratado como prova de provider. |
 | Campaign release + medição — D3 | ✅ | matriz das principais ofertas, DRY_RUN/REHEARSAL, LIVE_AUTHORIZED fail-closed, teto de custo/contatos e funil observacional canônico com attribution/calibration readiness. |
+| AlphaMec 1.0 — Bloco E | ✅ | navegação simplificada, ajuda orientada ao fluxo real, tutorial robusto pausável/retomável, API 1.0 e diagnóstico manual seguro de Google/Groq/Hunter sem exposição de segredos. |
 | Campanhas externas AlphaMec com outcomes reais | 🟠 | dependem de contatos, consentimento/base aplicável, credenciais/provider habilitado no workspace e autorização humana em produção; CI não fabrica conversão. |
 
 ## Limites do estado atual
@@ -53,18 +54,22 @@ Legenda: ✅ completo no escopo técnico atual · 🟠 depende de evidência ext
 - O Bloco B está tecnicamente fechado como sistema operacional de vendas.
 - O Bloco C está tecnicamente fechado: calibração, replay, aprovação, publicação, rollback e coaching possuem gates automatizados. Os thresholds são proteções de produto; sua eficácia comercial depende de amostra real.
 - O Bloco D fecha tecnicamente o UAT multi-workspace, o production rehearsal e o contrato seguro para campanhas controladas. O rehearsal usa PostgreSQL real e nunca é apresentado como contato comercial real.
+- O Bloco E fecha a experiência 1.0: simplifica a linguagem, orienta o fluxo operacional, permite pausar/retomar o tutorial e oferece teste manual das conexões sem persistir ou devolver chaves em claro.
 - `precision@K`, resposta, reunião, proposta, contrato e receita **de mercado** só podem ser afirmados após campanhas externas autorizadas com outcomes atribuídos.
 - Contexto de evento e estimativas derivadas permanecem `INFERENCE`; ausência de evidência permanece `UNKNOWN`.
 - Backup/restore da CI prova o procedimento técnico em PostgreSQL efêmero; retenção, criptografia at-rest e restauração do backup real continuam responsabilidade do ambiente de produção.
 
-## Fechamento técnico do RC
+## Release técnico AlphaMec 1.0
 
-A/B/C/D possuem gates automatizados. O merge do Bloco D exige, no mesmo HEAD, Web lint/TypeScript/build, compileall + pytest `-W error`, migrations/seed/verifiers, backup→restore e todos os E2E PostgreSQL dos blocos anteriores mais o UAT D1/D2/D3. Após o merge, a mesma CI deve passar novamente na `main`.
+A/B/C/D/E possuem gates automatizados. O merge da 1.0 exige, no mesmo HEAD, Web lint/TypeScript/build, compileall + pytest `-W error`, migrations/seed/verifiers, backup→restore, todos os E2E PostgreSQL anteriores e o gate de provider diagnostics. Após o merge, a mesma CI deve passar novamente na `main`.
+
+Segredos reais usados localmente permanecem fora do Git e da CI. O diagnóstico ao vivo consome o `.env` ou secret store do ambiente em que a aplicação roda; os testes automatizados usam doubles/placeholders e verificam explicitamente que nenhum segredo chega à resposta.
 
 ## Próxima fase — evidência operacional real
 
 1. Autorizar explicitamente uma amostra controlada por oferta no workspace AlphaMec.
 2. Habilitar somente os providers necessários, com quota e teto de custo.
-3. Rodar as campanhas externas com provenance/correlation/outcome attribution.
-4. Aguardar volume suficiente para `calibration_ready` e usar o Bloco C para replay e aprovação humana de qualquer mudança.
-5. Registrar performance e incidentes do ambiente real sem reclassificar ausência de evidência como sucesso.
+3. Usar `Testar conexões` no ambiente real antes de liberar a operação.
+4. Rodar campanhas externas com provenance/correlation/outcome attribution.
+5. Aguardar volume suficiente para `calibration_ready` e usar o Bloco C para replay e aprovação humana de qualquer mudança.
+6. Registrar performance e incidentes do ambiente real sem reclassificar ausência de evidência como sucesso.
