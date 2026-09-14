@@ -24,6 +24,7 @@ from src.config.settings import settings
 from src.db.session import SessionLocal
 from src.db.models import Job, JobStatus
 from src.services.observability import log_job_event
+from src.services.import_job_service import claim_next_import_job, process_import_job
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +37,30 @@ _CLAIM_SQL = text(
     WHERE id = (
         SELECT id FROM jobs
         WHERE status = :pending
+          AND organization_id IS NOT NULL
         ORDER BY created_at ASC
         LIMIT 1
         FOR UPDATE SKIP LOCKED
     )
-    RETURNING id, campaign_id, payload
+    RETURNING id, organization_id, campaign_id, payload
     """
 )
+
+
+def _fail_orphan_pipeline_jobs(db) -> None:
+    """Falha fechado em jobs legados órfãos sem executar pipeline."""
+    orphaned = db.query(Job).filter(
+        Job.status == JobStatus.PENDING,
+        Job.organization_id.is_(None),
+    ).all()
+    if not orphaned:
+        return
+    for job in orphaned:
+        job.status = JobStatus.FAILED
+        job.completed_at = datetime.now(timezone.utc)
+        job.error_message = "Job rejeitado: organization_id ausente."
+        log_job_event("job_rejected_missing_organization", job_id=str(job.id), campaign_id=str(job.campaign_id) if job.campaign_id else None)
+    db.commit()
 
 
 def _claim_next_job(db) -> Job | None:
@@ -54,8 +72,12 @@ def _claim_next_job(db) -> Job | None:
     if not row:
         return None
     job_id = str(row[0])
+    organization_id = row[1]
     db.commit()
-    return db.query(Job).filter(Job.id == job_id).first()
+    return db.query(Job).filter(
+        Job.id == job_id,
+        Job.organization_id == organization_id,
+    ).first()
 
 
 def _reclaim_stale_jobs(db) -> None:
@@ -151,7 +173,10 @@ async def _run_job(job: Job) -> None:
                     connections.remove(ws)
         final_db = SessionLocal()
         try:
-            final_job = final_db.query(Job).filter(Job.id == job.id).first()
+            final_job = final_db.query(Job).filter(
+                Job.id == job.id,
+                Job.organization_id == job.organization_id,
+            ).first()
             if final_job:
                 event_name = (
                     "job_completed"
@@ -189,7 +214,10 @@ async def _run_job(job: Job) -> None:
         )
         db = SessionLocal()
         try:
-            row = db.query(Job).filter(Job.id == job.id).first()
+            row = db.query(Job).filter(
+                Job.id == job.id,
+                Job.organization_id == job.organization_id,
+            ).first()
             if row:
                 row.status = JobStatus.FAILED
                 row.error_message = str(e)[:2000]
@@ -199,17 +227,30 @@ async def _run_job(job: Job) -> None:
             db.close()
 
 
+async def _run_import_job(job_id: str, organization_id: str) -> None:
+    """Executa o import síncrono de ORM fora do event loop da API."""
+    try:
+        await asyncio.to_thread(process_import_job, job_id, organization_id)
+    except Exception:  # noqa: BLE001 — o serviço persiste o estado de falha
+        logger.exception("Import job %s falhou fora do consumer", job_id)
+
+
 async def job_consumer_loop() -> None:
-    """Loop de fundo: consome Jobs PENDING um por vez (poll JOB_POLL_SECONDS)."""
+    """Loop de fundo: consome imports e Jobs PENDING com isolamento tenant-first."""
     while True:
         try:
             db = SessionLocal()
             try:
                 _reclaim_stale_jobs(db)
-                job = _claim_next_job(db)
+                _fail_orphan_pipeline_jobs(db)
+                import_job = claim_next_import_job(db)
+                job = None if import_job else _claim_next_job(db)
             finally:
                 db.close()
-            if job is not None:
+            if import_job is not None:
+                logger.info("Job-consumer: executando import %s (org=%s)", import_job[0], import_job[1])
+                await _run_import_job(import_job[0], import_job[1])
+            elif job is not None:
                 logger.info("Job-consumer: executando job %s (%s)", job.id, job.job_type.value)
                 await _run_job(job)
         except Exception as e:  # noqa: BLE001 — o loop nunca pode morrer

@@ -1,8 +1,10 @@
 # CRM 360 — gap map
 
-> **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only foi entregue
-> no PR #171. Company 360 e Person 360 read-only foram entregues no PR #172.
-> A edição operacional da Opportunity 360 foi concluída no PR #173.
+> **LIVE · atualizado em 2026-09-13.** Opportunity 360 read-only, Company 360 e
+> Person 360 read-only estão entregues. A edição operacional da Opportunity 360
+> também está entregue. O Historical Importer backend + frontend está integrado,
+> e o bulk de leads B6 foi implementado sem encerrar ainda todas as provas de
+> produção PostgreSQL e browser.
 
 ## Modelo canônico reutilizado
 
@@ -21,6 +23,16 @@
 | Resultado | `CommercialOutcomeRow` / `Conversion` |
 | Próxima ação | `NextBestActionDecision` + campos de Lead |
 
+## Historical Importer
+
+O fluxo backend e frontend está integrado em
+`apps/web/src/components/campanhas/csv-import-modal.tsx`, com upload
+CSV/XLSX, preview, dry-run, confirmação, processamento assíncrono e relatório
+de linhas. O novo lifecycle mantém Company/Person/Lead/Contact e
+CompanyAlias canônicos, dedupe conservador, provenance, idempotência e estados
+explícitos; import síncrono de campanha e webhook permanecem compatibilidade
+legada.
+
 ## Opportunity 360
 
 ### Leitura entregue
@@ -36,7 +48,7 @@
 - UI comercial com estados loading/error/empty;
 - testes PostgreSQL de cross-tenant e query-count.
 
-### Edição operacional — PR #173
+### Edição operacional
 
 Entregue:
 
@@ -62,15 +74,39 @@ Entregue:
 
 ### Gap restante
 
-- ações em massa e search/filter integrados ao CRM;
+- export server-side auditável;
+- saved views, global search e ações em massa globais integradas ao CRM;
+- E2E/migration/schema/concorrência/tenant real PostgreSQL para B6;
 - decidir via UAT se `Lead.notes` basta ou se notas precisam entidade
   append-only própria;
 - propostas/contratos só devem virar entidades quando houver ciclo de vida real;
-- importar histórico AlphaMec com dedupe e auditoria.
+- UAT multi-workspace.
+
+### Bulk de leads — B6
+
+Entregue no backend e frontend:
+
+- `GET /api/leads` aditivo, com cursor estável e compatibilidade offset;
+- `POST /api/leads/bulk/preview` e `POST /api/leads/bulk/execute`;
+- operações allowlist `status` e `assign`, máximo de 100 registros e fluxo
+  preview → confirmação → execute;
+- resultados `accepted`, `duplicate`, `rejected` e `failed`;
+- `expected_updated_at` fail-closed, tenant/RBAC e `CommercialBulkOperation`
+  como ledger técnico;
+- migration `f2b3c4d5e6f7` para backfill/default de `Lead.updated_at`;
+- bulk status com transição canônica, `LeadActivity`/outcome e cancelamento de
+  cadência em estados terminais;
+- frontend com cursor React Query, seleção limitada, estados parciais, retry
+  com a mesma idempotency key e preservação de rejeitados/falhos selecionados.
+
+B6 ainda não deve ser declarado totalmente concluído: E2E/migration/schema/
+concorrência/tenant real PostgreSQL, `verify_migrations` contra banco e
+browser/a11y/responsive smoke permanecem follow-ups bloqueados pela ausência de
+`E2E_DATABASE_URL`/browser.
 
 ## Company 360
 
-### Entregue no PR #172
+### Entregue
 
 - dados canônicos de Company;
 - aliases/origens;
@@ -93,7 +129,7 @@ Entregue:
 
 ## Person 360
 
-### Entregue no PR #172
+### Entregue
 
 - Person canônica + confiança/verificação/roteabilidade;
 - Company relacionada;

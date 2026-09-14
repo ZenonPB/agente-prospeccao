@@ -29,7 +29,8 @@ from sqlalchemy.orm import Session
 from src.db.dependencies import get_db
 from src.db.models import Organization, OrganizationMember
 from src.auth.dependencies import get_user_organization, require_analyst
-from src.services.analytics_service import AnalyticsService
+from src.services.analytics_service import AnalyticsService, metric_metadata
+from src.services.analytics_filters import CommercialFilterDTO, get_commercial_filters
 from src.services.pdf_report_service import build_report_pdf
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -41,6 +42,10 @@ def _valid_uuid(value: str) -> bool:
         return True
     except (ValueError, AttributeError, TypeError):
         return False
+
+
+def _analytics_metric_meta(analytics: AnalyticsService, filters: CommercialFilterDTO) -> dict:
+    return metric_metadata(analytics._leads(filters=filters).order_by(None).count())
 
 
 def _get_analytics(
@@ -56,9 +61,10 @@ def _get_analytics(
 def overview(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    return analytics.overview(from_date=from_date, to_date=to_date)
+    return analytics.overview(from_date=from_date, to_date=to_date, filters=filters)
 
 
 @router.get("/executive-metrics")
@@ -67,6 +73,7 @@ def executive_metrics(
     to_date: Optional[str] = Query(None, alias="to"),
     campaign_id: Optional[str] = Query(None),
     k: int = Query(10, ge=1, le=100),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     """Expõe métricas executivas org-scoped sem efeitos colaterais."""
@@ -75,6 +82,7 @@ def executive_metrics(
         to_date=to_date,
         campaign_id=campaign_id,
         k=k,
+        filters=filters,
     )
 
 
@@ -84,6 +92,7 @@ def funnel(
     to_date: Optional[str] = Query(None, alias="to"),
     campaign_id: Optional[str] = Query(None),
     consultant_id: Optional[str] = Query(None),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     """Funil ponta-a-ponta — achados → fechamento.
@@ -95,6 +104,7 @@ def funnel(
         to_date=to_date,
         campaign_id=campaign_id,
         consultant_id=consultant_id,
+        filters=filters,
     )
 
 
@@ -102,9 +112,10 @@ def funnel(
 def consultants(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    return {"consultants": analytics.consultants(from_date=from_date, to_date=to_date)}
+    return {"consultants": analytics.consultants(from_date=from_date, to_date=to_date, filters=filters), **_analytics_metric_meta(analytics, filters)}
 
 
 @router.get("/consultants/{user_id}")
@@ -112,6 +123,7 @@ def consultant_detail(
     user_id: str,
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     """Perfil de um consultor (ANALYST/MANAGER-only): KPIs da planilha +
@@ -119,7 +131,7 @@ def consultant_detail(
     if not _valid_uuid(user_id):
         raise HTTPException(status_code=400, detail="Consultor inválido")
     detail = analytics.consultant_detail(
-        user_id, from_date=from_date, to_date=to_date,
+        user_id, from_date=from_date, to_date=to_date, filters=filters,
     )
     if detail is None:
         raise HTTPException(status_code=404, detail="Consultor não encontrado")
@@ -148,9 +160,10 @@ def consultant_activity(
 def forecast(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    return analytics.forecast(from_date=from_date, to_date=to_date)
+    return analytics.forecast(from_date=from_date, to_date=to_date, filters=filters)
 
 
 @router.get("/leads-ranking")
@@ -159,7 +172,8 @@ def leads_ranking(
     campaign_id: Optional[str] = Query(None),
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     return analytics.leads_ranking(
@@ -168,6 +182,7 @@ def leads_ranking(
         from_date=from_date,
         to_date=to_date,
         limit=limit,
+        filters=filters,
     )
 
 
@@ -175,18 +190,20 @@ def leads_ranking(
 def geo(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    return analytics.geo(from_date=from_date, to_date=to_date)
+    return analytics.geo(from_date=from_date, to_date=to_date, filters=filters)
 
 
 @router.get("/campaigns")
 def campaigns(
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    return {"campaigns": analytics.campaigns(from_date=from_date, to_date=to_date)}
+    return {"campaigns": analytics.campaigns(from_date=from_date, to_date=to_date, filters=filters), **_analytics_metric_meta(analytics, filters)}
 
 
 @router.get("/outcomes-breakdown")
@@ -196,6 +213,7 @@ def outcomes_breakdown(
     to_date: Optional[str] = Query(None, alias="to"),
     offer_key: Optional[str] = Query(None, max_length=64),
     offer_version: Optional[str] = Query(None, max_length=32),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
     """Cortes de BI sobre outcomes reais (P1.25).
@@ -211,6 +229,7 @@ def outcomes_breakdown(
             to_date=to_date,
             offer_key=offer_key,
             offer_version=offer_version,
+            filters=filters,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -221,9 +240,10 @@ def timeline(
     group_by: str = Query("day", pattern="^(day|week)$"),
     from_date: Optional[str] = Query(None, alias="from"),
     to_date: Optional[str] = Query(None, alias="to"),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     analytics: AnalyticsService = Depends(_get_analytics),
 ):
-    return {"timeline": analytics.timeline(group_by=group_by, from_date=from_date, to_date=to_date)}
+    return {"timeline": analytics.timeline(group_by=group_by, from_date=from_date, to_date=to_date, filters=filters), **_analytics_metric_meta(analytics, filters)}
 
 
 @router.get("/threshold-suggestion")
@@ -391,6 +411,7 @@ def export_pdf(
     to_date: Optional[str] = Query(None, alias="to"),
     org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(require_analyst()),
+    filters: CommercialFilterDTO = Depends(get_commercial_filters),
     db: Session = Depends(get_db),
 ):
     """Exporta o relatório executivo completo em PDF (ANALYST/MANAGER-only).
@@ -403,6 +424,7 @@ def export_pdf(
         pdf_bytes = build_report_pdf(
             db, org_name=org.name or "Minha organização", org_id=org.id,
             from_date=from_date, to_date=to_date,
+            filters=filters,
         )
     except RuntimeError as exc:
         raise HTTPException(

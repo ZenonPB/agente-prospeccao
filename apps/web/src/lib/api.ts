@@ -1,5 +1,5 @@
 import { getSession } from "next-auth/react";
-import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult, LeadOpportunity, EventOpportunity, CommercialOutcome, CommercialOutcomeMetric, CommercialComparison } from "@/types";
+import type { Lead, Campaign, Enrichment, PitchOnePager, CsvImportResult, LeadOpportunity, EventOpportunity, CommercialOutcome, CommercialOutcomeMetric, CommercialComparison, BulkLeadCommand, BulkLeadPreviewResponse, BulkLeadExecuteResponse } from "@/types";
 import type { OutreachMessages } from "@/types";
 import type { OrgMembership, OrganizationMember, SalesRole, LeadCadence, FollowUpItem, FollowUpVersion, ConsultantPlaybook, LeadDuplicate } from "@/types";
 import { getActiveOrganizationId } from "@/lib/active-organization";
@@ -74,20 +74,31 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
   });
 
   if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    // FastAPI devolve {detail: "..."} (ou lista de erros de validação).
+    const body: unknown = await response.json().catch(() => null);
+    // FastAPI devolve {detail: "..."}, {detail: {code, message}} ou erros de validação.
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      typeof value === "object" && value !== null;
+    const detail = isRecord(body) ? body.detail : undefined;
     let message: string;
-    if (body && typeof body.detail === "string") {
-      message = body.detail;
-    } else if (Array.isArray(body?.detail) && body.detail.length > 0) {
-      const first = body.detail[0];
-      message = typeof first === "object" && first.msg ? first.msg : JSON.stringify(first);
-    } else if (body && typeof body.message === "string") {
+    if (typeof detail === "string") {
+      message = detail;
+    } else if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0];
+      message = isRecord(first) && typeof first.msg === "string"
+        ? first.msg
+        : JSON.stringify(first);
+    } else if (isRecord(detail) && typeof detail.message === "string") {
+      message = detail.message;
+    } else if (isRecord(body) && typeof body.message === "string") {
       message = body.message;
     } else {
-      message = body?.detail || `Erro ${response.status}: ${response.statusText}`;
+      message = `Erro ${response.status}: ${response.statusText}`;
     }
-    throw new Error(message);
+    const error = new Error(message);
+    if (isRecord(detail) && typeof detail.code === "string") {
+      Object.assign(error, { code: detail.code });
+    }
+    throw error;
   }
 
   if (responseType === "blob") {
@@ -109,7 +120,20 @@ export const leadsApi = {
     next_action_before?: string;
     limit?: number;
     offset?: number;
-  }) => request<{ leads: Lead[]; total: number }>("/api/leads", { params: params as Record<string, string | number | boolean | undefined> }),
+    cursor?: string;
+  }) => request<{ leads: Lead[]; total: number; next_cursor?: string | null }>("/api/leads", { params: params as Record<string, string | number | boolean | undefined> }),
+
+  previewBulk: (body: BulkLeadCommand) =>
+    request<BulkLeadPreviewResponse>("/api/leads/bulk/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  executeBulk: (body: BulkLeadCommand & { idempotency_key: string }) =>
+    request<BulkLeadExecuteResponse>("/api/leads/bulk/execute", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   get: (id: string) => request<Lead & { enrichment?: Enrichment }>(`/api/leads/${id}`),
 
@@ -481,6 +505,57 @@ export const campaignsApi = {
     }),
 };
 
+export const importsApi = {
+  upload: (campaignId: string, file: File, idempotencyKey?: string) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request<import("@/types").ImportJob>("/api/imports", {
+      method: "POST",
+      params: { campaign_id: campaignId },
+      body: formData,
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    });
+  },
+
+  get: (importId: string) =>
+    request<import("@/types").ImportJob>(`/api/imports/${importId}`),
+
+  rows: (importId: string, params?: { status?: import("@/types").ImportRowStatus; offset?: number; limit?: number }) =>
+    request<import("@/types").ImportRowsResponse>(`/api/imports/${importId}/rows`, {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }),
+
+  dryRun: (importId: string, body: { mapping: import("@/types").ImportMapping; expected_version: number }) =>
+    request<import("@/types").ImportDryRunResponse>(`/api/imports/${importId}/dry-run`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  confirm: (importId: string, body: {
+    mapping: import("@/types").ImportMapping;
+    mapping_version: string;
+    expected_version: number;
+    idempotency_key: string;
+  }) =>
+    request<import("@/types").ImportJob>(`/api/imports/${importId}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(body),
+      headers: { "Idempotency-Key": body.idempotency_key },
+    }),
+
+  cancel: (importId: string, expectedVersion?: number) =>
+    request<import("@/types").ImportJob>(`/api/imports/${importId}/cancel`, {
+      method: "POST",
+      body: expectedVersion === undefined ? undefined : JSON.stringify({ expected_version: expectedVersion }),
+    }),
+
+  recover: (importId: string, expectedVersion: number) =>
+    request<import("@/types").ImportJob>(`/api/imports/${importId}/recover`, {
+      method: "POST",
+      body: JSON.stringify({ expected_version: expectedVersion }),
+    }),
+};
+
 export const intelligenceApi = {
   events: (limit = 100) => request<{ events: EventOpportunity[]; total: number }>("/api/intelligence/events", { params: { limit } }),
   outcomes: (params?: { offer_key?: string; offer_version?: string; from?: string; to?: string }) =>
@@ -658,6 +733,88 @@ export const orgsApi = {
     }),
 };
 
+export type CommercialFilterArrayKey = "channel" | "status" | "score_bucket" | "outcome";
+export type CommercialFilterKey =
+  | "from"
+  | "to"
+  | "campaign_id"
+  | "consultant_id"
+  | "offer_key"
+  | "offer_version"
+  | CommercialFilterArrayKey
+  | "attribution"
+  | "search"
+  | "cursor";
+export type CommercialFilterValue = string | string[] | undefined;
+
+export interface CommercialFilterSnapshot {
+  from?: string;
+  to?: string;
+  campaign_id?: string;
+  consultant_id?: string;
+  offer_key?: string;
+  offer_version?: string;
+  channel?: string[];
+  status?: string[];
+  score_bucket?: string[];
+  outcome?: string[];
+  attribution?: "attributed" | "unattributed";
+  search?: string;
+  cursor?: string;
+}
+
+export type CommercialFilterParams = CommercialFilterSnapshot & {
+  limit?: number;
+};
+
+type AnalyticsQueryValue = string | number | boolean | undefined;
+
+const COMMERCIAL_FILTER_KEYS: ReadonlyArray<keyof CommercialFilterParams> = [
+  "from",
+  "to",
+  "campaign_id",
+  "consultant_id",
+  "offer_key",
+  "offer_version",
+  "channel",
+  "status",
+  "score_bucket",
+  "outcome",
+  "attribution",
+  "search",
+  "cursor",
+  "limit",
+];
+
+export function serializeCommercialFilterParams(
+  params?: CommercialFilterParams,
+): Record<string, AnalyticsQueryValue> {
+  const serialized: Record<string, AnalyticsQueryValue> = {};
+  if (!params) return serialized;
+
+  for (const key of COMMERCIAL_FILTER_KEYS) {
+    const value = params[key];
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      const values = [...new Set(value.map((item) => item.trim()).filter(Boolean))].sort();
+      if (values.length > 0) serialized[key] = values.join(",");
+    } else if (typeof value === "string") {
+      const normalized = value.trim();
+      if (normalized) serialized[key] = normalized;
+    } else {
+      serialized[key] = value;
+    }
+  }
+  return serialized;
+}
+
+function analyticsParams(
+  filters?: CommercialFilterParams,
+  extras?: Record<string, AnalyticsQueryValue>,
+): Record<string, AnalyticsQueryValue> {
+  return { ...serializeCommercialFilterParams(filters), ...extras };
+}
+
 export interface AnalyticsOverview {
   total_leads: number;
   qualified_leads: number;
@@ -832,88 +989,89 @@ export interface ExecutiveMetrics {
 }
 
 export const analyticsApi = {
-  overview: (params?: { from?: string; to?: string }) =>
+  overview: (filters?: CommercialFilterParams) =>
     request<AnalyticsOverview>("/api/analytics/overview", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  funnel: (params?: { from?: string; to?: string; campaign_id?: string; consultant_id?: string }) =>
+  funnel: (filters?: CommercialFilterParams) =>
     request<AnalyticsFunnel>("/api/analytics/funnel", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  executiveMetrics: (params?: { from?: string; to?: string; campaign_id?: string; k?: number }) =>
+  executiveMetrics: (params?: CommercialFilterParams & { k?: number }) =>
     request<ExecutiveMetrics>("/api/analytics/executive-metrics", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: analyticsParams(params, { k: params?.k }),
     }),
 
-  consultants: (params?: { from?: string; to?: string }) =>
+  consultants: (filters?: CommercialFilterParams) =>
     request<{ consultants: AnalyticsConsultant[] }>("/api/analytics/consultants", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  consultantDetail: (userId: string, params?: { from?: string; to?: string }) =>
+  consultantDetail: (userId: string, filters?: CommercialFilterParams) =>
     request<AnalyticsConsultantDetail>(`/api/analytics/consultants/${userId}`, {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  consultantActivity: (userId: string, params?: { limit?: number; from?: string; to?: string }) =>
+  consultantActivity: (
+    userId: string,
+    params?: CommercialFilterParams & { limit?: number },
+  ) =>
     request<{ activities: ConsultantActivity[] }>(
       `/api/analytics/consultants/${userId}/activity`,
-      {
-        params: params as Record<string, string | number | boolean | undefined>,
-      },
+      { params: serializeCommercialFilterParams(params) },
     ),
 
-  leadsRanking: (params?: { sort_by?: "score" | "converted" | "created"; campaign_id?: string; from?: string; to?: string; limit?: number }) =>
+  leadsRanking: (
+    params?: CommercialFilterParams & { sort_by?: "score" | "converted" | "created" },
+  ) =>
     request<{ sort_by: string; items: AnalyticsRankingItem[] }>("/api/analytics/leads-ranking", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: analyticsParams(params, { sort_by: params?.sort_by }),
     }),
 
-  geo: (params?: { from?: string; to?: string }) =>
+  geo: (filters?: CommercialFilterParams) =>
     request<{ cities: AnalyticsGeoCity[]; states: AnalyticsGeoState[] }>("/api/analytics/geo", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  campaigns: (params?: { from?: string; to?: string }) =>
+  campaigns: (filters?: CommercialFilterParams) =>
     request<{ campaigns: AnalyticsCampaign[] }>("/api/analytics/campaigns", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  timeline: (params?: { group_by?: "day" | "week"; from?: string; to?: string }) =>
+  timeline: (
+    params?: CommercialFilterParams & { group_by?: "day" | "week" },
+  ) =>
     request<{ timeline: AnalyticsTimelineItem[] }>("/api/analytics/timeline", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: analyticsParams(params, { group_by: params?.group_by }),
     }),
 
-  forecast: (params?: { from?: string; to?: string }) =>
+  forecast: (filters?: CommercialFilterParams) =>
     request<import("@/types").ForecastData>("/api/analytics/forecast", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  thresholdSuggestion: (params?: { from?: string; to?: string }) =>
+  thresholdSuggestion: (filters?: CommercialFilterParams) =>
     request<import("@/types").ThresholdSuggestion>("/api/analytics/threshold-suggestion", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  messageVariants: (params?: { from?: string; to?: string }) =>
+  messageVariants: (filters?: CommercialFilterParams) =>
     request<import("@/types").MessageVariants>("/api/analytics/message-variants", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  templateInsights: (params?: { from?: string; to?: string; campaign_id?: string }) =>
+  templateInsights: (filters?: CommercialFilterParams) =>
     request<import("@/types").TemplateInsights>("/api/analytics/template-insights", {
-      params: params as Record<string, string | number | boolean | undefined>,
+      params: serializeCommercialFilterParams(filters),
     }),
 
-  exportPdf: (params?: { from?: string; to?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.from) qs.set("from", params.from);
-    if (params?.to) qs.set("to", params.to);
-    const q = qs.toString();
-    return request<Blob>(`/api/analytics/export/pdf${q ? `?${q}` : ""}`, {
+  exportPdf: (filters?: CommercialFilterSnapshot) =>
+    request<Blob>("/api/analytics/export/pdf", {
+      params: serializeCommercialFilterParams(filters),
       responseType: "blob",
-    });
-  },
+    }),
 };
 
 export interface Playbook {

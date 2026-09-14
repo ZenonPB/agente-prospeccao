@@ -93,14 +93,21 @@ def import_leads_from_webhook(
     db: Session,
     campaign_id: str,
     leads_data: List[Dict[str, Any]],
+    organization_id: str,
 ) -> Dict[str, Any]:
     """Importa empresas a partir de um array de dicionários.
 
-    A campanha é resolvida pelo ID e o destino é a organização dona da
-    campanha (o webhook é autenticado por segredo compartilhado, não por
-    usuário). Retorna relatório estruturado com contagens e detalhes.
+    O workspace é obrigatório e deve ter sido resolvido pela credencial da
+    rota antes desta função. A campanha só é carregada pelo par
+    ``(organization_id, campaign_id)``; nunca há fallback para busca global.
     """
-    campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
+    if not organization_id:
+        raise ValueError("organization_id é obrigatório")
+    campaign_query = db.query(Campaign).filter(
+        Campaign.id == campaign_id,
+        Campaign.organization_id == organization_id,
+    )
+    campaign = campaign_query.first()
     if not campaign:
         raise ValueError("Campanha não encontrada")
 

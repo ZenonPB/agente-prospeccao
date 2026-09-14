@@ -16,7 +16,7 @@ def _module():
 
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
-    assert verify_migrations.migration_head() == "e4f5a6b7c8d9"
+    assert verify_migrations.migration_head() == "f8a9b0c1d2e3"
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -109,7 +109,19 @@ def test_verify_database_rejeita_fk_essencial_ausente(monkeypatch):
         def get_current_revision(self): return verify_migrations.migration_head()
     class _Inspector:
         def get_table_names(self): return verify_migrations.REQUIRED_TABLES
-        def get_indexes(self, _table): return [{"name": name} for name in verify_migrations.REQUIRED_INDEXES]
+        def get_indexes(self, table):
+            return [
+                {
+                    "name": name,
+                    "unique": table == "conversions" and name == "uq_conversions_lead_offer",
+                }
+                for name in verify_migrations.REQUIRED_INDEXES
+            ]
+        def get_check_constraints(self, table):
+            return [
+                {"name": name}
+                for name in verify_migrations.REQUIRED_CHECK_CONSTRAINTS.get(table, set())
+            ]
         def get_foreign_keys(self, _table): return []
         def get_unique_constraints(self, _table): return []
 
@@ -118,3 +130,128 @@ def test_verify_database_rejeita_fk_essencial_ausente(monkeypatch):
     monkeypatch.setattr(verify_migrations, "inspect", lambda _connection: _Inspector())
     with pytest.raises(RuntimeError, match="FKs ausentes"):
         verify_migrations.verify_database("postgresql://test")
+
+
+def test_operacoes_bulk_tem_schema_e_idempotencia_por_workspace():
+    verify_migrations = _module()
+    assert "commercial_bulk_operations" in verify_migrations.REQUIRED_TABLES
+    assert verify_migrations.REQUIRED_COLUMNS["commercial_bulk_operations"] == {
+        "organization_id", "actor_id", "idempotency_key", "operation",
+        "payload_hash", "status", "result", "created_at", "completed_at",
+    }
+    assert verify_migrations.REQUIRED_UNIQUES["commercial_bulk_operations"] == {
+        "uq_commercial_bulk_operations_org_idempotency",
+    }
+    assert "ix_commercial_bulk_operations_org_created" in verify_migrations.REQUIRED_INDEXES
+
+
+def _updated_at_migration():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "workers"
+        / "migrations"
+        / "versions"
+        / "f2b3c4d5e6f7_lead_updated_at_default.py"
+    )
+    spec = importlib.util.spec_from_file_location("lead_updated_at_migration", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_lead_updated_at_tem_default_e_onupdate_no_modelo():
+    from database.models import Lead
+
+    column = Lead.__table__.c.updated_at
+    assert column.server_default is not None
+    assert "now()" in str(column.server_default.arg).lower()
+    assert column.onupdate is not None
+
+
+def test_migration_de_updated_at_tem_backfill_e_default_aditivo(monkeypatch):
+    migration = _updated_at_migration()
+    executed = []
+    altered = []
+
+    class FakeOperations:
+        def execute(self, statement):
+            executed.append(str(statement))
+
+        def alter_column(self, *args, **kwargs):
+            altered.append((args, kwargs))
+
+    monkeypatch.setattr(migration, "op", FakeOperations())
+    migration.upgrade()
+
+    assert migration.revision == "f2b3c4d5e6f7"
+    assert migration.down_revision == "f1b2c3d4e5f6"
+    assert any("COALESCE(created_at, now())" in statement for statement in executed)
+    assert altered[0][0] == ("leads", "updated_at")
+    assert str(altered[0][1]["server_default"]) == "now()"
+
+
+def _schema_gate_migration():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "workers"
+        / "migrations"
+        / "versions"
+        / "f8a9b0c1d2e3_schema_integrity_gates.py"
+    )
+    spec = importlib.util.spec_from_file_location("schema_integrity_gates", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_schema_gate_exige_jobs_conversion_lost_reason_e_person():
+    verify_migrations = _module()
+    assert verify_migrations.REQUIRED_NOT_NULL_COLUMNS == {"jobs": {"organization_id"}}
+    assert verify_migrations.REQUIRED_CHECK_CONSTRAINTS == {
+        "jobs": {"ck_jobs_organization_required"},
+        "leads": {"ck_leads_lost_reason_required"},
+    }
+    assert verify_migrations.REQUIRED_UNIQUE_INDEXES == {
+        "conversions": {"uq_conversions_lead_offer"},
+    }
+    assert {
+        "ix_persons_org_document_cpf",
+        "ix_persons_org_email",
+    } <= verify_migrations.REQUIRED_INDEXES
+
+    from database.models import Job, Lead, Person
+
+    assert Job.__table__.c.organization_id.nullable is False
+    assert any(
+        constraint.name == "ck_leads_lost_reason_required"
+        for constraint in Lead.__table__.constraints
+    )
+    assert {
+        index.name for index in Person.__table__.indexes
+    } >= {"ix_persons_org_document_cpf", "ix_persons_org_email"}
+
+
+def test_schema_gate_faz_backfill_e_rejeicao_antes_do_not_null(monkeypatch):
+    migration = _schema_gate_migration()
+    executed: list[str] = []
+
+    class FakeOperations:
+        def execute(self, statement):
+            executed.append(str(statement))
+
+    monkeypatch.setattr(migration, "op", FakeOperations())
+    migration.upgrade()
+
+    statements = [statement.lower() for statement in executed]
+    backfill = next(index for index, statement in enumerate(statements) if "update jobs" in statement)
+    orphan_check = next(index for index, statement in enumerate(statements) if "jobs órfãos" in statement)
+    set_not_null = next(index for index, statement in enumerate(statements) if "set not null" in statement)
+    assert backfill < orphan_check < set_not_null
+    assert any("validate constraint ck_jobs_organization_required" in statement for statement in statements)
+    assert any("validate constraint ck_leads_lost_reason_required" in statement for statement in statements)
+    assert any("ix_persons_org_document_cpf" in statement for statement in statements)
+    assert any("ix_persons_org_email" in statement for statement in statements)

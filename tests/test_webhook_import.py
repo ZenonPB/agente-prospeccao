@@ -128,6 +128,7 @@ def test_importa_lead_com_fallback_de_cidade_estado_da_campanha():
     out = import_leads_from_webhook(
         db,
         campaign_id="c-1",
+        organization_id="org-1",
         leads_data=[{"name": "Usinagem Silva", "website": "usinagemsilva.com.br"}],
     )
 
@@ -145,6 +146,7 @@ def test_contato_so_e_criado_quando_ha_nome():
     out = import_leads_from_webhook(
         db,
         campaign_id="c-1",
+        organization_id="org-1",
         leads_data=[
             # E-mail sem decisor: não vira contato fantasma (contacts.name é NOT NULL).
             {"name": "Empresa A", "email": "contato@empresa.com.br"},
@@ -173,6 +175,7 @@ def test_nome_obrigatorio_por_linha():
     out = import_leads_from_webhook(
         db,
         campaign_id="c-1",
+        organization_id="org-1",
         leads_data=[{"name": "Empresa A"}, {"website": "semsite.com.br"}],
     )
 
@@ -188,6 +191,7 @@ def test_duplicata_por_website_nao_importa_de_novo():
     out = import_leads_from_webhook(
         db,
         campaign_id="c-1",
+        organization_id="org-1",
         leads_data=[{"name": "Usinagem Silva", "website": "usinagemsilva.com.br"}],
     )
 
@@ -203,6 +207,7 @@ def test_duplicata_por_cnpj_nao_importa_de_novo():
     out = import_leads_from_webhook(
         db,
         campaign_id="c-1",
+        organization_id="org-1",
         leads_data=[{"name": "Nome Fantasia", "cnpj": "12.345.678/0001-95"}],
     )
 
@@ -217,6 +222,7 @@ def test_sem_cidade_em_linha_nem_campanha_nao_quebra_o_fluxo():
     out = import_leads_from_webhook(
         db,
         campaign_id="c-1",
+        organization_id="org-1",
         leads_data=[{"name": "Indústria X"}],
     )
     assert out["imported_count"] == 1
@@ -233,7 +239,7 @@ def test_campanha_inexistente_levanta_valueerror():
 
     with pytest.raises(ValueError):
         import_leads_from_webhook(
-            _EmptyDb(), campaign_id="nao-existe", leads_data=[{"name": "X"}],
+            _EmptyDb(), campaign_id="nao-existe", organization_id="org-1", leads_data=[{"name": "X"}],
         )
 
 
@@ -276,7 +282,10 @@ def test_webhook_import_via_http_com_segredo_importa_lead(monkeypatch):
 
     resp = client.post(
         "/api/webhooks/import",
-        headers={"X-Webhook-Secret": "segredo-teste"},
+        headers={
+            "X-Webhook-Secret": "segredo-teste",
+            "X-Organization-Id": "00000000-0000-0000-0000-000000000001",
+        },
         json={
             "campaign_id": "c-1",
             "leads": [

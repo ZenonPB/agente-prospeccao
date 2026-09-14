@@ -20,7 +20,8 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from src.services.analytics_service import AnalyticsService
+from src.services.analytics_service import AnalyticsService, apply_commercial_filters
+from src.services.analytics_filters import CommercialFilterDTO
 from src.services.pitch_service import build_lead_pitch_pdf_section
 from src.db.models import Lead, Enrichment, Campaign
 
@@ -75,8 +76,11 @@ def _weasyprint_available() -> bool:
         return False
 
 
-def _cache_key(org_id, from_date, to_date) -> str:
-    return f"{org_id}|{from_date or ''}|{to_date or ''}"
+def _cache_key(org_id, from_date, to_date, filters: CommercialFilterDTO | None = None) -> str:
+    import json
+
+    snapshot = filters.model_dump(mode="json", by_alias=True, exclude_none=True) if filters else {}
+    return f"{org_id}|{from_date or ''}|{to_date or ''}|{json.dumps(snapshot, sort_keys=True)}"
 
 
 def _get_cached(key: str) -> Optional[str]:
@@ -499,6 +503,7 @@ def build_report_pdf(
     org_id,
     from_date: Optional[str] = None,
     to_date: Optional[str] = None,
+    filters: CommercialFilterDTO | None = None,
 ) -> bytes:
     """Gera o PDF do relatório executivo da organização.
 
@@ -508,8 +513,10 @@ def build_report_pdf(
     svc = AnalyticsService(db, org_id)
 
     top_leads_qs = (
-        db.query(Lead)
-        .filter(Lead.organization_id == org_id)
+        apply_commercial_filters(
+            db.query(Lead).filter(Lead.organization_id == org_id),
+            filters,
+        )
         .order_by(Lead.qualification_score.desc())
         .limit(3)
         .all()
@@ -518,25 +525,28 @@ def build_report_pdf(
     for lead in top_leads_qs:
         enrichment = db.query(Enrichment).filter(Enrichment.lead_id == lead.id).first()
         campaign = (
-            db.query(Campaign).filter(Campaign.id == lead.campaign_id).first()
+            db.query(Campaign).filter(
+                Campaign.id == lead.campaign_id,
+                Campaign.organization_id == org_id,
+            ).first()
             if lead.campaign_id else None
         )
         top_lead_pitches.append(build_lead_pitch_pdf_section(lead, enrichment, campaign))
 
     data = {
-        "overview": svc.overview(from_date=from_date, to_date=to_date),
-        "funnel_e2e": svc.funnel(from_date=from_date, to_date=to_date),
-        "consultants": svc.consultants(from_date=from_date, to_date=to_date),
-        "campaigns": svc.campaigns(from_date=from_date, to_date=to_date),
-        "ranking": svc.leads_ranking(sort_by="score", from_date=from_date, to_date=to_date, limit=20),
-        "geo": svc.geo(from_date=from_date, to_date=to_date),
-        "timeline": svc.timeline(group_by="day", from_date=from_date, to_date=to_date),
+        "overview": svc.overview(from_date=from_date, to_date=to_date, filters=filters),
+        "funnel_e2e": svc.funnel(from_date=from_date, to_date=to_date, filters=filters),
+        "consultants": svc.consultants(from_date=from_date, to_date=to_date, filters=filters),
+        "campaigns": svc.campaigns(from_date=from_date, to_date=to_date, filters=filters),
+        "ranking": svc.leads_ranking(sort_by="score", from_date=from_date, to_date=to_date, limit=20, filters=filters),
+        "geo": svc.geo(from_date=from_date, to_date=to_date, filters=filters),
+        "timeline": svc.timeline(group_by="day", from_date=from_date, to_date=to_date, filters=filters),
         "top_lead_pitches": top_lead_pitches,
     }
 
     from_label = from_date or "início"
     to_label = to_date or "hoje"
-    key = _cache_key(org_id, from_date, to_date)
+    key = _cache_key(org_id, from_date, to_date, filters)
     cached = _get_cached(key)
     if cached:
         html_content = cached

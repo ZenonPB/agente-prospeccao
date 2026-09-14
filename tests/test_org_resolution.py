@@ -9,7 +9,11 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from src.auth.dependencies import _resolve_request_membership
+from src.auth.dependencies import (
+    OrganizationContext,
+    _resolve_request_membership,
+    get_organization_context,
+)
 
 
 class _FakeQuery:
@@ -56,9 +60,34 @@ def test_header_resolve_membership_da_org_solicitada():
     assert out is member
 
 
-def test_header_com_org_fora_das_memberships_levanta_403():
+def test_contexto_conserva_org_derivada_do_membership():
+    organization = SimpleNamespace(id="org-2")
+    member = _member("org-2", "manager")
+    member.organization = organization
+
+    context = get_organization_context(
+        user=SimpleNamespace(id="u"),
+        db=_FakeDb(member),
+        request=_req("org-2"),
+    )
+
+    assert isinstance(context, OrganizationContext)
+    assert context.organization is organization
+    assert context.membership is member
+    assert context.organization_id == "org-2"
+
+
+def test_contexto_rejeita_membership_com_relacao_de_org_inconsistente():
+    member = _member("org-2", "manager")
+    member.organization = SimpleNamespace(id="org-outro")
+
     with pytest.raises(HTTPException) as exc:
-        _resolve_request_membership(_FakeDb(None), SimpleNamespace(id="u"), _req("org-99"))
+        get_organization_context(
+            user=SimpleNamespace(id="u"),
+            db=_FakeDb(member),
+            request=_req("org-2"),
+        )
+
     assert exc.value.status_code == 403
 
 

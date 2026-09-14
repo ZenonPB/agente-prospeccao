@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, Index, Date, text
+from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, CheckConstraint, Index, Date, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -70,6 +70,23 @@ class JobType(enum.Enum):
     LEAD_ENRICHMENT = "LEAD_ENRICHMENT"
     LEAD_SCORING = "LEAD_SCORING"
     OUTREACH_EMAIL = "OUTREACH_EMAIL"
+
+class ImportJobStatus(enum.Enum):
+    DRAFT = "DRAFT"
+    PREVIEWED = "PREVIEWED"
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    SUCCEEDED = "SUCCEEDED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    CANCEL_REQUESTED = "CANCEL_REQUESTED"
+    CANCELLED = "CANCELLED"
+
+class ImportRowStatus(enum.Enum):
+    ACCEPTED = "ACCEPTED"
+    DUPLICATE = "DUPLICATE"
+    REJECTED = "REJECTED"
+    FAILED = "FAILED"
 
 class JobStatus(enum.Enum):
     PENDING = "PENDING"
@@ -438,6 +455,34 @@ class OrgAuditLog(Base):
         return f"<OrgAuditLog(org='{self.organization_id}', event='{self.event.value}', at={self.created_at})>"
 
 
+class CommercialBulkOperation(Base):
+    """Registro técnico de execução bulk e sua resposta idempotente."""
+    __tablename__ = "commercial_bulk_operations"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "idempotency_key",
+            name="uq_commercial_bulk_operations_org_idempotency",
+        ),
+        Index(
+            "ix_commercial_bulk_operations_org_created",
+            "organization_id", "created_at",
+        ),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    idempotency_key = Column(String(160), nullable=False)
+    operation = Column(String(16), nullable=False)
+    payload_hash = Column(String(64), nullable=False)
+    status = Column(String(24), nullable=False, server_default="RUNNING")
+    result = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    organization = relationship("Organization")
+    actor = relationship("User")
+
+
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -581,6 +626,10 @@ class Lead(Base):
         UniqueConstraint("organization_id", "place_id", name="uq_leads_org_place_id"),
         UniqueConstraint("organization_id", "cnpj", name="uq_leads_org_cnpj"),
         UniqueConstraint("organization_id", "normalized_domain", name="uq_leads_org_normalized_domain"),
+        CheckConstraint(
+            "status <> 'PERDIDO' OR lost_reason IS NOT NULL",
+            name="ck_leads_lost_reason_required",
+        ),
         # Índices compostos que cobrem os filtros mais usados —
         # org + status (+ score) e org + status + data.
         Index("ix_leads_org_status_score", "organization_id", "status", "qualification_score"),
@@ -691,7 +740,7 @@ class Lead(Base):
     company_record = relationship("CompanyRecord", back_populates="lead", uselist=False, cascade="all, delete-orphan")
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     def __repr__(self):
         return f"<Lead(id='{self.id}', company_name='{self.company_name}', status='{self.status.value}')>"
@@ -1027,6 +1076,20 @@ class Person(Base):
     Persiste contatos/decisores de forma independente, associados a uma Empresa.
     """
     __tablename__ = "persons"
+    __table_args__ = (
+        Index(
+            "ix_persons_org_document_cpf",
+            "organization_id",
+            "document_cpf",
+            postgresql_where=text("document_cpf IS NOT NULL"),
+        ),
+        Index(
+            "ix_persons_org_email",
+            "organization_id",
+            "email",
+            postgresql_where=text("email IS NOT NULL"),
+        ),
+    )
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True)
@@ -1558,11 +1621,95 @@ class TemplateLearning(Base):
         return (f"<TemplateLearning(template={self.template_id}, rules={len(self.instructions or [])})>")
 
 
+class ImportJob(Base):
+    """Ciclo persistido e tenant-scoped de importação histórica.
+
+    As linhas de origem ficam armazenadas em formato normalizado para que o
+    consumer possa retomar o processamento sem depender do request ou de um
+    caminho de filesystem fornecido pelo usuário. O payload nunca é exposto
+    pelos endpoints de relatório.
+    """
+    __tablename__ = "import_jobs"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "idempotency_key", name="uq_import_jobs_org_idempotency"),
+        Index("ix_import_jobs_org_status_created", "organization_id", "status", "created_at"),
+        Index("ix_import_jobs_org_source_hash", "organization_id", "source_hash"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    source_hash = Column(String(64), nullable=False)
+    idempotency_key = Column(String(255), nullable=True)
+    source_filename = Column(String(255), nullable=True)
+    source_format = Column(String(8), nullable=False)
+    source_headers = Column(JSONB, nullable=False)
+    source_rows = Column(JSONB, nullable=False)
+    preview_rows = Column(JSONB, nullable=False, server_default="[]")
+    mapping = Column(JSONB, nullable=True)
+    mapping_version = Column(String(64), nullable=True)
+    dry_run_report = Column(JSONB, nullable=True)
+    status = Column(Enum(ImportJobStatus, name="import_job_status", native_enum=False), nullable=False, default=ImportJobStatus.DRAFT)
+    expected_version = Column(Integer, nullable=False, server_default="1")
+    total_rows = Column(Integer, nullable=False, server_default="0")
+    accepted_rows = Column(Integer, nullable=False, server_default="0")
+    duplicate_rows = Column(Integer, nullable=False, server_default="0")
+    rejected_rows = Column(Integer, nullable=False, server_default="0")
+    failed_rows = Column(Integer, nullable=False, server_default="0")
+    unprocessed_rows = Column(Integer, nullable=False, server_default="0")
+    attempts = Column(Integer, nullable=False, server_default="0")
+    error_code = Column(String(80), nullable=True)
+    error_message = Column(Text, nullable=True)
+    correlation_id = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+class ImportRowResult(Base):
+    """Resultado sanitizado e versionado de uma linha de importação."""
+    __tablename__ = "import_row_results"
+    __table_args__ = (
+        UniqueConstraint("import_job_id", "line_number", "source_version", name="uq_import_row_results_job_line_version"),
+        Index("ix_import_row_results_job_status_line", "import_job_id", "status", "line_number"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    import_job_id = Column(UUID(as_uuid=True), ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    line_number = Column(Integer, nullable=False)
+    source_version = Column(Integer, nullable=False, server_default="1")
+    status = Column(Enum(ImportRowStatus, name="import_row_status", native_enum=False), nullable=False)
+    reason_code = Column(String(80), nullable=True)
+    message = Column(String(500), nullable=True)
+    lead_id = Column(UUID(as_uuid=True), ForeignKey("leads.id", ondelete="SET NULL"), nullable=True)
+    company_id = Column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="SET NULL"), nullable=True)
+    person_id = Column(UUID(as_uuid=True), ForeignKey("persons.id", ondelete="SET NULL"), nullable=True)
+    identity_decision = Column(JSONB, nullable=True)
+    provenance = Column(JSONB, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class ImportAuditEvent(Base):
+    """Auditoria append-only do lifecycle e das tentativas do import."""
+    __tablename__ = "import_audit_events"
+    __table_args__ = (
+        Index("ix_import_audit_events_job_created", "import_job_id", "created_at"),
+        Index("ix_import_audit_events_org_created", "organization_id", "created_at"),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    import_job_id = Column(UUID(as_uuid=True), ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    action = Column(String(64), nullable=False)
+    from_status = Column(String(32), nullable=True)
+    to_status = Column(String(32), nullable=True)
+    detail = Column(JSONB, nullable=True)
+    correlation_id = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
 class Job(Base):
     __tablename__ = "jobs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     campaign_id = Column(UUID(as_uuid=True), ForeignKey("campaigns.id"), nullable=True)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     job_type = Column(Enum(JobType, name='job_type', create_type=True), nullable=False)
     status = Column(Enum(JobStatus, name='job_status', create_type=True), default=JobStatus.PENDING)
     payload = Column(JSONB) 

@@ -1,7 +1,7 @@
 # Arquitetura — Agente de Prospecção AlphaMec
 
-> **LIVE · atualizado em 2026-09-13.** Estado base: `main` após PR #171; PR
-> #172 em validação. `docs/README.md` define a hierarquia documental.
+> **LIVE · atualizado em 2026-09-13.** O estado arquitetural é mantido em conjunto
+> com `docs/README.md`, que define a hierarquia documental.
 
 ## Visão geral
 
@@ -63,6 +63,40 @@ canônico. **Lead** representa o contexto comercial de uma conta em uma
 campanha/carteira. **LeadOpportunity** representa uma oferta específica que a
 conta pode comprar. Uma empresa pode ter múltiplas oportunidades simultâneas.
 
+## Historical Importer
+
+O contrato backend de importação histórica é tenant-first em `/api/imports`:
+`POST /imports` cria somente preview, `POST /imports/{id}/dry-run` valida sem
+mutar o CRM, e `POST /imports/{id}/confirm` enfileira o `ImportJob` persistido
+para o consumer. `GET /imports/{id}` e `/rows` expõem somente relatório
+sanitizado; cancelamento e recovery usam versão esperada. CSV/XLSX são limitados
+a 25 MiB, 100.000 linhas, 1.000.000 células e 100 colunas; URLs da origem
+nunca são requisitadas. O novo fluxo usa Company/Person/Lead/Contact e
+CompanyAlias canônicos, preserva provenance e não confirma identidade por nome
+isoladamente. O frontend está integrado em
+`apps/web/src/components/campanhas/csv-import-modal.tsx`.
+
+## B5.1/B5.2 e B6 — filtros e operações em massa
+
+B5.1/B5.2 aplicam filtros server-side e derivam um snapshot compartilhado,
+normalizado em query keys determinísticas, para analytics e exportação PDF.
+
+B6 adiciona `GET /api/leads` sem quebrar o contrato offset existente: a nova
+paginação usa cursor estável. As operações em massa são expostas por
+`POST /api/leads/bulk/preview` e `POST /api/leads/bulk/execute`, com allowlist
+para `status` e `assign`, máximo de 100 registros e fluxo
+preview → confirmação → execute. Os resultados são classificados como
+`accepted`, `duplicate`, `rejected` ou `failed`. A execução valida
+`expected_updated_at` fail-closed, tenant/RBAC e usa `CommercialBulkOperation`
+como ledger técnico. A migration `f2b3c4d5e6f7` faz o backfill/default de
+`Lead.updated_at`.
+
+Bulk status reutiliza a transição canônica, registra `LeadActivity`/outcome e
+cancela a cadência em estados terminais. No frontend, React Query usa cursor,
+a seleção é limitada, estados parciais são preservados, retry reutiliza a mesma
+idempotency key e rejeitados/falhos selecionados permanecem disponíveis para
+nova ação.
+
 ## Multi-tenancy
 
 `organization_id` é parte do contrato de segurança, não apenas um filtro de
@@ -93,10 +127,10 @@ registry efetivo
 Discovery → PreScore → Enrichment → Scoring → OfferMatcher → Decision Maker
 ```
 
-No PR #172, o registry efetivo é ligado ao job por `ContextVar`. Isso evita
-estado global mutável e permite que jobs concorrentes de workspaces diferentes
-vejam overlays diferentes. `build_effective_registry` sempre parte de
-`get_base_registry()` para que o overlay A nunca contamine a construção de B.
+O registry efetivo é ligado ao job por `ContextVar`. Isso evita estado global
+mutável e permite que jobs concorrentes de workspaces diferentes vejam overlays
+diferentes. `build_effective_registry` sempre parte de `get_base_registry()` para
+que o overlay A nunca contamine a construção de B.
 Falha de resolução do registry faz o job falhar fechado.
 
 ## Pipeline
@@ -131,7 +165,7 @@ A fonte de verdade interna substitui a planilha progressivamente:
 - outcomes atribuídos à oportunidade;
 - sequences/workflows persistidos;
 - Opportunity 360 read-only entregue;
-- Company 360/Person 360 read-only em validação no PR #172.
+- Company 360/Person 360 read-only entregues.
 
 Não criar `Proposal`, `Contract` ou `Note` apenas para preencher UI. Essas
 entidades só entram quando houver regra e ciclo de vida canônicos comprovados

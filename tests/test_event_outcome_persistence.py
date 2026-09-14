@@ -69,6 +69,7 @@ def test_event_discovery_persists_idempotently(session):
 
 
 def test_evento_upcoming_gera_oportunidade_de_trofeus_idempotente(session):
+    from services.prospecting.default_profiles import get_default_registry
     from services.prospecting.event_opportunity_service import EventOpportunityService
 
     db, org, lead = session
@@ -105,7 +106,10 @@ def test_evento_upcoming_gera_oportunidade_de_trofeus_idempotente(session):
         LeadOpportunityRow.offer_key == "trophies",
     ).all()
     assert len(opportunities) == 1
-    assert opportunities[0].offer_version == "1.0"
+    # A versão é carimbada do registry de perfis; acompanhar o registry em vez
+    # de fixar literal evita drift a cada bump de OfferProfile.
+    versao_trofeus = get_default_registry().get("trophies").version
+    assert opportunities[0].offer_version == versao_trofeus
     assert "EVENT_SCHEDULED" in opportunities[0].evidence
 
 

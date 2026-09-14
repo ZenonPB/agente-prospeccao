@@ -134,6 +134,7 @@ class _FullAccessMember:
     role = OrganizationRole.OWNER
     sales_role = None
     user_id = "u1"
+    organization_id = "org-1"
 
 
 def _alerts_for(q_rows, r_rows, o_rows):

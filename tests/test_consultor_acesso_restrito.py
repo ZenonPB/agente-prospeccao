@@ -23,10 +23,11 @@ from src.services.org_service import consultant_lead_scope, is_full_access
 class _Member:
     """Stub minimalista de `OrganizationMember` (só o que os guards leem)."""
 
-    def __init__(self, role: OrganizationRole, sales_role: SalesRole | None, user_id=None):
+    def __init__(self, role: OrganizationRole, sales_role: SalesRole | None, user_id=None, organization_id=None):
         self.role = role
         self.sales_role = sales_role
         self.user_id = user_id or uuid.uuid4()
+        self.organization_id = organization_id or uuid.uuid4()
 
 
 # ---------------------------------------------------------------------------
@@ -132,10 +133,10 @@ def test_consultor_so_ve_proprios_e_nao_atribuidos():
     assert result is query
     assert query.applied is not None
     # CONSULTOR nunca passa query sem filtro (não vê a org inteira).
-    assert len(query.applied) == 1
+    assert len(query.applied) == 2
 
 
-def test_full_access_nao_aplica_filtro_de_escopo():
+def test_full_access_mantem_predicado_de_organizacao():
     for member in [
         _Member(OrganizationRole.OWNER, SalesRole.CONSULTOR),
         _Member(OrganizationRole.MEMBER, SalesRole.ANALYST),
@@ -143,4 +144,4 @@ def test_full_access_nao_aplica_filtro_de_escopo():
         query = _FakeFilteredQuery()
         result = consultant_lead_scope(member, query)
         assert result is query
-        assert query.applied is None
+        assert len(query.applied) == 1

@@ -88,6 +88,34 @@
 4. Erro por linha reportado.
 5. Reimportação não deve duplicar registros já reconhecidos.
 6. Arquivo/origem fica auditável.
+7. O lifecycle persistido usa `DRAFT`, `PREVIEWED`, `QUEUED`, `RUNNING`,
+   `SUCCEEDED`, `PARTIAL`, `FAILED`, `CANCEL_REQUESTED` e `CANCELLED`; estados
+   terminais não aceitam novas mutações.
+8. A confirmação é idempotente por `(organization_id, idempotency_key)` e o
+   consumer só reivindica importações com `organization_id` válido.
+9. Identidade ambígua ou baseada somente em nome vira revisão explícita; não há
+   merge destrutivo, e `UNKNOWN` permanece diferente de não encontrado.
+10. Fórmulas são rejeitadas, HTML é tratado como texto escapado em preview e
+    URLs importadas não são buscadas pelo servidor.
+
+## Operações em massa de leads
+
+1. `GET /api/leads` mantém compatibilidade offset e oferece cursor estável para
+   paginação incremental.
+2. O bulk expõe somente as operações allowlist `status` e `assign`, com máximo
+   de 100 registros por operação.
+3. O fluxo é sempre preview → confirmação → execute; cada item pode resultar em
+   `accepted`, `duplicate`, `rejected` ou `failed`.
+4. `expected_updated_at` é validado fail-closed para evitar sobrescrever uma
+   alteração concorrente.
+5. Tenant/RBAC são aplicados na seleção e na execução; `CommercialBulkOperation`
+   funciona como ledger técnico da operação.
+6. Bulk status usa a transição canônica, registra `LeadActivity`/outcome e
+   cancela a cadência quando o estado for terminal.
+7. A UI limita a seleção, preserva estados parciais, repete com a mesma
+   idempotency key e mantém rejeitados/falhos selecionados disponíveis.
+8. A migration `f2b3c4d5e6f7` garante o backfill/default de `Lead.updated_at`,
+   usado pelo controle de concorrência.
 
 ## Automação e mensagens
 

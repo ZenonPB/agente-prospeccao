@@ -222,7 +222,10 @@ async def websocket_pipeline(
             await websocket.close(code=403, reason="Usuário sem organização")
             return
 
-        job = db.query(Job).filter(Job.id == job_id).first()
+        job = db.query(Job).filter(
+            Job.id == job_id,
+            Job.organization_id == org.id,
+        ).first()
         # Falha fechada: job inexistente, job órfão (sem organização) e job de
         # outra organização recebem a mesma recusa, sem revelar qual é o caso.
         if (

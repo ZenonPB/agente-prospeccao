@@ -116,17 +116,30 @@ def webhook_import_leads(
     payload: WebhookImportPayload,
     db: Session = Depends(get_db),
 ):
-    """Importa leads via webhook (n8n, Make, Zapier, Apps Script, etc.)."""
+    """Importa leads via webhook legado com segredo e workspace explícito.
+
+    `X-Organization-Id` é obrigatório para impedir que um campaign UUID seja
+    resolvido fora do tenant autenticado; o serviço aplica o par
+    `(Campaign.id, Campaign.organization_id)`.
+    """
     if not settings.EMAIL_WEBHOOK_SECRET:
         raise HTTPException(status_code=404, detail="Webhook de importação não configurado")
     if request.headers.get("X-Webhook-Secret") != settings.EMAIL_WEBHOOK_SECRET:
         raise HTTPException(status_code=401, detail="Segredo de webhook inválido")
 
+    organization_id = request.headers.get("X-Organization-Id")
+    if not organization_id:
+        raise HTTPException(status_code=401, detail="Credencial de importação inválida")
+    try:
+        organization_id = str(uuid.UUID(organization_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Credencial de importação inválida") from exc
     try:
         result = import_leads_from_webhook(
             db,
             campaign_id=payload.campaign_id,
             leads_data=[lead.model_dump() for lead in payload.leads],
+            organization_id=organization_id,
         )
         return {"ok": True, **result}
     except ValueError as exc:

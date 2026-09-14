@@ -33,7 +33,8 @@ REQUIRED_TABLES = {
     "sequence_enrollments", "sequence_executions", "commercial_tasks",
     "next_best_action_decisions", "workflow_definitions", "workflow_runs",
     "offer_profile_versions", "offer_profile_activations", "crm_certification_runs",
-    "lead_usefulness_feedbacks",
+    "lead_usefulness_feedbacks", "import_jobs", "import_row_results", "import_audit_events",
+    "commercial_bulk_operations",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer", "ix_event_opportunities_org_date",
@@ -42,7 +43,8 @@ REQUIRED_INDEXES = {
     "ix_provider_execution_metrics_correlation", "ix_company_aliases_company",
     "ix_enrichments_lead_id", "ix_jobs_campaign_id", "ix_jobs_organization_id",
     "ix_jobs_pending_claim", "ix_leads_company_id", "ix_persons_organization_id",
-    "ix_persons_company_id", "ix_event_opportunities_lead_id",
+    "ix_persons_company_id", "ix_persons_org_document_cpf", "ix_persons_org_email",
+    "ix_event_opportunities_lead_id",
     "ix_commercial_outcomes_lead_id", "ix_notifications_lead_id",
     "ix_follow_up_versions_follow_up_id", "ix_decision_resolution_snapshots_org_lead",
     "ix_lead_opportunity_snapshots_org_lead", "ix_controlled_learning_org_offer_status",
@@ -55,6 +57,20 @@ REQUIRED_INDEXES = {
     "uq_offer_profile_versions_one_active", "ix_offer_profile_activations_org_offer_created",
     "ix_crm_certification_org_connection_created",
     "ix_lead_usefulness_org_created", "ix_lead_usefulness_lead_id",
+    "ix_commercial_bulk_operations_org_created",
+    "ix_import_jobs_org_status_created", "ix_import_jobs_org_source_hash",
+    "ix_import_row_results_job_status_line", "ix_import_audit_events_job_created", "ix_import_audit_events_org_created",
+    "uq_conversions_lead_offer",
+}
+REQUIRED_UNIQUE_INDEXES = {
+    "conversions": {"uq_conversions_lead_offer"},
+}
+REQUIRED_CHECK_CONSTRAINTS = {
+    "jobs": {"ck_jobs_organization_required"},
+    "leads": {"ck_leads_lost_reason_required"},
+}
+REQUIRED_NOT_NULL_COLUMNS = {
+    "jobs": {"organization_id"},
 }
 REQUIRED_FKS = {
     "campaigns": {"organizations.id"},
@@ -81,6 +97,10 @@ REQUIRED_FKS = {
     "offer_profile_activations": {"organizations.id", "offer_profile_versions.id", "users.id"},
     "crm_certification_runs": {"organizations.id", "crm_connections.id", "users.id"},
     "lead_usefulness_feedbacks": {"organizations.id", "leads.id", "users.id"},
+    "import_jobs": {"organizations.id", "campaigns.id", "users.id"},
+    "import_row_results": {"import_jobs.id", "organizations.id", "leads.id", "companies.id", "persons.id"},
+    "import_audit_events": {"import_jobs.id", "organizations.id", "users.id"},
+    "commercial_bulk_operations": {"organizations.id", "users.id"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
@@ -99,6 +119,9 @@ REQUIRED_UNIQUES = {
     "workflow_runs": {"uq_workflow_runs_org_workflow_event"},
     "offer_profile_versions": {"uq_offer_profile_versions_org_offer_version"},
     "lead_usefulness_feedbacks": {"uq_lead_usefulness_lead_user"},
+    "import_jobs": {"uq_import_jobs_org_idempotency"},
+    "commercial_bulk_operations": {"uq_commercial_bulk_operations_org_idempotency"},
+    "import_row_results": {"uq_import_row_results_job_line_version"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -120,6 +143,10 @@ REQUIRED_COLUMNS = {
     "offer_profile_activations": {"offer_key", "action", "version_id", "previous_version_id", "actor_id", "created_at"},
     "crm_certification_runs": {"provider", "status", "checks", "adapter_version", "tested_by_id", "created_at"},
     "lead_usefulness_feedbacks": {"useful", "reason", "detail", "campaign_id", "created_at"},
+    "import_jobs": {"organization_id", "source_hash", "idempotency_key", "source_headers", "source_rows", "mapping", "mapping_version", "dry_run_report", "status", "expected_version", "accepted_rows", "duplicate_rows", "rejected_rows", "failed_rows", "unprocessed_rows"},
+    "import_row_results": {"import_job_id", "organization_id", "line_number", "source_version", "status", "reason_code", "identity_decision", "provenance"},
+    "import_audit_events": {"import_job_id", "organization_id", "action", "from_status", "to_status", "correlation_id", "created_at"},
+    "commercial_bulk_operations": {"organization_id", "actor_id", "idempotency_key", "operation", "payload_hash", "status", "result", "created_at", "completed_at"},
 }
 
 
@@ -155,15 +182,56 @@ def verify_database(database_url: str) -> dict[str, object]:
                 }
             if missing_columns:
                 raise RuntimeError(f"Colunas essenciais ausentes: {sorted(missing_columns)}")
-            indexes = {
-                index["name"]
+            if get_columns is not None:
+                missing_not_null = {
+                    f"{table}.{column}"
+                    for table, columns in REQUIRED_NOT_NULL_COLUMNS.items()
+                    for column in columns
+                    if next(
+                        item for item in get_columns(table) if item["name"] == column
+                    ).get("nullable", True)
+                }
+                if missing_not_null:
+                    raise RuntimeError(
+                        f"Colunas que deveriam ser NOT NULL: {sorted(missing_not_null)}"
+                    )
+            indexes_by_table = {
+                table: {
+                    index["name"]: index
+                    for index in database_inspector.get_indexes(table)
+                    if index.get("name")
+                }
                 for table in REQUIRED_TABLES & tables
-                for index in database_inspector.get_indexes(table)
-                if index.get("name")
             }
+            indexes = set().union(*(set(items) for items in indexes_by_table.values()))
             missing_indexes = REQUIRED_INDEXES - indexes
             if missing_indexes:
                 raise RuntimeError(f"Índices ausentes: {sorted(missing_indexes)}")
+            non_unique_indexes = {
+                f"{table}.{name}"
+                for table, names in REQUIRED_UNIQUE_INDEXES.items()
+                for name in names
+                if not indexes_by_table.get(table, {}).get(name, {}).get("unique", False)
+            }
+            if non_unique_indexes:
+                raise RuntimeError(
+                    f"Índices únicos ausentes ou não únicos: {sorted(non_unique_indexes)}"
+                )
+            get_check_constraints = getattr(database_inspector, "get_check_constraints", None)
+            if get_check_constraints is None:
+                raise RuntimeError("Inspector não expõe check constraints obrigatórias")
+            missing_checks = {
+                f"{table}.{name}"
+                for table, names in REQUIRED_CHECK_CONSTRAINTS.items()
+                for name in names
+                if name not in {
+                    constraint.get("name")
+                    for constraint in get_check_constraints(table)
+                    if constraint.get("name")
+                }
+            }
+            if missing_checks:
+                raise RuntimeError(f"Checks obrigatórios ausentes: {sorted(missing_checks)}")
             missing_fks = {
                 f"{table} -> {target}"
                 for table, targets in REQUIRED_FKS.items()
@@ -189,6 +257,9 @@ def verify_database(database_url: str) -> dict[str, object]:
                 "revision": current,
                 "tables": len(tables),
                 "indexes_checked": len(REQUIRED_INDEXES),
+                "unique_indexes_checked": sum(len(names) for names in REQUIRED_UNIQUE_INDEXES.values()),
+                "checks_checked": sum(len(names) for names in REQUIRED_CHECK_CONSTRAINTS.values()),
+                "not_null_columns_checked": sum(len(columns) for columns in REQUIRED_NOT_NULL_COLUMNS.values()),
                 "fks_checked": sum(len(targets) for targets in REQUIRED_FKS.values()),
                 "uniques_checked": sum(len(names) for names in REQUIRED_UNIQUES.values()),
             }

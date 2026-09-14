@@ -6,6 +6,7 @@ constraints e idempotência são parte do contrato desta fatia de CRM.
 from __future__ import annotations
 
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
@@ -54,6 +55,37 @@ def db_session():
         session.rollback()
         session.close()
         engine.dispose()
+
+
+def test_command_service_rejeita_campo_desconhecido_antes_da_leitura():
+    org_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    member = SimpleNamespace(
+        organization_id=org_id,
+        role=OrganizationRole.OWNER,
+        sales_role=SalesRole.MANAGER,
+        user_id=user_id,
+    )
+    service = OpportunityCommandService(
+        object(), org_id, member, SimpleNamespace(id=user_id),
+    )
+
+    with pytest.raises(OpportunityValidation, match="não permitido"):
+        service.update(uuid.uuid4(), {"organization_id": str(uuid.uuid4())})
+
+
+def test_command_service_rejeita_contexto_de_membership_de_outro_workspace():
+    with pytest.raises(OpportunityForbidden, match="workspace ativo"):
+        OpportunityCommandService(
+            object(), uuid.uuid4(),
+            SimpleNamespace(
+                organization_id=uuid.uuid4(),
+                role=OrganizationRole.OWNER,
+                sales_role=SalesRole.MANAGER,
+                user_id=uuid.uuid4(),
+            ),
+            SimpleNamespace(id=uuid.uuid4()),
+        )
 
 
 def _org(label: str) -> Organization:
