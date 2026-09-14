@@ -1,52 +1,44 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, Monitor, Cog, Sparkles, MapPin, Wand2, ListOrdered, Send } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
-import { useCreateCampaign, useSuggestSegment, useCampaignFromBrief, useUpdateCampaign, type SegmentSuggestion, type CampaignBrief } from '@/hooks/use-api';
-import { TemplateSelector } from '@/components/campanhas/template-selector';
+import { useRouter } from 'next/navigation';
+import {
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Loader2,
+  MapPin,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Wand2,
+} from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/ui/page-header';
-import { OFFER_PROFILE_OPTIONS, offerOriginLabel, offerProfileLabel } from '@/lib/offers';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { useCampaignFromBrief, useCreateCampaign, useUpdateCampaign, type CampaignBrief } from '@/hooks/use-api';
+import {
+  OFFER_PROFILE_OPTIONS,
+  offerOriginLabel,
+  offerProfileDescription,
+  offerProfileLabel,
+} from '@/lib/offers';
+import { cn } from '@/lib/utils';
 
-const steps = [
-  { id: 1, title: 'Perfil da prospecção' },
-  { id: 2, title: 'Para quem?' },
-  { id: 3, title: 'Onde?' },
-  { id: 4, title: 'Revisão' },
-];
-
-const profiles = [
-  {
-    id: 'web_presence',
-    title: 'Serviços digitais',
-    description: 'sites, apps, ERPs, landing pages, sistemas',
-    icon: Monitor,
-  },
-  {
-    id: 'business_opportunity',
-    title: 'Serviços industriais/presenciais',
-    description: 'usinagem, manutenção, consultoria, projetos mecânicos',
-    icon: Cog,
-  },
-];
-
-const segmentSuggestions = [
-  'Restaurantes',
-  'Clínicas',
-  'Academias',
-  'Indústrias',
-  'Lojas varejistas',
-  'Escritórios de contabilidade',
-  'Farmácias',
+const examples = [
+  'Landing pages para clínicas de psicologia em Araraquara',
+  'Sistemas web para empresas que ainda dependem de processos manuais e planilhas',
+  'Projetos mecânicos para indústrias em expansão no interior de São Paulo',
+  'Troféus para campeonatos e corridas nos próximos meses',
+  'Troféus para eventos do MEJ e empresas juniores',
 ];
 
 const brazilianStates = [
@@ -59,505 +51,344 @@ const brazilianStates = [
   ['SP', 'São Paulo'], ['SE', 'Sergipe'], ['TO', 'Tocantins'],
 ] as const;
 
-type Mode = 'wizard' | 'agente';
+type Mode = 'assistant' | 'manual';
+
+type ManualDraft = {
+  offerKey: string;
+  segment: string;
+  city: string;
+  state: string;
+};
+
+const DIGITAL_OFFERS = new Set(['landing_page', 'web_systems_erp']);
+
+function analysisProfileFor(offerKey: string): 'web_presence' | 'business_opportunity' {
+  return DIGITAL_OFFERS.has(offerKey) ? 'web_presence' : 'business_opportunity';
+}
 
 export default function NovaCampanhaPage() {
   const router = useRouter();
   const createCampaign = useCreateCampaign();
-  const suggestSegment = useSuggestSegment();
-  const campaignFromBrief = useCampaignFromBrief();
   const updateCampaign = useUpdateCampaign();
-  const [mode, setMode] = useState<Mode>('wizard');
-  const [currentStep, setCurrentStep] = useState(1);
-  const [error, setError] = useState('');
-  const [suggestion, setSuggestion] = useState<SegmentSuggestion | null>(null);
-  const [excludedSuggestions, setExcludedSuggestions] = useState<string[]>([]);
+  const campaignFromBrief = useCampaignFromBrief();
+
+  const [mode, setMode] = useState<Mode>('assistant');
   const [brief, setBrief] = useState('');
-  const [briefResult, setBriefResult] = useState<CampaignBrief | null>(null);
   const [briefDraft, setBriefDraft] = useState<CampaignBrief | null>(null);
   const [selectedOfferKey, setSelectedOfferKey] = useState<string | null>(null);
-  const [formData, setFormData] = useState({
-    analysisProfile: 'web_presence',
+  const [error, setError] = useState('');
+  const [manual, setManual] = useState<ManualDraft>({
+    offerKey: 'landing_page',
     segment: '',
     city: '',
     state: '',
   });
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
-  const handleSuggestSegment = async () => {
+  const selectedOffer = useMemo(
+    () => OFFER_PROFILE_OPTIONS.find((item) => item.key === manual.offerKey),
+    [manual.offerKey],
+  );
+
+  const resetSuggestion = () => {
+    setBriefDraft(null);
+    setSelectedOfferKey(null);
     setError('');
-    try {
-      const result = await suggestSegment.mutateAsync({
-        profile: formData.analysisProfile as 'web_presence' | 'business_opportunity',
-        current_segment: formData.segment || undefined,
-        exclude: excludedSuggestions,
-      });
-      setSuggestion(result);
-      setFormData((prev) => ({ ...prev, segment: result.segment }));
-      setExcludedSuggestions((prev) =>
-        result.segment && !prev.includes(result.segment)
-          ? [...prev, result.segment]
-          : prev,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao gerar sugestão');
-    }
   };
 
-  const handleNext = () => {
-    setError('');
-
-    if (currentStep === 2 && !formData.segment.trim()) {
-      setError('Selecione ou informe o segmento-alvo');
-      return;
-    }
-    if (currentStep === 3 && !formData.city.trim()) {
-      setError('Informe a cidade para a busca');
-      return;
-    }
-
-    if (currentStep < steps.length) setCurrentStep(currentStep + 1);
-  };
-
-  const handlePrevious = () => {
-    setError('');
-    if (currentStep > 1) setCurrentStep(currentStep - 1);
-  };
-
-  const handleSubmit = async () => {
-    setError('');
-    const name = `${formData.segment} em ${formData.city}`;
-
-    try {
-      const campaign = await createCampaign.mutateAsync({
-        name,
-        analysis_profile: formData.analysisProfile as 'web_presence' | 'business_opportunity',
-        target_segment: formData.segment || undefined,
-        target_city: formData.city || undefined,
-        target_state: formData.state || undefined,
-      });
-      if (selectedTemplateId) {
-        await updateCampaign.mutateAsync({
-          id: campaign.id,
-          data: { scoring_template_id: selectedTemplateId },
-        });
-      }
-      router.push('/campanhas');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
-    }
-  };
-
-  const handleGenerateBrief = async () => {
+  const generateSuggestion = async () => {
     setError('');
     if (!brief.trim()) {
-      setError('Descreva o que você quer prospectar');
+      setError('Conte o que você quer vender e para quem.');
       return;
     }
     try {
-      const result = await campaignFromBrief.mutateAsync(brief);
-      setBriefResult(result);
+      const result = await campaignFromBrief.mutateAsync(brief.trim());
       setBriefDraft({ ...result });
       setSelectedOfferKey(result.offer_profile_key ?? null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao interpretar o brief');
-    }
-  };
-
-  const handleConfirmBrief = async (startCollection: boolean) => {
-    setError('');
-    if (!briefDraft) return;
-    if (!briefDraft.name.trim() || !briefDraft.target_segment.trim()) {
-      setError('Preencha ao menos nome e segmento-alvo');
-      return;
-    }
-    try {
-      const campaign = await createCampaign.mutateAsync({
-        name: briefDraft.name,
-        analysis_profile: briefDraft.analysis_profile,
-        target_service: briefDraft.target_service || undefined,
-        target_segment: briefDraft.target_segment || undefined,
-        target_city: briefDraft.target_city || undefined,
-        target_state: briefDraft.target_state || undefined,
-        places_query: briefDraft.places_query || undefined,
-        offer_profile_key: selectedOfferKey || briefDraft.offer_profile_key || undefined,
-      });
-      const templateId = selectedTemplateId || briefDraft.scoring_template_id;
-      if (templateId) {
-        await updateCampaign.mutateAsync({
-          id: campaign.id,
-          data: { scoring_template_id: templateId },
-        });
-      }
-      router.push(startCollection ? `/campanhas/${campaign.id}?start=true` : '/campanhas');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar campanha');
+      setError(err instanceof Error ? err.message : 'Não foi possível preparar a busca. Tente novamente.');
     }
   };
 
   const updateBriefDraft = (patch: Partial<CampaignBrief>) => {
-    setBriefDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    setBriefDraft((current) => (current ? { ...current, ...patch } : current));
   };
 
-  const profileLabel =
-    formData.analysisProfile === 'web_presence'
-      ? 'Serviços digitais'
-      : 'Serviços industriais/presenciais';
+  const createFromAssistant = async () => {
+    if (!briefDraft) return;
+    const offerKey = selectedOfferKey || briefDraft.offer_profile_key || undefined;
+    if (!briefDraft.target_service.trim() || !briefDraft.target_segment.trim()) {
+      setError('Confirme o serviço e o público que você quer alcançar.');
+      return;
+    }
+    setError('');
+    try {
+      const campaign = await createCampaign.mutateAsync({
+        name: briefDraft.name || `${briefDraft.target_service} — ${briefDraft.target_segment}`,
+        analysis_profile: briefDraft.analysis_profile,
+        target_service: briefDraft.target_service,
+        target_segment: briefDraft.target_segment,
+        target_city: briefDraft.target_city || undefined,
+        target_state: briefDraft.target_state || undefined,
+        places_query: briefDraft.places_query || undefined,
+        offer_profile_key: offerKey,
+      });
+      if (briefDraft.scoring_template_id) {
+        await updateCampaign.mutateAsync({
+          id: campaign.id,
+          data: { scoring_template_id: briefDraft.scoring_template_id },
+        });
+      }
+      router.push(`/campanhas/${campaign.id}?start=true`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível criar a campanha.');
+    }
+  };
+
+  const createManual = async () => {
+    setError('');
+    if (!manual.offerKey || !manual.segment.trim()) {
+      setError('Escolha o que você quer vender e informe o público que deseja alcançar.');
+      return;
+    }
+    try {
+      const offer = OFFER_PROFILE_OPTIONS.find((item) => item.key === manual.offerKey);
+      const service = offer?.label ?? offerProfileLabel(manual.offerKey);
+      const location = manual.city.trim() ? ` — ${manual.city.trim()}${manual.state ? `, ${manual.state}` : ''}` : '';
+      const campaign = await createCampaign.mutateAsync({
+        name: `${service} — ${manual.segment.trim()}${location}`,
+        analysis_profile: analysisProfileFor(manual.offerKey),
+        target_service: service,
+        target_segment: manual.segment.trim(),
+        target_city: manual.city.trim() || undefined,
+        target_state: manual.state || undefined,
+        offer_profile_key: manual.offerKey,
+      });
+      router.push(`/campanhas/${campaign.id}?start=true`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível criar a campanha.');
+    }
+  };
+
+  const busy = createCampaign.isPending || updateCampaign.isPending;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div className="flex items-center gap-3">
-        <Link href="/campanhas">
-          <Button variant="ghost" size="icon" className="h-9 w-9">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
+    <div className="mx-auto max-w-4xl space-y-6 pb-10">
+      <div className="flex items-start gap-3">
+        <Button asChild variant="ghost" size="icon" className="mt-1 shrink-0" aria-label="Voltar para campanhas">
+          <Link href="/campanhas"><ArrowLeft className="h-4 w-4" /></Link>
+        </Button>
         <PageHeader
-          eyebrow="Configuração"
-          title="Nova Busca de Prospecção"
-          description="Crie uma campanha em segundos com o assistente inteligente ou passo a passo"
+          eyebrow="Nova prospecção"
+          title="O que você quer vender?"
+          description="Descreva o objetivo como falaria com outra pessoa. O sistema prepara a estratégia de busca e qualificação para você."
         />
       </div>
 
-      <div className="flex items-center gap-2 rounded-lg border bg-card p-1">
+      <section className="grid gap-3 sm:grid-cols-3" aria-label="Como a prospecção funciona">
+        <InfoCard icon={Target} title="Você define o objetivo" text="Diga o serviço e o tipo de cliente que procura." />
+        <InfoCard icon={Search} title="O sistema procura sinais reais" text="Empresas, eventos, contexto e pessoas são analisados antes do ranking." />
+        <InfoCard icon={ShieldCheck} title="Só sobe quem tem evidência" text="Falta de informação não vira ponto positivo nem fato inventado." />
+      </section>
+
+      <div className="grid grid-cols-2 gap-1 rounded-xl border bg-muted/40 p-1" role="tablist" aria-label="Forma de criar a prospecção">
         <button
           type="button"
-          onClick={() => setMode('agente')}
+          role="tab"
+          aria-selected={mode === 'assistant'}
+          onClick={() => { setMode('assistant'); setError(''); }}
           className={cn(
-            'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            mode === 'agente' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            mode === 'assistant' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          <Wand2 className="h-4 w-4" />
-          Agente (descreva o que quer vender)
+          <Sparkles className="mr-2 inline h-4 w-4" />
+          Descrever o que quero
         </button>
         <button
           type="button"
-          onClick={() => setMode('wizard')}
+          role="tab"
+          aria-selected={mode === 'manual'}
+          onClick={() => { setMode('manual'); setError(''); }}
           className={cn(
-            'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            mode === 'wizard' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+            'rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            mode === 'manual' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground',
           )}
         >
-          <ListOrdered className="h-4 w-4" />
-          Wizard (passo a passo)
+          Prefiro preencher
         </button>
       </div>
 
-      {mode === 'agente' ? (
+      {error ? (
+        <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm" role="alert">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : null}
+
+      {mode === 'assistant' ? (
         <Card>
           <CardHeader>
-            <CardTitle>Descreva sua prospecção</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5" />Descreva a busca</CardTitle>
+            <CardDescription>Não precisa conhecer filtros, fontes de dados ou critérios técnicos. Escreva o objetivo comercial.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {!briefResult ? (
+          <CardContent className="space-y-5">
+            {!briefDraft ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="brief">O que você quer prospectar?</Label>
+                  <Label htmlFor="brief">Quero vender...</Label>
                   <Textarea
                     id="brief"
-                    rows={4}
-                    placeholder='Ex.: "quero vender landing pages para clínicas de psicologia em Araraquara" ou "projetos de engenharia mecânica para metalúrgicas em São Paulo"'
+                    rows={5}
+                    autoFocus
                     value={brief}
-                    onChange={(e) => setBrief(e.target.value)}
+                    onChange={(event) => setBrief(event.target.value)}
+                    onKeyDown={(event) => {
+                      if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') void generateSuggestion();
+                    }}
+                    placeholder="Ex.: Quero vender troféus para eventos do MEJ que acontecerão nos próximos meses."
+                    aria-describedby="brief-help"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Escreva em português, do jeito que você falaria: serviço + público + (opcional) cidade.
-                  </p>
+                  <p id="brief-help" className="text-xs text-muted-foreground">Inclua público e localização quando isso for importante. Ctrl/Cmd + Enter para continuar.</p>
                 </div>
-                <Button className="w-full" onClick={handleGenerateBrief} disabled={campaignFromBrief.isPending}>
-                  {campaignFromBrief.isPending ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Interpretando...</>
-                  ) : (
-                    <><Sparkles className="mr-2 h-4 w-4" />Gerar campanha</>
-                  )}
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Exemplos</p>
+                  <div className="flex flex-wrap gap-2">
+                    {examples.map((example) => (
+                      <button
+                        key={example}
+                        type="button"
+                        onClick={() => setBrief(example)}
+                        className="rounded-full border px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {example}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <Button className="w-full sm:w-auto" onClick={() => void generateSuggestion()} disabled={campaignFromBrief.isPending}>
+                  {campaignFromBrief.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  {campaignFromBrief.isPending ? 'Preparando sua prospecção...' : 'Preparar prospecção'}
                 </Button>
               </>
-            ) : briefDraft ? (
-              <div className="space-y-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Sugestão da IA — revise e edite
-                      </span>
+            ) : (
+              <div className="space-y-6">
+                <div className="rounded-xl border bg-muted/30 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-medium"><CheckCircle2 className="h-4 w-4 text-primary" />Entendi seu objetivo</div>
+                      <p className="max-w-2xl text-sm text-muted-foreground">{briefDraft.rationale || 'Revise os dados abaixo. Você continua no controle antes da busca começar.'}</p>
                     </div>
-                    {briefDraft.rationale && <p className="text-sm text-muted-foreground">{briefDraft.rationale}</p>}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setBriefResult(null);
-                      setBriefDraft(null);
-                      setSelectedOfferKey(null);
-                      setBrief('');
-                    }}
-                  >
-                    Recomeçar
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="brief-name">Nome da campanha</Label>
-                  <Input id="brief-name" value={briefDraft.name} onChange={(e) => updateBriefDraft({ name: e.target.value })} />
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-service">Serviço que você vende</Label>
-                    <Input id="brief-service" value={briefDraft.target_service} onChange={(e) => updateBriefDraft({ target_service: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-segment">Segmento-alvo</Label>
-                    <Input id="brief-segment" value={briefDraft.target_segment} onChange={(e) => updateBriefDraft({ target_segment: e.target.value })} />
+                    <Button variant="ghost" size="sm" onClick={resetSuggestion}>Descrever novamente</Button>
                   </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-city">Cidade</Label>
-                    <Input id="brief-city" value={briefDraft.target_city} onChange={(e) => updateBriefDraft({ target_city: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="brief-state">Estado</Label>
-                    <Select value={briefDraft.target_state || ''} onValueChange={(value) => value && updateBriefDraft({ target_state: value })}>
-                      <SelectTrigger id="brief-state"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        {brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}
-                      </SelectContent>
+                  <Field label="O que você quer vender" htmlFor="service">
+                    <Input id="service" value={briefDraft.target_service} onChange={(event) => updateBriefDraft({ target_service: event.target.value })} />
+                  </Field>
+                  <Field label="Para quem" htmlFor="segment">
+                    <Input id="segment" value={briefDraft.target_segment} onChange={(event) => updateBriefDraft({ target_segment: event.target.value })} />
+                  </Field>
+                  <Field label="Cidade (opcional)" htmlFor="city">
+                    <Input id="city" value={briefDraft.target_city} onChange={(event) => updateBriefDraft({ target_city: event.target.value })} placeholder="Ex.: Araraquara" />
+                  </Field>
+                  <Field label="Estado (opcional)" htmlFor="state">
+                    <Select value={briefDraft.target_state || ''} onValueChange={(value) => updateBriefDraft({ target_state: value })}>
+                      <SelectTrigger id="state"><SelectValue placeholder="Todo o Brasil" /></SelectTrigger>
+                      <SelectContent>{brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}</SelectContent>
                     </Select>
+                  </Field>
+                </div>
+
+                <div className="rounded-xl border p-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Estratégia identificada</p>
+                      <p className="font-semibold">{offerProfileLabel(selectedOfferKey || briefDraft.offer_profile_key)}</p>
+                      <p className="max-w-xl text-sm text-muted-foreground">{offerProfileDescription(selectedOfferKey || briefDraft.offer_profile_key)}</p>
+                      <p className="text-xs text-muted-foreground">{offerOriginLabel(briefDraft.offer_resolved_from)}.</p>
+                    </div>
+                    <div className="w-full md:w-72">
+                      <Label htmlFor="offer">Corrigir, se necessário</Label>
+                      <Select value={selectedOfferKey || briefDraft.offer_profile_key || ''} onValueChange={setSelectedOfferKey}>
+                        <SelectTrigger id="offer" className="mt-1.5"><SelectValue placeholder="Escolha o serviço" /></SelectTrigger>
+                        <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="brief-profile">Perfil da prospecção</Label>
-                  <Select
-                    value={briefDraft.analysis_profile}
-                    onValueChange={(value) => value && updateBriefDraft({ analysis_profile: value as 'web_presence' | 'business_opportunity' })}
-                  >
-                    <SelectTrigger id="brief-profile">
-                      <SelectValue>{(value) => profiles.find((p) => p.id === value)?.title ?? 'Selecione o perfil'}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="web_presence">Serviços digitais</SelectItem>
-                      <SelectItem value="business_opportunity">Serviços industriais/presenciais</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="brief-query">Query do Google Maps (coleta)</Label>
-                  <Input id="brief-query" value={briefDraft.places_query} onChange={(e) => updateBriefDraft({ places_query: e.target.value })} />
-                  <p className="text-xs text-muted-foreground">Como um cliente pesquisaria no Google Maps para encontrar o segmento.</p>
-                </div>
-
-                {briefDraft.scoring_template_label && (
-                  <div className="flex items-center gap-2 rounded-lg border bg-muted p-3 text-sm">
-                    <Badge variant="secondary">Critérios de avaliação</Badge>
-                    <span>
-                      {briefDraft.scoring_template_label === 'Genérico' && briefDraft.template_route === 'GENERATE_NEW'
-                        ? 'Os critérios serão gerados pela IA no início da coleta'
-                        : briefDraft.scoring_template_label}
-                    </span>
-                  </div>
-                )}
-
-                <div className="space-y-2 rounded-lg border p-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Badge variant="secondary">O que você vende</Badge>
-                    <span className="font-medium">{offerProfileLabel(selectedOfferKey || briefDraft.offer_profile_key)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{offerOriginLabel(briefDraft.offer_resolved_from)} — confirme ou troque abaixo.</p>
-                  <Label htmlFor="brief-offer">Confirmar oferta</Label>
-                  <Select value={selectedOfferKey || briefDraft.offer_profile_key || ''} onValueChange={(value) => value && setSelectedOfferKey(value)}>
-                    <SelectTrigger id="brief-offer">
-                      <SelectValue>{(value) => (value ? offerProfileLabel(value) : 'Escolha a oferta')}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button variant="outline" onClick={() => handleConfirmBrief(false)} disabled={createCampaign.isPending}>
-                    {createCampaign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                    Criar campanha
-                  </Button>
-                  <Button onClick={() => handleConfirmBrief(true)} disabled={createCampaign.isPending}>
-                    {createCampaign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                    Criar e iniciar coleta
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <Button variant="outline" onClick={resetSuggestion} disabled={busy}>Voltar</Button>
+                  <Button onClick={() => void createFromAssistant()} disabled={busy}>
+                    {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                    Criar e buscar oportunidades
                   </Button>
                 </div>
               </div>
-            ) : null}
+            )}
           </CardContent>
         </Card>
       ) : (
-        <>
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                    currentStep > step.id
-                      ? 'bg-green-500 text-white'
-                      : currentStep === step.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {currentStep > step.id ? <Check className="h-4 w-4" /> : step.id}
-                </div>
-                {index < steps.length - 1 && (
-                  <div className={`ml-2 h-0.5 w-12 ${currentStep > step.id ? 'bg-green-500' : 'bg-muted'}`} />
-                )}
-              </div>
-            ))}
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Preencher a prospecção</CardTitle>
+            <CardDescription>Escolha o serviço e o público. As fontes e os critérios de qualificação continuam automáticos.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="manual-offer">O que você quer vender</Label>
+              <Select value={manual.offerKey} onValueChange={(offerKey) => setManual((current) => ({ ...current, offerKey }))}>
+                <SelectTrigger id="manual-offer"><SelectValue /></SelectTrigger>
+                <SelectContent>{OFFER_PROFILE_OPTIONS.map((option) => <SelectItem key={option.key} value={option.key}>{option.label}</SelectItem>)}</SelectContent>
+              </Select>
+              {selectedOffer ? <p className="text-sm text-muted-foreground">{selectedOffer.description}</p> : null}
+            </div>
 
-          <Card>
-            <CardHeader><CardTitle>{steps[currentStep - 1].title}</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {error && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
-                  <AlertCircle className="h-4 w-4 shrink-0" /><span>{error}</span>
-                </div>
-              )}
+            <Field label="Quem você quer encontrar" htmlFor="manual-segment">
+              <Input id="manual-segment" value={manual.segment} onChange={(event) => setManual((current) => ({ ...current, segment: event.target.value }))} placeholder="Ex.: clínicas de psicologia, metalúrgicas, EJs..." />
+            </Field>
 
-              {currentStep === 1 && (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">Escolha o tipo de prospecção que melhor se encaixa no seu serviço:</p>
-                  {profiles.map((profile) => {
-                    const selected = formData.analysisProfile === profile.id;
-                    const Icon = profile.icon;
-                    return (
-                      <button
-                        key={profile.id}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, analysisProfile: profile.id })}
-                        className={cn(
-                          'flex w-full items-center gap-4 rounded-lg border-2 p-4 text-left transition-all hover:shadow-md',
-                          selected ? 'border-primary bg-primary/5' : 'border-muted bg-card'
-                        )}
-                      >
-                        <div className={cn('rounded-lg p-2.5', selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground')}>
-                          <Icon className="h-6 w-6" />
-                        </div>
-                        <div><p className="font-medium">{profile.title}</p><p className="text-sm text-muted-foreground">{profile.description}</p></div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Cidade (opcional)" htmlFor="manual-city">
+                <Input id="manual-city" value={manual.city} onChange={(event) => setManual((current) => ({ ...current, city: event.target.value }))} placeholder="Ex.: Araraquara" />
+              </Field>
+              <Field label="Estado (opcional)" htmlFor="manual-state">
+                <Select value={manual.state} onValueChange={(state) => setManual((current) => ({ ...current, state }))}>
+                  <SelectTrigger id="manual-state"><SelectValue placeholder="Todo o Brasil" /></SelectTrigger>
+                  <SelectContent>{brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}</SelectContent>
+                </Select>
+              </Field>
+            </div>
 
-              {currentStep === 2 && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="segment">Segmento-alvo *</Label>
-                    <Input id="segment" placeholder="Ex: Restaurantes, Clínicas, Academias..." value={formData.segment} onChange={(e) => setFormData({ ...formData, segment: e.target.value })} />
-                    <div className="flex flex-wrap gap-2">
-                      {segmentSuggestions.map((item) => (
-                        <Button key={item} variant="outline" size="sm" onClick={() => setFormData({ ...formData, segment: item })}>{item}</Button>
-                      ))}
-                    </div>
-                  </div>
+            <div className="rounded-xl bg-muted/40 p-4 text-sm">
+              <div className="flex gap-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /><p><span className="font-medium">Você não precisa escolher onde procurar.</span> O sistema usa as fontes adequadas para a oferta, cruza evidências e prioriza os melhores candidatos.</p></div>
+            </div>
 
-                  <Button variant="outline" className="w-full" onClick={handleSuggestSegment} disabled={suggestSegment.isPending}>
-                    {suggestSegment.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Gerando sugestão...</> : <><Sparkles className="mr-2 h-4 w-4" />Me sugira segmentos</>}
-                  </Button>
-
-                  {suggestion && (
-                    <div className="space-y-3 rounded-lg border-2 border-primary/30 bg-primary/5 p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /><span className="text-xs uppercase tracking-wide text-muted-foreground">Sugestão da IA</span></div>
-                          <p className="text-lg font-semibold">{suggestion.segment}</p>
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={handleSuggestSegment} disabled={suggestSegment.isPending}>
-                          {suggestSegment.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Gerar outro'}
-                        </Button>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{suggestion.rationale}</p>
-                      {suggestion.hook && <p className="text-sm italic text-foreground/80">“{suggestion.hook}”</p>}
-                      {suggestion.subniches?.length > 0 && (
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-medium text-muted-foreground">Subnichos (clique para usar):</p>
-                          <div className="flex flex-wrap gap-2">
-                            {suggestion.subniches.map((sub) => (
-                              <Badge key={sub} variant="secondary" className="cursor-pointer transition-colors hover:bg-secondary/80" onClick={() => setFormData({ ...formData, segment: sub })}>{sub}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {suggestion.cities_hint?.length > 0 && <div className="flex items-center gap-2 text-xs text-muted-foreground"><MapPin className="h-3.5 w-3.5" /><span>Densidade em: {suggestion.cities_hint.join(', ')}</span></div>}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {currentStep === 3 && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="city">Cidade *</Label>
-                    <Input id="city" placeholder="Ex: Araraquara" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="state">Estado</Label>
-                    <Select value={formData.state} onValueChange={(value) => value && setFormData({ ...formData, state: value })}>
-                      <SelectTrigger id="state"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        {brazilianStates.map(([uf, name]) => <SelectItem key={uf} value={uf}>{name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
-
-              {currentStep === 4 && (
-                <div className="space-y-4">
-                  <div className="rounded-lg border p-4">
-                    <h4 className="font-medium">Resumo da Campanha</h4>
-                    <dl className="mt-2 space-y-2 text-sm">
-                      <div className="flex justify-between"><dt className="text-muted-foreground">Perfil:</dt><dd className="font-medium">{profileLabel}</dd></div>
-                      <div className="flex justify-between"><dt className="text-muted-foreground">Segmento:</dt><dd className="font-medium">{formData.segment || 'Não informado'}</dd></div>
-                      <div className="flex justify-between"><dt className="text-muted-foreground">Localização:</dt><dd className="font-medium">{formData.city && formData.state ? `${formData.city}, ${formData.state}` : formData.city || 'Não informado'}</dd></div>
-                    </dl>
-                  </div>
-                  <div className="rounded-lg bg-muted p-4 text-sm">
-                    <p className="font-medium">Próximos passos</p>
-                    <p className="text-muted-foreground">Ao criar a campanha, você poderá iniciar a coleta, acompanhar o progresso e revisar as oportunidades encontradas.</p>
-                  </div>
-                  <TemplateSelector value={selectedTemplateId} onChange={(id) => setSelectedTemplateId(id)} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 1}>
-              <ArrowLeft className="mr-2 h-4 w-4" />Anterior
+            <Button onClick={() => void createManual()} disabled={busy}>
+              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              Criar e buscar oportunidades
             </Button>
-            {currentStep < steps.length ? (
-              <Button onClick={handleNext}>Próximo<ArrowRight className="ml-2 h-4 w-4" /></Button>
-            ) : (
-              <Button onClick={handleSubmit} disabled={createCampaign.isPending}>
-                {createCampaign.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-                Criar Campanha
-              </Button>
-            )}
-          </div>
-        </>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
+}
+
+function InfoCard({ icon: Icon, title, text }: { icon: typeof Target; title: string; text: string }) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+      <p className="mt-3 text-sm font-medium">{title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: React.ReactNode }) {
+  return <div className="space-y-2"><Label htmlFor={htmlFor}>{label}</Label>{children}</div>;
 }
