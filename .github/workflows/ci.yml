@@ -170,3 +170,5 @@ jobs:
         run: python -m pytest tests/test_opportunity_commands.py -q -W error
       - name: Verify Company/Person 360 tenant and performance invariants
         run: python -m pytest tests/test_crm_360_entities.py -q -W error
+      - name: Verify Event Intelligence and Golden Paths persistence
+        run: python -m pytest tests/test_event_outcome_persistence.py -q -W error
