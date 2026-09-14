@@ -7,6 +7,7 @@ import html
 import io
 import json
 import re
+import unicodedata
 import zipfile
 from dataclasses import dataclass
 from typing import Any
@@ -26,8 +27,60 @@ _XLSX_MIME_TYPES = frozenset({"application/vnd.openxmlformats-officedocument.spr
 SUPPORTED_FIELDS = {
     "name", "website", "phone", "whatsapp", "email", "city", "state",
     "address", "cnpj", "category", "contact_name", "linkedin", "instagram",
+    "status", "owner_email", "assigned_at", "notes", "next_action_at",
+    "last_contacted_at", "negotiation_stage", "contract_outcome", "outcome_date",
+    "post_sale_contacted_at", "post_sale_channel", "value", "expected_close_date",
+    "lost_reason",
 }
 _SAFE_SIGNED_NUMERIC = re.compile(r"^[+-]\d[\d\s().-]*$")
+
+
+def _header_token(value: str) -> str:
+    text = unicodedata.normalize("NFKD", str(value or "").strip().lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+
+
+# Colunas históricas reais da planilha AlphaMec. O alias só sugere mapping;
+# a confirmação continua exigindo decisão explícita para todas as colunas.
+HISTORICAL_HEADER_ALIASES = {
+    "status": "status",
+    "situacao": "status",
+    "responsavel": "owner_email",
+    "consultor": "owner_email",
+    "owner": "owner_email",
+    "owner_email": "owner_email",
+    "email_consultor": "owner_email",
+    "prospeccao": "assigned_at",
+    "data_prospeccao": "assigned_at",
+    "observacoes_lead": "notes",
+    "observacoes": "notes",
+    "anotacoes": "notes",
+    "notas": "notes",
+    "proxima_acao": "next_action_at",
+    "data_proxima_acao": "next_action_at",
+    "follow_up": "next_action_at",
+    "ultimo_contato": "last_contacted_at",
+    "data_ultimo_contato": "last_contacted_at",
+    "pitch": "last_contacted_at",
+    "estagio_negociacao": "negotiation_stage",
+    "negotiation_stage": "negotiation_stage",
+    "contrato_final": "contract_outcome",
+    "resultado_contrato": "contract_outcome",
+    "contract_outcome": "contract_outcome",
+    "data_status": "outcome_date",
+    "data_resultado": "outcome_date",
+    "data_contato_pos_venda": "post_sale_contacted_at",
+    "pos_venda_por": "post_sale_channel",
+    "canal_pos_venda": "post_sale_channel",
+    "valor": "value",
+    "valor_contrato": "value",
+    "ticket": "value",
+    "previsao_fechamento": "expected_close_date",
+    "data_fechamento_prevista": "expected_close_date",
+    "motivo_perda": "lost_reason",
+    "lost_reason": "lost_reason",
+}
 
 
 class ImportParseError(ValueError):
@@ -51,14 +104,7 @@ class ParsedSource:
 
 
 def _reject_formula(value: Any) -> None:
-    """Bloqueia fórmulas reais sem rejeitar telefones e números assinados.
-
-    CSVs comerciais brasileiros frequentemente contêm telefones no formato
-    ``+5516...`` e valores negativos. Esses valores são texto/dado, não fórmula.
-    Como o importer nunca avalia conteúdo e o preview é escapado, aceitamos
-    apenas literais numéricos com ``+``/``-`` e continuamos bloqueando expressões
-    iniciadas por ``=``, ``@`` ou operadores seguidos de conteúdo não numérico.
-    """
+    """Bloqueia fórmulas reais sem rejeitar telefones e números assinados."""
     if not isinstance(value, str):
         return
     stripped = value.lstrip()
@@ -98,20 +144,24 @@ def _validate_dimensions(rows: list[list[str]], headers: list[str]) -> None:
         raise ImportParseError("HEADER_DUPLICATE", "O arquivo contém nomes de coluna duplicados.")
 
 
+def _suggest_target(header: str) -> str | None:
+    historical = HISTORICAL_HEADER_ALIASES.get(_header_token(header))
+    if historical:
+        return historical
+    candidate = normalize_header(header)
+    return candidate if candidate in SUPPORTED_FIELDS else None
+
+
 def _header_index(rows: list[list[str]]) -> int:
     for index, row in enumerate(rows[:15]):
-        known = sum(1 for cell in row if normalize_header(cell) in HEADER_ALIASES)
+        known = sum(1 for cell in row if _suggest_target(cell) is not None or normalize_header(cell) in HEADER_ALIASES)
         if known >= 2:
             return index
     return 0
 
 
 def _suggest_mapping(headers: list[str]) -> dict[str, str | None]:
-    result: dict[str, str | None] = {}
-    for header in headers:
-        candidate = normalize_header(header)
-        result[header] = candidate if candidate in SUPPORTED_FIELDS else None
-    return result
+    return {header: _suggest_target(header) for header in headers}
 
 
 def mapping_version(headers: list[str], mapping: dict[str, str | None]) -> str:
