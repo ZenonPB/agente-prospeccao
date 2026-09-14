@@ -46,6 +46,25 @@ def _enhance(registry: OfferProfileRegistry, key: str, *, version: str = "2.1", 
     ))
 
 
+def _set_signal_roles(
+    registry: OfferProfileRegistry,
+    key: str,
+    *,
+    positive: list[str],
+    optional_positive: list[str],
+    negative: list[str],
+) -> None:
+    """Separa fit comercial de sinais auxiliares sem misturar disponibilidade de contato."""
+    profile = registry.get(key)
+    if profile is None:
+        return
+    signals = dict(profile.signals or {})
+    signals["positive"] = list(dict.fromkeys(positive))
+    signals["optional_positive"] = list(dict.fromkeys(optional_positive))
+    signals["negative"] = list(dict.fromkeys(negative))
+    registry.register(replace(profile, signals=signals))
+
+
 def equalize_alphamec_vertentes(registry: OfferProfileRegistry) -> OfferProfileRegistry:
     """Completa Golden Paths sem alterar profiles publicados pela organização.
 
@@ -348,6 +367,37 @@ def equalize_alphamec_vertentes(registry: OfferProfileRegistry) -> OfferProfileR
                 "high_confidence_score": 79,
             },
         },
+    )
+
+    # Sinais de fit primários representam necessidade comercial. CNPJ, telefone
+    # e e-mail ajudam na execução, mas não devem ser a razão principal do fit.
+    _set_signal_roles(
+        registry,
+        "mechanical_project",
+        positive=["HAS_PRODUCTION_LINE", "CUSTOM_MACHINERY", "AUTOMATION", "EXPANDING_FACTORY", "NEW_EQUIPMENT", "HIRING_MECHANICAL_ENGINEER"],
+        optional_positive=["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+        negative=["RETAIL_FOCUSED", "SERVICE_ONLY"],
+    )
+    _set_signal_roles(
+        registry,
+        "technical_drawing",
+        positive=["CUSTOM_PARTS", "REVERSE_ENGINEERING", "CUSTOM_MANUFACTURING", "USINAGEM", "REPLACEMENT_PARTS"],
+        optional_positive=["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+        negative=["RETAIL_FOCUSED", "SERVICE_ONLY"],
+    )
+    _set_signal_roles(
+        registry,
+        "machine_manual",
+        positive=["MACHINE_MANUFACTURER", "NEW_MACHINE", "NR12", "TECHNICAL_DOCUMENTATION", "INDUSTRIAL_SAFETY"],
+        optional_positive=["HAS_CNPJ", "HAS_BUSINESS_EMAIL", "HAS_PHONE"],
+        negative=["RETAIL_FOCUSED", "SERVICE_ONLY"],
+    )
+    _set_signal_roles(
+        registry,
+        "trophies",
+        positive=["EVENT_SCHEDULED", "HOSTS_EVENTS", "SEASONAL_DEMAND", "CUSTOM_PRODUCTS"],
+        optional_positive=["HAS_INSTAGRAM", "HAS_PHONE"],
+        negative=["ONLINE_ONLY_RESALE"],
     )
 
     for key in ("trophies_sports", "trophies_mej"):
