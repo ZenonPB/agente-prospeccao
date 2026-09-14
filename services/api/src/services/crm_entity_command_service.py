@@ -123,9 +123,12 @@ class CrmEntityCommandService:
     @staticmethod
     def _assert_version(row: Any, expected: Any) -> None:
         parsed = _parse_expected(expected)
-        current = row.updated_at
+        # Company/Person legados nasceram antes de updated_at possuir default.
+        # A criação é uma versão inicial estável; após a primeira escrita,
+        # updated_at passa a ser a autoridade de concorrência otimista.
+        current = row.updated_at or row.created_at
         if current is None:
-            raise CrmEntityConflict("Registro sem versão de atualização; recarregue antes de editar")
+            raise CrmEntityConflict("Registro sem versão de concorrência; recarregue antes de editar")
         if current.tzinfo is None:
             current = current.replace(tzinfo=timezone.utc)
         if current != parsed.astimezone(timezone.utc):
