@@ -88,6 +88,10 @@ jobs:
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
         run: python scripts/verify_migrations.py --database-url "$DATABASE_URL"
+      - name: Verify Sales Operating schema contract
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+        run: python scripts/verify_sales_operating_schema.py --database-url "$DATABASE_URL"
       - name: Seed templates (smoke)
         working-directory: services/workers
         env: *migration-env
@@ -152,3 +156,5 @@ jobs:
         run: python -m pytest tests/test_event_outcome_persistence.py -q -W error
       - name: Verify Sales Operating System tenant, queue and saved views
         run: python -m pytest tests/test_sales_operating_system.py -q -W error
+      - name: Verify Block B editable CRM, bulk operations and tenant isolation
+        run: python -m pytest tests/test_sales_operating_block_b.py -q -W error
