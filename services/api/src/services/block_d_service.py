@@ -21,7 +21,7 @@ from src.db.models import Campaign, CommercialOutcomeRow, Lead, LeadOpportunityR
 OFFER_RELEASE_MATRIX: tuple[dict[str, str], ...] = (
     {"offer_key": "landing_page", "label": "Landing pages", "hypothesis": "dor digital/conversão observável"},
     {"offer_key": "web_systems_erp", "label": "Sistemas sob medida", "hypothesis": "processo manual/fragmentado observável"},
-    {"offer_key": "mechanical_engineering", "label": "Engenharia mecânica", "hypothesis": "projeto, expansão ou necessidade técnica observável"},
+    {"offer_key": "mechanical_project", "label": "Engenharia mecânica", "hypothesis": "projeto, expansão ou necessidade técnica observável"},
     {"offer_key": "trophies_sports", "label": "Troféus esportivos", "hypothesis": "evento esportivo com demanda de premiação"},
     {"offer_key": "trophies_mej", "label": "Troféus para MEJ", "hypothesis": "evento MEJ com organização e janela de compra identificáveis"},
 )
