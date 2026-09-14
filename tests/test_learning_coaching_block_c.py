@@ -37,6 +37,11 @@ def test_learning_proposal_preserves_persisted_candidate_snapshot():
     assert payload["requires_manual_publication"] is True
 
 
+def _next_minor(version: str) -> str:
+    major, minor = version.split(".", 1)
+    return f"{int(major)}.{int(minor) + 1}"
+
+
 @pytest.mark.skipif(not is_database_reachable(DB_URL), reason="Postgres indisponível")
 def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres():
     from database.learning_models import OfferProfileActivation, OfferProfileVersion
@@ -65,7 +70,12 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
     db.flush()
 
     now = datetime.now(timezone.utc)
-    opportunities = []
+    baseline = build_effective_registry(db, org_a.id).get("landing_page")
+    foreign_baseline = build_effective_registry(db, org_b.id).get("landing_page")
+    assert baseline is not None and foreign_baseline is not None
+    baseline_version = baseline.version
+    candidate_version = _next_minor(baseline_version)
+
     for index in range(12):
         signal_a = index < 6
         # IDs altos nos casos B garantem que o ranking empatado do baseline
@@ -82,17 +92,17 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
         db.add(lead); db.flush()
         opportunity = LeadOpportunityRow(
             id=opp_id, organization_id=org_a.id, lead_id=lead.id,
-            offer_key="landing_page", offer_version="1.0", profile_key="web_presence",
+            offer_key="landing_page", offer_version=baseline_version, profile_key="web_presence",
             score=35,
             signals_matched=["NO_OWN_WEBSITE"] if signal_a else ["HAS_INSTAGRAM"],
             signals_missing=["HAS_INSTAGRAM"] if signal_a else ["NO_OWN_WEBSITE"],
         )
-        db.add(opportunity); db.flush(); opportunities.append(opportunity)
+        db.add(opportunity); db.flush()
         outcome = "WON" if signal_a and index < 3 else "MEETING" if signal_a else "REPLY"
         db.add(CommercialOutcomeRow(
             organization_id=org_a.id, lead_id=lead.id,
             lead_opportunity_id=opportunity.id, offer_key="landing_page",
-            offer_version="1.0", outcome=outcome,
+            offer_version=baseline_version, outcome=outcome,
             value=1000 if outcome == "WON" else 0,
             event_key=f"block-c-{token}-{index}",
         ))
@@ -120,6 +130,7 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
     try:
         calibration = LearningCalibrationService(db, org_a.id)
         report = calibration.calibration_report("landing_page", min_samples=12)
+        assert report["active_version"] == baseline_version
         assert report["sample_quality"]["eligible_for_proposal"] is True
         assert report["sample_quality"]["observed_opportunities"] == 12
         assert report["sample_quality"]["wins"] == 3
@@ -127,10 +138,12 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
 
         suggested = calibration.suggested_candidate("landing_page", min_samples=12)
         candidate = suggested["profile_snapshot"]
-        assert candidate["version"] == "1.1"
+        assert candidate["version"] == candidate_version
         assert suggested["changes"]
         replay = calibration.replay("landing_page", candidate, min_samples=12, top_k=6)
         assert replay["verdict"] == "v2"
+        assert replay["version_a"] == baseline_version
+        assert replay["version_b"] == candidate_version
         assert replay["v2"]["win_precision"] > replay["v1"]["win_precision"]
         assert replay["methodology"]["unknown_semantics"].startswith("sinal ausente")
 
@@ -142,24 +155,24 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
             db, org_a.id, comparison.id, comparison.version_b, manager,
             "Replay histórico atribuído validado no gate do Bloco C.",
         )
-        assert approved.approved_version == "1.1"
+        assert approved.approved_version == candidate_version
 
         learning = ControlledLearningService()
         proposal = learning.create_from_comparison(db, org_a.id, comparison.id, manager)
         assert proposal.status == "PROPOSED"
-        assert proposal.evidence_snapshot["candidate_profile_snapshot"]["version"] == "1.1"
+        assert proposal.evidence_snapshot["candidate_profile_snapshot"]["version"] == candidate_version
 
         published = learning.publish_profile(db, org_a.id, proposal.id, None, manager)
-        assert published.version == "1.1"
+        assert published.version == candidate_version
         assert published.is_active is True
         effective = build_effective_registry(db, org_a.id).get("landing_page")
         foreign_effective = build_effective_registry(db, org_b.id).get("landing_page")
-        assert effective is not None and effective.version == "1.1"
-        assert foreign_effective is not None and foreign_effective.version == "1.0"
+        assert effective is not None and effective.version == candidate_version
+        assert foreign_effective is not None and foreign_effective.version == foreign_baseline.version
 
-        rolled = learning.rollback_profile(db, org_a.id, "landing_page", "1.0", manager)
-        assert rolled.version == "1.0" and rolled.is_active is True
-        assert build_effective_registry(db, org_a.id).get("landing_page").version == "1.0"
+        rolled = learning.rollback_profile(db, org_a.id, "landing_page", baseline_version, manager)
+        assert rolled.version == baseline_version and rolled.is_active is True
+        assert build_effective_registry(db, org_a.id).get("landing_page").version == baseline_version
 
         coaching = CommercialCoachingService(db, org_a.id).dashboard()
         assert coaching["team"]["assigned_leads"] == 12
@@ -169,7 +182,6 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
         assert "FOLLOW_UP_SLA" in kinds
         assert all(item["association_not_causation"] for item in coaching["consultants"][0]["recommendations"])
 
-        # A fonte persistida precisa estar completa e tenant-scoped.
         assert db.query(ControlledLearningProposal).filter(ControlledLearningProposal.organization_id == org_a.id).count() == 1
         assert db.query(OfferProfileVersion).filter(OfferProfileVersion.organization_id == org_b.id).count() == 0
         assert db.query(OfferProfileActivation).filter(OfferProfileActivation.organization_id == org_b.id).count() == 0
