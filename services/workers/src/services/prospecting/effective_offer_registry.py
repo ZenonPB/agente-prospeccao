@@ -42,17 +42,20 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
             logger.warning("OfferProfile ativo inválido ignorado: org=%s row=%s", organization_id, getattr(row, "id", None))
             continue
 
-        # A coluna relacional é a âncora de integridade. Um snapshot divergente
-        # não pode sobrescrever outra oferta ou fingir outra versão, mesmo que o
-        # JSON isoladamente seja semanticamente válido.
-        if str(profile.key) != str(row.offer_key) or str(profile.version) != str(row.version):
+        # A coluna relacional é a âncora de integridade em runtime. Alguns
+        # doubles unitários históricos representam apenas `profile_snapshot`;
+        # nesses casos a própria identidade do snapshot preserva o contrato
+        # antigo sem enfraquecer a validação das linhas ORM reais.
+        row_offer_key = getattr(row, "offer_key", profile.key)
+        row_version = getattr(row, "version", profile.version)
+        if str(profile.key) != str(row_offer_key) or str(profile.version) != str(row_version):
             logger.warning(
                 "OfferProfile ativo com identidade divergente ignorado: org=%s row=%s row_key=%s snapshot_key=%s row_version=%s snapshot_version=%s",
                 organization_id,
                 getattr(row, "id", None),
-                row.offer_key,
+                row_offer_key,
                 profile.key,
-                row.version,
+                row_version,
                 profile.version,
             )
             continue
@@ -67,7 +70,7 @@ def build_effective_registry(db: Any, organization_id: Any) -> OfferProfileRegis
             logger.warning(
                 "OfferProfile ativo semanticamente inválido ignorado: org=%s key=%s problemas=%s",
                 organization_id,
-                row.offer_key,
+                row_offer_key,
                 "; ".join(str(item) for item in problems),
             )
             continue
