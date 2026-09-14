@@ -34,7 +34,7 @@ REQUIRED_TABLES = {
     "next_best_action_decisions", "workflow_definitions", "workflow_runs",
     "offer_profile_versions", "offer_profile_activations", "crm_certification_runs",
     "lead_usefulness_feedbacks", "import_jobs", "import_row_results", "import_audit_events",
-    "commercial_bulk_operations",
+    "commercial_bulk_operations", "commercial_saved_views",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer", "ix_event_opportunities_org_date",
@@ -57,7 +57,7 @@ REQUIRED_INDEXES = {
     "uq_offer_profile_versions_one_active", "ix_offer_profile_activations_org_offer_created",
     "ix_crm_certification_org_connection_created",
     "ix_lead_usefulness_org_created", "ix_lead_usefulness_lead_id",
-    "ix_commercial_bulk_operations_org_created",
+    "ix_commercial_bulk_operations_org_created", "ix_commercial_saved_views_org_kind",
     "ix_import_jobs_org_status_created", "ix_import_jobs_org_source_hash",
     "ix_import_row_results_job_status_line", "ix_import_audit_events_job_created", "ix_import_audit_events_org_created",
     "uq_conversions_lead_offer",
@@ -101,6 +101,7 @@ REQUIRED_FKS = {
     "import_row_results": {"import_jobs.id", "organizations.id", "leads.id", "companies.id", "persons.id"},
     "import_audit_events": {"import_jobs.id", "organizations.id", "users.id"},
     "commercial_bulk_operations": {"organizations.id", "users.id"},
+    "commercial_saved_views": {"organizations.id", "users.id"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
@@ -121,6 +122,7 @@ REQUIRED_UNIQUES = {
     "lead_usefulness_feedbacks": {"uq_lead_usefulness_lead_user"},
     "import_jobs": {"uq_import_jobs_org_idempotency"},
     "commercial_bulk_operations": {"uq_commercial_bulk_operations_org_idempotency"},
+    "commercial_saved_views": {"uq_commercial_saved_views_owner_name"},
     "import_row_results": {"uq_import_row_results_job_line_version"},
 }
 REQUIRED_COLUMNS = {
@@ -147,6 +149,7 @@ REQUIRED_COLUMNS = {
     "import_row_results": {"import_job_id", "organization_id", "line_number", "source_version", "status", "reason_code", "identity_decision", "provenance"},
     "import_audit_events": {"import_job_id", "organization_id", "action", "from_status", "to_status", "correlation_id", "created_at"},
     "commercial_bulk_operations": {"organization_id", "actor_id", "idempotency_key", "operation", "payload_hash", "status", "result", "created_at", "completed_at"},
+    "commercial_saved_views": {"organization_id", "owner_user_id", "name", "view_kind", "filters", "shared", "created_at", "updated_at"},
 }
 
 
