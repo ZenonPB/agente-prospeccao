@@ -1,14 +1,16 @@
 /** Rótulos de apresentação do catálogo comercial. */
 export const OFFER_PROFILE_OPTIONS = [
-  { key: 'landing_page', label: 'Landing Page de Conversão' },
-  { key: 'web_systems_erp', label: 'Sistemas Web e ERP' },
-  { key: 'mechanical_project', label: 'Projeto Mecânico' },
-  { key: 'technical_drawing', label: 'Desenho Técnico' },
-  { key: 'machine_manual', label: 'Manual de Máquinas e NR-12' },
-  { key: '3d_printing', label: 'Impressão 3D' },
-  { key: 'laser_cutting_technical', label: 'Corte a Laser Técnico' },
-  { key: 'laser_custom_products', label: 'Produtos Personalizados a Laser' },
-  { key: 'trophies', label: 'Troféus Personalizados' },
+  { key: 'landing_page', label: 'Landing pages e páginas de conversão', description: 'Para negócios que precisam transformar presença digital em contatos e vendas.' },
+  { key: 'web_systems_erp', label: 'Sistemas web sob medida', description: 'Para operações com processos manuais, planilhas, retrabalho ou sistemas desconectados.' },
+  { key: 'mechanical_project', label: 'Projetos de engenharia mecânica', description: 'Para indústrias com expansão, novos equipamentos, gargalos ou necessidade de solução sob medida.' },
+  { key: 'technical_drawing', label: 'Desenho técnico e engenharia reversa', description: 'Para peças, fabricação, documentação e necessidades de engenharia reversa.' },
+  { key: 'machine_manual', label: 'Manuais de máquinas e NR-12', description: 'Para fabricantes e operações com demanda de documentação e segurança de máquinas.' },
+  { key: '3d_printing', label: 'Impressão 3D e prototipagem', description: 'Para desenvolvimento de produto, protótipos e peças de ciclo rápido.' },
+  { key: 'laser_cutting_technical', label: 'Corte a laser técnico', description: 'Para peças e chapas produzidas sob especificação.' },
+  { key: 'laser_custom_products', label: 'Produtos personalizados a laser', description: 'Para eventos, brindes e produtos personalizados em lotes flexíveis.' },
+  { key: 'trophies', label: 'Troféus e premiações', description: 'Para organizações com eventos, reconhecimentos e premiações.' },
+  { key: 'trophies_sports', label: 'Troféus para eventos esportivos', description: 'Para campeonatos, corridas, ligas, torneios e outras competições.' },
+  { key: 'trophies_mej', label: 'Troféus para eventos do MEJ', description: 'Para EJs, núcleos, federações e eventos do Movimento Empresa Júnior.' },
 ] as const;
 
 export type OfferProfileKey = (typeof OFFER_PROFILE_OPTIONS)[number]['key'];
@@ -28,17 +30,23 @@ export function humanizeCode(value?: string | null): string {
 }
 
 export function offerProfileLabel(key?: string | null): string {
-  if (!key) return 'Não identificada';
+  if (!key) return 'Ainda não identificada';
   return OFFER_LABEL_BY_KEY[key] ?? humanizeCode(key);
+}
+
+export function offerProfileDescription(key?: string | null): string {
+  if (!key) return 'O sistema vai identificar a melhor estratégia a partir do que você quer vender.';
+  return OFFER_PROFILE_OPTIONS.find((option) => option.key === key)?.description
+    ?? 'Estratégia comercial configurada para esta oferta.';
 }
 
 export function offerOriginLabel(resolvedFrom?: string | null): string {
   switch (resolvedFrom) {
     case 'explicit':
-      return 'Você escolheu';
+      return 'Identificada diretamente pelo que você descreveu';
     case 'vertical':
     case 'archetype':
-      return 'Detectada a partir das informações da oportunidade';
+      return 'Identificada pelo contexto comercial';
     default:
       return 'Sugestão do sistema';
   }
@@ -69,8 +77,8 @@ export const SIGNAL_LABELS: Record<string, string> = {
   FUNDING: 'Novo investimento identificado',
   MANAGEMENT_CHANGE: 'Mudança de gestão',
   NEW_EQUIPMENT: 'Equipamento novo identificado',
-  EVENT_SCHEDULED: 'Evento programado',
-  SEASONAL_DEMAND: 'Demanda sazonal',
+  EVENT_SCHEDULED: 'Evento futuro confirmado',
+  SEASONAL_DEMAND: 'Demanda recorrente ou sazonal',
   HAS_ADS: 'Investe em anúncios',
   WEAK_CTA: 'Chamadas para ação pouco claras',
   NO_CONTACT_FORM: 'Sem formulário de contato',

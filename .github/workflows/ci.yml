@@ -39,6 +39,8 @@ jobs:
           python -m compileall -q services/api services/workers
       - name: Unit tests (sem banco)
         run: python -m pytest tests -q -W error
+      - name: Prospecting Intelligence quality gate
+        run: python -m pytest tests/test_prospecting_intelligence_block_a.py -q -W error
 
   migrations:
     name: Migrations (alembic upgrade head)
@@ -168,3 +170,5 @@ jobs:
         run: python -m pytest tests/test_opportunity_commands.py -q -W error
       - name: Verify Company/Person 360 tenant and performance invariants
         run: python -m pytest tests/test_crm_360_entities.py -q -W error
+      - name: Verify Event Intelligence and Golden Paths persistence
+        run: python -m pytest tests/test_event_outcome_persistence.py -q -W error

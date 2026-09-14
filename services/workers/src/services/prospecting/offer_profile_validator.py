@@ -1,14 +1,8 @@
-"""Validação semântica de OfferProfile (P1.4).
+"""Validação semântica de OfferProfile.
 
 Função pura: `validate_profile(profile)` devolve a lista de problemas
-(vazia = válido). Não lança para perfis inválidos — quem chama decide
-(log no seed, erro em ferramenta administrativa futura).
-
-Distinção honesta:
-- erro: configuração certamente inválida (chave vazia, threshold fora da
-  faixa, peso negativo, canal desconhecido, papel vazio);
-- aviso (`"aviso: ..."`): valor desconhecido mas possivelmente legítimo
-  (provider de discovery novo, evento de intent novo, step legado).
+(vazia = válido). Avisos representam extensões possivelmente legítimas; erros
+representam contratos que o motor não consegue executar com segurança.
 """
 import logging
 import re
@@ -26,25 +20,13 @@ KNOWN_BUYER_TYPES = frozenset({
 KNOWN_INSUFFICIENT_DATA = frozenset({"discard", "promote", "review"})
 KNOWN_DISCOVERY_PROVIDERS = frozenset({
     "google_places", "cnae_discovery", "instagram_search", "event_search",
-    "csv_import", "pncp_search",
+    "csv_import", "pncp_search", "job_search", "company_news",
 })
 LEGACY_ENRICHMENT_STEPS = frozenset({"cnpj_qsa"})
 
 
-def _problems() -> List[str]:
-    return []
-
-
 def validate_profile(profile: Any) -> List[str]:
-    """Valida um OfferProfile; retorna a lista de problemas (vazia = válido).
-
-    Args:
-        profile: OfferProfile (dataclass) ou dict serializado.
-
-    Returns:
-        Lista de descrições; itens `"aviso: ..."` não invalidam o perfil.
-    """
-    problems = _problems()
+    problems: List[str] = []
     get = (lambda k, d=None: profile.get(k, d)) if isinstance(profile, dict) \
         else (lambda k, d=None: getattr(profile, k, d))
 
@@ -67,7 +49,8 @@ def validate_profile(profile: Any) -> List[str]:
     problems.extend(_validate_channels(get("channels") or {}))
     problems.extend(_validate_enrichment(get("enrichment") or {}))
     problems.extend(_validate_discovery(get("discovery") or {}))
-    problems.extend(_validate_signals(profile, get))
+    problems.extend(_validate_quality_gates(get("qualification") or {}))
+    problems.extend(_validate_signals(get))
     return problems
 
 
@@ -76,9 +59,7 @@ def _validate_prescoring(prescoring: Any) -> List[str]:
     if not isinstance(prescoring, dict):
         return ["prescoring não é um objeto"]
     threshold = prescoring.get("threshold")
-    if threshold is not None and (
-        not isinstance(threshold, (int, float)) or not 0 <= threshold <= 100
-    ):
+    if threshold is not None and (not isinstance(threshold, (int, float)) or not 0 <= threshold <= 100):
         problems.append(f"prescoring.threshold fora de [0,100]: {threshold!r}")
     top_k = prescoring.get("top_k")
     if top_k is not None and (not isinstance(top_k, int) or top_k <= 0):
@@ -90,17 +71,12 @@ def _validate_prescoring(prescoring: Any) -> List[str]:
         else:
             for signal, weight in weights.items():
                 if not isinstance(weight, (int, float)) or weight < 0:
-                    problems.append(
-                        f"prescoring.weights[{signal}] inválido: {weight!r}")
+                    problems.append(f"prescoring.weights[{signal}] inválido: {weight!r}")
     on_insufficient = prescoring.get("on_insufficient_data")
     if on_insufficient is not None and on_insufficient not in KNOWN_INSUFFICIENT_DATA:
-        problems.append(
-            f"prescoring.on_insufficient_data desconhecido: {on_insufficient!r}")
+        problems.append(f"prescoring.on_insufficient_data desconhecido: {on_insufficient!r}")
     required = prescoring.get("required_signals")
-    if required is not None and (
-        not isinstance(required, list) or not all(
-            isinstance(s, str) and s.strip() for s in required)
-    ):
+    if required is not None and (not isinstance(required, list) or not all(isinstance(s, str) and s.strip() for s in required)):
         problems.append("prescoring.required_signals deve ser lista de strings")
     return problems
 
@@ -116,19 +92,13 @@ def _validate_intent(intent: Any) -> List[str]:
         else:
             for event, weight in event_weights.items():
                 if not isinstance(weight, (int, float)) or not 0 <= weight <= 1:
-                    problems.append(
-                        f"intent.event_weights[{event}] fora de [0,1]: {weight!r}")
+                    problems.append(f"intent.event_weights[{event}] fora de [0,1]: {weight!r}")
     decay_days = intent.get("decay_days")
-    if decay_days is not None and (
-        not isinstance(decay_days, (int, float)) or decay_days <= 0
-    ):
+    if decay_days is not None and (not isinstance(decay_days, (int, float)) or decay_days <= 0):
         problems.append(f"intent.decay_days deve ser positivo: {decay_days!r}")
     trigger = intent.get("trigger_threshold")
-    if trigger is not None and (
-        not isinstance(trigger, (int, float)) or not 0 <= trigger <= 1
-    ):
-        problems.append(
-            f"intent.trigger_threshold fora de [0,1]: {trigger!r}")
+    if trigger is not None and (not isinstance(trigger, (int, float)) or not 0 <= trigger <= 1):
+        problems.append(f"intent.trigger_threshold fora de [0,1]: {trigger!r}")
     return problems
 
 
@@ -137,8 +107,7 @@ def _validate_decision_makers(decision_makers: Any) -> List[str]:
     if not isinstance(decision_makers, dict):
         return ["decision_makers não é um objeto"]
     roles = decision_makers.get("roles")
-    if not isinstance(roles, list) or not roles or not all(
-            isinstance(r, str) and r.strip() for r in roles):
+    if not isinstance(roles, list) or not roles or not all(isinstance(r, str) and r.strip() for r in roles):
         problems.append("decision_makers.roles vazio ou inválido")
     buyer_types = decision_makers.get("buyer_types")
     if buyer_types is not None:
@@ -147,8 +116,7 @@ def _validate_decision_makers(decision_makers: Any) -> List[str]:
         else:
             for buyer in buyer_types:
                 if buyer not in KNOWN_BUYER_TYPES:
-                    problems.append(
-                        f"decision_makers.buyer_types desconhecido: {buyer!r}")
+                    problems.append(f"decision_makers.buyer_types desconhecido: {buyer!r}")
     return problems
 
 
@@ -174,7 +142,7 @@ def _validate_enrichment(enrichment: Any) -> List[str]:
     try:
         from services.enrichment_capability_registry import ENRICHMENT_STEP_KEYS
         known_steps = set(ENRICHMENT_STEP_KEYS) | set(LEGACY_ENRICHMENT_STEPS)
-    except ImportError:  # pragma: no cover — registry sempre presente no runtime
+    except ImportError:  # pragma: no cover
         known_steps = set(LEGACY_ENRICHMENT_STEPS)
     steps = enrichment.get("steps")
     if steps is not None:
@@ -183,63 +151,35 @@ def _validate_enrichment(enrichment: Any) -> List[str]:
         else:
             for step in steps:
                 if step in LEGACY_ENRICHMENT_STEPS:
-                    problems.append(
-                        f"aviso: enrichment.steps legado: {step!r} "
-                        "(coberto por cnpj_receita)")
+                    problems.append(f"aviso: enrichment.steps legado: {step!r} (coberto por cnpj_receita)")
                 elif step not in known_steps:
-                    problems.append(
-                        f"enrichment.steps desconhecido: {step!r}")
+                    problems.append(f"enrichment.steps desconhecido: {step!r}")
     people = enrichment.get("people_discovery")
     if people is not None:
         if not isinstance(people, dict):
             problems.append("enrichment.people_discovery não é um objeto")
         else:
             max_cost = people.get("max_cost")
-            if max_cost is not None and (
-                    not isinstance(max_cost, (int, float))
-                    or not 0 <= max_cost <= 1000):
-                problems.append(
-                    f"enrichment.people_discovery.max_cost fora de "
-                    f"[0,1000]: {max_cost!r}")
+            if max_cost is not None and (not isinstance(max_cost, (int, float)) or not 0 <= max_cost <= 1000):
+                problems.append(f"enrichment.people_discovery.max_cost fora de [0,1000]: {max_cost!r}")
             max_steps = people.get("max_steps")
-            if max_steps is not None and (
-                    not isinstance(max_steps, int)
-                    or not 1 <= max_steps <= 20):
-                problems.append(
-                    f"enrichment.people_discovery.max_steps fora de "
-                    f"[1,20]: {max_steps!r}")
+            if max_steps is not None and (not isinstance(max_steps, int) or not 1 <= max_steps <= 20):
+                problems.append(f"enrichment.people_discovery.max_steps fora de [1,20]: {max_steps!r}")
             min_role_fit = people.get("min_role_fit")
-            if min_role_fit is not None and (
-                    not isinstance(min_role_fit, (int, float))
-                    or not 0 <= min_role_fit <= 100):
-                problems.append(
-                    f"enrichment.people_discovery.min_role_fit fora de "
-                    f"[0,100]: {min_role_fit!r}")
+            if min_role_fit is not None and (not isinstance(min_role_fit, (int, float)) or not 0 <= min_role_fit <= 100):
+                problems.append(f"enrichment.people_discovery.min_role_fit fora de [0,100]: {min_role_fit!r}")
             min_identity = people.get("min_identity_confidence")
-            if min_identity is not None and (
-                    not isinstance(min_identity, (int, float))
-                    or not 0 <= min_identity <= 100):
-                problems.append(
-                    f"enrichment.people_discovery.min_identity_confidence fora de "
-                    f"[0,100]: {min_identity!r}")
+            if min_identity is not None and (not isinstance(min_identity, (int, float)) or not 0 <= min_identity <= 100):
+                problems.append(f"enrichment.people_discovery.min_identity_confidence fora de [0,100]: {min_identity!r}")
             required_buyer = people.get("required_buyer_role")
             if required_buyer is not None:
-                candidates = (
-                    [required_buyer] if isinstance(required_buyer, str)
-                    else required_buyer if isinstance(required_buyer, list)
-                    else None
-                )
-                if candidates is None or not all(
-                        isinstance(item, str) and item.strip() for item in candidates):
-                    problems.append(
-                        "enrichment.people_discovery.required_buyer_role deve ser "
-                        f"string ou lista de strings: {required_buyer!r}")
+                candidates = [required_buyer] if isinstance(required_buyer, str) else required_buyer if isinstance(required_buyer, list) else None
+                if candidates is None or not all(isinstance(item, str) and item.strip() for item in candidates):
+                    problems.append(f"enrichment.people_discovery.required_buyer_role deve ser string ou lista de strings: {required_buyer!r}")
                 else:
                     for item in candidates:
                         if item.strip().upper() not in KNOWN_BUYER_TYPES:
-                            problems.append(
-                                "enrichment.people_discovery.required_buyer_role "
-                                f"desconhecido: {item!r}")
+                            problems.append(f"enrichment.people_discovery.required_buyer_role desconhecido: {item!r}")
     return problems
 
 
@@ -254,13 +194,33 @@ def _validate_discovery(discovery: Any) -> List[str]:
         else:
             for provider in providers:
                 if provider not in KNOWN_DISCOVERY_PROVIDERS:
-                    problems.append(
-                        f"aviso: discovery.providers desconhecido: {provider!r}")
+                    problems.append(f"aviso: discovery.providers desconhecido: {provider!r}")
+    return problems
+
+
+def _validate_quality_gates(qualification: Any) -> List[str]:
+    if not isinstance(qualification, dict):
+        return ["qualification não é um objeto"]
+    gates = qualification.get("quality_gates")
+    if gates is None:
+        return []
+    if not isinstance(gates, dict):
+        return ["qualification.quality_gates não é um objeto"]
+    problems: List[str] = []
+    evidence = gates.get("strong_evidence_any")
+    if evidence is not None and (not isinstance(evidence, list) or not all(isinstance(item, str) and item for item in evidence)):
+        problems.append("quality_gates.strong_evidence_any deve ser lista de sinais")
+    min_observed = gates.get("min_observed_signals")
+    if min_observed is not None and (not isinstance(min_observed, int) or min_observed < 0):
+        problems.append("quality_gates.min_observed_signals deve ser inteiro >= 0")
+    for key in ("max_score_without_strong_evidence", "max_score_with_sparse_evidence", "high_confidence_score"):
+        value = gates.get(key)
+        if value is not None and (not isinstance(value, (int, float)) or not 0 <= value <= 100):
+            problems.append(f"quality_gates.{key} fora de [0,100]: {value!r}")
     return problems
 
 
 def _signal_refs(get) -> List[str]:
-    """Coleta todas as chaves de sinal referenciadas pelo perfil."""
     refs: List[str] = []
     prescoring = get("prescoring") or {}
     if isinstance(prescoring, dict):
@@ -272,7 +232,7 @@ def _signal_refs(get) -> List[str]:
             refs.extend(s for s in required if isinstance(s, str))
     signals = get("signals") or {}
     if isinstance(signals, dict):
-        for section in ("positive", "negative", "disqualifiers"):
+        for section in ("positive", "optional_positive", "negative", "disqualifiers"):
             values = signals.get(section)
             if isinstance(values, list):
                 refs.extend(s for s in values if isinstance(s, str))
@@ -284,21 +244,21 @@ def _signal_refs(get) -> List[str]:
         evidence = outreach.get("evidence_requirements")
         if isinstance(evidence, list):
             refs.extend(s for s in evidence if isinstance(s, str))
+    qualification = get("qualification") or {}
+    gates = qualification.get("quality_gates") if isinstance(qualification, dict) else None
+    if isinstance(gates, dict):
+        evidence = gates.get("strong_evidence_any")
+        if isinstance(evidence, list):
+            refs.extend(s for s in evidence if isinstance(s, str))
     return refs
 
 
-def _validate_signals(profile: Any, get) -> List[str]:
-    """Confere chaves de sinal contra o Signal Registry.
-
-    Chave desconhecida é erro (perfil citaria conceito que o motor não
-    conhece). Eventos de intent fora do registry são só aviso: providers
-    de intent evoluem sem mudar o registry de sinais.
-    """
+def _validate_signals(get) -> List[str]:
     problems: List[str] = []
     try:
         from services.signal_registry import SIGNAL_REGISTRY
         known = set(SIGNAL_REGISTRY)
-    except ImportError:  # pragma: no cover — registry sempre presente
+    except ImportError:  # pragma: no cover
         known = set()
     for ref in _signal_refs(get):
         if not _UPPER_SNAKE_RE.match(ref):
@@ -312,20 +272,11 @@ def _validate_signals(profile: Any, get) -> List[str]:
             if not isinstance(event, str) or not _UPPER_SNAKE_RE.match(event):
                 problems.append(f"intent.event_weights fora do padrão: {event!r}")
             elif event not in known:
-                problems.append(
-                    f"aviso: intent.event_weights fora do registry: {event!r}")
+                problems.append(f"aviso: intent.event_weights fora do registry: {event!r}")
     return problems
 
 
 def validate_registry(registry: Any) -> Dict[str, List[str]]:
-    """Valida todos os perfis do registry; retorna {key: problemas não-avisos}.
-
-    Args:
-        registry: OfferProfileRegistry.
-
-    Returns:
-        Mapeamento apenas dos perfis com erros (avisos são logados).
-    """
     invalid: Dict[str, List[str]] = {}
     for profile in registry.list():
         problems = validate_profile(profile)

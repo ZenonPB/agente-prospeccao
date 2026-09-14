@@ -264,6 +264,9 @@ def build_default_registry() -> OfferProfileRegistry:
     from services.alphamec_offer_profiles import register_alphamec_profiles
     register_alphamec_profiles(registry)
 
+    from services.alphamec_profile_policy import apply_catalog_policies
+    apply_catalog_policies(registry)
+
     from services.prospecting.offer_profile_validator import validate_registry
     invalid = validate_registry(registry)
     for key, errors in invalid.items():
