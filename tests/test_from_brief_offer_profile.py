@@ -1,20 +1,23 @@
 """Regressão do F-03: POST /api/campaigns/from-brief deve sugerir OfferProfile.
 
-O preview do modo agente resolvia só o template de scoring e nunca o perfil
-da oferta — a campanha nascia sem `offer_profile_key` e o pipeline caía no
-fallback legado. O brief precisa devolver a oferta resolvida para a UI
-confirmar e enviar no create.
+O preview do modo agente resolve a Vertente no registry efetivo da organização.
+Nestes testes unitários não há banco real de overlays, então o builder é fixado
+no catálogo base para isolar apenas a resolução da intenção comercial.
 """
 import asyncio
 from types import SimpleNamespace
-
-from starlette.requests import Request
 
 from src.routes.campaigns import BriefCampaignRequest, create_campaign_from_brief
 from tests.test_brief_template_generation import _FakeDB, _patch_chain, _request
 
 
 def _run(monkeypatch, suggestion):
+    from services.prospecting.default_profiles import get_base_registry
+
+    monkeypatch.setattr(
+        "services.prospecting.effective_offer_registry.build_effective_registry",
+        lambda _db, _org_id: get_base_registry(),
+    )
     route_result = {
         "template": {"service_label": "Genérico"},
         "route": "MATCHED",
