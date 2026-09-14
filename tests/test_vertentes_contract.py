@@ -11,6 +11,9 @@ FACTORY_KEYS = {
     "trophies",
     "trophies_sports",
     "trophies_mej",
+    "3d_printing",
+    "laser_cutting_technical",
+    "laser_custom_products",
 }
 
 
@@ -19,15 +22,14 @@ def _registry():
     return build_effective_registry(None, None)
 
 
-def test_vertentes_prioritarias_cumprem_contrato_de_maturidade():
+def test_todas_vertentes_factory_cumprem_contrato_de_maturidade():
     from services.prospecting.offer_profile_maturity import evaluate_offer_profile_maturity
 
     registry = _registry()
-    for key in FACTORY_KEYS:
-        profile = registry.get(key)
-        assert profile is not None, key
+    assert FACTORY_KEYS.issubset({profile.key for profile in registry.list()})
+    for profile in registry.list():
         report = evaluate_offer_profile_maturity(profile)
-        assert report.score >= 85, (key, report.to_dict())
+        assert report.score >= 85, (profile.key, report.to_dict())
 
 
 def test_trofeus_mej_e_esporte_sao_vertentes_distintas_e_event_driven():
@@ -107,3 +109,21 @@ def test_trofeus_sem_evento_nao_recebe_confianca_alta_so_por_instagram():
     trophies = matches["trophies"]
     assert trophies.score <= 52
     assert "missing_strong_evidence" in trophies.score_breakdown["capped_by"]
+
+
+def test_golden_path_mej_prioriza_evento_com_timing_e_organizador():
+    from services.prospecting.offer_matcher import OfferMatcher
+
+    matches = {item.offer_key: item for item in OfferMatcher(_registry()).match({
+        "company_name": "Núcleo de Empresas Juniores",
+        "segment": "MEJ",
+        "company_size": "ME",
+        "event_scheduled": True,
+        "hosts_events": True,
+        "seasonal_demand": True,
+        "has_instagram": True,
+    })}
+    opportunity = matches["trophies_mej"]
+    assert opportunity.score >= 60
+    assert opportunity.score_breakdown["confidence_band"] in {"medium", "high"}
+    assert "EVENT_SCHEDULED" in opportunity.score_breakdown["strong_evidence_matched"]
