@@ -1,9 +1,9 @@
 # Mapa de status — fonte de verdade operacional
 
 > **LIVE · atualizado em 2026-09-14.** Código/migrations/testes prevalecem.
-> Leia também `docs/README.md` e `docs/roadmap.md`.
+> Leia também `docs/README.md`, `docs/roadmap.md` e `docs/block-d-production-release.md`.
 
-Legenda: ✅ completo no escopo atual · 🟠 parcial · ⬜ pendente.
+Legenda: ✅ completo no escopo técnico atual · 🟠 depende de evidência externa/produção · ⬜ pendente.
 
 | Capability | Estado | Evidência / limite atual |
 |---|---:|---|
@@ -42,24 +42,29 @@ Legenda: ✅ completo no escopo atual · 🟠 parcial · ⬜ pendente.
 | Filter Context compartilhado | ✅ | contrato único URL/API para período, campanha, consultor, oferta/versão, canal, status, score, outcome, atribuição, busca, segmento, cidade/UF e estágio de negociação. |
 | BI interativo final | ✅ | analytics/export usam o mesmo Filter Context; filtros server-side/restauráveis, saved views e cross-filter sobre as dimensões comerciais principais. |
 | Coaching comercial | ✅ | dashboard por time/consultor, SLA, timing de primeiro contato e reunião→proposta; toda recomendação carrega evidência e é rotulada como associação, não causalidade. |
-| UAT multi-workspace | 🟠 | testes automatizados fortes; falta sessão UAT formal do RC. |
-| Campanha real AlphaMec | ⬜ | não declarar concluída sem execução autorizada/evidência real. |
+| UAT multi-workspace — D1 | ✅ | cenário adversarial AlphaMec × Vendas Samuel e Zenon no PostgreSQL real, mesmo usuário em papéis distintos, UUID cross-tenant conhecido, dados espelhados e registry efetivo isolado. |
+| Production readiness — D2 | ✅ | retry/backoff/circuit-breaker/cache tenant-first/redaction, verifier fail-closed, migrations idempotentes e backup→restore ensaiado na CI; health isolado não é tratado como prova de provider. |
+| Campaign release + medição — D3 | ✅ | matriz das principais ofertas, DRY_RUN/REHEARSAL, LIVE_AUTHORIZED fail-closed, teto de custo/contatos e funil observacional canônico com attribution/calibration readiness. |
+| Campanhas externas AlphaMec com outcomes reais | 🟠 | dependem de contatos, consentimento/base aplicável, credenciais/provider habilitado no workspace e autorização humana em produção; CI não fabrica conversão. |
 
 ## Limites do estado atual
 
 - O benchmark do Bloco A é **sintético e de regressão**. Ele protege roteamento, evidência, genericidade e confiança, mas não prova conversão comercial.
-- O Bloco B está tecnicamente fechado como sistema operacional de vendas; smoke/browser e validação com usuários reais permanecem parte do UAT do RC, não uma lacuna de consistência do domínio.
-- O Bloco C está tecnicamente fechado: calibração, replay, aprovação, publicação, rollback e coaching possuem gates automatizados. Os thresholds atuais são proteções de produto; sua eficácia comercial precisa ser validada com amostra real.
-- `precision@20`, resposta, reunião, proposta, contrato e receita de produção só podem ser afirmados após campanhas reais com outcomes atribuídos.
+- O Bloco B está tecnicamente fechado como sistema operacional de vendas.
+- O Bloco C está tecnicamente fechado: calibração, replay, aprovação, publicação, rollback e coaching possuem gates automatizados. Os thresholds são proteções de produto; sua eficácia comercial depende de amostra real.
+- O Bloco D fecha tecnicamente o UAT multi-workspace, o production rehearsal e o contrato seguro para campanhas controladas. O rehearsal usa PostgreSQL real e nunca é apresentado como contato comercial real.
+- `precision@K`, resposta, reunião, proposta, contrato e receita **de mercado** só podem ser afirmados após campanhas externas autorizadas com outcomes atribuídos.
 - Contexto de evento e estimativas derivadas permanecem `INFERENCE`; ausência de evidência permanece `UNKNOWN`.
+- Backup/restore da CI prova o procedimento técnico em PostgreSQL efêmero; retenção, criptografia at-rest e restauração do backup real continuam responsabilidade do ambiente de produção.
 
-## Bloqueadores restantes antes do fechamento do RC
+## Fechamento técnico do RC
 
-1. UAT multi-workspace formal com usuários reais em mais de um workspace, incluindo overlays, jobs, CRM, BI, learning e cache sem leakage.
-2. Amostra real suficiente da AlphaMec antes de aceitar como calibrados pesos sugeridos em produção recorrente.
-3. Rodar campanhas reais autorizadas por oferta para medir precisão, resposta, reunião, proposta e conversão.
-4. Corrigir qualquer gap encontrado no UAT/campanhas e executar hardening final.
+A/B/C/D possuem gates automatizados. O merge do Bloco D exige, no mesmo HEAD, Web lint/TypeScript/build, compileall + pytest `-W error`, migrations/seed/verifiers, backup→restore e todos os E2E PostgreSQL dos blocos anteriores mais o UAT D1/D2/D3. Após o merge, a mesma CI deve passar novamente na `main`.
 
-## Próximo corte do RC
+## Próxima fase — evidência operacional real
 
-Bloco D — UAT multi-workspace → campanhas reais autorizadas → medição → hardening final.
+1. Autorizar explicitamente uma amostra controlada por oferta no workspace AlphaMec.
+2. Habilitar somente os providers necessários, com quota e teto de custo.
+3. Rodar as campanhas externas com provenance/correlation/outcome attribution.
+4. Aguardar volume suficiente para `calibration_ready` e usar o Bloco C para replay e aprovação humana de qualquer mudança.
+5. Registrar performance e incidentes do ambiente real sem reclassificar ausência de evidência como sucesso.

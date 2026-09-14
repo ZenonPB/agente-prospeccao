@@ -40,6 +40,8 @@ jobs:
         run: python -m pytest tests -q -W error
       - name: Prospecting Intelligence quality gate
         run: python -m pytest tests/test_prospecting_intelligence_block_a.py -q -W error
+      - name: Production resilience unit gate
+        run: python -m pytest tests/test_block_d_uat_production_campaigns.py -q -W error
 
   migrations:
     name: Migrations (alembic upgrade head)
@@ -92,10 +94,25 @@ jobs:
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test
         run: python scripts/verify_sales_operating_schema.py --database-url "$DATABASE_URL"
+      - name: Verify Block D production readiness contract
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+        run: python scripts/verify_block_d_readiness.py --database-url "$DATABASE_URL"
       - name: Seed templates (smoke)
         working-directory: services/workers
         env: *migration-env
         run: python -m src.seeds.scoring_templates
+      - name: Backup and restore rehearsal
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          RESTORE_DATABASE_URL: postgresql://test:test@localhost:5432/test_restore
+          PGPASSWORD: test
+        run: |
+          command -v pg_dump
+          bash scripts/backup_postgres.sh /tmp/block-d.backup
+          createdb -h localhost -U test test_restore
+          bash scripts/restore_postgres.sh /tmp/block-d.backup
+          psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) FROM alembic_version;"
 
   e2e:
     name: E2E critical invariants (Postgres real)
@@ -160,3 +177,5 @@ jobs:
         run: python -m pytest tests/test_sales_operating_block_b.py -q -W error
       - name: Verify Block C calibration, controlled learning and coaching
         run: python -m pytest tests/test_learning_coaching_block_c.py -q -W error
+      - name: Verify Block D multi-workspace, readiness and campaign rehearsal
+        run: python -m pytest tests/test_block_d_uat_production_campaigns.py -q -W error
