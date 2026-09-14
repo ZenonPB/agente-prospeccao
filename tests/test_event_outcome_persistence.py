@@ -1,6 +1,6 @@
-"""Testes dos serviços persistentes de eventos e outcomes."""
+"""Testes dos serviços persistentes de eventos, Golden Paths e outcomes."""
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from db_reachable import database_url, is_database_reachable
-from database.models import Base, Contact, EventOpportunityRow, CommercialOutcomeRow, Lead, LeadOpportunityRow, Organization
+from database.models import Contact, EventOpportunityRow, CommercialOutcomeRow, Lead, LeadOpportunityRow, Organization
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env", override=False)
@@ -18,6 +18,10 @@ pytestmark = pytest.mark.skipif(
     not is_database_reachable(DB_URL),
     reason="Postgres indisponivel - testes de persistencia requerem banco real",
 )
+
+
+def future_iso(days: int) -> str:
+    return (date.today() + timedelta(days=days)).isoformat()
 
 
 @pytest.fixture()
@@ -51,12 +55,11 @@ def test_event_discovery_persists_idempotently(session):
     event = {
         "name": "Copa Alpha",
         "event_type": "sport",
-        "event_date": "2030-06-15",
+        "event_date": future_iso(45),
         "location": "São Paulo",
         "source_url": "https://events.example/copa-alpha",
         "organizer": "cbk",
         "organizer_resolved": {"source": "exact"},
-        "timing": {"timing_score": 100},
     }
     first = service.replace_events(db, org.id, [event])
     second = service.replace_events(db, org.id, [event])
@@ -65,22 +68,26 @@ def test_event_discovery_persists_idempotently(session):
     assert len(first) == 1
     assert len(second) == 1
     assert len(rows) == 1
-    assert rows[0].event_date == date(2030, 6, 15)
+    assert rows[0].event_date == date.today() + timedelta(days=45)
+    assert rows[0].offer_key == "trophies_sports"
+    assert rows[0].provenance["intelligence"]["context"] == "sports"
+    assert rows[0].provenance["intelligence"]["demand"]["epistemic"] == "INFERENCE"
 
 
-def test_evento_upcoming_gera_oportunidade_de_trofeus_idempotente(session):
+def test_evento_esportivo_gera_oportunidade_especifica_idempotente(session):
     from services.prospecting.default_profiles import get_default_registry
     from services.prospecting.event_opportunity_service import EventOpportunityService
 
     db, org, lead = session
     lead.company_name = "Empresa Esportiva Alpha"
     lead.name = lead.company_name
-    lead.category = "esportivos"
+    lead.category = "campeonatos"
     lead.phone = "+5511999999999"
+    db.flush()
     event = {
         "name": "Copa Alpha",
         "event_type": "sport",
-        "event_date": "2030-06-15",
+        "event_date": future_iso(45),
         "location": "São Paulo",
         "source_url": "https://events.example/copa-alpha-opportunity",
         "organizer": "Empresa Esportiva Alpha",
@@ -88,13 +95,13 @@ def test_evento_upcoming_gera_oportunidade_de_trofeus_idempotente(session):
             "official_name": "Empresa Esportiva Alpha",
             "confidence": 0.95,
         },
-        "timing": {"timing_score": 90, "urgency": "high"},
     }
 
     service = EventOpportunityService()
     rows = service.replace_events(db, org.id, [event])
     assert rows[0].status == "upcoming"
     assert rows[0].lead_id == lead.id
+    assert rows[0].offer_key == "trophies_sports"
     first = service.match_event_opportunities(db, rows)
     second = service.match_event_opportunities(db, rows)
     db.commit()
@@ -103,24 +110,76 @@ def test_evento_upcoming_gera_oportunidade_de_trofeus_idempotente(session):
     assert second["matched"] == 1
     opportunities = db.query(LeadOpportunityRow).filter(
         LeadOpportunityRow.lead_id == lead.id,
-        LeadOpportunityRow.offer_key == "trophies",
+        LeadOpportunityRow.offer_key == "trophies_sports",
     ).all()
     assert len(opportunities) == 1
-    # A versão é carimbada do registry de perfis; acompanhar o registry em vez
-    # de fixar literal evita drift a cada bump de OfferProfile.
-    versao_trofeus = get_default_registry().get("trophies").version
-    assert opportunities[0].offer_version == versao_trofeus
+    expected_version = get_default_registry().get("trophies_sports").version
+    assert opportunities[0].offer_version == expected_version
     assert "EVENT_SCHEDULED" in opportunities[0].evidence
+    assert "EVENT_CONTEXT_SPORTS" in opportunities[0].evidence
+
+
+def test_evento_mej_persiste_contexto_timing_e_oportunidade_sem_inventar_fato(session):
+    """Golden Path MEJ completo: evento -> contexto -> lead -> oportunidade."""
+    from services.prospecting.event_opportunity_service import EventOpportunityService
+
+    db, org, lead = session
+    organizer = "Núcleo Exemplo de Empresas Juniores"
+    lead.company_name = organizer
+    lead.name = organizer
+    lead.category = "MEJ"
+    lead.phone = "+5516999999999"
+    db.flush()
+
+    event = {
+        "name": "ENEJ 2030 - Encontro de Empresas Juniores",
+        "event_type": "evento universitário",
+        "event_date": future_iso(50),
+        "location": "São Paulo, SP",
+        "source_url": "https://events.example/enej-2030",
+        "organizer": organizer,
+        "organizer_resolved": {"official_name": organizer, "confidence": 0.96},
+        "category_count": 8,
+        "placements_per_category": 3,
+    }
+
+    service = EventOpportunityService()
+    rows = service.replace_events(db, org.id, [event])
+    assert len(rows) == 1
+    row = rows[0]
+    intelligence = row.provenance["intelligence"]
+    assert row.lead_id == lead.id
+    assert row.offer_key == "trophies_mej"
+    assert intelligence["context"] == "mej"
+    assert intelligence["demand"]["epistemic"] == "INFERENCE"
+    assert intelligence["demand"]["estimated_min_units"] == 24
+    assert row.timing["purchase_window"] == "ideal"
+    assert row.timing["timing_score"] >= 88
+
+    first = service.match_event_opportunities(db, rows)
+    second = service.match_event_opportunities(db, rows)
+    db.commit()
+
+    assert first["matched"] == 1, first
+    assert second["matched"] == 1
+    opportunities = db.query(LeadOpportunityRow).filter(
+        LeadOpportunityRow.lead_id == lead.id,
+        LeadOpportunityRow.offer_key == "trophies_mej",
+    ).all()
+    assert len(opportunities) == 1
+    assert "EVENT_SCHEDULED" in opportunities[0].evidence
+    assert "EVENT_CONTEXT_MEJ" in opportunities[0].evidence
+    assert "CONTACT_WINDOW_GOOD" in opportunities[0].evidence
 
 
 def test_evento_com_contato_persistido_gera_acao_comercial_sem_enviar_mensagem(session):
-    from database.models import Contact, ContactRole
+    from database.models import ContactRole
     from services.prospecting.event_opportunity_service import EventOpportunityService
 
     db, org, lead = session
     lead.company_name = "Empresa Esportiva Alpha"
     lead.name = lead.company_name
-    lead.category = "esportivos"
+    lead.category = "campeonatos"
     contact = Contact(
         lead_id=lead.id,
         name="Maria Organizadora",
@@ -135,12 +194,11 @@ def test_evento_com_contato_persistido_gera_acao_comercial_sem_enviar_mensagem(s
     event = {
         "name": "Copa Alpha Ação",
         "event_type": "sport",
-        "event_date": "2030-06-15",
+        "event_date": future_iso(45),
         "location": "São Paulo",
         "source_url": "https://events.example/copa-alpha-action",
         "organizer": "Empresa Esportiva Alpha",
         "organizer_resolved": {"official_name": "Empresa Esportiva Alpha", "confidence": 0.95},
-        "timing": {"timing_score": 90, "urgency": "high"},
     }
 
     service = EventOpportunityService()
@@ -155,13 +213,15 @@ def test_evento_com_contato_persistido_gera_acao_comercial_sem_enviar_mensagem(s
     assert rows[0].decision_maker_status == "resolved"
     assert rows[0].recommended_channel == "phone"
     assert rows[0].action_status == "ready"
-    assert "não envia" in rows[0].next_action.lower()
+    assert "não enviar" in rows[0].next_action.lower()
 
 
-def test_timing_do_evento_entra_na_acao_persistida_sem_enviar_mensagem(session):
+def test_timing_calculado_entra_na_acao_persistida(session):
     from services.prospecting.event_opportunity_service import EventOpportunityService
 
     db, org, lead = session
+    lead.company_name = "Organizador Timing"
+    lead.name = lead.company_name
     contact = Contact(
         lead_id=lead.id,
         name="Carlos Timing",
@@ -175,12 +235,11 @@ def test_timing_do_evento_entra_na_acao_persistida_sem_enviar_mensagem(session):
     event = {
         "name": "Copa Timing",
         "event_type": "sport",
-        "event_date": "2030-08-10",
+        "event_date": future_iso(45),
         "location": "São Paulo",
         "source_url": "https://events.example/copa-timing",
         "organizer": lead.company_name,
         "organizer_resolved": {"official_name": lead.company_name, "confidence": 0.95},
-        "timing": {"timing_score": 90, "urgency": "high", "days_until": 18},
     }
 
     service = EventOpportunityService()
@@ -191,8 +250,9 @@ def test_timing_do_evento_entra_na_acao_persistida_sem_enviar_mensagem(session):
     db.refresh(rows[0])
 
     assert rows[0].action_status == "ready"
-    assert "90" in (rows[0].next_action or "")
-    assert "18" in (rows[0].next_action or "")
+    assert rows[0].timing["purchase_window"] == "ideal"
+    assert "45" in (rows[0].next_action or "")
+    assert "janela ideal" in (rows[0].next_action or "").lower()
 
 
 def test_snapshot_de_resolucao_e_append_only_e_idempotente(session):
@@ -201,32 +261,12 @@ def test_snapshot_de_resolucao_e_append_only_e_idempotente(session):
 
     db, org, lead = session
     service = ResolutionSnapshotService()
-    first = service.persist(
-        db,
-        org.id,
-        lead.id,
-        "resolved",
-        {"people": [{"name": "Ana", "email": "ana@example.com"}]},
-    )
-    same = service.persist(
-        db,
-        org.id,
-        lead.id,
-        "resolved",
-        {"people": [{"email": "ana@example.com", "name": "Ana"}]},
-    )
-    changed = service.persist(
-        db,
-        org.id,
-        lead.id,
-        "partial",
-        {"people": [{"name": "Ana"}]},
-    )
+    first = service.persist(db, org.id, lead.id, "resolved", {"people": [{"name": "Ana", "email": "ana@example.com"}]})
+    same = service.persist(db, org.id, lead.id, "resolved", {"people": [{"email": "ana@example.com", "name": "Ana"}]})
+    changed = service.persist(db, org.id, lead.id, "partial", {"people": [{"name": "Ana"}]})
     db.commit()
 
-    rows = db.query(DecisionResolutionSnapshot).filter(
-        DecisionResolutionSnapshot.lead_id == lead.id,
-    ).all()
+    rows = db.query(DecisionResolutionSnapshot).filter(DecisionResolutionSnapshot.lead_id == lead.id).all()
     assert same.id == first.id
     assert changed.id != first.id
     assert len(rows) == 2
@@ -236,7 +276,7 @@ def test_snapshot_de_resolucao_e_append_only_e_idempotente(session):
 def test_confianças_do_contato_sao_persistidas_no_postgresql(session):
     from services.contact_enrichment_service import ContactEnrichmentService
 
-    db, org, lead = session
+    db, _org, lead = session
     contact = Contact(
         lead_id=lead.id,
         name="Maria Silva",
@@ -245,10 +285,7 @@ def test_confianças_do_contato_sao_persistidas_no_postgresql(session):
         email_verified_at=datetime.now(timezone.utc),
         linkedin_url="https://www.linkedin.com/in/maria-silva",
         source="company_site",
-        raw_data={
-            "email_source": "verified_email",
-            "linkedin_source": "linkedin_current",
-        },
+        raw_data={"email_source": "verified_email", "linkedin_source": "linkedin_current"},
     )
     db.add(contact)
     db.flush()
@@ -257,7 +294,6 @@ def test_confianças_do_contato_sao_persistidas_no_postgresql(session):
     db.expire_all()
 
     persisted = db.query(Contact).filter(Contact.id == contact.id).one()
-
     assert persisted.identity_confidence >= 70
     assert persisted.contact_confidence >= 80
     assert persisted.source_reliability == 0.9
@@ -269,12 +305,7 @@ def test_routability_do_contato_e_persistida_no_postgresql(session):
     from services.contact_enrichment_service import ContactEnrichmentService
 
     db, _org, lead = session
-    contact = Contact(
-        lead_id=lead.id,
-        name="Maria Silva",
-        phone="1633334000",
-        source="company_site",
-    )
+    contact = Contact(lead_id=lead.id, name="Maria Silva", phone="1633334000", source="company_site")
     db.add(contact)
     db.flush()
     ContactEnrichmentService().update_contact_confidence(contact)
@@ -282,7 +313,6 @@ def test_routability_do_contato_e_persistida_no_postgresql(session):
     db.expire_all()
 
     persisted = db.query(Contact).filter(Contact.id == contact.id).one()
-
     assert persisted.routability_type == "DIRECT_CONTACT"
     assert persisted.routable is True
     assert persisted.routability_reason == "direct_line"
@@ -303,9 +333,7 @@ def test_provenance_de_discovery_e_persistida_no_lead(session):
     }
     db.commit()
     db.expire_all()
-
     persisted = db.query(Lead).filter(Lead.id == lead.id).one()
-
     assert persisted.discovery_provenance["providers"] == ["google_places", "cnae_discovery"]
     assert persisted.discovery_provenance["matched_identity_rule"] == "normalized_domain"
 
@@ -344,10 +372,7 @@ def test_commercial_outcomes_filtra_periodo_inclusivo(session):
     db.commit()
 
     rows = service.list_for_organization(
-        db,
-        org.id,
-        offer_key="landing_page",
-        date_from=date(2025, 2, 1),
-        date_to=date(2025, 2, 1),
+        db, org.id, offer_key="landing_page",
+        date_from=date(2025, 2, 1), date_to=date(2025, 2, 1),
     )
     assert [row.event_key for row in rows] == ["current"]
