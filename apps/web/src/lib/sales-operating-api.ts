@@ -79,24 +79,25 @@ export type OperatingBulkPayload = {
   sequence_id?: string;
 };
 
+export type OperatingBulkPreview = { operation: string; total_selected: number; accepted_ids: string[]; rejected: Array<{ id: string; reason: string }>; max_items: number };
 export type OperatingBulkResult = {
   operation: string;
   items: Array<{ id: string; status: 'accepted' | 'duplicate' | 'rejected' | 'failed'; reason?: string | null }>;
   summary: { accepted: number; duplicate: number; rejected: number; failed: number };
   replayed: boolean;
 };
+export type BulkTaskInput = { lead_ids: string[]; expected_updated_at: Record<string, string>; title: string; description?: string; due_at?: string | null; task_type?: string };
 
 export const salesOperatingApi = {
   queue: (limit = 20) => request<{ items: OperatingQueueItem[]; total: number; as_of: string }>('/api/crm/operating/queue', { params: { limit } }),
   search: (q: string, limit = 8) => request<OperatingSearchResponse>('/api/crm/operating/search', { params: { q, limit } }),
-  leads: (params: CrmOperatingFilters & { limit?: number; offset?: number }) => request<{ items: OperatingLead[]; total: number; limit: number; offset: number }>(
-    '/api/crm/operating/leads', { params: params as Record<string, string | number | boolean | undefined> },
-  ),
+  leads: (params: CrmOperatingFilters & { limit?: number; offset?: number }) => request<{ items: OperatingLead[]; total: number; limit: number; offset: number }>('/api/crm/operating/leads', { params: params as Record<string, string | number | boolean | undefined> }),
   savedViews: (viewKind?: 'crm' | 'analytics') => request<{ items: SavedCommercialView[] }>('/api/crm/operating/saved-views', { params: { view_kind: viewKind } }),
   createSavedView: (body: { name: string; view_kind: 'crm' | 'analytics'; filters: CommercialFilterSnapshot | CrmOperatingFilters; shared?: boolean }) => request<SavedCommercialView>('/api/crm/operating/saved-views', { method: 'POST', body: JSON.stringify(body) }),
   deleteSavedView: (id: string) => request<void>(`/api/crm/operating/saved-views/${id}`, { method: 'DELETE' }),
-  previewBulk: (body: OperatingBulkPayload) => request<{ operation: string; total_selected: number; accepted_ids: string[]; rejected: Array<{ id: string; reason: string }>; max_items: number }>('/api/crm/operating/bulk/preview', { method: 'POST', body: JSON.stringify(body) }),
+  previewBulk: (body: OperatingBulkPayload) => request<OperatingBulkPreview>('/api/crm/operating/bulk/preview', { method: 'POST', body: JSON.stringify(body) }),
   executeBulk: (body: OperatingBulkPayload & { idempotency_key: string }) => request<OperatingBulkResult>('/api/crm/operating/bulk/execute', { method: 'POST', body: JSON.stringify(body) }),
-  createBulkTask: (body: { lead_ids: string[]; expected_updated_at: Record<string, string>; title: string; description?: string; due_at?: string | null; task_type?: string; idempotency_key: string }) => request<OperatingBulkResult>('/api/crm/operating/bulk-task/execute', { method: 'POST', body: JSON.stringify(body) }),
+  previewBulkTask: (body: BulkTaskInput) => request<OperatingBulkPreview>('/api/crm/operating/bulk-task/preview', { method: 'POST', body: JSON.stringify(body) }),
+  createBulkTask: (body: BulkTaskInput & { idempotency_key: string }) => request<OperatingBulkResult>('/api/crm/operating/bulk-task/execute', { method: 'POST', body: JSON.stringify(body) }),
   exportSelection: (leadIds: string[]) => request<Blob>('/api/crm/operating/export', { method: 'POST', body: JSON.stringify({ lead_ids: leadIds }), responseType: 'blob' }),
 };
