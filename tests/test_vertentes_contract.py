@@ -1,6 +1,8 @@
 """Contrato canônico de Vertentes baseado em OfferProfile."""
 from __future__ import annotations
 
+import inspect
+
 
 FACTORY_KEYS = {
     "landing_page",
@@ -20,6 +22,16 @@ FACTORY_KEYS = {
 def _registry():
     from services.prospecting.effective_offer_registry import build_effective_registry
     return build_effective_registry(None, None)
+
+
+def test_vertentes_read_api_aceita_membro_operacional_sem_gate_de_analyst():
+    """Consultor usa /api/vertentes para criar campanha; leitura não pode exigir ANALYST."""
+    from src.auth.dependencies import get_user_membership
+    from src.routes.vertentes import get_vertente, list_vertentes
+
+    for endpoint in (list_vertentes, get_vertente):
+        dependency = inspect.signature(endpoint).parameters["_member"].default.dependency
+        assert dependency is get_user_membership
 
 
 def test_todas_vertentes_factory_cumprem_contrato_de_maturidade():
