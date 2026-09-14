@@ -196,6 +196,51 @@ export function ReportControls({
                 {SCORE_OPTIONS.map((score) => <option key={score.value} value={score.value}>{score.label}</option>)}
               </select>
             </label>
+            <label>
+              <span className="sr-only">Segmento</span>
+              <Input
+                value={filters.segment || ''}
+                onChange={(event) => onFilterChange('segment', event.target.value || undefined)}
+                placeholder="Segmento"
+                className="h-8"
+                aria-label="Segmento"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Cidade</span>
+              <Input
+                value={filters.city || ''}
+                onChange={(event) => onFilterChange('city', event.target.value || undefined)}
+                placeholder="Cidade"
+                className="h-8"
+                aria-label="Cidade"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Estado</span>
+              <Input
+                value={filters.state || ''}
+                onChange={(event) => onFilterChange('state', event.target.value.toUpperCase().slice(0, 2) || undefined)}
+                placeholder="UF"
+                maxLength={2}
+                className="h-8 uppercase"
+                aria-label="Estado (UF)"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Estágio de negociação</span>
+              <select
+                value={filters.negotiation_stage?.[0] || ''}
+                onChange={(event) => onFilterChange('negotiation_stage', event.target.value ? [event.target.value] : undefined)}
+                className={selectClassName() + ' w-full'}
+                aria-label="Estágio de negociação"
+              >
+                <option value="">Todos os estágios</option>
+                <option value="RD">RD</option>
+                <option value="ORCAMENTO">Orçamento</option>
+                <option value="RP">RP</option>
+              </select>
+            </label>
           </div>
         </div>
 
