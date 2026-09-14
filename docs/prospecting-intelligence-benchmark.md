@@ -4,7 +4,7 @@
 
 ## Objetivo
 
-O motor deve continuar genérico enquanto cada `OfferProfile` descreve o que torna uma oportunidade comercialmente forte. O núcleo não recebe branches como `if trophies` ou `if mechanical`; diferenças de ICP, evidência, timing, decisores e qualificação ficam em configuração versionável.
+O motor permanece genérico enquanto cada `OfferProfile` e configuração externa do portfólio descrevem o que torna uma oportunidade comercialmente forte. O núcleo não recebe branches por oferta/vertical; diferenças de ICP, evidência, timing, decisores e qualificação ficam em configuração versionável e testável.
 
 Golden Paths cobertos neste corte:
 
@@ -30,38 +30,48 @@ O ranking preserva `UNKNOWN != FALSE`.
 
 ## Event Intelligence
 
-Eventos são classificados por contexto sem criar uma segunda entidade:
+O core de eventos recebe `EventContextRule`; o vocabulário AlphaMec fica em `services/alphamec_event_intelligence.py`, fora do núcleo genérico. Assim o serviço de eventos não precisa conhecer MEJ, esporte ou uma chave concreta de oferta.
 
-- `mej` → `trophies_mej`;
-- `sports` → `trophies_sports`;
-- demais → `trophies`.
+A configuração atual prioriza:
 
-A classificação textual é **INFERENCE** e fica em `EventOpportunityRow.provenance.intelligence`. A identidade da série remove ano/edição para relacionar edições recorrentes. A previsão da próxima janela também é inferência, nunca confirmação de que um evento futuro acontecerá.
+- contexto MEJ → oferta de troféus para MEJ;
+- contexto esportivo → oferta de troféus esportivos;
+- fallback de evento → oferta geral de troféus.
 
-O timing para troféus considera venda + aprovação + produção. Um evento amanhã não recebe nota máxima; a janela ideal é suficientemente antecipada para contato e produção. O sistema continua sem enviar mensagens automaticamente.
+A classificação textual é **INFERENCE** e fica em `EventOpportunityRow.provenance.intelligence`. A ausência de sinal continua `UNKNOWN`. Quando a fonte fornece `category_count` e `placements_per_category`, a quantidade mínima estimada é calculada, mas permanece **INFERENCE** — não é tratada como pedido confirmado.
+
+A identidade de série remove ruído de ano/edição para relacionar edições recorrentes. O timing considera venda, aprovação e execução: evento imediato não recebe nota máxima, e uma janela suficientemente antecipada pode ser marcada como ideal. Nenhuma dessas inferências dispara mensagem automaticamente.
 
 ## Benchmark sintético
 
-`services/workers/src/services/prospecting/quality_benchmark.py` contém anchors e hard negatives anonimizados. O gate verifica:
+`services/workers/src/services/prospecting_quality_benchmark.py` contém anchors e hard negatives anonimizados. Ele fica fora de `services/prospecting/` porque conhece ofertas concretas do portfólio e não pertence ao core genérico.
 
-- roteamento correto da oferta para todos os anchors;
-- cobertura de evidência para anchors;
+O gate verifica:
+
+- 100% de roteamento correto dos anchors pelo mesmo `OfferProfileResolver` usado no fluxo de campanha;
+- cobertura de evidência para os anchors;
 - recall mínimo de alta confiança;
-- zero false-positive de **alta confiança** nos hard negatives curados.
+- zero falso positivo de **alta confiança** nos hard negatives curados;
+- capacidade de uma oferta não prevista pelo core atravessar o mesmo matcher apenas por configuração.
 
-O benchmark também verifica que uma oferta não prevista no core pode ser configurada via `OfferProfile` e processada pelo mesmo matcher.
+O score do lead e o roteamento da campanha são verificados separadamente de propósito: primeiro a campanha resolve qual oferta deseja vender; depois o matcher avalia o fit do candidato para essa oferta.
 
 ### O que o benchmark NÃO prova
 
 Ele não prova `precision@20` real, taxa de resposta, reuniões, contratos ou receita. Esses números só podem ser publicados quando vierem de campanhas reais, com outcome atribuído à oportunidade/oferta/versão correta.
 
-## Gate para release
+## Gates do Bloco A
 
-O Bloco A só pode ser mergeado quando:
+O Bloco A só pode ser mergeado quando o mesmo HEAD passar:
 
-1. suíte Python completa passa com warnings como erro;
-2. benchmark sintético passa;
-3. testes de Event Intelligence/OfferMatcher/Genericity passam;
-4. frontend passa lint, typecheck e build;
-5. migrations/schema/E2E existentes continuam verdes no PostgreSQL real;
-6. a criação de campanha permanece natural-language-first e não exige que o usuário conheça provider, query, template, profile ou outras estruturas internas.
+1. `compileall` do backend;
+2. suíte Python completa com `-W error`;
+3. quality gate sintético de Prospecting Intelligence;
+4. ratchet de genericidade sem novo acoplamento por oferta;
+5. Event Intelligence + Golden Paths persistidos e testados em PostgreSQL real;
+6. migrations reais, segundo upgrade idempotente, schema verifier e seed;
+7. E2E críticos existentes;
+8. frontend com lint, `tsc --noEmit` e production build;
+9. documentação LIVE coerente com o comportamento provado.
+
+A criação de campanha permanece natural-language-first: o usuário informa o que quer vender e para quem, sem precisar conhecer provider, query, template, profile ou outras estruturas internas.
