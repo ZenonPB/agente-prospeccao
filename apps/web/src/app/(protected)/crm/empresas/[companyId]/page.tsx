@@ -49,10 +49,11 @@ export default function Company360Page(props: { params: Promise<{ companyId: str
     setEditing(true);
   };
   const save = async () => {
-    if (!current.updated_at) return toast.error('Recarregue a empresa antes de editar.');
+    const version = current.updated_at || current.created_at;
+    if (!version) return toast.error('Recarregue a empresa antes de editar.');
     if (!form.company_name.trim()) return toast.error('O nome da empresa é obrigatório.');
     try {
-      await update.mutateAsync({ expected_updated_at: current.updated_at, ...form });
+      await update.mutateAsync({ expected_updated_at: version, ...form });
       setEditing(false);
       toast.success('Empresa atualizada.');
     } catch (error) {
