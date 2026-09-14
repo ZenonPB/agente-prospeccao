@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Copy, Pencil, Search, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Copy, Pencil, Power, Search, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +22,7 @@ import { TemplateEditor } from '@/components/vertentes/template-editor';
 import {
   useCreateScoringTemplate,
   useOrgMembership,
+  usePatchScoringTemplate,
   useScoringTemplates,
 } from '@/hooks/use-api';
 import type { ScoringTemplate } from '@/lib/api';
@@ -30,6 +31,7 @@ export default function CriteriosVertentesPage() {
   const { data, isLoading } = useScoringTemplates({ scope: 'all', include_inactive: true });
   const { data: membership, isLoading: loadingMembership } = useOrgMembership();
   const create = useCreateScoringTemplate();
+  const patch = usePatchScoringTemplate();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<ScoringTemplate | null>(null);
   const [editing, setEditing] = useState(false);
@@ -54,6 +56,19 @@ export default function CriteriosVertentesPage() {
       toast.success('Critérios copiados para a sua organização.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível copiar os critérios.');
+    }
+  };
+
+  const toggleActive = async (template: ScoringTemplate) => {
+    try {
+      const saved = await patch.mutateAsync({
+        id: template.id,
+        data: { is_active: !template.is_active },
+      });
+      if (selected?.id === template.id) setSelected(saved);
+      toast.success(saved.is_active ? 'Critérios ativados.' : 'Critérios desativados.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível alterar o status dos critérios.');
     }
   };
 
@@ -120,9 +135,20 @@ export default function CriteriosVertentesPage() {
                         </Button>
                       ) : null}
                       {canManage && !factory ? (
-                        <Button size="sm" onClick={() => { setSelected(template); setEditing(true); }}>
-                          <Pencil className="mr-2 h-3.5 w-3.5" />Editar critérios
-                        </Button>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void toggleActive(template)}
+                            disabled={patch.isPending}
+                            aria-label={template.is_active ? `Desativar ${template.service_label}` : `Ativar ${template.service_label}`}
+                          >
+                            <Power className="mr-2 h-3.5 w-3.5" />{template.is_active ? 'Desativar' : 'Ativar'}
+                          </Button>
+                          <Button size="sm" onClick={() => { setSelected(template); setEditing(true); }}>
+                            <Pencil className="mr-2 h-3.5 w-3.5" />Editar critérios
+                          </Button>
+                        </>
                       ) : null}
                     </div>
                   </div>
