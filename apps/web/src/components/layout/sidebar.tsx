@@ -39,37 +39,37 @@ interface NavItem {
 interface NavGroup { label: string; items: NavItem[]; }
 
 const navGroups: NavGroup[] = [
-  { label: 'Visão', items: [{ name: 'Visão Geral', href: '/dashboard', icon: LayoutDashboard }] },
+  { label: 'Hoje', items: [{ name: 'Resumo', href: '/dashboard', icon: LayoutDashboard }] },
   {
-    label: 'Operação',
+    label: 'Prospecção e vendas',
     items: [
-      { name: 'Central comercial', href: '/crm', icon: BriefcaseBusiness, exact: true },
-      { name: 'Campanhas', href: '/campanhas', icon: Megaphone },
-      { name: 'Buscar', href: '/buscar', icon: SearchIcon },
-      { name: 'Oportunidades', href: '/oportunidades', icon: Target },
-      { name: 'Sequências', href: '/sequences', icon: Route },
-      { name: 'Negociações', href: '/vendas', icon: DollarSign },
+      { name: 'Minha carteira', href: '/crm', icon: BriefcaseBusiness, exact: true },
+      { name: 'Buscar clientes', href: '/campanhas', icon: Megaphone },
+      { name: 'Busca rápida', href: '/buscar', icon: SearchIcon },
+      { name: 'Leads qualificados', href: '/oportunidades', icon: Target },
+      { name: 'Follow-ups', href: '/sequences', icon: Route },
+      { name: 'Funil de vendas', href: '/vendas', icon: DollarSign },
     ],
   },
   {
-    label: 'Inteligência',
+    label: 'Resultados e melhoria',
     items: [
-      { name: 'Radar comercial', href: '/monitoramento', icon: Radar, analystOnly: true },
-      { name: 'Aprendizado comercial', href: '/inteligencia-comercial', icon: TrendingUp, analystOnly: true },
-      { name: 'Relatórios', href: '/relatorios', icon: BarChart3, analystOnly: true },
+      { name: 'Sinais e oportunidades', href: '/monitoramento', icon: Radar, analystOnly: true },
+      { name: 'Melhorias da IA', href: '/inteligencia-comercial', icon: TrendingUp, analystOnly: true },
+      { name: 'Resultados', href: '/relatorios', icon: BarChart3, analystOnly: true },
       { name: 'Qualidade dos dados', href: '/data-health', icon: DatabaseZap, analystOnly: true },
     ],
   },
   {
-    label: 'Gestão',
+    label: 'Administração',
     items: [
-      { name: 'Vertentes', href: '/configuracoes/vertentes', icon: Layers },
+      { name: 'O que vendemos', href: '/configuracoes/vertentes', icon: Layers },
       { name: 'Equipe', href: '/configuracoes/membros', icon: Users },
       { name: 'Integrações', href: '/integracoes', icon: PlugZap, analystOnly: true },
       { name: 'Configurações', href: '/configuracoes', icon: Settings, exact: true },
     ],
   },
-  { label: 'Suporte', items: [{ name: 'Ajuda', href: '/ajuda', icon: HelpCircle }] },
+  { label: 'Ajuda', items: [{ name: 'Como usar', href: '/ajuda', icon: HelpCircle }] },
 ];
 
 export function Sidebar() {
@@ -114,7 +114,7 @@ export function Sidebar() {
           </Button>
         </div>
         <div className="border-b border-sidebar-border p-2"><OrgSwitcher collapsed={!sidebarOpen} /></div>
-        <nav className="flex-1 space-y-4 overflow-y-auto p-2">
+        <nav className="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Navegação principal">
           {visibleGroups.map((group) => (
             <div key={group.label} className="space-y-0.5">
               {sidebarOpen && <p className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/40">{group.label}</p>}
@@ -143,9 +143,9 @@ export function Sidebar() {
         </nav>
         <div className="border-t border-sidebar-border p-4">
           {sidebarOpen ? (
-            <p className="flex items-center gap-2 text-xs text-sidebar-foreground/40"><span className="inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary text-sidebar-primary" />Radar comercial disponível</p>
+            <p className="text-xs leading-relaxed text-sidebar-foreground/45">Dúvida? Abra <Link href="/ajuda" className="font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground">Como usar</Link>.</p>
           ) : (
-            <p className="mx-auto flex h-2 w-2 items-center justify-center text-sidebar-primary" title="Radar comercial disponível"><span className="inline-block h-1.5 w-1.5 rounded-full bg-sidebar-primary text-sidebar-primary" /></p>
+            <Link href="/ajuda" className="mx-auto flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/55 hover:bg-sidebar-accent" aria-label="Abrir ajuda"><HelpCircle className="h-4 w-4" /></Link>
           )}
         </div>
       </div>
