@@ -83,6 +83,5 @@ no commit que será mergeado.
 
 ## D15 — Documentação tem hierarquia explícita
 
-`docs/README.md` classifica LIVE, RUNBOOK, ADR e SNAPSHOT HISTÓRICO. Snapshots não
-são reescritos para fingir que representam o presente; estado atual fica nos
-LIVE docs.
+`docs/README.md` classifica LIVE, RUNBOOK e ADR. Histórico de fases antigas
+vive no git, não na pasta; estado atual fica nos LIVE docs.

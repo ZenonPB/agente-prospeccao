@@ -87,8 +87,7 @@ operacionais como cadência/roteamento legado. A direção de consolidação é:
   clara e sem duas fontes conflitantes;
 - não criar um segundo loop de calibração concorrente com OfferProfile.
 
-Veja `vertentes-offerprofile-consolidation.md` como snapshot histórico da
-auditoria e `roadmap.md` para o plano corrente.
+Veja `roadmap.md` para o plano corrente.
 
 ## Segurança e testes obrigatórios
 

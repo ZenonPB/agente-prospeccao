@@ -1,8 +1,8 @@
 # Consolidação do domínio e das fontes de verdade
 
 > **LIVE · atualizado em 2026-09-13.** Este documento substitui mapas antigos
-> de duplicação já resolvidos. Snapshots históricos continuam no repositório e
-> estão classificados em `docs/README.md`.
+> de duplicação já resolvidos. O histórico anterior foi removido da pasta em
+> 2026-09-14 e permanece recuperável no git (`git log -- docs/`).
 
 ## Objetivo
 
@@ -54,8 +54,7 @@ intent/timing, critérios de qualificação e learning versionado.
 representarem política operacional e não uma segunda definição de ICP/scoring.
 
 `CampaignScoringTemplate` permanece por compatibilidade, mas não deve evoluir
-como segundo motor de learning concorrente. O mapa histórico detalhado está em
-`vertentes-offerprofile-consolidation.md`.
+como segundo motor de learning concorrente.
 
 ## Runtime de OfferProfile
 
