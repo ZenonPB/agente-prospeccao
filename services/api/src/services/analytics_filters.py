@@ -13,7 +13,7 @@ from uuid import UUID
 from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from src.db.models import LeadStatus, MessageChannel
+from src.db.models import LeadStatus, MessageChannel, NegotiationStage
 
 
 SCORE_BUCKETS = {"0-39", "40-59", "60-79", "80-100"}
@@ -24,18 +24,18 @@ OUTCOMES = {
     "MEETING_HELD",
 }
 
-# Parâmetros antigos das rotas atuais. A lista é explícita para que um typo
-# não seja tratado como filtro inexistente e ignorado silenciosamente.
+# Parâmetros antigos das rotas atuais + dimensões comerciais compartilhadas.
+# Workspace nunca aparece aqui: ele vem exclusivamente da autenticação.
 KNOWN_QUERY_FIELDS = {
     "from", "to", "campaign_id", "consultant_id", "offer_key",
     "offer_version", "channel", "status", "score_bucket", "outcome",
-    "attribution", "search", "cursor", "limit", "k", "sort_by",
-    "group_by", "provider", "by",
+    "attribution", "search", "segment", "city", "state", "negotiation_stage",
+    "cursor", "limit", "k", "sort_by", "group_by", "provider", "by",
 }
 
 
 class CommercialFilterDTO(BaseModel):
-    """Snapshot serializável dos filtros comerciais compartilhados."""
+    """Snapshot serializável e estrito dos filtros comerciais compartilhados."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -51,6 +51,10 @@ class CommercialFilterDTO(BaseModel):
     outcome: list[str] | None = None
     attribution: str | None = None
     search: str | None = Field(default=None, max_length=200)
+    segment: str | None = Field(default=None, max_length=120)
+    city: str | None = Field(default=None, max_length=120)
+    state: str | None = Field(default=None, max_length=2)
+    negotiation_stage: list[str] | None = None
     cursor: str | None = Field(default=None, max_length=2048)
     limit: int | None = Field(default=None, ge=1, le=1000)
 
@@ -71,13 +75,23 @@ class CommercialFilterDTO(BaseModel):
                 raise ValueError("período deve ser uma data ou ISO datetime") from exc
         return candidate
 
-    @field_validator("offer_key", "offer_version", "search", "cursor")
+    @field_validator("offer_key", "offer_version", "search", "segment", "city", "cursor")
     @classmethod
     def strip_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
         normalized = value.strip()
         return normalized or None
+
+    @field_validator("state")
+    @classmethod
+    def normalize_state(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip().upper()
+        if len(normalized) != 2 or not normalized.isalpha():
+            raise ValueError("state deve ser uma UF com 2 letras")
+        return normalized
 
     @field_validator("channel")
     @classmethod
@@ -103,6 +117,18 @@ class CommercialFilterDTO(BaseModel):
         unknown = sorted(set(normalized) - allowed)
         if unknown:
             raise ValueError(f"status desconhecido: {', '.join(unknown)}")
+        return normalized
+
+    @field_validator("negotiation_stage")
+    @classmethod
+    def validate_negotiation_stages(cls, values: list[str] | None) -> list[str] | None:
+        if values is None:
+            return None
+        normalized = _normalize_list(values, upper=True)
+        allowed = {item.value for item in NegotiationStage}
+        unknown = sorted(set(normalized) - allowed)
+        if unknown:
+            raise ValueError(f"negotiation_stage desconhecido: {', '.join(unknown)}")
         return normalized
 
     @field_validator("score_bucket")
@@ -153,11 +179,9 @@ class CommercialFilterDTO(BaseModel):
         return self
 
 
-def _normalize_list(values: list[str], *, upper: bool = False) -> list[str]:
+def _normalize_list(values: list[str], *, upper: bool = False) -> list[str] | None:
     result: list[str] = []
     for raw in values:
-        # Repeated query params são a forma canônica; vírgula é aceita para
-        # facilitar serialização simples pela URL sem mudar o contrato.
         for item in str(raw).split(","):
             value = item.strip()
             if value:
@@ -169,11 +193,13 @@ def _normalize_list(values: list[str], *, upper: bool = False) -> list[str]:
 
 def normalize_commercial_filters(raw: Mapping[str, Any]) -> CommercialFilterDTO:
     """Normaliza um mapping e rejeita campos desconhecidos explicitamente."""
-    unknown = sorted(set(raw) - {
+    allowed = {
         "from", "to", "campaign_id", "consultant_id", "offer_key",
         "offer_version", "channel", "status", "score_bucket", "outcome",
-        "attribution", "search", "cursor", "limit",
-    })
+        "attribution", "search", "segment", "city", "state", "negotiation_stage",
+        "cursor", "limit",
+    }
+    unknown = sorted(set(raw) - allowed)
     if unknown:
         raise ValueError(f"filtros desconhecidos: {', '.join(unknown)}")
     return CommercialFilterDTO(**raw)
@@ -186,15 +212,18 @@ def _query_values(request: Request) -> dict[str, Any]:
             raise HTTPException(status_code=422, detail=f"filtro desconhecido: {key}")
         grouped.setdefault(key, []).append(value)
 
-    scalar = {"from", "to", "campaign_id", "consultant_id", "offer_key",
-              "offer_version", "attribution", "search", "cursor", "limit"}
+    scalar = {
+        "from", "to", "campaign_id", "consultant_id", "offer_key",
+        "offer_version", "attribution", "search", "segment", "city", "state",
+        "cursor", "limit",
+    }
     raw: dict[str, Any] = {}
     for key, values in grouped.items():
         if key in scalar:
             if len(values) > 1:
                 raise HTTPException(status_code=422, detail=f"filtro escalar repetido: {key}")
             raw[key] = values[0]
-        elif key in {"channel", "status", "score_bucket", "outcome"}:
+        elif key in {"channel", "status", "score_bucket", "outcome", "negotiation_stage"}:
             raw[key] = values
     return raw
 
@@ -208,7 +237,6 @@ def get_commercial_filters(request: Request) -> CommercialFilterDTO:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        # Pydantic transforma UUID, limites e validações em erro de contrato.
         from pydantic import ValidationError
 
         if isinstance(exc, ValidationError):
