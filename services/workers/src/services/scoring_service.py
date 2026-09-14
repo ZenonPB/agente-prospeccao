@@ -47,11 +47,33 @@ _HAS_SITE_CLAIM = re.compile(
     re.IGNORECASE,
 )
 
-# Campanhas cujo serviço é presença digital/desenvolvimento de site — para elas,
-# um lead SEM site é público-alvo (o prompt pondera positivamente a ausência).
-# Decisão por template (autoridade de critérios): só os labels de presença web
-# tratam ausência de site como oportunidade. A regex é fallback apenas quando
-# não há template específico (rota GENERIC com o template "Genérico" ou None).
+# Política semântica de scoring vinda do OfferProfile efetivo. Labels comerciais
+# são apresentação e nunca devem alterar comportamento do motor.
+def _runtime_scoring_policy(template: Optional[Dict[str, Any]]) -> Optional[Dict[str, str]]:
+    if not isinstance(template, dict):
+        return None
+    raw = template.get("scoring_policy")
+    if not isinstance(raw, dict):
+        return None
+    mode = str(raw.get("mode") or "").strip()
+    website_absence = str(raw.get("website_absence") or "").strip()
+    if mode not in {"generic", "web_presence", "erp"}:
+        logger.warning("scoring_policy.mode inválido: %r", mode)
+        return None
+    if website_absence not in {"neutral", "opportunity"}:
+        logger.warning("scoring_policy.website_absence inválido: %r", website_absence)
+        return None
+    return {
+        "mode": mode,
+        "website_absence": website_absence,
+        "offer_key": str(raw.get("offer_key") or ""),
+        "archetype": str(raw.get("archetype") or ""),
+    }
+
+
+# Fallback legado: campanhas sem OfferProfile efetivo ainda usam o contrato
+# anterior até serem migradas/publicadas. O pipeline principal injeta
+# scoring_policy e, portanto, não depende destes labels.
 _WEB_PRESENCE_LABELS = frozenset({
     "desenvolvimento de sites",
     "seo / marketing digital",
@@ -64,13 +86,10 @@ _SELLS_WEB_PRESENCE = re.compile(
 
 
 def _campaign_sells_web_presence(template: Optional[Dict[str, Any]], target_service: str) -> bool:
-    """True se a campanha trata ausência de site como público-alvo.
+    policy = _runtime_scoring_policy(template)
+    if policy is not None:
+        return policy["website_absence"] == "opportunity"
 
-    Template específico decide pelos critérios que ele define (ex.: o template
-    "Aplicações Web / ERP" não trata ausência de site como dor; "Desenvolvimento
-    de Sites" trata). Sem template específico (Genérico/None), cai na regex sobre
-    o serviço como aproximação de rota GENERATE_NEW ainda sem template.
-    """
     if template:
         label = (template.get("service_label") or "").strip().lower()
         if label not in _WEB_PRESENCE_LABELS and label != "genérico":
@@ -78,11 +97,8 @@ def _campaign_sells_web_presence(template: Optional[Dict[str, Any]], target_serv
     return bool(_SELLS_WEB_PRESENCE.search(target_service or ""))
 
 
-# Labels de template cuja venda é sistema web completo / ERP — para essas
-# campanhas, o fito vem principalmente do cadastro (porte, idade, CNAE) e do
-# segmento, NÃO da qualidade do site. Adicionar novos labels aqui expande a
-# aplicação da instrução 8c para outros templates de venda de sistemas sob
-# medida sem tocar no build_prompt.
+# Fallback legado de ERP. No fluxo principal, `mode=erp` vem do archetype
+# técnico `digital_systems`, não do texto exibido no template.
 _ERP_WEBAPP_LABELS = frozenset({
     "aplicações web / erp",
     "sistemas web / erp",
@@ -93,19 +109,15 @@ _ERP_WEBAPP_LABELS = frozenset({
 
 
 def _campaign_sells_erp_webapps(template: Optional[Dict[str, Any]], target_service: str) -> bool:
-    """True se a campanha vende SISTEMA WEB COMPLETO / ERP sob medida.
+    policy = _runtime_scoring_policy(template)
+    if policy is not None:
+        return policy["mode"] == "erp"
 
-    Determina se a instrução 8c (foco em porte/CNAE/idade/segmento) deve
-    aparecer no prompt. Critério principal: template com label de ERP/webapp
-    sob medida. Fallback por regex no target_service cobre campanhas com
-    template "Genérico" ou ainda sem template específico (rota GENERATE_NEW).
-    """
     if template:
         label = (template.get("service_label") or "").strip().lower()
         if label in _ERP_WEBAPP_LABELS:
             return True
         if label and label != "genérico":
-            # Template específico de outra categoria — não é ERP.
             return False
     if not target_service:
         return False
