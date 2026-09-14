@@ -325,4 +325,4 @@ def health():
         logger.exception("Healthcheck falhou ao pingar o banco")
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=503, content={"status": "error", "database": "unreachable"})
-    return {"status": "ok", "database": "ok", "version": "1.0.0"}
+    return {"status": "ok", "database": "ok"}
