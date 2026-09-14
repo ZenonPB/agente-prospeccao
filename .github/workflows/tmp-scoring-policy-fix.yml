@@ -1,0 +1,253 @@
+name: Apply scoring policy fix
+
+on:
+  push:
+    branches: [fix/scoring-policy-contract]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: ${{ !contains(github.event.head_commit.message, '[scoring-policy-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply contract-safe patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # scoring_service: política explícita primeiro; heurística textual só para legado.
+          path = Path('services/workers/src/services/scoring_service.py')
+          text = path.read_text()
+          replacement = '''# Política semântica de scoring vinda do OfferProfile efetivo. Labels comerciais\n# são apresentação e nunca devem alterar comportamento do motor.\ndef _runtime_scoring_policy(template: Optional[Dict[str, Any]]) -> Optional[Dict[str, str]]:\n    if not isinstance(template, dict):\n        return None\n    raw = template.get("scoring_policy")\n    if not isinstance(raw, dict):\n        return None\n    mode = str(raw.get("mode") or "").strip()\n    website_absence = str(raw.get("website_absence") or "").strip()\n    if mode not in {"generic", "web_presence", "erp"}:\n        logger.warning("scoring_policy.mode inválido: %r", mode)\n        return None\n    if website_absence not in {"neutral", "opportunity"}:\n        logger.warning("scoring_policy.website_absence inválido: %r", website_absence)\n        return None\n    return {\n        "mode": mode,\n        "website_absence": website_absence,\n        "offer_key": str(raw.get("offer_key") or ""),\n        "archetype": str(raw.get("archetype") or ""),\n    }\n\n\n# Fallback legado: campanhas sem OfferProfile efetivo ainda usam o contrato\n# anterior até serem migradas/publicadas. O pipeline principal sempre injeta\n# scoring_policy e, portanto, não depende destes labels.\n_WEB_PRESENCE_LABELS = frozenset({\n    "desenvolvimento de sites",\n    "seo / marketing digital",\n})\n_SELLS_WEB_PRESENCE = re.compile(\n    r"site|website|p[áa]gina|loja virtual|presen[çc]a digital|landing|"\n    r"marketing digital|seo|e-?commerce|web\\s?(design|sites?|presen)",\n    re.IGNORECASE,\n)\n\n\ndef _campaign_sells_web_presence(template: Optional[Dict[str, Any]], target_service: str) -> bool:\n    policy = _runtime_scoring_policy(template)\n    if policy is not None:\n        return policy["website_absence"] == "opportunity"\n\n    if template:\n        label = (template.get("service_label") or "").strip().lower()\n        if label not in _WEB_PRESENCE_LABELS and label != "genérico":\n            return False\n    return bool(_SELLS_WEB_PRESENCE.search(target_service or ""))\n\n\n'''
+          pattern = r'# Campanhas cujo serviço é presença digital/desenvolvimento de site.*?(?=# Labels de template cuja venda é sistema web completo / ERP)'
+          text, n = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          assert n == 1, f'web presence block: {n}'
+
+          replacement = '''# Fallback legado de ERP. No fluxo principal, `mode=erp` vem do archetype\n# técnico `digital_systems`, não do texto exibido no template.\n_ERP_WEBAPP_LABELS = frozenset({\n    "aplicações web / erp",\n    "sistemas web / erp",\n    "aplicações web completas",\n    "erp personalizado",\n    "sistema web sob medida",\n})\n\n\ndef _campaign_sells_erp_webapps(template: Optional[Dict[str, Any]], target_service: str) -> bool:\n    policy = _runtime_scoring_policy(template)\n    if policy is not None:\n        return policy["mode"] == "erp"\n\n    if template:\n        label = (template.get("service_label") or "").strip().lower()\n        if label in _ERP_WEBAPP_LABELS:\n            return True\n        if label and label != "genérico":\n            return False\n    if not target_service:\n        return False\n    svc = target_service.lower()\n    return bool(re.search(\n        r"erp|sistema(s)?\\s+web|aplica[çc][ãa]o\\s+web|gest[ãa]o\\s+integrada|"\n        r"plataforma\\s+(web|sob\\s+medida)|software\\s+sob\\s+medida",\n        svc,\n    ))\n\n\n'''
+          pattern = r'# Labels de template cuja venda é sistema web completo / ERP.*?(?=def _contradicts_site_state)'
+          text, n = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          assert n == 1, f'erp block: {n}'
+          path.write_text(text)
+
+          # pipeline_worker: injeta policy do OfferProfile e usa savepoint por lead.
+          path = Path('services/api/src/pipeline_worker.py')
+          text = path.read_text()
+          old = 'from services.enrichment_orchestrator import process_single_lead, resolve_enrichment_steps\n'
+          new = old + 'from services.lead_processing_guard import run_guarded_lead_operation\n'
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+
+          old = '''            scoring_template = merge_template_signals(\n                {**(scoring_template or {}), **offer_template},\n                offer_signals=offer_resolution.signals,\n                icp=offer_resolution.icp,\n            )'''
+          new = '''            scoring_template = merge_template_signals(\n                {**(scoring_template or {}), **offer_template},\n                offer_signals=offer_resolution.signals,\n                icp=offer_resolution.icp,\n                offer_key=offer_resolution.key,\n                offer_archetype=offer_resolution.archetype,\n            )'''
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+
+          old = '''                scoring_result = None\n                try:\n                    _, scoring_result = await process_single_lead(\n                        lead, enrichment_service, scoring_service, db,\n                        analysis_profile=analysis_profile,\n                        campaign_target_service=campaign.target_service if campaign else "",\n                        campaign_target_segment=campaign.target_segment if campaign else "",\n                        scoring_template=scoring_template,\n                        allow_business_fallback=reanalyze_only,\n                        learned_instructions=learned_instructions,\n                        explicit_reanalyze=reanalyze_only,\n                    )\n                except Exception:  # noqa: BLE001 — falha isolada por lead: registra com traceback e segue o lote\n                    logger.exception("Falha ao processar lead %s (será reprocessado)", lead.company_name)\n\n                if scoring_result is None:'''
+          new = '''                async def _score_current_lead():\n                    return await process_single_lead(\n                        lead, enrichment_service, scoring_service, db,\n                        analysis_profile=analysis_profile,\n                        campaign_target_service=campaign.target_service if campaign else "",\n                        campaign_target_segment=campaign.target_segment if campaign else "",\n                        scoring_template=scoring_template,\n                        allow_business_fallback=reanalyze_only,\n                        learned_instructions=learned_instructions,\n                        explicit_reanalyze=reanalyze_only,\n                    )\n\n                guarded = await run_guarded_lead_operation(\n                    db,\n                    _score_current_lead,\n                    lead_name=lead.company_name,\n                    correlation_id=correlation_id,\n                )\n                scoring_result = None\n                processing_failure = guarded.failure\n                if guarded.ok and guarded.value is not None:\n                    _, scoring_result = guarded.value\n\n                if scoring_result is None:'''
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+
+          old = '''                    yield {\n                        "type": "log",\n                        "message": (\n                            f"{lead.company_name} NÃO foi pontuado agora (falha temporária) — "\n                            "será reprocessado no próximo lote."\n                        ),\n                        "timestamp": _ts(),\n                    }'''
+          new = '''                    failure_message = (\n                        f"Não foi possível analisar {lead.company_name} agora. "\n                        "O restante da busca continua e este lead ficará pendente para nova tentativa."\n                        if processing_failure\n                        else (\n                            f"{lead.company_name} NÃO foi pontuado agora (serviço de análise indisponível) — "\n                            "será reprocessado no próximo lote."\n                        )\n                    )\n                    yield {\n                        "type": "log",\n                        "message": failure_message,\n                        "timestamp": _ts(),\n                    }'''
+          assert text.count(old) == 1
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          tests = Path('tests/test_scoring_policy_runtime.py')
+          tests.write_text(r'''"""Contrato semântico de scoring e isolamento por lead."""
+          import asyncio
+
+          from database.models import AnalysisProfile, Lead, LeadStatus
+          from services.enrichment_orchestrator import process_single_lead
+          from services.lead_processing_guard import run_guarded_lead_operation
+          from services.offer_signal_adapter import merge_template_signals
+          from services.scoring_service import (
+              _campaign_sells_erp_webapps,
+              _campaign_sells_web_presence,
+              build_prompt,
+          )
+
+
+          OFFER_SIGNALS = {
+              "positive": ["NO_OWN_WEBSITE", "HAS_INSTAGRAM"],
+              "negative": ["HAS_OWN_WEBSITE_INSTITUTIONAL"],
+              "weights": {"NO_OWN_WEBSITE": 25, "HAS_INSTAGRAM": 12},
+          }
+
+
+          def _runtime_template(archetype="web_presence", key="landing_page", label="Nome comercial mutável"):
+              return merge_template_signals(
+                  {
+                      "service_label": label,
+                      "positive_signals": [
+                          {"label": "Sem site próprio", "description": "Empresa sem website", "weight_hint": "high"},
+                      ],
+                      "negative_signals": [],
+                      "context_signals": [],
+                      "enrichment_steps": ["cnpj_receita", "technical_site"],
+                  },
+                  OFFER_SIGNALS,
+                  {"segments": ["psicologia"]},
+                  offer_key=key,
+                  offer_archetype=archetype,
+              )
+
+
+          def test_web_presence_nao_depende_do_service_label():
+              template = _runtime_template(label="Qualquer nome traduzido no futuro")
+              assert _campaign_sells_web_presence(template, "texto irrelevante") is True
+              prompt = build_prompt(
+                  "Landing pages e páginas de conversão",
+                  "clínicas de psicologia",
+                  template,
+                  [],
+                  ["Empresa: Clínica X", "Tem website: não"],
+              )
+              assert "é PÚBLICO-ALVO" in prompt
+              assert "ausência de site próprio é NEUTRA" not in prompt
+
+
+          def test_digital_systems_usa_politica_erp_sem_label():
+              template = _runtime_template(
+                  archetype="digital_systems",
+                  key="web_systems_erp",
+                  label="Solução XPTO",
+              )
+              assert _campaign_sells_web_presence(template, "landing page") is False
+              assert _campaign_sells_erp_webapps(template, "texto sem ERP") is True
+              prompt = build_prompt("Sistema sob medida", "serviços", template, [], ["Tem website: não"])
+              assert "ausência de site próprio é NEUTRA" in prompt
+              assert "Venda de SISTEMA WEB COMPLETO / ERP" in prompt
+
+
+          def test_archetype_desconhecido_falha_de_forma_conservadora():
+              template = _runtime_template(archetype="novo_archetype", key="nova_oferta")
+              policy = template["scoring_policy"]
+              assert policy["mode"] == "generic"
+              assert policy["website_absence"] == "neutral"
+              assert _campaign_sells_web_presence(template, "landing page") is False
+
+
+          class _Savepoint:
+              def __init__(self, db):
+                  self.db = db
+              def __enter__(self):
+                  self.db.entered += 1
+                  return self
+              def __exit__(self, exc_type, exc, tb):
+                  if exc_type is not None:
+                      self.db.rolled_back += 1
+                  return False
+
+
+          class _DB:
+              def __init__(self):
+                  self.entered = 0
+                  self.rolled_back = 0
+                  self.flushed = 0
+              def begin_nested(self):
+                  return _Savepoint(self)
+              def flush(self):
+                  self.flushed += 1
+
+
+          def test_guard_savepoint_isola_excecao_e_mantem_lote_utilizavel():
+              db = _DB()
+              async def explode():
+                  raise AttributeError("contrato inválido")
+              result = asyncio.run(run_guarded_lead_operation(db, explode, lead_name="Lead X", correlation_id="corr-1"))
+              assert result.ok is False
+              assert result.failure.error_type == "AttributeError"
+              assert db.entered == 1
+              assert db.rolled_back == 1
+              assert db.flushed == 0
+
+              async def succeed():
+                  return "ok"
+              result2 = asyncio.run(run_guarded_lead_operation(db, succeed, lead_name="Lead Y"))
+              assert result2.ok is True
+              assert result2.value == "ok"
+              assert db.flushed == 1
+
+
+          class _FakeScoring:
+              def __init__(self):
+                  self.kwargs = None
+              async def score_business_lead(self, **kwargs):
+                  self.kwargs = kwargs
+                  return {
+                      "qualification_score": 85,
+                      "primary_need": "Presença digital",
+                      "qualification_reason": "Sem site próprio.",
+                      "priority": "HOT",
+                      "priority_reasoning": "Boa aderência.",
+                      "executive_summary": "Oportunidade clara.",
+                      "pitch_angle": "",
+                      "suggested_subject": "",
+                      "score_factors": [],
+                      "evidence": [],
+                  }
+
+
+          class _UnusedEnrichment:
+              async def enrich_website(self, _url):
+                  raise AssertionError("lead sem site não deve executar auditoria técnica")
+
+
+          def test_landing_page_sem_site_sem_cnpj_conclui_scoring_business():
+              lead = Lead(
+                  company_name="Psicologia Clínica",
+                  category="psychologist",
+                  city="Araraquara",
+                  state="SP",
+                  website=None,
+                  cnpj=None,
+                  status=LeadStatus.NOVO,
+              )
+              scoring = _FakeScoring()
+              template = _runtime_template()
+              _, result = asyncio.run(process_single_lead(
+                  lead,
+                  _UnusedEnrichment(),
+                  scoring,
+                  object(),
+                  analysis_profile=AnalysisProfile.WEB_PRESENCE,
+                  campaign_target_service="Landing pages e páginas de conversão",
+                  campaign_target_segment="clínicas de psicologia",
+                  scoring_template=template,
+              ))
+              assert result["qualification_score"] == 85
+              assert lead.status == LeadStatus.QUALIFICADO
+              assert scoring.kwargs is not None
+              assert scoring.kwargs["website"] is None
+              assert scoring.kwargs["template"]["scoring_policy"]["website_absence"] == "opportunity"
+          ''').replace('          ', '')
+
+          # O workflow é temporário: o commit final da branch não leva automação de manutenção.
+          Path('.github/workflows/tmp-scoring-policy-fix.yml').unlink()
+          PY
+      - name: Install test dependencies
+        run: python -m pip install -q -r requirements-dev.txt
+      - name: Compile
+        run: python -m compileall -q services/api services/workers
+      - name: Contract and regression tests
+        run: python -m pytest tests/test_offer_signal_contract.py tests/test_scoring_policy_runtime.py -q
+      - name: Relevant scoring tests
+        run: python -m pytest tests -q
+      - name: Commit tested changes
+        run: |
+          git config user.name "openai-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add services tests .github/workflows/tmp-scoring-policy-fix.yml
+          git commit -m "fix: estabiliza política de scoring e isolamento por lead [scoring-policy-applied]"
+          git push origin HEAD:fix/scoring-policy-contract
