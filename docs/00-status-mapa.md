@@ -1,7 +1,7 @@
 # Mapa de status — fonte de verdade operacional
 
 > **LIVE · atualizado em 2026-09-14.** Código/migrations/testes prevalecem.
-> Leia também `docs/README.md`, `docs/roadmap.md`, `docs/block-d-production-release.md` e `docs/block-e-alphamec-1.0.md`.
+> Leia também `docs/README.md` e `docs/roadmap.md`.
 
 Legenda: ✅ completo no escopo técnico atual · 🟠 depende de evidência externa/produção · ⬜ pendente.
 

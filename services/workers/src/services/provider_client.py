@@ -218,6 +218,8 @@ async def groq_json_chat(
 
     if on_usage is not None:
         raw_usage = data.get("usage") or {}
+        if not isinstance(raw_usage, dict):
+            raw_usage = {}
         if raw_usage:
             usage_info = {
                 "prompt_tokens": raw_usage.get("prompt_tokens", 0),
@@ -234,7 +236,15 @@ async def groq_json_chat(
         logger.error("Resposta do Groq sem choices (model=%s)", model)
         return None
 
-    content = choices[0].get("message", {}).get("content", "")
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        logger.error("Resposta do Groq com choice em formato inesperado (model=%s)", model)
+        return None
+    message = first_choice.get("message", {})
+    if not isinstance(message, dict):
+        logger.error("Resposta do Groq com message em formato inesperado (model=%s)", model)
+        return None
+    content = message.get("content", "")
     return _parse_json_content(content)
 
 

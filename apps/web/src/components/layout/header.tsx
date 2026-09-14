@@ -113,20 +113,22 @@ export function Header() {
             )}
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-80" align="end">
-            <DropdownMenuLabel className="flex items-center justify-between">
-              <span>Notificações</span>
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto gap-1 px-2 py-0.5 text-xs"
-                  onClick={handleMarkAllRead}
-                >
-                  <CheckCheck className="h-3 w-3" />
-                  Marcar todas como lidas
-                </Button>
-              )}
-            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notificações</span>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto gap-1 px-2 py-0.5 text-xs"
+                    onClick={handleMarkAllRead}
+                  >
+                    <CheckCheck className="h-3 w-3" />
+                    Marcar todas como lidas
+                  </Button>
+                )}
+              </DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             {(!notifData?.notifications || notifData.notifications.length === 0) ? (
               <div className="py-6 text-center text-sm text-muted-foreground">

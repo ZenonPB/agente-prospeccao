@@ -4,19 +4,17 @@
 >
 > Estado de código de referência: `main` após PR #171 (`a6f8f4e`) + trabalho em
 > andamento no PR #172. O código, migrations e testes continuam tendo
-> precedência quando um snapshot histórico divergir deste índice.
+> precedência quando um documento divergir deste índice.
 
 ## Como ler esta pasta
 
-A documentação agora é dividida em quatro classes para evitar que documentos
-de fases antigas sejam confundidos com o estado atual.
+A documentação é dividida em três classes.
 
 | Classe | Significado |
 |---|---|
-| **LIVE** | Deve refletir o estado atual e ser atualizada em toda mudança de arquitetura/capability. |
+| **LIVE** | Reflete o estado atual e é atualizada em toda mudança de arquitetura/capability. |
 | **RUNBOOK** | Procedimento operacional; só é válido se compatível com a arquitetura LIVE. |
 | **ADR/DECISÃO** | Registro de decisão; histórico é preservado, novas decisões são acrescentadas. |
-| **SNAPSHOT HISTÓRICO** | Evidência de uma fase anterior. Não é fonte de verdade para status atual. |
 
 ## Documentos LIVE
 
@@ -47,24 +45,12 @@ de fases antigas sejam confundidos com o estado atual.
 - `adr/` — ADRs individuais. ADR não deve ser reescrito para fingir que a
   decisão sempre foi diferente; mudanças novas recebem nova decisão/supersede.
 
-## SNAPSHOTS HISTÓRICOS
+## Histórico
 
-Os arquivos abaixo permanecem no repositório por rastreabilidade, mas **não
-representam o status atual**. Quando houver conflito, use os documentos LIVE.
-
-- `phase-1-8-9-completion.md`
-- `phase-2-company-people-search.md`
-- `phase-3-4-data-intelligence.md`
-- `phase-3-4-hardening-followups.md`
-- `phase-5-6-offer-excellence-continuous-agent.md`
-- `phase-7-8-engagement-workflows.md`
-- `hardening-phases-1-6.md`
-- `fix-scoring-saas-platforms.md`
-- `hunter-provider.md`
-- `auditoria-frontend.md`
-- `alphamec-registro.md`
-- `vertentes-offerprofile-consolidation.md` — snapshot da auditoria que levou à
-  consolidação; riscos ainda abertos devem ser copiados para o roadmap LIVE.
+Relatórios de fases, auditorias e registros de execução antigos foram removidos
+desta pasta em 2026-09-14 por já estarem implementados e superados pelos
+documentos LIVE acima. O histórico completo permanece no git
+(`git log -- docs/` recupera qualquer versão anterior).
 
 ## Estado canônico em 2026-09-13
 

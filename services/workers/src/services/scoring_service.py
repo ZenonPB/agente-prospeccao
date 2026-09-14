@@ -796,7 +796,7 @@ class AIScoringService:
         has_website: Optional[bool] = None,
         target_service: str = "",
         profile_key: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Normaliza e valida o JSON devolvido pela LLM.
 
         Garante defaults e tipos para todos os campos esperados pela camada
@@ -806,6 +806,9 @@ class AIScoringService:
         evidências que contradizem o fato cadastral (ex.: "sem site próprio"
         quando o lead TEM website, ou "tem site" quando não tem).
         """
+        if not isinstance(parsed, dict):
+            logger.warning("Resposta do scoring em formato inesperado (esperado dict).")
+            return None
         try:
             score = int(parsed.get("qualification_score", 0))
         except (TypeError, ValueError):

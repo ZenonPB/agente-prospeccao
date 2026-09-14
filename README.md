@@ -383,7 +383,6 @@ Pontos de entrada recomendados:
 - [`docs/00-status-mapa.md`](docs/00-status-mapa.md) — estado real das capabilities;
 - [`docs/architecture.md`](docs/architecture.md) — arquitetura e domínio;
 - [`docs/roadmap.md`](docs/roadmap.md) — evolução do produto;
-- [`docs/block-e-alphamec-1.0.md`](docs/block-e-alphamec-1.0.md) — fechamento da versão 1.0;
 - [`QUICKSTART.md`](QUICKSTART.md) — execução local;
 - [`DEPLOY.md`](DEPLOY.md) — preparação para deploy.
 

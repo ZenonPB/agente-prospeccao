@@ -10,8 +10,8 @@
 2. Documentos **LIVE** refletem estado corrente.
 3. RUNBOOKS descrevem operação atual.
 4. ADR/DECISÃO preserva decisões e mudanças.
-5. SNAPSHOT HISTÓRICO registra uma fase passada e não deve ser tratado como
-   fonte de verdade presente.
+5. Histórico de fases/auditorias antigas vive no git (`git log -- docs/`),
+   não em arquivos na pasta — não recrie snapshots removidos.
 
 A classificação completa está em `README.md`.
 
@@ -29,9 +29,8 @@ Exija fluxo real e teste proporcional ao risco.
 
 ## Não reescrever história
 
-Arquivos de fase/auditoria classificados como snapshot histórico podem conter
-estado antigo de propósito. Não os atualize para parecerem contemporâneos.
-Quando um risco histórico continua válido, copie-o para um LIVE doc e indique a
+Não atualize documentos para fingir que o passado foi diferente do que foi.
+Quando um risco antigo continua válido, registre-o num LIVE doc indicando a
 situação atual.
 
 ## Terminologia canônica
@@ -65,8 +64,3 @@ situação atual.
 - preferir tabelas pequenas e checklists verificáveis a texto repetido;
 - manter links internos relativos.
 
-## Atualização de snapshots
-
-Só alterar snapshot histórico para corrigir erro factual do próprio snapshot ou
-adicionar banner explícito de arquivamento. Novas entregas pertencem aos LIVE
-docs.
