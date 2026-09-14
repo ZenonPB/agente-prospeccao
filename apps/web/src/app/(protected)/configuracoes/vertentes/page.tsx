@@ -5,8 +5,8 @@ import { toast } from 'sonner';
 import {
   Plus,
   Copy,
-  Trash2,
-  Pencil,
+  Eye,
+  MoreHorizontal,
   Sparkles,
   Search,
   Loader2,
@@ -24,10 +24,17 @@ import { PageHeader } from '@/components/ui/page-header';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,7 +53,8 @@ import {
   usePatchScoringTemplate,
   useOrgMembership,
 } from '@/hooks/use-api';
-import { TemplateEditor, STEP_OPTIONS } from '@/components/vertentes/template-editor';
+import { TemplateEditor, STEP_OPTIONS, deriveSteps } from '@/components/vertentes/template-editor';
+import { TemplateDetails } from '@/components/vertentes/template-details';
 import { TemplateInsightsCard } from '@/components/vertentes/template-insights-card';
 import type { ScoringTemplate } from '@/lib/api';
 import type { EnrichmentStep } from '@/lib/api';
@@ -56,7 +64,7 @@ function statusBadges(t: ScoringTemplate) {
   if (!t.organization_id) {
     badges.push(
       <Badge key="global" variant="outline">
-        De fábrica (todos os times)
+        De fábrica
       </Badge>,
     );
     return badges;
@@ -81,7 +89,23 @@ function statusBadges(t: ScoringTemplate) {
       </Badge>,
     );
   }
+  if (badges.length === 0) {
+    badges.push(
+      <Badge key="own" variant="outline">
+        Da sua organização
+      </Badge>,
+    );
+  }
   return badges;
+}
+
+function summaryLine(t: ScoringTemplate): string {
+  const criteria =
+    (t.positive_signals?.length ?? 0) +
+    (t.negative_signals?.length ?? 0) +
+    (t.context_signals?.length ?? 0);
+  const sources = deriveSteps(t).length;
+  return `${criteria} ${criteria === 1 ? 'critério' : 'critérios'} · ${sources} ${sources === 1 ? 'fonte analisada' : 'fontes analisadas'}`;
 }
 
 export default function VertentesPage() {
@@ -99,7 +123,8 @@ export default function VertentesPage() {
   const [segment, setSegment] = useState('');
   const [generating, setGenerating] = useState(false);
 
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [editingMode, setEditingMode] = useState(false);
   const [dupSource, setDupSource] = useState<ScoringTemplate | null>(null);
   const [dupLabel, setDupLabel] = useState('');
   const [deleting, setDeleting] = useState<ScoringTemplate | null>(null);
@@ -115,7 +140,9 @@ export default function VertentesPage() {
     return templates.filter((t) => t.service_label.toLowerCase().includes(q));
   }, [templates, search]);
 
-  const editing = editingId ? templates.find((t) => t.id === editingId) ?? null : null;
+  const viewing = viewingId ? templates.find((t) => t.id === viewingId) ?? null : null;
+  const isFactoryViewing = !!viewing && !viewing.organization_id;
+  const canEditViewing = !!viewing && !!viewing.organization_id && canManage;
 
   const handleGenerate = () => {
     if (!description.trim()) return;
@@ -127,7 +154,8 @@ export default function VertentesPage() {
           setCreateOpen(false);
           setDescription('');
           setSegment('');
-          setEditingId(t.id);
+          setViewingId(t.id);
+          setEditingMode(true);
           toast.success('Rascunho criado. Revise e ative quando estiver satisfeito.');
         },
         onError: (err) => {
@@ -150,7 +178,8 @@ export default function VertentesPage() {
       {
         onSuccess: (t) => {
           setDupSource(null);
-          setEditingId(t.id);
+          setViewingId(t.id);
+          setEditingMode(true);
           toast.success('Vertente duplicada. Personalize os critérios para o seu ICP.');
         },
         onError: (err) => {
@@ -164,7 +193,10 @@ export default function VertentesPage() {
     if (!deleting) return;
     remove.mutate(deleting.id, {
       onSuccess: () => {
-        if (editingId === deleting.id) setEditingId(null);
+        if (viewingId === deleting.id) {
+          setViewingId(null);
+          setEditingMode(false);
+        }
         setDeleting(null);
         toast.success('Vertente removida com sucesso.');
       },
@@ -298,29 +330,30 @@ export default function VertentesPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {filtered.map((t) => (
+          {filtered.map((t) => {
+            const isFactory = !t.organization_id;
+            return (
             <Card key={t.id} className="p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    {canManage ? (
-                      <Button
-                        variant="link"
-                        className="h-auto p-0 text-left font-semibold text-foreground"
-                        onClick={() => setEditingId(t.id)}
-                      >
-                        {t.service_label}
-                      </Button>
-                    ) : (
-                      <span className="font-semibold text-foreground">{t.service_label}</span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => { setViewingId(t.id); setEditingMode(false); }}
+                      className="rounded text-left font-semibold text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {t.service_label}
+                    </button>
                     {statusBadges(t)}
                   </div>
-                  <p className="text-xs text-muted-foreground">{stepsLabel(t)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t.extra_instructions || stepsLabel(t)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{summaryLine(t)}</p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1.5">
-                  {canManage && t.organization_id ? (
+                <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                  {canManage && !isFactory ? (
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Switch
                         checked={t.is_active}
@@ -329,96 +362,88 @@ export default function VertentesPage() {
                       />
                       Ativa
                     </label>
-                  ) : (
-                    <span className="text-xs text-muted-foreground">De fábrica</span>
-                  )}
+                  ) : null}
 
-{canManage ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingId(t.id)}
-                            aria-label={`Editar ${t.service_label}`}
-                          >
-                            <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDuplicate(t)}
-                            aria-label={`Duplicar ${t.service_label}`}
-                          >
-                            <Copy className="mr-1 h-3.5 w-3.5" /> Duplicar
-                          </Button>
-                          {t.organization_id && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => setDeleting(t)}
-                              aria-label={`Remover ${t.service_label}`}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setViewingId(t.id); setEditingMode(false); }}
+                    aria-label={`Ver detalhes de ${t.service_label}`}
+                  >
+                    <Eye className="mr-1 h-3.5 w-3.5" /> Ver detalhes
+                  </Button>
+
+                  {isFactory ? (
+                    canManage ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDuplicate(t)}
+                        aria-label={`Duplicar ${t.service_label} e personalizar`}
+                      >
+                        <Copy className="mr-1 h-3.5 w-3.5" /> Duplicar e personalizar
+                      </Button>
+                    ) : null
+                  ) : canManage ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button variant="ghost" size="sm" aria-label={`Mais ações para ${t.service_label}`} />
+                        }
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => { setViewingId(t.id); setEditingMode(true); }}>
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openDuplicate(t)}>
+                          Duplicar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-700"
+                          onClick={() => setDeleting(t)}
+                        >
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </div>
+              </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      <Dialog open={!!editing && canManage} onOpenChange={(open) => !open && setEditingId(null)}>
-        <DialogContent className="sm:max-w-2xl">
+      <Dialog open={!!viewing} onOpenChange={(open) => { if (!open) { setViewingId(null); setEditingMode(false); } }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              Editando: {editing?.service_label}
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              {editingMode && canEditViewing ? `Editando: ${viewing?.service_label}` : viewing?.service_label}
+              {viewing && statusBadges(viewing)}
             </DialogTitle>
-            {editing?.organization_id ? (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Switch
-                  checked={editing.is_active}
-                  onCheckedChange={(v) => toggleActive(editing, v === true)}
-                  aria-label="Vertente ativa"
-                />
-                Vertente ativa
-              </div>
-            ) : (
-              <Badge variant="outline" className="w-fit">
-                De fábrica — duplique para personalizar
-              </Badge>
+            {viewing && !editingMode && (
+              <DialogDescription>
+                {isFactoryViewing
+                  ? 'Configuração padrão mantida pelo sistema.'
+                  : 'Configuração da sua organização.'}
+              </DialogDescription>
             )}
           </DialogHeader>
-          {editing?.organization_id ? (
-            <TemplateEditor template={editing} showLabel key={editing.id} />
+          {viewing && (editingMode && canEditViewing ? (
+            <TemplateEditor template={viewing} showLabel key={viewing.id} />
           ) : (
-            <div className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-              <Lock className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="space-y-3">
-                <p>
-                  Vertentes de fábrica são compartilhadas por todos os times e não podem ser
-                  alteradas. Duplique para criar a sua própria versão e editá-la.
-                </p>
-                {canManage && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (editing) {
-                        setEditingId(null);
-                        openDuplicate(editing);
-                      }
-                    }}
-                  >
-                    <Copy className="mr-2 h-3.5 w-3.5" /> Duplicar esta vertente
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
+            <TemplateDetails
+              template={viewing}
+              isFactory={isFactoryViewing}
+              canManage={canManage}
+              canEdit={canEditViewing}
+              onEdit={() => setEditingMode(true)}
+              onDuplicate={() => { setViewingId(null); setEditingMode(false); openDuplicate(viewing); }}
+            />
+          ))}
         </DialogContent>
       </Dialog>
 
