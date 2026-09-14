@@ -17,7 +17,14 @@ DEFAULT_MAX_PEOPLE_STEPS = 2
 
 
 def apply_catalog_policies(registry: OfferProfileRegistry) -> OfferProfileRegistry:
-    """Aplica invariantes comerciais compartilhadas sem contaminar o core."""
+    """Aplica maturidade factory e invariantes compartilhadas fora do core."""
+    from services.alphamec_vertente_equalization import equalize_alphamec_vertentes
+
+    # A equalização faz parte do catálogo factory da AlphaMec. Assim qualquer
+    # consumidor do base registry enxerga a mesma Vertente; overlays publicados
+    # continuam sendo aplicados depois, no registry efetivo do workspace.
+    equalize_alphamec_vertentes(registry)
+
     for profile in list(registry.list()):
         roles = (profile.decision_makers or {}).get("roles") or []
         if not roles:
