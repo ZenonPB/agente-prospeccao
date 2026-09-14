@@ -46,17 +46,19 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
     setEditing(true);
   };
   const save = async () => {
-    if (!current.updated_at) return toast.error('Recarregue a pessoa antes de editar.');
+    const version = current.updated_at || current.created_at;
+    if (!version) return toast.error('Recarregue a pessoa antes de editar.');
     if (!form.name.trim()) return toast.error('O nome é obrigatório.');
     try {
-      await update.mutateAsync({ expected_updated_at: current.updated_at, name: form.name, role: form.role || null, role_label: form.role_label || null, email: form.email || null, phone: form.phone || null, linkedin_url: form.linkedin_url || null, routability_type: form.routability_type || 'UNKNOWN', routability_reason: form.routability_reason || null, routable: form.routable });
+      await update.mutateAsync({ expected_updated_at: version, name: form.name, role: form.role || null, role_label: form.role_label || null, email: form.email || null, phone: form.phone || null, linkedin_url: form.linkedin_url || null, routability_type: form.routability_type || 'UNKNOWN', routability_reason: form.routability_reason || null, routable: form.routable });
       setEditing(false);
       toast.success('Pessoa atualizada.');
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a pessoa.'); }
   };
   const humanVerify = async () => {
-    if (!current.updated_at) return toast.error('Recarregue a pessoa antes de validar.');
-    try { await verify.mutateAsync(current.updated_at); toast.success('Identidade marcada como validada por humano.'); }
+    const version = current.updated_at || current.created_at;
+    if (!version) return toast.error('Recarregue a pessoa antes de validar.');
+    try { await verify.mutateAsync(version); toast.success('Identidade marcada como validada por humano.'); }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Não foi possível validar a pessoa.'); }
   };
 
