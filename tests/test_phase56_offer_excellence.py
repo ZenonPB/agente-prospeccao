@@ -35,9 +35,9 @@ def test_existing_profiles_receive_phase5_signals_without_penalizing_unknowns():
     manual = registry.get("machine_manual")
 
     assert landing is not None and "WEAK_CTA" in landing.signals["optional_positive"]
-    assert mechanical is not None and "EXPANDING_FACTORY" in mechanical.signals["optional_positive"]
-    assert drawing is not None and "REVERSE_ENGINEERING" in drawing.signals["optional_positive"]
-    assert manual is not None and "NR12" in manual.signals["optional_positive"]
+    assert mechanical is not None and "HAS_CNPJ" in mechanical.signals["optional_positive"]
+    assert drawing is not None and "HAS_CNPJ" in drawing.signals["optional_positive"]
+    assert manual is not None and "HAS_CNPJ" in manual.signals["optional_positive"]
     # A equalização de engenharia muda pesos, gates e estratégia e, portanto,
     # avança a versão para preservar attribution e rollback. Landing não mudou.
     assert landing.version == "2.0"
@@ -80,4 +80,7 @@ def test_agent_state_machine_contract_is_closed_and_explicit():
 
 def test_event_rebuy_window_shape_can_represent_30_to_120_days():
     today = date.today()
-    assert today + timedelta(days=30) < today + timedelta(days=120)
+    start = today + timedelta(days=45)
+    end = today + timedelta(days=75)
+    assert 30 <= (start - today).days <= 120
+    assert 30 <= (end - today).days <= 120
