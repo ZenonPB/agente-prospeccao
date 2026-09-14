@@ -21,6 +21,9 @@ import { useOrgMembership } from '@/hooks/use-api';
 type PersonForm = { name: string; role: string; role_label: string; email: string; phone: string; linkedin_url: string; routability_type: string; routability_reason: string; routable: boolean };
 const emptyForm: PersonForm = { name: '', role: '', role_label: '', email: '', phone: '', linkedin_url: '', routability_type: 'UNKNOWN', routability_reason: '', routable: false };
 
+const ROLE_LABELS: Record<string, string> = { NONE: 'Não definido', SOCIO: 'Sócio', ADMINISTRADOR: 'Administrador', CEO: 'CEO', DIRETOR: 'Diretor', OUTRO: 'Outro' };
+const ROUTABILITY_LABELS: Record<string, string> = { UNKNOWN: 'Desconhecida', DIRECT: 'Direta', COMPANY: 'Via empresa', NONE: 'Sem rota' };
+
 export default function Person360Page(props: { params: Promise<{ personId: string }> }) {
   const { personId } = use(props.params);
   const query = usePerson360(personId);
@@ -96,12 +99,12 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
           <DialogHeader><DialogTitle>Editar pessoa canônica</DialogTitle><DialogDescription>CPF e vínculo de empresa permanecem protegidos como identidade. A alteração é auditada e rejeita versões desatualizadas.</DialogDescription></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nome"><Input value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} /></Field>
-            <Field label="Papel"><Select value={form.role || 'NONE'} onValueChange={(value) => setForm((v) => ({ ...v, role: value === 'NONE' ? '' : (value ?? '') }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NONE">Não definido</SelectItem><SelectItem value="SOCIO">Sócio</SelectItem><SelectItem value="ADMINISTRADOR">Administrador</SelectItem><SelectItem value="CEO">CEO</SelectItem><SelectItem value="DIRETOR">Diretor</SelectItem><SelectItem value="OUTRO">Outro</SelectItem></SelectContent></Select></Field>
+            <Field label="Papel"><Select value={form.role || 'NONE'} onValueChange={(value) => setForm((v) => ({ ...v, role: value === 'NONE' ? '' : (value ?? '') }))}><SelectTrigger><SelectValue>{(value) => ROLE_LABELS[value as string] ?? (value as string)}</SelectValue></SelectTrigger><SelectContent><SelectItem value="NONE">Não definido</SelectItem><SelectItem value="SOCIO">Sócio</SelectItem><SelectItem value="ADMINISTRADOR">Administrador</SelectItem><SelectItem value="CEO">CEO</SelectItem><SelectItem value="DIRETOR">Diretor</SelectItem><SelectItem value="OUTRO">Outro</SelectItem></SelectContent></Select></Field>
             <Field label="Cargo"><Input value={form.role_label} onChange={(e) => setForm((v) => ({ ...v, role_label: e.target.value }))} /></Field>
             <Field label="E-mail"><Input type="email" value={form.email} onChange={(e) => setForm((v) => ({ ...v, email: e.target.value }))} /></Field>
             <Field label="Telefone"><Input value={form.phone} onChange={(e) => setForm((v) => ({ ...v, phone: e.target.value }))} /></Field>
             <Field label="LinkedIn"><Input value={form.linkedin_url} onChange={(e) => setForm((v) => ({ ...v, linkedin_url: e.target.value }))} /></Field>
-            <Field label="Roteabilidade"><Select value={form.routability_type} onValueChange={(value) => setForm((v) => ({ ...v, routability_type: value ?? 'UNKNOWN' }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="UNKNOWN">Desconhecida</SelectItem><SelectItem value="DIRECT">Direta</SelectItem><SelectItem value="COMPANY">Via empresa</SelectItem><SelectItem value="NONE">Sem rota</SelectItem></SelectContent></Select></Field>
+            <Field label="Roteabilidade"><Select value={form.routability_type} onValueChange={(value) => setForm((v) => ({ ...v, routability_type: value ?? 'UNKNOWN' }))}><SelectTrigger><SelectValue>{(value) => ROUTABILITY_LABELS[value as string] ?? (value as string)}</SelectValue></SelectTrigger><SelectContent><SelectItem value="UNKNOWN">Desconhecida</SelectItem><SelectItem value="DIRECT">Direta</SelectItem><SelectItem value="COMPANY">Via empresa</SelectItem><SelectItem value="NONE">Sem rota</SelectItem></SelectContent></Select></Field>
             <Field label="Motivo da roteabilidade"><Input value={form.routability_reason} onChange={(e) => setForm((v) => ({ ...v, routability_reason: e.target.value }))} /></Field>
             <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={form.routable} onChange={(e) => setForm((v) => ({ ...v, routable: e.target.checked }))} />Contato pode ser acionado comercialmente</label>
           </div>

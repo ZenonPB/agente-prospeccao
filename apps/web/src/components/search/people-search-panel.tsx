@@ -51,6 +51,19 @@ function contactStatusLabel(status: string) {
   return 'Poucos dados para contato';
 }
 
+const EMAIL_STATUS_LABELS: Record<string, string> = {
+  any: 'Qualquer situação',
+  present: 'Com e-mail',
+  verified: 'E-mail confirmado por fonte confiável',
+  missing: 'Sem e-mail',
+};
+
+const PHONE_STATUS_LABELS: Record<string, string> = {
+  any: 'Qualquer situação',
+  present: 'Com telefone',
+  missing: 'Sem telefone',
+};
+
 export function PeopleSearchPanel({ interpretedFilters }: { interpretedFilters?: PeopleSearchFilters | null }) {
   const search = usePeopleSearch();
   const initial = interpretedFilters ?? {};
@@ -108,12 +121,11 @@ export function PeopleSearchPanel({ interpretedFilters }: { interpretedFilters?:
             <div className="space-y-1.5">
               <Label htmlFor="email-status">E-mail</Label>
               <Select value={emailStatus} onValueChange={(value) => setEmailStatus(value as PeopleSearchFilters['email_status'])}>
-                <SelectTrigger id="email-status" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="email-status" className="w-full"><SelectValue>{(value) => EMAIL_STATUS_LABELS[value as string] ?? (value as string)}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Qualquer situação</SelectItem>
-                  <SelectItem value="present">Com e-mail</SelectItem>
-                  <SelectItem value="verified">E-mail confirmado por fonte confiável</SelectItem>
-                  <SelectItem value="missing">Sem e-mail</SelectItem>
+                  {Object.entries(EMAIL_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -121,11 +133,11 @@ export function PeopleSearchPanel({ interpretedFilters }: { interpretedFilters?:
             <div className="space-y-1.5">
               <Label htmlFor="phone-status">Telefone</Label>
               <Select value={phoneStatus} onValueChange={(value) => setPhoneStatus(value as PeopleSearchFilters['phone_status'])}>
-                <SelectTrigger id="phone-status" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="phone-status" className="w-full"><SelectValue>{(value) => PHONE_STATUS_LABELS[value as string] ?? (value as string)}</SelectValue></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Qualquer situação</SelectItem>
-                  <SelectItem value="present">Com telefone</SelectItem>
-                  <SelectItem value="missing">Sem telefone</SelectItem>
+                  {Object.entries(PHONE_STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
