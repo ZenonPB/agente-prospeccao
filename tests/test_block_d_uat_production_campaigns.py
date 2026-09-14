@@ -112,7 +112,7 @@ def test_d1_d2_d3_multi_workspace_rehearsal_and_measurement_postgres():
         ),
         OrganizationMember(
             organization_id=org_b.id, user_id=shared.id,
-            role=OrganizationRole.MEMBER, sales_role=SalesRole.CONSULTANT,
+            role=OrganizationRole.MEMBER, sales_role=SalesRole.CONSULTOR,
         ),
     ])
     db.flush()
