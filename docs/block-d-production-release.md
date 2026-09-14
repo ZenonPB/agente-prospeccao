@@ -55,9 +55,11 @@ A matriz de release cobre:
 
 1. `landing_page` — landing pages;
 2. `web_systems_erp` — sistemas sob medida;
-3. `mechanical_engineering` — engenharia mecânica;
+3. `mechanical_project` — engenharia mecânica;
 4. `trophies_sports` — troféus esportivos;
 5. `trophies_mej` — troféus para eventos/MEJ.
+
+As chaves acima são verificadas contra o OfferProfile registry efetivo no gate PostgreSQL; a UI pode apresentar nomes comerciais sem alterar a identidade técnica da oferta.
 
 `CampaignReleaseRequest` possui três modos:
 
