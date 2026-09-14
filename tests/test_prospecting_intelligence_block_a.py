@@ -8,6 +8,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "services" / "workers" / "src"))
 
 
+def _event_rules():
+    from services.alphamec_event_intelligence import event_context_rules
+    return event_context_rules()
+
+
 def test_offer_resolver_distingue_principais_golden_paths():
     from services.prospecting.default_profiles import build_default_registry
     from services.prospecting.offer_profile import OfferProfileResolver
@@ -41,7 +46,6 @@ def test_quality_gate_nao_trata_unknown_como_false():
     mechanical = matches["mechanical_project"]
     assert mechanical.score <= 55
     assert "missing_strong_evidence" in mechanical.score_breakdown["capped_by"]
-    # O motor limita confiança; ele não fabrica sinais negativos ausentes.
     assert mechanical.score_breakdown["negative_signals_matched"] == []
 
 
@@ -71,7 +75,7 @@ def test_event_intelligence_reconhece_mej_sem_promover_inferencia_a_fato():
         "name": "Encontro de Empresas Juniores 2027",
         "organizer": "Núcleo Exemplo de Empresas Juniores",
         "event_type": "evento universitário",
-    })
+    }, _event_rules())
     assert result.context == "mej"
     assert result.recommended_offer_key == "trophies_mej"
     assert result.series_key
@@ -87,7 +91,7 @@ def test_event_intelligence_reconhece_esporte_e_serie_entre_edicoes():
         "name": "12ª Copa Regional de Vôlei 2027",
         "organizer": "Liga Regional",
         "event_type": "campeonato",
-    })
+    }, _event_rules())
     assert result.context == "sports"
     assert result.recommended_offer_key == "trophies_sports"
     assert canonical_event_series_key("Copa Regional 2026", "Liga Regional", "campeonato") == canonical_event_series_key(
@@ -98,7 +102,10 @@ def test_event_intelligence_reconhece_esporte_e_serie_entre_edicoes():
 def test_estimativa_de_premiacao_exige_contagem_estruturada_e_permanece_inferencia():
     from services.prospecting.event_intelligence import infer_event_intelligence
 
-    unknown = infer_event_intelligence({"name": "Feira empresarial", "organizer": "Associação X"})
+    unknown = infer_event_intelligence(
+        {"name": "Feira empresarial", "organizer": "Associação X"},
+        _event_rules(),
+    )
     assert unknown.award_demand["estimated_min_units"] is None
 
     estimated = infer_event_intelligence({
@@ -106,9 +113,19 @@ def test_estimativa_de_premiacao_exige_contagem_estruturada_e_permanece_inferenc
         "organizer": "Liga Universitária",
         "category_count": 8,
         "placements_per_category": 3,
-    })
+    }, _event_rules())
     assert estimated.award_demand["estimated_min_units"] == 24
     assert estimated.award_demand["epistemic"] == "INFERENCE"
+
+
+def test_core_sem_regras_nao_inventa_contexto_comercial():
+    from services.prospecting.event_intelligence import infer_event_intelligence
+
+    result = infer_event_intelligence({"name": "Evento desconhecido"})
+    assert result.context is None
+    assert result.recommended_offer_key is None
+    assert result.evidence == []
+    assert result.demand["epistemic"] == "UNKNOWN"
 
 
 def test_timing_comercial_nao_considera_evento_amanha_como_oportunidade_perfeita():
@@ -129,13 +146,13 @@ def test_timing_comercial_nao_considera_evento_amanha_como_oportunidade_perfeita
 
 
 def test_benchmark_sintetico_e_gate_de_release():
-    from services.prospecting.quality_benchmark import assert_release_quality, run_quality_benchmark
+    from services.prospecting_quality_benchmark import assert_release_quality, run_quality_benchmark
 
     report = run_quality_benchmark()
     assert report["benchmark_kind"] == "synthetic_regression"
     assert report["real_conversion_claim"] is False
-    assert report["routing_accuracy"] == 1.0
-    assert report["high_confidence_false_positive_rate"] == 0.0
+    assert report["routing_accuracy"] == 1.0, report["results"]
+    assert report["high_confidence_false_positive_rate"] == 0.0, report["results"]
     assert report["evidence_coverage"] == 1.0
     assert_release_quality(report)
 
