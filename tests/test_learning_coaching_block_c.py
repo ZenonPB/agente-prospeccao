@@ -89,7 +89,9 @@ def test_block_c_replay_publish_rollback_coaching_and_tenant_isolation_postgres(
             category=None if signal_a else "psicologia",
             status=LeadStatus.QUALIFICADO, qualification_score=70,
             assigned_to_id=manager.id,
-            next_action_at=now - timedelta(days=1) if index < 3 else now + timedelta(days=3),
+            # Wins já encerrados não devem gerar follow-up vencido. O gate usa
+            # os três leads de reunião (índices 3..5), que ainda exigem ação.
+            next_action_at=now - timedelta(days=1) if 3 <= index < 6 else now + timedelta(days=3),
             created_at=now - timedelta(days=2), updated_at=now - timedelta(days=1),
         )
         db.add(lead); db.flush()
