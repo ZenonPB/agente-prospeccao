@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useState, type ReactNode } from 'react';
+import { use, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Building2, ExternalLink, Mail, Pencil, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,13 +29,7 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
   const membership = useOrgMembership();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<PersonForm>(emptyForm);
-  const person = query.data?.person;
   const canEdit = membership.data?.membership?.sales_role !== 'ANALYST';
-
-  useEffect(() => {
-    if (!person || !editing) return;
-    setForm({ name: person.name ?? '', role: person.role ?? '', role_label: person.role_label ?? '', email: person.email ?? '', phone: person.phone ?? '', linkedin_url: person.linkedin_url ?? '', routability_type: person.routability_type ?? 'UNKNOWN', routability_reason: person.routability_reason ?? '', routable: person.routable });
-  }, [person, editing]);
 
   if (query.isLoading) return <PersonSkeleton />;
   if (query.isError || !query.data) return <div className="space-y-6"><Back /><EmptyState title="Não foi possível abrir esta pessoa" description="Ela pode não existir neste workspace ou não pertencer à sua carteira." /></div>;
@@ -43,6 +37,14 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
   const data = query.data;
   const current = data.person;
   const company = data.company;
+  const beginEditing = () => {
+    setForm({
+      name: current.name ?? '', role: current.role ?? '', role_label: current.role_label ?? '',
+      email: current.email ?? '', phone: current.phone ?? '', linkedin_url: current.linkedin_url ?? '',
+      routability_type: current.routability_type ?? 'UNKNOWN', routability_reason: current.routability_reason ?? '', routable: current.routable,
+    });
+    setEditing(true);
+  };
   const save = async () => {
     if (!current.updated_at) return toast.error('Recarregue a pessoa antes de editar.');
     if (!form.name.trim()) return toast.error('O nome é obrigatório.');
@@ -65,7 +67,7 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
         eyebrow="CRM · Pessoa"
         title={current.name}
         description={[current.role_label || humanCrmKey(current.role), company?.company_name].filter(Boolean).join(' · ')}
-        actions={<div className="flex flex-wrap gap-2">{canEdit ? <><Button variant="outline" onClick={() => setEditing(true)}><Pencil className="mr-2 h-4 w-4" />Editar</Button><Button variant="outline" onClick={() => void humanVerify()} disabled={verify.isPending || current.verification_status === 'human_verified'}><ShieldCheck className="mr-2 h-4 w-4" />{current.verification_status === 'human_verified' ? 'Validado' : 'Validar identidade'}</Button></> : null}<Badge variant={current.routable ? 'secondary' : 'outline'}>{current.routable ? 'Contato acionável' : 'Contato a revisar'}</Badge>{current.email_verified && <Badge variant="outline">E-mail verificado</Badge>}</div>}
+        actions={<div className="flex flex-wrap gap-2">{canEdit ? <><Button variant="outline" onClick={beginEditing}><Pencil className="mr-2 h-4 w-4" />Editar</Button><Button variant="outline" onClick={() => void humanVerify()} disabled={verify.isPending || current.verification_status === 'human_verified'}><ShieldCheck className="mr-2 h-4 w-4" />{current.verification_status === 'human_verified' ? 'Validado' : 'Validar identidade'}</Button></> : null}<Badge variant={current.routable ? 'secondary' : 'outline'}>{current.routable ? 'Contato acionável' : 'Contato a revisar'}</Badge>{current.email_verified && <Badge variant="outline">E-mail verificado</Badge>}</div>}
       />
 
       <section aria-label="Resumo do contato" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -87,7 +89,7 @@ export default function Person360Page(props: { params: Promise<{ personId: strin
         <aside aria-label="Histórico da pessoa"><CrmTimeline items={data.timeline} /></aside>
       </div>
 
-      <Dialog open={editing} onOpenChange={setEditing}>
+      <Dialog open={editing} onOpenChange={(open) => { if (!open) setEditing(false); }}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader><DialogTitle>Editar pessoa canônica</DialogTitle><DialogDescription>CPF e vínculo de empresa permanecem protegidos como identidade. A alteração é auditada e rejeita versões desatualizadas.</DialogDescription></DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
