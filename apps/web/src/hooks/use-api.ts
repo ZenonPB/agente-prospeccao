@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, intelligenceApi, type ScoringTemplateInput } from "@/lib/api";
-import type { SalesRole, OrgRole, OnboardingStatus } from "@/types";
+import { leadsApi, campaignsApi, importsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, intelligenceApi, type ScoringTemplateInput, type CommercialFilterParams, type CommercialFilterSnapshot } from "@/lib/api";
+import type { BulkLeadCommand, ImportJobStatus, ImportMapping, ImportRowStatus, OnboardingStatus, SalesRole, OrgRole } from "@/types";
+import { isImportJobTerminal } from "@/types";
 
 export type SegmentSuggestion = {
   segment: string;
@@ -74,12 +76,29 @@ export function useInfiniteLeads(params?: {
 }) {
   return useInfiniteQuery({
     queryKey: ["leads", "infinite", params],
-    queryFn: ({ pageParam }) =>
-      leadsApi.list({ ...params, limit: LIST_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      const loaded = allPages.reduce((n, p) => n + p.leads.length, 0);
-      return loaded < lastPage.total ? loaded : undefined;
+    queryFn: ({ pageParam }) => leadsApi.list({
+      ...params,
+      limit: LIST_PAGE_SIZE,
+      ...(pageParam ? { cursor: pageParam } : {}),
+    }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+  });
+}
+
+export function usePreviewBulkLeads() {
+  return useMutation({
+    mutationFn: (body: BulkLeadCommand) => leadsApi.previewBulk(body),
+  });
+}
+
+export function useExecuteBulkLeads() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: BulkLeadCommand & { idempotency_key: string }) => leadsApi.executeBulk(body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["analytics"] });
     },
   });
 }
@@ -610,114 +629,129 @@ export function useLeadPitch(id: string) {
   });
 }
 
-export interface AnalyticsPeriod {
-  from?: string;
-  to?: string;
-}
+export type AnalyticsPeriod = Pick<CommercialFilterSnapshot, "from" | "to">;
 
-export function useAnalyticsOverview(period?: AnalyticsPeriod) {
+const EMPTY_COMMERCIAL_FILTERS: CommercialFilterSnapshot = {};
+
+type AnalyticsFilters = CommercialFilterParams | AnalyticsPeriod;
+
+export function useAnalyticsOverview(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "overview", period],
-    queryFn: () => analyticsApi.overview(period),
+    queryKey: ["analytics", "overview", snapshot],
+    queryFn: () => analyticsApi.overview(snapshot),
   });
 }
 
-export function useAnalyticsFunnel(period?: AnalyticsPeriod) {
+export function useAnalyticsFunnel(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "funnel", period],
-    queryFn: () => analyticsApi.funnel(period),
+    queryKey: ["analytics", "funnel", snapshot],
+    queryFn: () => analyticsApi.funnel(snapshot),
   });
 }
 
-export function useAnalyticsExecutiveMetrics(period?: AnalyticsPeriod, k = 10) {
+export function useAnalyticsExecutiveMetrics(filters?: AnalyticsFilters, k = 10) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "executive-metrics", period, k],
-    queryFn: () => analyticsApi.executiveMetrics({ ...(period || {}), k }),
+    queryKey: ["analytics", "executive-metrics", snapshot, k],
+    queryFn: () => analyticsApi.executiveMetrics({ ...snapshot, k }),
   });
 }
 
-export function useAnalyticsConsultants(period?: AnalyticsPeriod) {
+export function useAnalyticsConsultants(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "consultants", period],
-    queryFn: () => analyticsApi.consultants(period),
+    queryKey: ["analytics", "consultants", snapshot],
+    queryFn: () => analyticsApi.consultants(snapshot),
   });
 }
 
-export function useAnalyticsConsultantDetail(userId: string, period?: AnalyticsPeriod) {
+export function useAnalyticsConsultantDetail(userId: string, filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "consultants", userId, period],
-    queryFn: () => analyticsApi.consultantDetail(userId, period),
+    queryKey: ["analytics", "consultants", userId, snapshot],
+    queryFn: () => analyticsApi.consultantDetail(userId, snapshot),
     enabled: !!userId,
   });
 }
 
-export function useAnalyticsConsultantActivity(userId: string, period?: AnalyticsPeriod, limit = 50) {
+export function useAnalyticsConsultantActivity(userId: string, filters?: AnalyticsFilters, limit = 50) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "consultants", userId, "activity", period, limit],
-    queryFn: () => analyticsApi.consultantActivity(userId, { limit, ...(period || {}) }),
+    queryKey: ["analytics", "consultants", userId, "activity", snapshot, limit],
+    queryFn: () => analyticsApi.consultantActivity(userId, { ...snapshot, limit }),
     enabled: !!userId,
   });
 }
 
-export function useAnalyticsRanking(period?: AnalyticsPeriod) {
+export function useAnalyticsRanking(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "ranking", period],
-    queryFn: () => analyticsApi.leadsRanking({ ...period, limit: 10 }),
+    queryKey: ["analytics", "ranking", snapshot],
+    queryFn: () => analyticsApi.leadsRanking({ ...snapshot, limit: 10 }),
   });
 }
 
-export function useAnalyticsGeo(period?: AnalyticsPeriod) {
+export function useAnalyticsGeo(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "geo", period],
-    queryFn: () => analyticsApi.geo(period),
+    queryKey: ["analytics", "geo", snapshot],
+    queryFn: () => analyticsApi.geo(snapshot),
   });
 }
 
-export function useAnalyticsCampaigns(period?: AnalyticsPeriod) {
+export function useAnalyticsCampaigns(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "campaigns", period],
-    queryFn: () => analyticsApi.campaigns(period),
+    queryKey: ["analytics", "campaigns", snapshot],
+    queryFn: () => analyticsApi.campaigns(snapshot),
   });
 }
 
-export function useAnalyticsTimeline(period?: AnalyticsPeriod) {
+export function useAnalyticsTimeline(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "timeline", period],
-    queryFn: () => analyticsApi.timeline({ group_by: "day", ...period }),
+    queryKey: ["analytics", "timeline", snapshot],
+    queryFn: () => analyticsApi.timeline({ ...snapshot, group_by: "day" }),
   });
 }
 
-export function useAnalyticsForecast(period?: AnalyticsPeriod) {
+export function useAnalyticsForecast(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "forecast", period],
-    queryFn: () => analyticsApi.forecast(period),
+    queryKey: ["analytics", "forecast", snapshot],
+    queryFn: () => analyticsApi.forecast(snapshot),
   });
 }
 
-export function useAnalyticsThresholdSuggestion(period?: AnalyticsPeriod) {
+export function useAnalyticsThresholdSuggestion(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "threshold-suggestion", period],
-    queryFn: () => analyticsApi.thresholdSuggestion(period),
+    queryKey: ["analytics", "threshold-suggestion", snapshot],
+    queryFn: () => analyticsApi.thresholdSuggestion(snapshot),
   });
 }
 
-export function useAnalyticsMessageVariants(period?: AnalyticsPeriod) {
+export function useAnalyticsMessageVariants(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "message-variants", period],
-    queryFn: () => analyticsApi.messageVariants(period),
+    queryKey: ["analytics", "message-variants", snapshot],
+    queryFn: () => analyticsApi.messageVariants(snapshot),
   });
 }
 
-export function useAnalyticsTemplateInsights(period?: AnalyticsPeriod) {
+export function useAnalyticsTemplateInsights(filters?: AnalyticsFilters) {
+  const snapshot = filters ?? EMPTY_COMMERCIAL_FILTERS;
   return useQuery({
-    queryKey: ["analytics", "template-insights", period],
-    queryFn: () => analyticsApi.templateInsights(period),
+    queryKey: ["analytics", "template-insights", snapshot],
+    queryFn: () => analyticsApi.templateInsights(snapshot),
   });
 }
 
 export function useExportAnalyticsPdf() {
   return useMutation({
-    mutationFn: (period?: AnalyticsPeriod) => analyticsApi.exportPdf(period),
+    mutationFn: (filters?: CommercialFilterSnapshot) => analyticsApi.exportPdf(filters),
   });
 }
 
@@ -1148,5 +1182,109 @@ export function useAtualizarPlanilha() {
   return useMutation({
     mutationFn: ({ file, abaName, criarAba }: { file: File; abaName: string; criarAba: boolean }) =>
       crmApi.atualizarPlanilha(file, abaName, criarAba),
+  });
+}
+
+
+export function useImportJob(importId?: string, enabled = true) {
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["imports", importId],
+    queryFn: () => importsApi.get(importId as string),
+    enabled: Boolean(importId) && enabled,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status as ImportJobStatus | undefined;
+      return status && !isImportJobTerminal(status) ? 2000 : false;
+    },
+  });
+
+  useEffect(() => {
+    const job = query.data;
+    if (!job || !["SUCCEEDED", "PARTIAL", "CANCELLED"].includes(job.status)) return;
+    queryClient.invalidateQueries({ queryKey: ["leads"] });
+    if (job.campaign_id) queryClient.invalidateQueries({ queryKey: ["campaigns", job.campaign_id] });
+  }, [query.data, queryClient]);
+
+  return query;
+}
+
+export function useImportRows(
+  importId?: string,
+  status?: ImportRowStatus,
+  offset = 0,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["imports", importId, "rows", status ?? "all", offset],
+    queryFn: () => importsApi.rows(importId as string, { status, offset, limit: 25 }),
+    enabled: Boolean(importId) && enabled,
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useUploadImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ campaignId, file, idempotencyKey }: { campaignId: string; file: File; idempotencyKey: string }) =>
+      importsApi.upload(campaignId, file, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["imports"] });
+    },
+  });
+}
+
+export function useImportDryRun() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ importId, mapping, expectedVersion }: { importId: string; mapping: ImportMapping; expectedVersion: number }) =>
+      importsApi.dryRun(importId, { mapping, expected_version: expectedVersion }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["imports", variables.importId] });
+    },
+  });
+}
+
+function invalidateImportEffects(queryClient: ReturnType<typeof useQueryClient>, importId: string, campaignId?: string | null) {
+  queryClient.invalidateQueries({ queryKey: ["imports", importId] });
+  queryClient.invalidateQueries({ queryKey: ["imports", importId, "rows"] });
+  queryClient.invalidateQueries({ queryKey: ["leads"] });
+  if (campaignId) queryClient.invalidateQueries({ queryKey: ["campaigns", campaignId] });
+}
+
+export function useConfirmImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ importId, mapping, mappingVersion, expectedVersion, idempotencyKey }: {
+      importId: string;
+      campaignId?: string | null;
+      mapping: ImportMapping;
+      mappingVersion: string;
+      expectedVersion: number;
+      idempotencyKey: string;
+    }) => importsApi.confirm(importId, {
+      mapping,
+      mapping_version: mappingVersion,
+      expected_version: expectedVersion,
+      idempotency_key: idempotencyKey,
+    }),
+    onSuccess: (job, variables) => invalidateImportEffects(queryClient, job.id, variables.campaignId),
+  });
+}
+
+export function useCancelImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ importId, expectedVersion }: { importId: string; campaignId?: string | null; expectedVersion?: number }) =>
+      importsApi.cancel(importId, expectedVersion),
+    onSuccess: (job, variables) => invalidateImportEffects(queryClient, job.id, variables.campaignId),
+  });
+}
+
+export function useRecoverImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ importId, expectedVersion }: { importId: string; campaignId?: string | null; expectedVersion: number }) =>
+      importsApi.recover(importId, expectedVersion),
+    onSuccess: (job, variables) => invalidateImportEffects(queryClient, job.id, variables.campaignId),
   });
 }

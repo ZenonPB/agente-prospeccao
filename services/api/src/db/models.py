@@ -23,6 +23,11 @@ from database.models import (
     FollowUpVersion,
     MessageChannel,
     Job,
+    ImportJob,
+    ImportJobStatus,
+    ImportRowResult,
+    ImportRowStatus,
+    ImportAuditEvent,
     User,
     LoginAttempt,
     Notification,
@@ -69,4 +74,5 @@ from database.models import (
     Person,
     WebhookLog,
     ProviderExecutionMetric,
+    CommercialBulkOperation,
 )

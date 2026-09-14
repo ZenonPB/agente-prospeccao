@@ -2,7 +2,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from src.auth.dependencies import get_current_user, get_user_membership, get_user_organization
@@ -20,6 +20,8 @@ router = APIRouter(prefix="/opportunities", tags=["opportunities"])
 
 
 class Opportunity360Patch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     owner_user_id: str | None = None
     status: str | None = None
     negotiation_stage: str | None = None
@@ -31,6 +33,8 @@ class Opportunity360Patch(BaseModel):
 
 
 class OpportunityTaskCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     client_request_id: str = Field(..., min_length=8, max_length=80)
     title: str = Field(..., min_length=1, max_length=180)
     description: str | None = Field(None, max_length=4000)
@@ -40,6 +44,8 @@ class OpportunityTaskCreate(BaseModel):
 
 
 class OpportunityTaskPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     title: str | None = Field(None, min_length=1, max_length=180)
     description: str | None = Field(None, max_length=4000)
     due_at: str | None = None

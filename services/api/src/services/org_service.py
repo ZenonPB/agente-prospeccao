@@ -36,20 +36,25 @@ def is_full_access(member: OrganizationMember) -> bool:
 
 
 def consultant_lead_scope(member: OrganizationMember, query):
-    """Aplica o escopo de visibilidade de CONSULTOR à query de leads.
+    """Aplica tenant e carteira à query de leads.
 
-    CONSULTOR vê apenas:
-    - leads atribuídos a ele (`assigned_to_id == member.user_id`), OU
-    - leads não atribuídos (`assigned_to_id IS NULL` — pool para auto-atribuição).
-
-    ANALYST/MANAGER/owner/admin não são filtrados (acesso total).
+    O predicado de organização é aplicado mesmo quando o chamador já o
+    adicionou. Isso mantém o helper seguro quando reutilizado por um command
+    service novo e impede que uma carteira válida de outro workspace seja
+    retornada por engano.
     """
+    entity = Lead
+    organization_id = getattr(member, "organization_id", None)
+    if organization_id is None:
+        raise ValueError("Membership sem organization_id")
+
+    tenant_filter = entity.organization_id == organization_id
     if is_full_access(member):
-        return query
-    entity = query.column_descriptions[0]["entity"]
+        return query.filter(tenant_filter)
     return query.filter(
+        tenant_filter,
         (entity.assigned_to_id == member.user_id) |
-        (entity.assigned_to_id.is_(None))
+        (entity.assigned_to_id.is_(None)),
     )
 
 

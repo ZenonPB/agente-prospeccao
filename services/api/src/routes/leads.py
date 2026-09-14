@@ -1,10 +1,13 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
 from urllib.parse import quote
 from datetime import datetime, timezone, timedelta
+import base64
+import binascii
+import json
 import uuid
 import os
 import sys
@@ -28,6 +31,72 @@ from src.services.pitch_service import build_pitch_one_pager, build_site_audit  
 from src.services.linkedin_assist_service import linkedin_match_status  # noqa: E402
 from services.enrichment_ts import freshness_snapshot, read_stamps  # noqa: E402
 from services.prospecting.next_best_action_service import NextBestActionService  # noqa: E402
+from src.services.lead_bulk_command_service import (
+    BulkCommandConflict,
+    BulkCommandForbidden,
+    BulkCommandValidation,
+    LeadBulkCommandService,
+)
+
+
+_CURSOR_VERSION = 1
+_MAX_LEAD_PAGE_SIZE = 100
+
+
+def _encode_lead_cursor(score: int | None, lead_id: uuid.UUID | str) -> str:
+    """Codifica a posição da ordenação sem expor um cursor interpretável."""
+    payload = {"v": _CURSOR_VERSION, "score": score, "id": str(lead_id)}
+    raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def _decode_lead_cursor(value: str) -> tuple[int | None, uuid.UUID]:
+    """Valida e decodifica cursor gerado pelo servidor."""
+    try:
+        padded = value + "=" * (-len(value) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
+        if payload.get("v") != _CURSOR_VERSION:
+            raise ValueError
+        score = payload.get("score")
+        if score is not None and (isinstance(score, bool) or not isinstance(score, int)):
+            raise ValueError
+        return score, uuid.UUID(str(payload["id"]))
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error) as exc:
+        raise HTTPException(status_code=400, detail="cursor inválido") from exc
+
+
+class BulkLeadsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    operation: str
+    lead_ids: list[str] = Field(..., min_length=1, max_length=_MAX_LEAD_PAGE_SIZE)
+    status: Optional[LeadStatus] = None
+    lost_reason: Optional[LostReason] = None
+    assigned_to_id: Optional[str] = None
+    expected_updated_at: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_operation_fields(self):
+        operation = self.operation.strip().lower()
+        if operation == "status" and self.status is None:
+            raise ValueError("status é obrigatório para operation=status")
+        if operation == "status" and self.status == LeadStatus.PERDIDO and self.lost_reason is None:
+            raise ValueError("lost_reason é obrigatório para PERDIDO")
+        if operation == "assign" and "assigned_to_id" not in self.model_fields_set:
+            raise ValueError("assigned_to_id é obrigatório para operation=assign")
+        return self
+
+
+class ExecuteBulkLeadsRequest(BulkLeadsRequest):
+    idempotency_key: str = Field(..., min_length=8, max_length=160)
+
+
+def _bulk_payload(body: BulkLeadsRequest) -> dict:
+    return body.model_dump(
+        mode="json",
+        exclude_none=False,
+        exclude={"idempotency_key"},
+    )
 
 
 def _suggest_next_action_at(status: LeadStatus) -> Optional[datetime]:
@@ -45,6 +114,7 @@ def _suggest_next_action_at(status: LeadStatus) -> Optional[datetime]:
     if delta:
         return now + delta
     return None
+
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -396,6 +466,46 @@ def _record_commercial_outcome(
         logger.warning("Falha ao persistir outcome do lead %s: %s", lead.id, exc)
 
 
+@router.post("/bulk/preview")
+def preview_bulk_leads(
+    body: BulkLeadsRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Monta um plano bulk sem alterar leads nem registrar atividades."""
+    try:
+        return LeadBulkCommandService(db, _org.id, member, _user).preview(_bulk_payload(body))
+    except BulkCommandValidation as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except BulkCommandForbidden as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+@router.post("/bulk/execute")
+def execute_bulk_leads(
+    body: ExecuteBulkLeadsRequest,
+    db: Session = Depends(get_db),
+    _user: User = Depends(get_current_user),
+    _org: Organization = Depends(get_user_organization),
+    member: OrganizationMember = Depends(get_user_membership),
+):
+    """Executa uma operação bulk com idempotência por organização."""
+    try:
+        payload = _bulk_payload(body)
+        return LeadBulkCommandService(db, _org.id, member, _user).execute(
+            payload,
+            body.idempotency_key,
+        )
+    except BulkCommandConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except BulkCommandForbidden as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except BulkCommandValidation as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @router.get("")
 def list_leads(
     status: Optional[str] = None,
@@ -406,13 +516,20 @@ def list_leads(
     consultant_id: Optional[str] = None,
     next_action_before: Optional[str] = None,
     priority: Optional[str] = Query(None, pattern="^(HOT|WARM|COLD)$"),
-    limit: int = Query(50, le=100),
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    cursor: Optional[str] = None,
     db: Session = Depends(get_db),
     _user: User = Depends(get_current_user),
     _org: Organization = Depends(get_user_organization),
     member: OrganizationMember = Depends(get_user_membership),
 ):
+    if cursor is not None and offset != 0:
+        raise HTTPException(
+            status_code=400,
+            detail="offset não pode ser combinado com cursor",
+        )
+
     query = db.query(Lead).filter(Lead.organization_id == _org.id)
     query = consultant_lead_scope(member, query)
 
@@ -479,21 +596,52 @@ def list_leads(
         )
 
     total = query.count()
+    cursor_position = _decode_lead_cursor(cursor) if cursor else None
+    page_query = query
+    if cursor_position:
+        cursor_score, cursor_id = cursor_position
+        if cursor_score is None:
+            # PostgreSQL ordena NULLS FIRST para DESC: após o último nulo,
+            # continuam os nulos seguintes por id e depois todos os scores.
+            page_query = page_query.filter(
+                (Lead.qualification_score.is_(None) & (Lead.id > cursor_id))
+                | Lead.qualification_score.isnot(None)
+            )
+        else:
+            page_query = page_query.filter(
+                (Lead.qualification_score < cursor_score)
+                | ((Lead.qualification_score == cursor_score) & (Lead.id > cursor_id))
+            )
+
     from sqlalchemy.orm import joinedload
-    leads = (
-        query.order_by(Lead.qualification_score.desc())
+    page_query = (
+        page_query.order_by(Lead.qualification_score.desc(), Lead.id.asc())
         .options(
             joinedload(Lead.assigned_to),
             joinedload(Lead.company),
             joinedload(Lead.primary_person),
         )
-        .offset(offset).limit(limit).all()
+        .offset(offset)
+        .limit(limit + 1)
+    )
+    page = page_query.all()
+    has_more = len(page) > limit
+    leads = page[:limit]
+    next_cursor = (
+        _encode_lead_cursor(leads[-1].qualification_score, leads[-1].id)
+        if has_more and leads else None
     )
 
-    return {
+    result = {
         "total": total,
         "leads": [_lead_summary(lead) for lead in leads],
     }
+    # A ausência de cursor mantém exatamente a resposta histórica em páginas
+    # que não têm continuação; o campo é aditivo quando a paginação cursorizada
+    # está em uso ou quando há uma próxima página.
+    if cursor is not None or next_cursor is not None:
+        result["next_cursor"] = next_cursor
+    return result
 
 
 @router.get("/stats")

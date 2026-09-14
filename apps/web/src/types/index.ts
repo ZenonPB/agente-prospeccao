@@ -10,6 +10,57 @@ export type LeadStatus =
   | 'PROPOSTA_ENVIADA'
   | 'PERDIDO';
 
+export type LostReason = 'PRECO' | 'PRAZO' | 'NAO_RESPONDEU' | 'CONCORRENTE' | 'OUTRO';
+export type BulkLeadOperation = 'status' | 'assign';
+
+export interface BulkLeadCommand {
+  operation: BulkLeadOperation;
+  lead_ids: string[];
+  status?: LeadStatus;
+  lost_reason?: LostReason;
+  assigned_to_id?: string | null;
+  expected_updated_at: Record<string, string>;
+}
+
+export interface BulkLeadPreviewResponse {
+  operation: BulkLeadOperation;
+  total_selected: number;
+  accepted_ids: string[];
+  rejected: Array<{ id: string; reason: string }>;
+  current_versions: Record<string, string | null>;
+  max_items: number;
+}
+
+export type BulkLeadItemStatus = 'ACCEPTED' | 'DUPLICATE' | 'REJECTED' | 'FAILED';
+
+export interface BulkLeadExecuteItem {
+  id: string;
+  status: BulkLeadItemStatus;
+  reason: string | null;
+}
+
+export interface BulkLeadExecuteSummary {
+  accepted: number;
+  duplicate: number;
+  rejected: number;
+  failed: number;
+}
+
+export interface BulkLeadExecuteResponse {
+  operation: BulkLeadOperation;
+  idempotency_key: string;
+  replayed: boolean;
+  total_selected: number;
+  accepted: number;
+  duplicate: number;
+  rejected: number;
+  failed: number;
+  items: BulkLeadExecuteItem[];
+  created_at: string;
+  completed_at: string;
+  summary: BulkLeadExecuteSummary;
+}
+
 export type CampaignStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
 
 export type LeadPriority = 'HOT' | 'WARM' | 'COLD';
@@ -740,3 +791,129 @@ export interface CrmImportResult {
   errors: string[];
 }
 
+
+
+export type ImportJobStatus =
+  | "DRAFT"
+  | "PREVIEWED"
+  | "QUEUED"
+  | "RUNNING"
+  | "SUCCEEDED"
+  | "PARTIAL"
+  | "FAILED"
+  | "CANCEL_REQUESTED"
+  | "CANCELLED";
+
+export type ImportRowStatus = "ACCEPTED" | "DUPLICATE" | "REJECTED" | "FAILED";
+
+export type ImportMappingField =
+  | "name"
+  | "website"
+  | "phone"
+  | "whatsapp"
+  | "email"
+  | "city"
+  | "state"
+  | "address"
+  | "cnpj"
+  | "category"
+  | "contact_name"
+  | "linkedin"
+  | "instagram";
+
+export type ImportMapping = Record<string, ImportMappingField | null>;
+
+export interface ImportDryRunError {
+  line_number: number;
+  status: ImportRowStatus;
+  reason_code?: string | null;
+  message?: string | null;
+}
+
+export interface ImportDryRunReport {
+  accepted: number;
+  duplicate: number;
+  rejected: number;
+  failed: number;
+  total_rows: number;
+  errors: ImportDryRunError[];
+}
+
+export interface ImportJob {
+  id: string;
+  organization_id: string;
+  campaign_id?: string | null;
+  status: ImportJobStatus;
+  source_hash: string;
+  source_filename: string;
+  source_format: "csv" | "xlsx";
+  mapping_version: string;
+  expected_version: number;
+  total_rows: number;
+  accepted_rows: number;
+  duplicate_rows: number;
+  rejected_rows: number;
+  failed_rows: number;
+  unprocessed_rows: number;
+  attempts: number;
+  error_code?: string | null;
+  error_message?: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  headers?: string[];
+  preview_rows?: string[][];
+  suggested_mapping?: ImportMapping;
+  dry_run_report?: ImportDryRunReport | null;
+}
+
+export interface ImportRow {
+  line_number: number;
+  status: ImportRowStatus;
+  reason_code?: string | null;
+  message?: string | null;
+  lead_id?: string | null;
+  company_id?: string | null;
+  person_id?: string | null;
+  identity_decision?: Record<string, unknown> | null;
+  provenance?: Record<string, unknown> | null;
+}
+
+export interface ImportRowsResponse {
+  import_id: string;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  rows: ImportRow[];
+}
+
+export interface ImportDryRunResponse {
+  job: ImportJob;
+  report: ImportDryRunReport;
+}
+
+export const IMPORT_JOB_TERMINAL_STATES: ImportJobStatus[] = [
+  "SUCCEEDED",
+  "PARTIAL",
+  "FAILED",
+  "CANCELLED",
+];
+
+export function isImportJobTerminal(status: ImportJobStatus): boolean {
+  return IMPORT_JOB_TERMINAL_STATES.includes(status);
+}
+
+export function importJobStatusLabel(status: ImportJobStatus): string {
+  const labels: Record<ImportJobStatus, string> = {
+    DRAFT: "Rascunho",
+    PREVIEWED: "Prévia pronta",
+    QUEUED: "Na fila",
+    RUNNING: "Processando",
+    SUCCEEDED: "Concluída",
+    PARTIAL: "Concluída parcialmente",
+    FAILED: "Falhou",
+    CANCEL_REQUESTED: "Cancelamento solicitado",
+    CANCELLED: "Cancelada",
+  };
+  return labels[status];
+}

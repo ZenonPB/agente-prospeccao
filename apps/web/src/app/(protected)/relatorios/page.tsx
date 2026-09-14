@@ -1,12 +1,22 @@
 'use client';
 
-import { useState } from 'react';
 import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
-import { useOrgMembership } from '@/hooks/use-api';
-import { useScoreFeedbackMetrics } from '@/hooks/use-api';
-import { useAnalyticsOverview, useAnalyticsFunnel, useAnalyticsConsultants, useAnalyticsRanking, useAnalyticsGeo, useAnalyticsCampaigns, useAnalyticsTimeline, useAnalyticsForecast, useExportAnalyticsPdf, type AnalyticsPeriod } from '@/hooks/use-api';
+import { useCommercialFilters } from '@/hooks/use-commercial-filters';
+import {
+  useOrgMembership,
+  useScoreFeedbackMetrics,
+  useAnalyticsOverview,
+  useAnalyticsFunnel,
+  useAnalyticsConsultants,
+  useAnalyticsRanking,
+  useAnalyticsGeo,
+  useAnalyticsCampaigns,
+  useAnalyticsTimeline,
+  useAnalyticsForecast,
+  useExportAnalyticsPdf,
+} from '@/hooks/use-api';
 import { ExecutiveKpis, ExecutiveKpisSkeleton } from '@/components/relatorios/executive-kpis';
 import { FunnelCard, RatesCard, ScoreBandsCard, NegotiationCard, ChartCardSkeleton, ChartCardError } from '@/components/relatorios/chart-cards';
 import { FunnelEndToEndCard, FunnelEndToEndSkeleton } from '@/components/relatorios/funnel-e2e-card';
@@ -23,39 +33,44 @@ import { SalesRoleBadge } from '@/components/sales/sales-role-badge';
 import { Reveal } from '@/components/ui/motion';
 import { toast } from 'sonner';
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Tente novamente mais tarde.';
+}
+
 export default function RelatoriosPage() {
   const { data: membership, isLoading: loadingMembership } = useOrgMembership();
-  const [period, setPeriod] = useState<AnalyticsPeriod>({});
+  const { filters, setFilter, updateFilters, clearFilters, hasFilters } = useCommercialFilters();
 
   const canView = membership?.membership?.role === 'OWNER' || membership?.membership?.role === 'ADMIN' ||
     membership?.membership?.sales_role === 'ANALYST' || membership?.membership?.sales_role === 'MANAGER';
 
-  const overviewQ = useAnalyticsOverview(period);
-  const funnelQ = useAnalyticsFunnel(period);
-  const consultantsQ = useAnalyticsConsultants(period);
-  const rankingQ = useAnalyticsRanking(period);
-  const geoQ = useAnalyticsGeo(period);
-  const campaignsQ = useAnalyticsCampaigns(period);
-  const timelineQ = useAnalyticsTimeline(period);
-  const forecastQ = useAnalyticsForecast(period);
+  const overviewQ = useAnalyticsOverview(filters);
+  const funnelQ = useAnalyticsFunnel(filters);
+  const consultantsQ = useAnalyticsConsultants(filters);
+  const rankingQ = useAnalyticsRanking(filters);
+  const geoQ = useAnalyticsGeo(filters);
+  const campaignsQ = useAnalyticsCampaigns(filters);
+  const timelineQ = useAnalyticsTimeline(filters);
+  const forecastQ = useAnalyticsForecast(filters);
   const metricsQ = useScoreFeedbackMetrics();
   const exportPdf = useExportAnalyticsPdf();
 
-  const anyLoading = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isLoading);
-  const anyError = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].some((q) => q.isError);
-  const errMsg = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ].find((q) => q.error)?.error;
+  const primaryQueries = [overviewQ, funnelQ, consultantsQ, rankingQ, geoQ, campaignsQ, timelineQ, forecastQ];
+  const hasViewData = primaryQueries.some((query) => !!query.data);
+  const hasViewError = primaryQueries.some((query) => query.isError);
+  const isPartial = hasViewData && hasViewError;
+  const period = { from: filters.from, to: filters.to };
 
   const handleExport = async () => {
     try {
-      const blob = await exportPdf.mutateAsync(period);
-      const f = period.from || 'inicio';
-      const t = period.to || 'hoje';
+      const blob = await exportPdf.mutateAsync(filters);
+      const f = filters.from || 'inicio';
+      const t = filters.to || 'hoje';
       downloadBlob(blob, `relatorio-prospeccao-${f}-${t}.pdf`);
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : 'Falha ao gerar o PDF. O runtime de renderização pode estar indisponível no servidor.';
+      const msg = err instanceof Error
+        ? err.message
+        : 'Falha ao gerar o PDF. O runtime de renderização pode estar indisponível no servidor.';
       toast.error(msg);
     }
   };
@@ -98,103 +113,93 @@ export default function RelatoriosPage() {
       <div data-tour="relatorios-controles">
         <ReportControls
           period={period}
-          onChange={setPeriod}
+          filters={filters}
+          onChange={(nextPeriod) => updateFilters(nextPeriod)}
+          onFilterChange={setFilter}
+          onClear={clearFilters}
+          hasFilters={hasFilters}
           onExport={handleExport}
           exporting={exportPdf.isPending}
+          campaigns={campaignsQ.data?.campaigns ?? []}
+          consultants={consultantsQ.data?.consultants ?? []}
         />
       </div>
 
-      {anyLoading ? (
-        <ReportSkeleton />
-      ) : anyError ? (
-        <ChartCardError title="Não foi possível carregar os relatórios" message={errMsg instanceof Error ? errMsg.message : 'Tente novamente mais tarde'} />
-      ) : (
-        <>
-          {overviewQ.data && (
-            <Reveal>
-              <ExecutiveKpis overview={overviewQ.data} />
-            </Reveal>
-          )}
-          {forecastQ.data && (
-            <Reveal delay={70}>
-              <ForecastCard forecast={forecastQ.data} />
-            </Reveal>
-          )}
-          <Reveal delay={90}>
-            <IntelligenceSection period={period} />
-          </Reveal>
-          {metricsQ.data && metricsQ.data.total_feedbacks > 0 && (
-            <Reveal delay={100}>
-              <ConvergenceCard metrics={metricsQ.data} />
-            </Reveal>
-          )}
-          {funnelQ.data && (
-            <Reveal delay={140}>
-              <FunnelEndToEndCard funnel={funnelQ.data} />
-            </Reveal>
-          )}
-          {canView && (
-            <Reveal delay={210}>
-              <div className="grid gap-6 lg:grid-cols-2">
-                <ThresholdCard period={period} />
-                <MessageVariantsCard period={period} />
-              </div>
-            </Reveal>
-          )}
-
-          <Reveal delay={280}>
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2 space-y-6">
-                {overviewQ.data && <FunnelCard overview={overviewQ.data} />}
-                {geoQ.data && <GeoCard states={geoQ.data.states} />}
-                {timelineQ.data && <TimelineCard timeline={timelineQ.data.timeline} />}
-              </div>
-              <div className="space-y-6">
-                {overviewQ.data && (
-                  <>
-                    <RatesCard overview={overviewQ.data} />
-                    <ScoreBandsCard overview={overviewQ.data} />
-                    <NegotiationCard overview={overviewQ.data} />
-                  </>
-                )}
-                {consultantsQ.data && <ConsultantsCard consultants={consultantsQ.data.consultants} />}
-              </div>
-            </div>
-          </Reveal>
-
-          <Reveal delay={350}>
-            <div className="grid gap-6 lg:grid-cols-2">
-              {campaignsQ.data && <CampaignsCard campaigns={campaignsQ.data.campaigns} />}
-              {rankingQ.data && <TopLeadsCard leads={rankingQ.data.items} />}
-            </div>
-          </Reveal>
-        </>
+      {isPartial && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200" role="status">
+          Algumas visões não puderam ser atualizadas; os dados válidos continuam visíveis.
+        </div>
       )}
-    </div>
-  );
-}
 
-function ReportSkeleton() {
-  return (
-    <div className="space-y-6">
-      <ExecutiveKpisSkeleton />
-      <FunnelEndToEndSkeleton />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-          <ChartCardSkeleton lines={6} />
-          <GeoCardSkeleton />
-          <TimelineSkeleton />
+      <section aria-label="Indicadores executivos">
+        {overviewQ.isLoading ? <ExecutiveKpisSkeleton /> : overviewQ.isError ? (
+          <ChartCardError title="Indicadores indisponíveis" message={errorMessage(overviewQ.error)} />
+        ) : overviewQ.data ? (
+          <Reveal><ExecutiveKpis overview={overviewQ.data} /></Reveal>
+        ) : null}
+      </section>
+
+      <section aria-label="Previsão de vendas">
+        {forecastQ.isLoading ? <ChartCardSkeleton lines={4} /> : forecastQ.isError ? (
+          <ChartCardError title="Previsão indisponível" message={errorMessage(forecastQ.error)} />
+        ) : forecastQ.data ? (
+          <Reveal delay={70}><ForecastCard forecast={forecastQ.data} /></Reveal>
+        ) : null}
+      </section>
+
+      <Reveal delay={90}>
+        <IntelligenceSection period={period} />
+      </Reveal>
+
+      {metricsQ.data && metricsQ.data.total_feedbacks > 0 && (
+        <Reveal delay={100}><ConvergenceCard metrics={metricsQ.data} /></Reveal>
+      )}
+
+      <section aria-label="Funil ponta a ponta">
+        {funnelQ.isLoading ? <FunnelEndToEndSkeleton /> : funnelQ.isError ? (
+          <ChartCardError title="Funil indisponível" message={errorMessage(funnelQ.error)} />
+        ) : funnelQ.data ? (
+          <Reveal delay={140}><FunnelEndToEndCard funnel={funnelQ.data} /></Reveal>
+        ) : null}
+      </section>
+
+      <Reveal delay={210}>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <ThresholdCard period={period} />
+          <MessageVariantsCard period={period} />
         </div>
-        <div className="space-y-6">
-          <ChartCardSkeleton lines={3} />
-          <ChartCardSkeleton lines={4} />
-          <ListCardSkeleton />
+      </Reveal>
+
+      <Reveal delay={280}>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            {overviewQ.data ? (
+              <>
+                <FunnelCard overview={overviewQ.data} />
+              </>
+            ) : overviewQ.isLoading ? <ChartCardSkeleton lines={6} /> : overviewQ.isError ? <ChartCardError title="Funil indisponível" message={errorMessage(overviewQ.error)} /> : null}
+            {geoQ.isLoading ? <GeoCardSkeleton /> : geoQ.isError ? <ChartCardError title="Mapa indisponível" message={errorMessage(geoQ.error)} /> : geoQ.data ? <GeoCard states={geoQ.data.states} /> : null}
+            {timelineQ.isLoading ? <TimelineSkeleton /> : timelineQ.isError ? <ChartCardError title="Linha do tempo indisponível" message={errorMessage(timelineQ.error)} /> : timelineQ.data ? <TimelineCard timeline={timelineQ.data.timeline} /> : null}
+          </div>
+          <div className="space-y-6">
+            {overviewQ.data ? (
+              <>
+                <RatesCard overview={overviewQ.data} />
+                <ScoreBandsCard overview={overviewQ.data} />
+                <NegotiationCard overview={overviewQ.data} />
+              </>
+            ) : null}
+            {consultantsQ.isLoading ? <ListCardSkeleton /> : consultantsQ.isError ? <ChartCardError title="Consultores indisponíveis" message={errorMessage(consultantsQ.error)} /> : consultantsQ.data ? <ConsultantsCard consultants={consultantsQ.data.consultants} /> : null}
+          </div>
         </div>
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ListCardSkeleton />
-        <ListCardSkeleton />
-      </div>
+      </Reveal>
+
+      <Reveal delay={350}>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {campaignsQ.isLoading ? <ListCardSkeleton /> : campaignsQ.isError ? <ChartCardError title="Campanhas indisponíveis" message={errorMessage(campaignsQ.error)} /> : campaignsQ.data ? <CampaignsCard campaigns={campaignsQ.data.campaigns} /> : null}
+          {rankingQ.isLoading ? <ListCardSkeleton /> : rankingQ.isError ? <ChartCardError title="Melhores oportunidades indisponíveis" message={errorMessage(rankingQ.error)} /> : rankingQ.data ? <TopLeadsCard leads={rankingQ.data.items} /> : null}
+        </div>
+      </Reveal>
     </div>
   );
 }

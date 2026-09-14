@@ -77,7 +77,23 @@ def _can_manage_owners(member: OrganizationMember) -> bool:
 
 
 class OpportunityCommandService:
+    _UPDATE_FIELDS = frozenset({
+        "owner_user_id", "status", "negotiation_stage", "value",
+        "expected_close_date", "next_action_at", "lost_reason", "notes",
+    })
+    _TASK_CREATE_FIELDS = frozenset({
+        "client_request_id", "title", "description", "task_type", "due_at",
+        "owner_user_id",
+    })
+    _TASK_UPDATE_FIELDS = frozenset({
+        "title", "description", "due_at", "owner_user_id", "status",
+    })
+
     def __init__(self, db, organization_id: Any, member: OrganizationMember, user: User):
+        if organization_id is None or getattr(member, "organization_id", None) is None:
+            raise OpportunityValidation("Contexto de organização inválido")
+        if str(member.organization_id) != str(organization_id):
+            raise OpportunityForbidden("Membership não pertence ao workspace ativo")
         self.db = db
         self.organization_id = organization_id
         self.member = member
@@ -85,6 +101,14 @@ class OpportunityCommandService:
         # IDs primitivos sobrevivem a rollback/expire da Session e evitam lazy
         # load acidental no meio de uma operação de escrita/auditoria.
         self.user_id = user.id
+
+    @staticmethod
+    def _validate_fields(data: dict[str, Any], allowed: frozenset[str]) -> None:
+        unknown = sorted(set(data) - allowed)
+        if unknown:
+            raise OpportunityValidation(
+                "Campo(s) não permitido(s): " + ", ".join(unknown)
+            )
 
     def _load(self, opportunity_id: Any) -> tuple[LeadOpportunityRow, Lead]:
         opportunity = self.db.query(LeadOpportunityRow).filter(
@@ -111,6 +135,7 @@ class OpportunityCommandService:
 
     def update(self, opportunity_id: Any, data: dict[str, Any]) -> dict[str, Any]:
         self._assert_write()
+        self._validate_fields(data, self._UPDATE_FIELDS)
         opportunity, lead = self._load(opportunity_id)
         changed: dict[str, Any] = {}
 
@@ -259,6 +284,7 @@ class OpportunityCommandService:
 
     def create_task(self, opportunity_id: Any, data: dict[str, Any]) -> dict[str, Any]:
         self._assert_write()
+        self._validate_fields(data, self._TASK_CREATE_FIELDS)
         _opportunity, lead = self._load(opportunity_id)
         client_request_id = str(data.get("client_request_id") or "").strip()
         if len(client_request_id) < 8:
@@ -322,6 +348,7 @@ class OpportunityCommandService:
 
     def update_task(self, opportunity_id: Any, task_id: Any, data: dict[str, Any]) -> dict[str, Any]:
         self._assert_write()
+        self._validate_fields(data, self._TASK_UPDATE_FIELDS)
         _opportunity, lead = self._load(opportunity_id)
         task = self.db.query(CommercialTask).filter(
             CommercialTask.id == task_id,

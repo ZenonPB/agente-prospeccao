@@ -1,5 +1,8 @@
-"""Dependência FastAPI para autenticação JWT e isolamento por organização."""
+"""Dependências FastAPI para autenticação JWT e isolamento por organização."""
+from dataclasses import dataclass
 import logging
+from typing import Any
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -18,6 +21,33 @@ SALES_ROLE_WEIGHT = {
     SalesRole.ANALYST: 1,
     SalesRole.MANAGER: 2,
 }
+
+
+@dataclass(frozen=True)
+class OrganizationContext:
+    """Contexto confiável resolvido antes de carregar recursos comerciais.
+
+    O cliente pode indicar uma organização apenas para selecionar o workspace
+    ativo; a associação efetiva sempre vem do membership persistido do usuário.
+    Rotas e serviços devem usar ``organization_id`` deste objeto, nunca um
+    valor recebido em body, query ou path.
+    """
+
+    user: User
+    organization: Organization
+    membership: OrganizationMember
+
+    @property
+    def organization_id(self) -> Any:
+        return self.organization.id
+
+    @property
+    def role(self) -> OrganizationRole:
+        return self.membership.role
+
+    @property
+    def sales_role(self) -> SalesRole:
+        return self.membership.sales_role
 
 
 def get_current_user(
@@ -106,18 +136,17 @@ def _resolve_request_membership(
     ).first()
 
 
-def get_user_organization(
+def get_organization_context(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     request: Request = None,
-) -> Organization:
-    """Resolve a organização ativa do usuário autenticado.
+) -> OrganizationContext:
+    """Resolve exatamente um workspace autorizado para a request.
 
-    A org ativa vem de `X-Organization-Id` (quando presente); sem o header,
-    cai na primeira membership do usuário.
-
-    Usada como dependência nas rotas para isolar os dados por workspace.
-    Levanta 403 se o usuário não pertence a nenhuma organização.
+    O cliente pode indicar uma organização apenas para selecionar o workspace
+    ativo; a associação efetiva sempre vem do membership persistido do usuário.
+    Rotas e serviços devem usar ``organization_id`` deste objeto, nunca um
+    valor recebido em body, query ou path.
     """
     member = _resolve_request_membership(db, user, request)
     if member is None:
@@ -125,28 +154,37 @@ def get_user_organization(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuário sem organização vinculada",
         )
-    return member.organization
+
+    organization = getattr(member, "organization", None)
+    if organization is None:
+        organization = db.query(Organization).filter(
+            Organization.id == member.organization_id,
+        ).first()
+    if organization is None or str(organization.id) != str(member.organization_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Organização ativa inválida",
+        )
+
+    return OrganizationContext(
+        user=user,
+        organization=organization,
+        membership=member,
+    )
+
+
+def get_user_organization(
+    context: OrganizationContext = Depends(get_organization_context),
+) -> Organization:
+    """Compatibilidade: retorna a organização do contexto já validado."""
+    return context.organization
 
 
 def get_user_membership(
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    request: Request = None,
+    context: OrganizationContext = Depends(get_organization_context),
 ) -> OrganizationMember:
-    """Resolve o membership do usuário na organização ativa.
-
-    Centraliza o acesso ao `sales_role` (papel de venda) e ao `role`
-    (owner/admin/member) do usuário na org. A org ativa vem de
-    `X-Organization-Id` (quando presente); sem o header, cai na primeira
-    membership. Levanta 403 se não for membro.
-    """
-    member = _resolve_request_membership(db, user, request)
-    if member is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não é membro de uma organização",
-        )
-    return member
+    """Compatibilidade: retorna o membership do contexto já validado."""
+    return context.membership
 
 
 def require_sales_role(min_role: SalesRole = SalesRole.ANALYST):

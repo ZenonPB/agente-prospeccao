@@ -1,21 +1,21 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, AlertCircle, RefreshCw, CheckCheck, X, Download, UserPlus, User, Target, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import {
-  useInfiniteLeads, useCampaigns, useAssignLead, useUpdateLeadStatus,
-  useOrgMembership, useOrgMembers, useMarkLost, LOST_REASON_OPTIONS,
+  useInfiniteLeads, useCampaigns, usePreviewBulkLeads, useExecuteBulkLeads,
+  useOrgMembership, useOrgMembers, LOST_REASON_OPTIONS,
   type LostReasonOption,
 } from '@/hooks/use-api';
-import type { Lead } from '@/types';
+import type { BulkLeadCommand, BulkLeadPreviewResponse, Lead } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WhyProspectSignals } from '@/components/oportunidades/why-prospect-signals';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -58,6 +58,8 @@ const statusLabels: Record<string, string> = {
   PERDIDO: 'Perdido',
 };
 
+const MAX_BULK_ITEMS = 100;
+
 const bulkStatusOptions = [
   { value: 'CONTATADO', label: 'Marcar como contatado' },
   { value: 'RESPONDIDO', label: 'Marcar como respondeu' },
@@ -73,6 +75,28 @@ const lostReasonLabels: Record<LostReasonOption, string> = {
   CONCORRENTE: 'Fechou com concorrente',
   OUTRO: 'Outro motivo',
 };
+
+function makeBulkIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `bulk:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+}
+
+function formatBulkReason(reason: string): string {
+  const labels: Record<string, string> = {
+    NOT_FOUND_OR_UNAUTHORIZED: 'Não encontrado ou sem acesso',
+    VERSION_CONFLICT: 'Lead atualizado desde a seleção',
+    NOT_AUTHORIZED: 'Sem permissão para este lead',
+    ALREADY_IN_DESIRED_STATE: 'Já está nesse estado',
+    ITEM_MUTATION_FAILED: 'Falha ao aplicar a alteração',
+  };
+  return labels[reason] || reason.replaceAll('_', ' ').toLowerCase();
+}
+
+function leadLabel(lead: Lead | undefined, id: string): string {
+  return lead?.company_name || `Lead ${id.slice(0, 8)}`;
+}
 
 function escapeCsvCell(value: unknown): string {
   let text = String(value ?? '');
@@ -145,9 +169,8 @@ function LeadCardSkeleton() {
 export function LeadList() {
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
-  const assignLead = useAssignLead();
-  const updateStatus = useUpdateLeadStatus();
-  const markLost = useMarkLost();
+  const previewBulk = usePreviewBulkLeads();
+  const executeBulk = useExecuteBulkLeads();
   const { data: membership } = useOrgMembership();
   const orgId = membership?.organization?.id;
   const myRole = membership?.membership?.role;
@@ -166,7 +189,12 @@ export function LeadList() {
   const [myLeadsOnly, setMyLeadsOnly] = useState<boolean>(false);
   const [bulkLostOpen, setBulkLostOpen] = useState(false);
   const [bulkLostReason, setBulkLostReason] = useState<LostReasonOption>('NAO_RESPONDEU');
+  const [bulkPreviewOpen, setBulkPreviewOpen] = useState(false);
+  const [bulkPreview, setBulkPreview] = useState<BulkLeadPreviewResponse | null>(null);
+  const [bulkOperation, setBulkOperation] = useState<BulkLeadCommand | null>(null);
+  const [bulkIdempotencyKey, setBulkIdempotencyKey] = useState<string | null>(null);
   const [bulkActionPending, setBulkActionPending] = useState(false);
+  const bulkContextVersion = useRef(0);
 
   const handlePreset = (preset: 'all' | 'hot' | 'qualified' | 'my_leads') => {
     setPresetFilter(preset);
@@ -198,12 +226,29 @@ export function LeadList() {
     return () => clearTimeout(t);
   }, [search]);
 
+  useEffect(() => {
+    bulkContextVersion.current += 1;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setSelected(new Set());
+      setBulkLostOpen(false);
+      setBulkPreviewOpen(false);
+      setBulkPreview(null);
+      setBulkOperation(null);
+      setBulkIdempotencyKey(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearch, campaignFilter, minScoreFilter, priorityFilter, statusFilter, myLeadsOnly]);
+
   const { data: campaignsData } = useCampaigns();
   const campaigns = campaignsData?.campaigns || [];
 
   const {
     data, isLoading, isError, error, refetch,
-    fetchNextPage, hasNextPage, isFetchingNextPage,
+    fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError,
   } = useInfiniteLeads({
     search: debouncedSearch || undefined,
     campaign_id: campaignFilter !== 'all' ? campaignFilter : undefined,
@@ -214,20 +259,23 @@ export function LeadList() {
   });
 
   const leads = data?.pages.flatMap((p) => p.leads) ?? [];
-  const totalLeads = data?.pages[0]?.total ?? leads.length;
+  const hasLoadedLeads = leads.length > 0;
+  const hasPageLoadError = isFetchNextPageError && hasLoadedLeads;
+  const totalLeads = data?.pages[0]?.total;
   const hasMore = hasNextPage ?? false;
   const loadingMore = isFetchingNextPage;
 
-  const visibleLeads = presetFilter === 'hot'
-    ? leads.filter((l) => (l.priority ? l.priority === 'HOT' : (l.qualification_score ?? 0) >= 80))
-    : leads;
-  const sortedLeads = visibleLeads;
+  const sortedLeads = leads;
 
   const selectedLeads = sortedLeads.filter((l) => selected.has(l.id));
   const allVisibleSelected = sortedLeads.length > 0 && sortedLeads.every((l) => selected.has(l.id));
 
   const toggleLead = useCallback((id: string) => {
     setSelected((prev) => {
+      if (!prev.has(id) && prev.size >= MAX_BULK_ITEMS) {
+        toast.info(`Você pode selecionar no máximo ${MAX_BULK_ITEMS} leads por vez.`);
+        return prev;
+      }
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -236,36 +284,70 @@ export function LeadList() {
   }, []);
 
   const toggleAllVisible = useCallback(() => {
+    if (allVisibleSelected) {
+      setSelected((prev) => new Set([...prev].filter((id) => !sortedLeads.some((l) => l.id === id))));
+      return;
+    }
+
+    const candidates = sortedLeads.filter((lead) => !selected.has(lead.id));
+    const available = Math.max(0, MAX_BULK_ITEMS - selected.size);
+    if (available === 0) {
+      toast.info(`Você pode selecionar no máximo ${MAX_BULK_ITEMS} leads por vez.`);
+      return;
+    }
+    if (candidates.length > available) {
+      toast.info(`Você pode selecionar no máximo ${MAX_BULK_ITEMS} leads por vez. Os primeiros ${available} leads visíveis foram selecionados.`);
+    }
+
     setSelected((prev) => {
-      if (sortedLeads.every((l) => prev.has(l.id))) {
-        return new Set([...prev].filter((id) => !sortedLeads.some((l) => l.id === id)));
-      }
       const next = new Set(prev);
-      sortedLeads.forEach((l) => next.add(l.id));
+      candidates.slice(0, Math.max(0, MAX_BULK_ITEMS - prev.size)).forEach((lead) => next.add(lead.id));
       return next;
     });
-  }, [sortedLeads]);
+  }, [allVisibleSelected, selected, sortedLeads]);
 
   const clearSelection = () => setSelected(new Set());
 
-  const runBulk = (action: (id: string) => void) => {
-    selectedLeads.forEach((lead) => action(lead.id));
-    clearSelection();
-  };
-
-  const bulkAssign = (userId: string, name?: string) => {
-    runBulk((id) =>
-      assignLead.mutate(
-        { id, assignedToId: userId },
-        {
-          onSuccess: () => toast.success(`Atribuído a ${name || 'consultor'}.`),
-          onError: () => toast.error('Falha ao atribuir leads.'),
-        }
-      )
+  const expectedVersionsFor = (targets: Lead[]) =>
+    Object.fromEntries(
+      targets
+        .filter((lead) => typeof lead.updated_at === 'string' && lead.updated_at.length > 0)
+        .map((lead) => [lead.id, lead.updated_at]),
     );
+
+  const previewBulkOperation = async (command: BulkLeadCommand, closeLostDialog = false) => {
+    if (command.lead_ids.length === 0 || bulkActionPending) return;
+    const requestVersion = bulkContextVersion.current;
+    setBulkActionPending(true);
+    try {
+      const preview = await previewBulk.mutateAsync(command);
+      if (requestVersion !== bulkContextVersion.current) return;
+      setBulkOperation(command);
+      setBulkPreview(preview);
+      setBulkIdempotencyKey(preview.accepted_ids.length > 0 ? makeBulkIdempotencyKey() : null);
+      if (closeLostDialog) setBulkLostOpen(false);
+      setBulkPreviewOpen(true);
+    } catch (error) {
+      if (requestVersion === bulkContextVersion.current) {
+        toast.error(error instanceof Error ? error.message : 'Não foi possível validar a operação em lote.');
+      }
+    } finally {
+      setBulkActionPending(false);
+    }
   };
 
-  const bulkStatus = async (status: string) => {
+  const bulkAssign = (userId: string | null) => {
+    const targets = [...selectedLeads];
+    if (targets.length === 0 || bulkActionPending) return;
+    void previewBulkOperation({
+      operation: 'assign',
+      lead_ids: targets.map((lead) => lead.id),
+      assigned_to_id: userId,
+      expected_updated_at: expectedVersionsFor(targets),
+    });
+  };
+
+  const bulkStatus = (status: string) => {
     if (status === 'PERDIDO') {
       setBulkLostReason('NAO_RESPONDEU');
       setBulkLostOpen(true);
@@ -274,49 +356,84 @@ export function LeadList() {
 
     const targets = [...selectedLeads];
     if (targets.length === 0 || bulkActionPending) return;
+    void previewBulkOperation({
+      operation: 'status',
+      lead_ids: targets.map((lead) => lead.id),
+      status: status as Lead['status'],
+      expected_updated_at: expectedVersionsFor(targets),
+    });
+  };
+
+  const confirmBulkLost = () => {
+    const targets = [...selectedLeads];
+    if (targets.length === 0 || bulkActionPending) return;
+    void previewBulkOperation({
+      operation: 'status',
+      lead_ids: targets.map((lead) => lead.id),
+      status: 'PERDIDO',
+      lost_reason: bulkLostReason,
+      expected_updated_at: expectedVersionsFor(targets),
+    }, true);
+  };
+
+  const executePreview = async () => {
+    const idempotencyKey = bulkIdempotencyKey;
+    if (!bulkOperation || !bulkPreview || bulkPreview.accepted_ids.length === 0 || !idempotencyKey || bulkActionPending) return;
+    const requestVersion = bulkContextVersion.current;
+    const acceptedIds = bulkPreview.accepted_ids;
+    const acceptedIdSet = new Set(acceptedIds);
+    const expectedUpdatedAt = Object.fromEntries(
+      Object.entries(bulkOperation.expected_updated_at).filter(([id]) => acceptedIdSet.has(id)),
+    );
     setBulkActionPending(true);
     try {
-      const results = await Promise.allSettled(
-        targets.map((lead) => updateStatus.mutateAsync({ id: lead.id, status })),
+      const result = await executeBulk.mutateAsync({
+        ...bulkOperation,
+        lead_ids: acceptedIds,
+        expected_updated_at: expectedUpdatedAt,
+        idempotency_key: idempotencyKey,
+      });
+      if (requestVersion !== bulkContextVersion.current) return;
+
+      const rejectedOrFailed = new Set(
+        result.items
+          .filter((item) => item.status === 'REJECTED' || item.status === 'FAILED')
+          .map((item) => item.id),
       );
-      const failedIds = targets
-        .filter((_, index) => results[index].status === 'rejected')
-        .map((lead) => lead.id);
-      const successCount = targets.length - failedIds.length;
-      setSelected(new Set(failedIds));
-      if (successCount > 0) {
-        toast.success(`${successCount} lead(s) movido(s) para "${statusLabels[status] || status}".`);
+      const previewRejected = new Set(bulkPreview.rejected.map((item) => item.id));
+      setSelected((previous) => {
+        const next = new Set(previous);
+        acceptedIds.forEach((id) => next.delete(id));
+        previewRejected.forEach((id) => next.add(id));
+        rejectedOrFailed.forEach((id) => next.add(id));
+        return next;
+      });
+      setBulkPreviewOpen(false);
+      setBulkPreview(null);
+      setBulkOperation(null);
+      setBulkIdempotencyKey(null);
+
+      const operationLabel = bulkOperation.operation === 'assign'
+        ? 'atribuição'
+        : `status para ${statusLabels[bulkOperation.status || ''] || bulkOperation.status}`;
+      toast.success(
+        `${operationLabel}: ${result.accepted} aplicado(s), ${result.duplicate} já estava(m) no estado e ${result.rejected + result.failed} pendência(s).${result.replayed ? ' Resultado repetido com segurança.' : ''}`,
+      );
+      const issues = result.items.filter((item) => item.status === 'REJECTED' || item.status === 'FAILED');
+      if (issues.length > 0) {
+        const reasons = [...new Set(issues.map((item) => formatBulkReason(item.reason || item.status)))].join('; ');
+        toast.error(`${issues.length} lead(s) continuam selecionados: ${reasons}.`);
       }
-      if (failedIds.length > 0) {
-        toast.error(`${failedIds.length} lead(s) não puderam ser atualizados. Eles continuam selecionados.`);
+    } catch (error) {
+      if (requestVersion === bulkContextVersion.current) {
+        toast.error(error instanceof Error ? error.message : 'Não foi possível executar a operação em lote. Nenhuma alteração foi aplicada.');
       }
     } finally {
       setBulkActionPending(false);
     }
   };
 
-  const confirmBulkLost = async () => {
-    const targets = [...selectedLeads];
-    if (targets.length === 0 || bulkActionPending) return;
-    setBulkActionPending(true);
-    try {
-      const results = await Promise.allSettled(
-        targets.map((lead) => markLost.mutateAsync({ id: lead.id, lost_reason: bulkLostReason })),
-      );
-      const failedIds = targets
-        .filter((_, index) => results[index].status === 'rejected')
-        .map((lead) => lead.id);
-      const successCount = targets.length - failedIds.length;
-      setSelected(new Set(failedIds));
-      setBulkLostOpen(false);
-      if (successCount > 0) toast.success(`${successCount} lead(s) marcado(s) como perdido(s).`);
-      if (failedIds.length > 0) {
-        toast.error(`${failedIds.length} lead(s) falharam e continuam selecionados para nova tentativa.`);
-      }
-    } finally {
-      setBulkActionPending(false);
-    }
-  };
+  const previewLeadById = (id: string) => leads.find((lead) => lead.id === id);
 
   return (
     <div className="space-y-4" data-tour="oportunidades-lista">
@@ -404,7 +521,7 @@ export function LeadList() {
             variant="outline"
             size="sm"
             className="h-9 sm:h-8"
-            onClick={() => bulkAssign(currentUserId!, 'você')}
+            onClick={() => bulkAssign(currentUserId!)}
             disabled={!currentUserId || bulkActionPending}
           >
             <UserPlus className="mr-1.5 h-3.5 w-3.5" />
@@ -423,7 +540,7 @@ export function LeadList() {
                   {membersData?.members
                     .filter((m) => m.user_id !== currentUserId)
                     .map((m) => (
-                    <DropdownMenuItem key={m.user_id} onClick={() => bulkAssign(m.user_id, m.name || m.email)}>
+                    <DropdownMenuItem key={m.user_id} onClick={() => bulkAssign(m.user_id)}>
                       <User className="mr-2 h-3.5 w-3.5" />
                       {m.name || m.email}
                     </DropdownMenuItem>
@@ -464,13 +581,13 @@ export function LeadList() {
         </div>
       )}
 
-      {isLoading ? (
+      {isLoading && !hasLoadedLeads ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <LeadCardSkeleton key={i} />
           ))}
         </div>
-      ) : isError ? (
+      ) : isError && !hasLoadedLeads ? (
         <Card className="border-red-200 bg-red-50/50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-red-600">
@@ -501,6 +618,31 @@ export function LeadList() {
         />
       ) : (
         <>
+          {hasPageLoadError && (
+            <div
+              className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">Não foi possível carregar a próxima página.</p>
+                  <p className="text-xs text-amber-800">Os leads já carregados continuam disponíveis.</p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 border-amber-300 bg-transparent sm:h-8"
+                onClick={() => void fetchNextPage()}
+                disabled={loadingMore}
+              >
+                <RefreshCw className="mr-2 h-3 w-3" aria-hidden="true" />
+                Tentar carregar novamente
+              </Button>
+            </div>
+          )}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <label className="flex cursor-pointer items-center gap-2">
               <input
@@ -512,7 +654,7 @@ export function LeadList() {
               />
               Selecionar todos visíveis
             </label>
-            <span className="ml-auto">{totalLeads} lead(s)</span>
+            <span className="ml-auto">{totalLeads ?? leads.length} lead(s)</span>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sortedLeads.map((lead) => {
@@ -597,12 +739,77 @@ export function LeadList() {
                 {loadingMore ? (
                   <RefreshCw className="mr-2 h-3 w-3 animate-spin" aria-hidden="true" />
                 ) : null}
-                Carregar mais ({totalLeads - leads.length} restantes)
+                Carregar mais{typeof totalLeads === 'number' ? ` (${Math.max(0, totalLeads - leads.length)} restantes)` : ''}
               </Button>
             </div>
           )}
         </>
       )}
+
+      <Dialog
+        open={bulkPreviewOpen}
+        onOpenChange={(open) => {
+          if (!bulkActionPending) setBulkPreviewOpen(open);
+        }}
+      >
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Revisar operação em lote</DialogTitle>
+            <DialogDescription>
+              {bulkOperation?.operation === 'assign'
+                ? 'Confira a atribuição antes de aplicar as alterações.'
+                : `Confira os leads antes de marcar como ${statusLabels[bulkOperation?.status || ''] || 'novo status'}.`}
+            </DialogDescription>
+          </DialogHeader>
+          {bulkPreview && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                <div className="rounded-lg border bg-muted/30 p-3">
+                  <p className="text-muted-foreground">Selecionados</p>
+                  <p className="mt-1 text-lg font-semibold">{bulkPreview.total_selected}</p>
+                </div>
+                <div className="rounded-lg border bg-emerald-50 p-3 text-emerald-800">
+                  <p>Aceitos</p>
+                  <p className="mt-1 text-lg font-semibold">{bulkPreview.accepted_ids.length}</p>
+                </div>
+                <div className="rounded-lg border bg-amber-50 p-3 text-amber-800">
+                  <p>Rejeitados</p>
+                  <p className="mt-1 text-lg font-semibold">{bulkPreview.rejected.length}</p>
+                </div>
+              </div>
+              {bulkPreview.rejected.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">Itens que não serão executados</h3>
+                  <ul className="max-h-48 space-y-2 overflow-y-auto rounded-lg border p-3 text-sm" aria-label="Motivos das rejeições">
+                    {bulkPreview.rejected.map((item) => (
+                      <li key={item.id} className="flex items-start justify-between gap-3">
+                        <span className="min-w-0 break-words">{leadLabel(previewLeadById(item.id), item.id)}</span>
+                        <span className="shrink-0 text-right text-muted-foreground">{formatBulkReason(item.reason)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Todos os itens selecionados estão aptos para esta operação.</p>
+              )}
+              {bulkPreview.accepted_ids.length === 0 && (
+                <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  Nenhum item foi aceito. A operação não pode ser executada.
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-11" onClick={() => setBulkPreviewOpen(false)} disabled={bulkActionPending}>
+              Cancelar
+            </Button>
+            <Button className="h-11" onClick={() => void executePreview()} disabled={bulkActionPending || !bulkPreview || bulkPreview.accepted_ids.length === 0}>
+              {bulkActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              Executar itens aceitos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={bulkLostOpen}
@@ -639,7 +846,7 @@ export function LeadList() {
             </Button>
             <Button className="h-11" onClick={() => void confirmBulkLost()} disabled={bulkActionPending || selectedLeads.length === 0}>
               {bulkActionPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Confirmar perda
+              Continuar para revisão
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -14,14 +14,16 @@ Fonte de dados:
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from src.services.analytics_filters import CommercialFilterDTO
 from src.db.models import (
     Lead,
     LeadStatus,
     Campaign,
     CommercialOutcomeRow,
+    LeadOpportunityRow,
     Conversion,
     Contact,
     FollowUp,
@@ -133,6 +135,141 @@ def _parse_period(value: Optional[str], end_of_day: bool = False) -> Optional[da
     return parsed
 
 
+def _like_pattern(value: str) -> str:
+    """Escapa curingas de busca para não ampliar a coorte silenciosamente."""
+    return "%" + value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def apply_commercial_filters(query, filters: CommercialFilterDTO | None):
+    """Aplica o snapshot ao universo de Leads, sempre começando pelo tenant."""
+    if filters is None:
+        return query
+
+    if filters.from_date:
+        parsed = _parse_period(filters.from_date)
+        if parsed:
+            query = query.filter(Lead.created_at >= parsed)
+    if filters.to_date:
+        parsed = _parse_period(filters.to_date, end_of_day=True)
+        if parsed:
+            query = query.filter(Lead.created_at <= parsed)
+    if filters.campaign_id:
+        query = query.filter(Lead.campaign_id == filters.campaign_id)
+    if filters.consultant_id:
+        query = query.filter(Lead.assigned_to_id == filters.consultant_id)
+    if filters.status:
+        query = query.filter(Lead.status.in_([LeadStatus[item] for item in filters.status]))
+    if filters.score_bucket:
+        score_predicates = []
+        for bucket in filters.score_bucket:
+            low, high = (int(part) for part in bucket.split("-"))
+            score_predicates.append(Lead.qualification_score.between(low, high))
+        query = query.filter(or_(*score_predicates))
+    if filters.search:
+        pattern = _like_pattern(filters.search)
+        query = query.filter(or_(
+            Lead.company_name.ilike(pattern, escape="\\"),
+            Lead.name.ilike(pattern, escape="\\"),
+            Lead.cnpj.ilike(pattern, escape="\\"),
+            Lead.normalized_domain.ilike(pattern, escape="\\"),
+            Lead.city.ilike(pattern, escape="\\"),
+            Lead.state.ilike(pattern, escape="\\"),
+            Lead.email.ilike(pattern, escape="\\"),
+        ))
+
+    if filters.channel:
+        channels = [MessageChannel[item] for item in filters.channel]
+        query = query.filter(or_(
+            exists(select(1).select_from(Message).where(
+                Message.lead_id == Lead.id, Message.channel.in_(channels),
+            )),
+            exists(select(1).select_from(FollowUp).where(
+                FollowUp.lead_id == Lead.id, FollowUp.channel.in_(channels),
+            )),
+        ))
+
+    if filters.offer_key or filters.offer_version:
+        def offer_predicate(model):
+            predicates = [model.lead_id == Lead.id]
+            if hasattr(model, "organization_id"):
+                predicates.append(model.organization_id == Lead.organization_id)
+            if filters.offer_key:
+                predicates.append(model.offer_key == filters.offer_key)
+            if filters.offer_version:
+                predicates.append(model.offer_version == filters.offer_version)
+            return exists(select(1).select_from(model).where(*predicates))
+
+        query = query.filter(or_(
+            offer_predicate(LeadOpportunityRow),
+            offer_predicate(CommercialOutcomeRow),
+            exists(select(1).select_from(Conversion).where(
+                Conversion.lead_id == Lead.id,
+                *([Conversion.offer_key == filters.offer_key] if filters.offer_key else []),
+                *([Conversion.offer_version == filters.offer_version] if filters.offer_version else []),
+            )),
+        ))
+
+    if filters.outcome:
+        outcome_values = set(filters.outcome)
+        conversion_values = {"WON", "CONVERTED", "SALE", "CLOSED_WON"}
+        predicates = [exists(select(1).select_from(CommercialOutcomeRow).where(
+            CommercialOutcomeRow.lead_id == Lead.id,
+            CommercialOutcomeRow.organization_id == Lead.organization_id,
+            CommercialOutcomeRow.outcome.in_(outcome_values),
+        ))]
+        if outcome_values & conversion_values:
+            predicates.append(exists(select(1).select_from(Conversion).where(
+                Conversion.lead_id == Lead.id,
+            )))
+        query = query.filter(or_(*predicates))
+
+    if filters.attribution:
+        attributed = filters.attribution == "attributed"
+        query = query.filter(or_(
+            exists(select(1).select_from(CommercialOutcomeRow).where(
+                CommercialOutcomeRow.lead_id == Lead.id,
+                CommercialOutcomeRow.organization_id == Lead.organization_id,
+                CommercialOutcomeRow.lead_opportunity_id.isnot(None) if attributed
+                else CommercialOutcomeRow.lead_opportunity_id.is_(None),
+            )),
+            exists(select(1).select_from(Conversion).where(
+                Conversion.lead_id == Lead.id,
+                Conversion.lead_opportunity_id.isnot(None) if attributed
+                else Conversion.lead_opportunity_id.is_(None),
+            )),
+        ))
+
+    if filters.cursor:
+        from uuid import UUID
+
+        try:
+            cursor_id = UUID(filters.cursor)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("cursor inválido; use o UUID do último lead") from exc
+        query = query.filter(Lead.id > cursor_id)
+    return query
+
+
+def metric_metadata(sample_size: int) -> dict:
+    """Metadados aditivos, sem transformar ausência em taxa zero."""
+    if sample_size == 0:
+        availability = "NOT_APPLICABLE"
+    elif sample_size < 30:
+        availability = "INSUFFICIENT_SAMPLE"
+    else:
+        availability = "AVAILABLE"
+    return {
+        "sample_size": sample_size,
+        "availability": availability,
+        "as_of": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _with_metric_metadata(payload: dict, sample_size: int) -> dict:
+    payload.update(metric_metadata(sample_size))
+    return payload
+
+
 def build_executive_metrics(
     ranked_leads: list,
     contacts: list,
@@ -185,16 +322,37 @@ class AnalyticsService:
         self.org_id = organization_id
 
     # ---------------------------------------------------------------- helpers
-    def _leads(self, from_date: Optional[str] = None, to_date: Optional[str] = None, user_id=None):
+    def _leads(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        user_id=None,
+        filters: CommercialFilterDTO | None = None,
+    ):
         q = self.db.query(Lead).filter(Lead.organization_id == self.org_id)
+        if filters is not None:
+            q = apply_commercial_filters(q, filters)
+            # Rotas novas carregam o período no DTO; callers legados podem
+            # passar somente os argumentos explícitos. Evita duplicar
+            # predicados quando ambas as formas representam o mesmo filtro.
+            if not filters.from_date:
+                parsed_from = _parse_period(from_date)
+                if parsed_from:
+                    q = q.filter(Lead.created_at >= parsed_from)
+            if not filters.to_date:
+                parsed_to = _parse_period(to_date, end_of_day=True)
+                if parsed_to:
+                    q = q.filter(Lead.created_at <= parsed_to)
+        else:
+            parsed_from = _parse_period(from_date)
+            parsed_to = _parse_period(to_date, end_of_day=True)
+            if parsed_from:
+                q = q.filter(Lead.created_at >= parsed_from)
+            if parsed_to:
+                q = q.filter(Lead.created_at <= parsed_to)
+        # Compatibilidade para callers internos que ainda passam user_id.
         if user_id:
             q = q.filter(Lead.assigned_to_id == user_id)
-        f = _parse_period(from_date)
-        t = _parse_period(to_date, end_of_day=True)
-        if f:
-            q = q.filter(Lead.created_at >= f)
-        if t:
-            q = q.filter(Lead.created_at <= t)
         return q
 
     def _count_status(self, base, *statuses):
@@ -206,6 +364,7 @@ class AnalyticsService:
         to_date: Optional[str] = None,
         campaign_id: Optional[str] = None,
         k: int = 10,
+        filters: CommercialFilterDTO | None = None,
     ) -> dict:
         """Retorna acionabilidade e Precision@K da coorte org-scoped.
 
@@ -218,8 +377,8 @@ class AnalyticsService:
         Returns:
             Métricas executivas com amostra e origem dos dados.
         """
-        base = self._leads(from_date, to_date)
-        if campaign_id:
+        base = self._leads(from_date, to_date, filters=filters)
+        if campaign_id and filters is None:
             base = base.filter(Lead.campaign_id == campaign_id)
         leads = base.order_by(Lead.qualification_score.desc(), Lead.created_at.asc()).all()
         lead_ids = [lead.id for lead in leads]
@@ -246,6 +405,7 @@ class AnalyticsService:
             for lead in leads
         ]
         metrics = build_executive_metrics(ranked, contacts, k=k)
+        _with_metric_metadata(metrics, len(leads))
         metrics.update({
             "from": from_date,
             "to": to_date,
@@ -254,8 +414,13 @@ class AnalyticsService:
         return metrics
 
     # ---------------------------------------------------------------- overview
-    def overview(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:
-        base = self._leads(from_date, to_date)
+    def overview(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
+    ) -> dict:
+        base = self._leads(from_date, to_date, filters=filters)
 
         status_counts = dict(
             base.with_entities(Lead.status, func.count(Lead.id))
@@ -281,12 +446,11 @@ class AnalyticsService:
         ]
 
         conv_agg = (
-            self.db.query(
+            base.join(Conversion, Conversion.lead_id == Lead.id)
+            .with_entities(
                 func.count(Conversion.id),
                 func.coalesce(func.sum(Conversion.contract_value), 0),
             )
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
             .one()
         )
         converted = conv_agg[0]
@@ -376,7 +540,7 @@ class AnalyticsService:
             .all()
         )
 
-        return {
+        result = {
             "total_leads": total,
             "qualified_leads": qualified,
             "contacted_leads": contacted,
@@ -401,6 +565,7 @@ class AnalyticsService:
                 for o in ContractOutcome
             ],
         }
+        return _with_metric_metadata(result, total)
 
     # ---------------------------------------------------------------- funnel ponta-a-ponta
     def funnel(
@@ -409,6 +574,7 @@ class AnalyticsService:
         to_date: Optional[str] = None,
         campaign_id: Optional[str] = None,
         consultant_id: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
     ) -> dict:
         """Funil ponta-a-ponta (achados → fechamento).
 
@@ -417,8 +583,12 @@ class AnalyticsService:
         mesma base (org-scoped) usada no overview; a conversão entre etapas
         mostra onde o funil afina/vaza.
         """
-        base = self._leads(from_date, to_date, user_id=consultant_id)
-        if campaign_id:
+        base = self._leads(
+            from_date, to_date,
+            user_id=consultant_id if filters is None else None,
+            filters=filters,
+        )
+        if campaign_id and filters is None:
             base = base.filter(Lead.campaign_id == campaign_id)
 
         def _event_lead_ids(model, *criteria):
@@ -467,7 +637,12 @@ class AnalyticsService:
             ).count(),
             "fecharam": base.filter(Lead.id.in_(converted_ids)).count(),
         }
-        return {"total_leads": counts["achados"], "funnel": build_funnel_stages(counts)}
+        total_leads = counts["achados"]
+        return {
+            "total_leads": total_leads,
+            "funnel": build_funnel_stages(counts),
+            **metric_metadata(total_leads),
+        }
 
     # ---------------------------------------------------------------- consultants
     def _consultant_planilha(
@@ -669,31 +844,33 @@ class AnalyticsService:
             for t in rows
         }
 
-    def consultants(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> list:
+    def consultants(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
+    ) -> list:
         """Métricas por consultor: atribuídos, contatados, reuniões, propostas,
         convertidos, conversão % e atingimento da meta mensal."""
         month = self._target_month(from_date, to_date)
         targets = self._targets_by_user(month)
-        members = (
+        members_query = (
             self.db.query(OrganizationMember, User)
             .join(User, OrganizationMember.user_id == User.id)
             .filter(OrganizationMember.organization_id == self.org_id)
-            .all()
         )
+        if filters and filters.consultant_id:
+            members_query = members_query.filter(User.id == filters.consultant_id)
+        members = members_query.all()
 
         # Leads atribuídos por usuário (no período).
         assigned_by_user: dict = {}
+        assigned_base = self._leads(from_date, to_date, filters=filters)
         rows = (
-            self.db.query(Lead.assigned_to_id, func.count(Lead.id))
-            .filter(Lead.organization_id == self.org_id, Lead.assigned_to_id.isnot(None))
+            assigned_base.with_entities(Lead.assigned_to_id, func.count(Lead.id))
+            .filter(Lead.assigned_to_id.isnot(None))
             .group_by(Lead.assigned_to_id)
         )
-        f = _parse_period(from_date)
-        t = _parse_period(to_date, end_of_day=True)
-        if f:
-            rows = rows.filter(Lead.created_at >= f)
-        if t:
-            rows = rows.filter(Lead.created_at <= t)
         for uid, count in rows.all():
             assigned_by_user[str(uid)] = count
 
@@ -701,14 +878,13 @@ class AnalyticsService:
         converted_by_user: dict = {}
         revenue_by_user: dict = {}
         conv_rows = (
-            self.db.query(
+            assigned_base.join(Conversion, Conversion.lead_id == Lead.id)
+            .with_entities(
                 Conversion.user_id,
                 Conversion.assigned_to_id,
                 Conversion.id,
                 Conversion.contract_value,
             )
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
             .all()
         )
         for user_id, assigned_id, _, contract_value in conv_rows:
@@ -723,7 +899,7 @@ class AnalyticsService:
             assigned = assigned_by_user.get(uid, 0)
             converted = converted_by_user.get(uid, 0)
             # Contagens por status sobre os leads atribuídos a este consultor.
-            base = self._leads(from_date, to_date, user_id=user.id)
+            base = self._leads(from_date, to_date, user_id=user.id, filters=filters)
             contacted = self._count_status(
                 base, LeadStatus.CONTATADO, LeadStatus.RESPONDIDO,
                 LeadStatus.REUNIAO_MARCADA, LeadStatus.REUNIAO_FEITA,
@@ -769,6 +945,7 @@ class AnalyticsService:
         user_id: str,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
     ) -> Optional[dict]:
         """Perfil de um consultor: KPIs da planilha + funil ponta-a-ponta.
 
@@ -789,16 +966,17 @@ class AnalyticsService:
         member, user = row
 
         assigned = (
-            self.db.query(func.count(Lead.id))
-            .filter(Lead.organization_id == self.org_id, Lead.assigned_to_id == user.id)
-            .scalar()
-            or 0
+            self._leads(from_date, to_date, user_id=user_id, filters=filters)
+            .count()
         )
         planilha = self._consultant_planilha(
             str(user.id), from_date=from_date, to_date=to_date, assigned_leads=assigned,
         )
         funnel = self.funnel(
-            from_date=from_date, to_date=to_date, consultant_id=str(user.id),
+            from_date=from_date,
+            to_date=to_date,
+            consultant_id=str(user.id),
+            filters=filters,
         )
         return {
             "user_id": str(user.id),
@@ -864,23 +1042,26 @@ class AnalyticsService:
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
         limit: int = 20,
+        filters: CommercialFilterDTO | None = None,
     ) -> dict:
-        base = self._leads(from_date, to_date)
-        if campaign_id:
+        base = self._leads(from_date, to_date, filters=filters)
+        if campaign_id and filters is None:
             base = base.filter(Lead.campaign_id == campaign_id)
+        effective_limit = filters.limit if filters and filters.limit is not None else limit
+        sample_size = base.order_by(None).count()
 
         if sort_by == "converted":
             rows = (
                 base.join(Conversion, Conversion.lead_id == Lead.id)
                 .options(joinedload(Lead.assigned_to))
                 .order_by(Conversion.converted_at.desc())
-                .limit(limit)
+                .limit(effective_limit)
                 .all()
             )
         elif sort_by == "created":
-            rows = base.options(joinedload(Lead.assigned_to)).order_by(Lead.created_at.desc()).limit(limit).all()
+            rows = base.options(joinedload(Lead.assigned_to)).order_by(Lead.created_at.desc()).limit(effective_limit).all()
         else:  # score (default)
-            rows = base.options(joinedload(Lead.assigned_to)).order_by(Lead.qualification_score.desc()).limit(limit).all()
+            rows = base.options(joinedload(Lead.assigned_to)).order_by(Lead.qualification_score.desc()).limit(effective_limit).all()
 
         # Conversões por lead (para marcar convertidos no ranking).
         lead_ids = [str(r.id) for r in rows]
@@ -907,11 +1088,16 @@ class AnalyticsService:
                 "created_at": lead.created_at.isoformat() if lead.created_at else None,
                 "converted": str(lead.id) in converted_ids,
             })
-        return {"sort_by": sort_by, "items": items}
+        return {"sort_by": sort_by, "items": items, **metric_metadata(sample_size)}
 
     # ---------------------------------------------------------------- geo
-    def geo(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:
-        base = self._leads(from_date, to_date)
+    def geo(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
+    ) -> dict:
+        base = self._leads(from_date, to_date, filters=filters)
 
         cities = (
             base.with_entities(
@@ -929,9 +1115,8 @@ class AnalyticsService:
         converted_by_city: dict = {}
         converted_by_state: dict = {}
         conv_rows = (
-            self.db.query(Lead.city, Lead.state, Conversion.id)
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
+            base.join(Conversion, Conversion.lead_id == Lead.id)
+            .with_entities(Lead.city, Lead.state, Conversion.id)
             .all()
         )
         for city, state, _ in conv_rows:
@@ -972,20 +1157,23 @@ class AnalyticsService:
             }
             for state, count, avg_score in states
         ]
-        return {"cities": city_list, "states": state_list}
+        return {
+            "cities": city_list,
+            "states": state_list,
+            **metric_metadata(base.order_by(None).count()),
+        }
 
     # ---------------------------------------------------------------- campaigns
-    def campaigns(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> list:
+    def campaigns(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
+    ) -> list:
         campaigns = self.db.query(Campaign).filter(Campaign.organization_id == self.org_id).all()
-        f = _parse_period(from_date)
-        t = _parse_period(to_date, end_of_day=True)
 
         # Agregação GROUP BY campaign_id para todos os KPIs de uma vez.
-        lead_base = self.db.query(Lead).filter(Lead.organization_id == self.org_id)
-        if f:
-            lead_base = lead_base.filter(Lead.created_at >= f)
-        if t:
-            lead_base = lead_base.filter(Lead.created_at <= t)
+        lead_base = self._leads(from_date, to_date, filters=filters)
 
         stats_rows = (
             lead_base.with_entities(
@@ -1007,13 +1195,12 @@ class AnalyticsService:
 
         # Conversões por campanha.
         conv_rows = (
-            self.db.query(
+            lead_base.join(Conversion, Conversion.lead_id == Lead.id)
+            .with_entities(
                 Lead.campaign_id,
                 func.count(Conversion.id),
                 func.coalesce(func.sum(Conversion.contract_value), 0),
             )
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
             .group_by(Lead.campaign_id)
             .all()
         )
@@ -1048,6 +1235,7 @@ class AnalyticsService:
         to_date: Optional[str] = None,
         offer_key: Optional[str] = None,
         offer_version: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
     ) -> dict:
         """Cortes de BI sobre outcomes reais da org (P1.25).
 
@@ -1070,14 +1258,22 @@ class AnalyticsService:
         query = self.db.query(CommercialOutcomeRow).filter(
             CommercialOutcomeRow.organization_id == self.org_id
         )
+        active = filters or CommercialFilterDTO(
+            **({"from": from_date} if from_date else {}),
+            **({"to": to_date} if to_date else {}),
+            **({"offer_key": offer_key} if offer_key else {}),
+            **({"offer_version": offer_version} if offer_version else {}),
+        )
+        lead_scope = self._leads(from_date, to_date, filters=filters).with_entities(Lead.id).subquery()
+        query = query.filter(CommercialOutcomeRow.lead_id.in_(select(lead_scope.c.id)))
         if f:
             query = query.filter(CommercialOutcomeRow.recorded_at >= f)
         if t:
             query = query.filter(CommercialOutcomeRow.recorded_at <= t)
-        if offer_key:
-            query = query.filter(CommercialOutcomeRow.offer_key == offer_key)
-        if offer_version:
-            query = query.filter(CommercialOutcomeRow.offer_version == offer_version)
+        if active.offer_key:
+            query = query.filter(CommercialOutcomeRow.offer_key == active.offer_key)
+        if active.offer_version:
+            query = query.filter(CommercialOutcomeRow.offer_version == active.offer_version)
         outcome_rows = query.all()
 
         lead_ids = [row.lead_id for row in outcome_rows if row.lead_id]
@@ -1139,7 +1335,9 @@ class AnalyticsService:
                 "outcome": row.outcome,
                 "value": float(row.value or 0),
             })
-        return build_outcomes_breakdown(rows, by=dim)
+        result = build_outcomes_breakdown(rows, by=dim)
+        result.update(metric_metadata(len(outcome_rows)))
+        return result
 
     # ---------------------------------------------------------------- timeline
     def timeline(
@@ -1147,6 +1345,7 @@ class AnalyticsService:
         group_by: str = "day",
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
     ) -> list:
         """Evolução temporal: novos leads, reuniões marcadas e fechados.
 
@@ -1157,12 +1356,13 @@ class AnalyticsService:
         granularity = group_by if group_by in ("day", "week") else "day"
         f = _parse_period(from_date)
         t = _parse_period(to_date, end_of_day=True)
+        lead_scope = self._leads(from_date, to_date, filters=filters).with_entities(Lead.id).subquery()
 
         # Novos leads por bucket.
         new_bucket = func.date_trunc(granularity, Lead.created_at)
         new_q = (
             self.db.query(new_bucket.label("bucket"), func.count(Lead.id))
-            .filter(Lead.organization_id == self.org_id)
+            .filter(Lead.organization_id == self.org_id, Lead.id.in_(select(lead_scope.c.id)))
             .group_by(new_bucket)
         )
         if f:
@@ -1177,6 +1377,7 @@ class AnalyticsService:
             .join(Lead, LeadActivity.lead_id == Lead.id)
             .filter(
                 Lead.organization_id == self.org_id,
+                Lead.id.in_(select(lead_scope.c.id)),
                 LeadActivity.action == LeadActivityAction.STATUS_CHANGED,
                 LeadActivity.status_to == LeadStatus.REUNIAO_MARCADA,
             )
@@ -1192,7 +1393,10 @@ class AnalyticsService:
         conv_q = (
             self.db.query(conv_bucket.label("bucket"), func.count(Conversion.id))
             .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
+            .filter(
+                Lead.organization_id == self.org_id,
+                Lead.id.in_(select(lead_scope.c.id)),
+            )
             .group_by(conv_bucket)
         )
         if f:
@@ -1218,18 +1422,22 @@ class AnalyticsService:
         return ordered
 
     # ---------------------------------------------------------------- forecast
-    def forecast(self, from_date: Optional[str] = None, to_date: Optional[str] = None) -> dict:
+    def forecast(
+        self,
+        from_date: Optional[str] = None,
+        to_date: Optional[str] = None,
+        filters: CommercialFilterDTO | None = None,
+    ) -> dict:
         """Forecast ponderado por estágio do funil.
 
         Calcula o valor total do pipeline aberto, o forecast ponderado pela
         probabilidade de conversão de cada estágio e a receita já realizada.
         """
-        base = self._leads(from_date, to_date)
+        base = self._leads(from_date, to_date, filters=filters)
 
         revenue = (
-            self.db.query(func.coalesce(func.sum(Conversion.contract_value), 0))
-            .join(Lead, Conversion.lead_id == Lead.id)
-            .filter(Lead.organization_id == self.org_id)
+            base.join(Conversion, Conversion.lead_id == Lead.id)
+            .with_entities(func.coalesce(func.sum(Conversion.contract_value), 0))
             .scalar()
         ) or 0
 
@@ -1272,6 +1480,7 @@ class AnalyticsService:
             "open_leads_count": len(open_leads),
             "pipeline_by_stage": by_stage,
             "lost_reasons_breakdown": lost_reasons,
+            **metric_metadata(base.order_by(None).count()),
         }
 
     # ---------------------------------------------------------------- deliverability
