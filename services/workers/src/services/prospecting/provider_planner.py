@@ -8,6 +8,7 @@ explícitas e recebem priors conservadores em vez de virarem zero.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Iterable
 
 
@@ -26,8 +27,8 @@ class ProviderPolicy:
     def __post_init__(self) -> None:
         if not self.provider.strip() or not self.capability.strip():
             raise ValueError("provider e capability são obrigatórios")
-        if self.cost_per_request < 0:
-            raise ValueError("cost_per_request não pode ser negativo")
+        if not isfinite(self.cost_per_request) or self.cost_per_request < 0:
+            raise ValueError("cost_per_request deve ser um valor finito não negativo")
         for name, value in (("expected_coverage", self.expected_coverage), ("expected_precision", self.expected_precision)):
             if value is not None and not 0 <= value <= 1:
                 raise ValueError(f"{name} deve estar entre 0 e 1")
@@ -77,8 +78,8 @@ class ProviderPlanner:
         max_cost: float | None = None,
         prefer_free: bool = True,
     ) -> list[PlannedProvider]:
-        if max_cost is not None and max_cost < 0:
-            raise ValueError("max_cost não pode ser negativo")
+        if max_cost is not None and (not isfinite(max_cost) or max_cost < 0):
+            raise ValueError("max_cost deve ser um valor finito não negativo")
 
         quality_by_key = {(q.provider, q.capability): q for q in qualities}
         candidates: list[PlannedProvider] = []

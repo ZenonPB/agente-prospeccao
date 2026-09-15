@@ -63,9 +63,67 @@ com custo positivo só entra no plano quando `paid_providers_enabled=True` e há
 orçamento suficiente. O limite é também verificado cumulativamente durante a
 waterfall.
 
+`max_cost` tem semântica dupla e intencional: é o teto por chamada (provider
+com `cost_per_request` maior é inelegível em `allows` e no planner) e o teto
+cumulativo da waterfall (`spent + expected_cost` nunca ultrapassa o teto).
+Quando a política e o `max_cost` legado do `collect` são fornecidos juntos, o
+valor mais restritivo vence.
+
+Custo aqui é estimativa de planejamento, não fatura: `cost_spent` soma os
+custos *esperados* das chamadas executadas. O sistema nunca apresenta essa
+estimativa como gasto financeiro auditável (`expected != billed`). `float` é
+aceitável nesta fase exatamente por ser estimativa; valores não finitos
+(`NaN`/`inf`) são rejeitados na construção porque contornariam o budget —
+comparações com `NaN` são sempre falsas e liberariam I/O pago.
+
 Consumidores legados que ainda não fornecem a política mantêm o comportamento
 anterior. Isso é deliberado para rollout backward-compatible; cada capability
 será migrada e testada isoladamente.
+
+## Status agregado e UNKNOWN != FALSE
+
+Cada tentativa carrega `provider`, `status`, `result_count`, `cost` e `error`
+quando aplicável. O status agregado segue esta precedência com itens vazios:
+
+1. alguma tentativa falhou (ou retornou estado desconhecido) → `failed`;
+2. alguma fonte foi bloqueada sem ser consultada (`provider_disabled`,
+   `quota_exhausted`, `paid_provider_disabled`, `budget_exceeded`) → `disabled`;
+3. todas as fontes consultadas responderam sem achados → `empty`;
+4. nenhum provider registrado → `disabled`.
+
+`empty` exige, portanto, todas as fontes consultadas sem achados: um `empty`
+ao lado de um bloqueio agrega `disabled`, nunca `empty`. Ausência de consulta
+não vira ausência de dado. Uma exceção do provider nunca pode registrar
+`success` ou `empty` — esses estados implicam afirmação sobre dados que a
+chamada não produziu; sinais informativos (`timeout`, `rate_limited`,
+`quota_exhausted`) passam para observabilidade e estados desconhecidos viram
+`failed` (fail-closed).
+
+## Separação de responsabilidades
+
+- **política de autorização** (`ProviderAccessPolicy`): paid opt-in + teto de
+  custo por execução. Domínio puro, sem I/O, sem organização;
+- **quota** (`QuotaService` + `ProviderUsage`): contador diário persistente por
+  organização. O chamador traduz `QuotaService.remaining` em
+  `ProviderPolicy.quota_remaining` ao montar o plano; a foto pode defasar sob
+  concorrência — o enforcement concorrente real continua no `consume`;
+- **budget financeiro** (`max_cost`): teto de estimativa por execução
+  federada, verificado antes do plano e cumulativamente na waterfall;
+- **telemetria** (`ProviderExecutionMetric`): histórico org-scoped para
+  investigação (planejado/bloqueado/executado, custo, resultados, falha,
+  quota, budget). A federação expõe `plan` + `attempts` por chamada para
+  alimentar esse registro; a persistência por organização acontece no caller.
+
+## Limites desta fase
+
+- A política protege o `FederatedProviderRegistry`. Chamadas diretas a
+  providers (`enrichment_orchestrator`, `continuous_intelligence_service`,
+  registries de people/intent) não passam por ela — a migração é por
+  capability, sem big-bang.
+- Ainda não há consumidor de produção passando `access_policy`; o contrato
+  está pronto e travado por testes para os próximos fluxos.
+- Multi-tenancy não se aplica ao núcleo (sem `organization_id`, sem I/O):
+  quota, secret, usage e métrica permanecem org-scoped nas bordas existentes.
 
 ## Capabilities alvo
 

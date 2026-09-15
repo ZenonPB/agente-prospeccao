@@ -2,20 +2,15 @@
 
 A política é deliberadamente independente de provider concreto. Ela decide se
 uma chamada é elegível antes de qualquer I/O e mantém providers pagos opt-in.
-O custo é expresso na mesma unidade monetária usada pela telemetria do caller.
+O custo é uma estimativa de planejamento na mesma unidade usada pela
+telemetria do caller — não é uma fatura auditável (`expected != billed`).
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from math import isfinite
 
 from services.prospecting.provider_planner import ProviderPolicy
-
-
-class ProviderBilling(str, Enum):
-    FREE = "free"
-    FREE_TIER = "free_tier"
-    PAID = "paid"
 
 
 @dataclass(frozen=True)
@@ -25,14 +20,20 @@ class ProviderAccessPolicy:
     `paid_providers_enabled=False` é o default seguro para novos fluxos. O
     registry federado só aplica esta regra quando a política é fornecida, para
     preservar consumidores legados durante a migração gradual.
+
+    `max_cost` tem semântica dupla e intencional: é o teto por chamada (um
+    provider com `cost_per_request` maior é inelegível) e o teto cumulativo
+    da waterfall (a soma dos custos esperados das chamadas executadas não
+    ultrapassa o teto). O valor mais restritivo entre a política e o
+    `max_cost` legado do `collect` sempre vence.
     """
 
     paid_providers_enabled: bool = False
     max_cost: float = 0.0
 
     def __post_init__(self) -> None:
-        if self.max_cost < 0:
-            raise ValueError("max_cost não pode ser negativo")
+        if not isfinite(self.max_cost) or self.max_cost < 0:
+            raise ValueError("max_cost deve ser um valor finito não negativo")
         if not self.paid_providers_enabled and self.max_cost != 0:
             raise ValueError("max_cost deve ser zero quando providers pagos estão desativados")
 
