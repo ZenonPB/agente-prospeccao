@@ -82,11 +82,17 @@ class TestIntentScorer:
         assert result["score"] == 0.0
 
     def test_trigger_threshold_classifica(self):
+        from datetime import datetime, timedelta
         from services.prospecting.intent_provider import IntentScorer
         s = IntentScorer(decay_days=30, trigger_threshold=0.5)
-        high = s.score({"key": "HIRING", "confidence": 0.9, "observed_at": "2026-09-01T00:00:00"})
-        low = s.score({"key": "HIRING", "confidence": 0.2, "observed_at": "2026-09-01T00:00:00"})
+        # Fixture relativa: 5 dias → fator 1-5/30; data absoluta apodrece
+        # com o relógio (0.9 cairia abaixo de 0.5 após ~13 dias).
+        observed = (datetime.now() - timedelta(days=5)).isoformat()
+        high = s.score({"key": "HIRING", "confidence": 0.9, "observed_at": observed})
+        low = s.score({"key": "HIRING", "confidence": 0.2, "observed_at": observed})
+        assert high["score"] == 0.75  # 0.9 * (1 - 5/30)
         assert high["triggered"] is True
+        assert low["score"] == 0.167  # 0.2 * (1 - 5/30)
         assert low["triggered"] is False
 
 
