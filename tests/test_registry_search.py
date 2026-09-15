@@ -166,3 +166,22 @@ def test_candidate_nao_e_company():
     assert not hasattr(RegistryCompany, "organization_id")
     assert "organization_id" not in RegistryCandidate.__dataclass_fields__
     assert RegistryCandidate.__module__ != RegistryCompany.__module__
+
+
+def test_provenance_sem_observed_at_fabricado():
+    from services.registry.search import RegistrySearchService, SearchFilters
+
+    engine, db = _db()
+    try:
+        _seed(db)
+        cand = RegistrySearchService(db).search(
+            SearchFilters(cnpj="33000167000101")).items[0]
+        assert cand.source == "receita_cnpj"
+        assert cand.source_snapshot == "2026-08"
+        assert cand.observed_at is None
+        assert cand.imported_at is not None
+        assert cand.provenance == {"source": "receita_cnpj", "source_snapshot": "2026-08"}
+    finally:
+        _cleanup(db)
+        db.close()
+        engine.dispose()

@@ -55,6 +55,7 @@ def test_first_import_inserts_and_completes(tmp_path):
 
 
 def test_identical_reimport_is_skipped(tmp_path):
+    from database.models import RegistryImportFile
     from services.registry.importer import RegistryFileSpec, RegistryImporter
 
     engine, db = _db()
@@ -64,11 +65,13 @@ def test_identical_reimport_is_skipped(tmp_path):
         spec = [RegistryFileSpec(table_kind="estabelecimentos", path=str(f), file_name="ESTABELE0")]
         first = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
         assert first.inserted == 1
+        db.expire_all()
+        stored = db.query(RegistryImportFile).filter_by(file_name="ESTABELE0").one()
+        assert stored.sha256 is not None and len(stored.sha256) == 64
         second = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
         assert second.status == "COMPLETED"
-        assert second.processed == 0
-        assert second.inserted == 0
-        assert second.updated == 0
+        assert (second.processed, second.inserted, second.updated,
+                second.unchanged, second.rejected, second.failed) == (0, 0, 0, 0, 0, 0)
     finally:
         _cleanup(db)
         db.close()
@@ -158,6 +161,56 @@ def test_missing_file_fails_closed(tmp_path):
         engine.dispose()
 
 
+def test_same_size_different_content_reprocesses(tmp_path):
+    """Mesmo nº de bytes, bytes diferentes: tamanho igual NÃO é identidade."""
+    from services.registry.importer import RegistryFileSpec, RegistryImporter
+
+    engine, db = _db()
+    try:
+        f = tmp_path / "ESTABELE0"
+        f.write_text(_estab("33000167", "0001", "01", fantasia="AAAA"), encoding="latin-1")
+        spec = [RegistryFileSpec(table_kind="estabelecimentos", path=str(f), file_name="ESTABELE0")]
+        RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        f.write_text(_estab("33000167", "0001", "01", fantasia="BBBB"), encoding="latin-1")
+        assert f.stat().st_size == len(_estab("33000167", "0001", "01", fantasia="AAAA").encode("latin-1"))
+        second = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        assert second.processed == 1
+        assert second.updated == 1
+        db.expire_all()
+        from database.models import RegistryCompany
+
+        assert db.query(RegistryCompany).filter_by(cnpj="33000167000101").one().nome_fantasia == "BBBB"
+    finally:
+        _cleanup(db)
+        db.close()
+        engine.dispose()
+
+
+def test_corrupted_encoding_fails_closed(tmp_path):
+    from services.registry.importer import RegistryFileSpec, RegistryImporter
+
+    engine, db = _db()
+    try:
+        f = tmp_path / "ESTABELE0"
+        f.write_bytes(_estab("33000167", "0001", "01", fantasia="PAÇO").encode("latin-1"))
+        snap = RegistryImporter(db, batch_size=10, encoding="utf-8").import_snapshot(
+            snapshot_month="2026-08",
+            files=[RegistryFileSpec(table_kind="estabelecimentos", path=str(f), file_name="ESTABELE0")],
+        )
+        assert snap.status == "FAILED"
+        assert snap.failed == 1
+        from database.models import RegistryImportFile
+
+        db.expire_all()
+        row = db.query(RegistryImportFile).filter_by(file_name="ESTABELE0").one()
+        assert row.status == "FAILED"
+        assert row.error
+    finally:
+        _cleanup(db)
+        db.close()
+        engine.dispose()
+
+
 def test_resume_continues_from_checkpoint(tmp_path):
     from database.models import RegistryCompany, RegistryImportFile, RegistrySnapshot
     from services.registry.importer import RegistryFileSpec, RegistryImporter
@@ -183,6 +236,8 @@ def test_resume_continues_from_checkpoint(tmp_path):
         )
         assert result.status == "COMPLETED"
         assert result.processed == 1
+        assert result.inserted == 1
+        assert result.failed == 0
         db.expire_all()
         assert db.query(RegistryCompany).filter(
             RegistryCompany.cnpj == "33592510000154").count() == 1
@@ -254,6 +309,87 @@ def test_secundarios_e_referencia_sao_importados(tmp_path):
         found = RegistrySearchService(db).search(SearchFilters(cnaes=["1931400"]))
         assert [c.cnpj for c in found.items] == ["33000167000101"]
         assert found.items[0].cnae_principal_label == "Extração de petróleo"
+    finally:
+        _cleanup(db)
+        db.close()
+        engine.dispose()
+
+
+def test_secundarios_alterados_isoladamente_atualizam_assoc(tmp_path):
+    """Base igual + secundários [A,B]→[A,C]: associações viram [A,C]."""
+    from database.models import RegistryCompanyCnae
+    from services.registry.importer import RegistryFileSpec, RegistryImporter
+    from services.registry.search import RegistrySearchService, SearchFilters
+
+    engine, db = _db()
+    try:
+        f = tmp_path / "ESTABELE0"
+        cols = _estab("33000167", "0001", "01").split(";")
+        cols[12] = '"1922501,1931400"'
+        f.write_text(";".join(cols), encoding="latin-1")
+        spec = [RegistryFileSpec(table_kind="estabelecimentos", path=str(f), file_name="ESTABELE0")]
+        RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        cols[12] = '"1922501,1931500"'
+        f.write_text(";".join(cols), encoding="latin-1")
+        second = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        assert second.updated == 1
+        got = sorted(
+            c for (c,) in db.query(RegistryCompanyCnae.cnae).filter(
+                RegistryCompanyCnae.cnpj == "33000167000101").all())
+        assert got == ["1922501", "1931500"]
+        assert RegistrySearchService(db).search(SearchFilters(cnaes=["1931400"])).items == []
+        assert [c.cnpj for c in RegistrySearchService(db).search(
+            SearchFilters(cnaes=["1931500"])).items] == ["33000167000101"]
+    finally:
+        _cleanup(db)
+        db.close()
+        engine.dispose()
+
+
+def test_file_order_does_not_change_result(tmp_path):
+    """EMPRESAS antes de ESTABELECIMENTOS produz o mesmo estado final."""
+    from database.models import RegistryCompany
+    from services.registry.importer import RegistryFileSpec, RegistryImporter
+
+    engine, db = _db()
+    try:
+        fest = tmp_path / "ESTABELE0"
+        fest.write_text(_estab("33000167", "0001", "01"), encoding="latin-1")
+        femp = tmp_path / "EMPRESA0"
+        femp.write_text(
+            '"33000167";"PETROLEO BRASILEIRO S A PETROBRAS";"2011";"10";"100000000,00";"05";""',
+            encoding="latin-1",
+        )
+        estab = RegistryFileSpec(table_kind="estabelecimentos", path=str(fest), file_name="ESTABELE0")
+        emp = RegistryFileSpec(table_kind="empresas", path=str(femp), file_name="EMPRESA0")
+        snap = RegistryImporter(db, batch_size=10).import_snapshot(
+            snapshot_month="2026-08", files=[emp, estab])
+        assert snap.status == "COMPLETED"
+        db.expire_all()
+        row = db.query(RegistryCompany).filter_by(cnpj="33000167000101").one()
+        assert row.razao_social == "PETROLEO BRASILEIRO S A PETROBRAS"
+        assert row.porte == "05"
+    finally:
+        _cleanup(db)
+        db.close()
+        engine.dispose()
+
+
+def test_cnae_label_correction_updates(tmp_path):
+    from database.models import RegistryCnae
+    from services.registry.importer import RegistryFileSpec, RegistryImporter
+
+    engine, db = _db()
+    try:
+        f = tmp_path / "CNAE"
+        f.write_text('"6000001";"Extração de petróleo"', encoding="latin-1")
+        spec = [RegistryFileSpec(table_kind="cnaes", path=str(f), file_name="CNAE")]
+        RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        f.write_text('"6000001";"Extração de petróleo e gás"', encoding="latin-1")
+        second = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        assert second.updated == 1
+        db.expire_all()
+        assert db.query(RegistryCnae).filter_by(codigo="6000001").one().descricao == "Extração de petróleo e gás"
     finally:
         _cleanup(db)
         db.close()

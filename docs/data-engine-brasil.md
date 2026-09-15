@@ -196,8 +196,9 @@ CLI ingere os arquivos extraídos. Volume de referência: ~4,7 GB compactados
 / ~17 GB brutos em 2021 (maior em 2026).
 
 Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
-O Registry aceita 14 caracteres alfanuméricos (normaliza máscara + maiúsculas;
-DV clássico só para numéricos) e o schema usa texto, não inteiro.
+O Registry valida 14 posições com DV oficial único (Q&A RFB + manual SERPRO:
+valor = ASCII − 48, mod 11, mesmos pesos; o numérico legado é caso particular
+do mesmo cálculo) e o schema usa texto, não inteiro.
 
 ### RegistryCandidate != Company
 
@@ -217,9 +218,9 @@ futura será explícita, em camada própria.
   `imported_at` é importação, não observação (`observed_at` não existe na
   fonte — documentado no candidato);
 - `registry_company_cnaes`: secundários normalizados (FK, PK composta);
-- `registry_cnaes`: domínio CNAE (labels; insert-only por reimport — correções
-  de label entram por migração dedicada). Município: só código (sem tabela
-  de labels — linhas de referência não trazem UF; fica para a 1C).
+- `registry_cnaes`: domínio CNAE (labels com upsert real por reimport).
+  Município: só código (sem tabela de labels — linhas de referência não
+  trazem UF; fica para a 1C).
 
 Índices (todos validados com EXPLAIN ANALYZE, §benchmark): PK por CNPJ;
 `cnpj_basico`; covering `(cnae_principal, uf, cnpj)`; covering
@@ -229,12 +230,18 @@ futura será explícita, em camada própria.
 ### Ingestão (`services/registry/importer.py` + CLI `import_registry`)
 
 Streaming em chunks de 5000 linhas: parse → temp table → upsert → checkpoint
-commitado. Idempotente por chave natural; reimport idêntico pula por tamanho;
-conteúdo novo com mesmo tamanho reprocessa; `content_hash` evita rewrites.
-Empresas aplicam razão/porte/capital via merge por `cnpj_basico` (só quando
-diferentes — `IS DISTINCT FROM`). Linha ruim conta `rejected` sem abortar;
-arquivo inacessível/corrompido falha fechado com ledger. Concorrência no
-mesmo snapshot é segura (PK + retry de criação); totais valem por execução.
+commitado. Idempotente por chave natural. Identidade do arquivo é SHA-256 em
+streaming (tamanho sozinho não decide): concluído + digest igual pula;
+tamanhos iguais com bytes diferentes reprocessam. `content_hash` inclui
+secundários ordenados e distingue updated/unchanged (linhas importadas antes
+do hash novo atualizam uma vez e estabilizam).
+Arquivos são aplicados na ordem canônica (estabelecimentos → empresas →
+CNAE) independente da ordem do CLI. Empresas aplicam razão/porte/capital via
+merge por `cnpj_basico` (só quando diferentes — `IS DISTINCT FROM`); labels
+CNAE fazem upsert real. `snapshot_month` exige `AAAA-MM`; cursor de busca
+exige 14 alnum. Linha ruim conta `rejected` sem abortar; arquivo
+inacessível/corrompido falha fechado com ledger. Concorrência no mesmo
+snapshot é segura (PK + retry de criação); totais valem por execução.
 
 Operação local (CWD `services/workers`):
 `python -m src.scripts.import_registry --snapshot-month 2026-08
@@ -254,11 +261,11 @@ não é registrado em nenhum pipeline produtivo.
 ### Benchmark (spike, 500 mil linhas fiéis ao layout, PG 16 local)
 
 - parse: ~43 mil linhas/s (streaming obrigatório — materializar deu 942 MB);
-- COPY: ~266 mil linhas/s; upsert (update-path): ~5,1 mil linhas/s em
-  chunks de 5000 (~1 s/chunk — batch justificado);
-- projeção: update completo de ~60 M ≈ 3,2 h; primeira carga (inserts) mais
-  rápida; reimport mensal típico pula arquivos iguais e só reescreve o que
-  mudou (hash);
+- COPY: ~266 mil linhas/s; upsert isolado (update-path): ~5,1 mil linhas/s;
+- importer ponta a ponta (parse+merge+checkpoint, inserts): ~2,6 mil linhas/s
+  em chunks de 5000; hash-verify de 125 MB em ~0,1 s (~1 GB/s);
+- projeção: primeira carga de ~60 M em ~6,4 h (job mensal offline, resumível);
+  reimport mensal pula arquivos iguais e só reescreve o que mudou (hash);
 - consultas: CNPJ exato 0,11 ms; UF+município+situação 0,13 ms;
   CNAE+UF 0,10 ms; CNAE (principal|secundário)+geografia 0,19 ms —
   todas Index (Only) Scan, sem seq scan nos caminhos quentes.

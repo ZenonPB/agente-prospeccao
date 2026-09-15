@@ -4,19 +4,24 @@ Streaming em chunks: parse → merge em temp table → upsert → checkpoint.
 Nunca materializa o arquivo inteiro; cada chunk commita e avança o
 checkpoint (`processed_lines`), então interromper e retomar é seguro.
 
+Identidade do arquivo: tamanho NÃO é identidade. O skip de arquivo concluído
+exige digest SHA-256 igual; tamanhos iguais com bytes diferentes reprocessam.
+O digest é calculado em streaming (sem segunda leitura no caminho normal).
+
 Contadores do snapshot valem para a execução (última run); o histórico por
 arquivo vive em `registry_import_files`. `failed` conta arquivos com falha
 estrutural. Ingestão offline não consome budget de API.
 """
 from __future__ import annotations
 
+import codecs
 import hashlib
-import itertools
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Sequence
+from typing import Any, BinaryIO, Iterator, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy import delete, func, or_, select, update
@@ -38,6 +43,18 @@ logger = logging.getLogger(__name__)
 PARSER_VERSION = "1"
 SOURCE = "receita_cnpj"
 
+# Ordem canônica de aplicação: estabelecimentos criam as linhas; empresas
+# enriquecem por base; referências são independentes. O CLI aceita qualquer
+# ordem — o importer normaliza para não depender do operador.
+_KIND_ORDER = {"estabelecimentos": 0, "empresas": 1, "cnaes": 2}
+
+
+def validate_snapshot_month(value: str) -> str:
+    """AAAA-MM do snapshot (ex. 2026-08). Formato inválido é erro, não dado."""
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value or ""):
+        raise ValueError(f"snapshot_month inválido (esperado AAAA-MM): {value!r}")
+    return value
+
 COMPANY_KEYS = (
     "cnpj", "cnpj_basico", "razao_social", "nome_fantasia", "matriz",
     "situacao", "data_situacao", "motivo_situacao", "cidade_exterior",
@@ -56,9 +73,10 @@ class RegistryFileSpec:
     file_name: str
 
 
-def content_hash_for(values: dict[str, Any]) -> str:
-    """Hash estável dos campos operacionais — decide updated vs unchanged."""
+def content_hash_for(values: dict[str, Any], *, secundarias: Sequence[str] = ()) -> str:
+    """Hash estável da identidade operacional: campos + secundários ordenados."""
     parts = [f"{k}={values.get(k)}" for k in COMPANY_KEYS]
+    parts.append(f"secundarias={','.join(sorted(secundarias))}")
     return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
 
 
@@ -75,8 +93,71 @@ def company_values(
         "source_snapshot": snapshot_month,
         "updated_at": now,
     })
-    values["content_hash"] = content_hash_for(values)
+    values["content_hash"] = content_hash_for(values, secundarias=record.get("cnaes_secundarios") or [])
     return values
+
+
+class HashedReader:
+    """Lê texto linha a linha acumulando SHA-256 dos bytes crus (streaming)."""
+
+    def __init__(self, path: str, encoding: str) -> None:
+        self._handle: BinaryIO = open(path, "rb")
+        self._decoder = codecs.getincrementaldecoder(encoding)()
+        self._digest = hashlib.sha256()
+        self._buffer = ""
+        self._exhausted = False
+
+    def _decode(self, raw: bytes, *, final: bool = False) -> str:
+        try:
+            return self._decoder.decode(raw, final=final)
+        except UnicodeDecodeError as exc:
+            raise _UnreadableFile(f"encoding inválida: {exc}") from exc
+
+    def __iter__(self) -> Iterator[str]:
+        while True:
+            newline = self._buffer.find("\n")
+            if newline >= 0:
+                line = self._buffer[:newline]
+                self._buffer = self._buffer[newline + 1:]
+                yield line.rstrip("\r")
+                continue
+            if self._exhausted:
+                if self._buffer:
+                    line, self._buffer = self._buffer, ""
+                    yield line.rstrip("\r")
+                return
+            raw = self._handle.read(1024 * 1024)
+            if not raw:
+                self._exhausted = True
+                tail = self._decode(b"", final=True)
+                if tail:
+                    self._buffer += tail
+                continue
+            self._digest.update(raw)
+            self._buffer += self._decode(raw)
+
+    @property
+    def hexdigest(self) -> str:
+        return self._digest.hexdigest()
+
+    def close(self) -> None:
+        self._handle.close()
+
+
+class _UnreadableFile(Exception):
+    pass
+
+
+def hash_file_bytes(path: str) -> str:
+    """Digest só-leitura (verificação de skip): sem parse, sem DB."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while True:
+            raw = handle.read(1024 * 1024)
+            if not raw:
+                break
+            digest.update(raw)
+    return digest.hexdigest()
 
 
 class RegistryImporter:
@@ -93,9 +174,11 @@ class RegistryImporter:
         self, *, source: str = SOURCE, snapshot_month: str,
         files: Sequence[RegistryFileSpec],
     ) -> RegistrySnapshot:
+        validate_snapshot_month(snapshot_month)
         for spec in files:
             if spec.table_kind not in COLUMN_COUNTS:
                 raise ValueError(f"table_kind desconhecido: {spec.table_kind}")
+        ordered = sorted(files, key=lambda spec: _KIND_ORDER.get(spec.table_kind, 99))
         db = self._db
         snapshot = self._get_or_create_snapshot(db, source, snapshot_month)
         snapshot.status = "RUNNING"
@@ -106,7 +189,7 @@ class RegistryImporter:
         db.commit()
 
         totals = {"processed": 0, "inserted": 0, "updated": 0, "unchanged": 0, "rejected": 0, "failed": 0}
-        for spec in files:
+        for spec in ordered:
             counts = self._import_file(snapshot, spec)
             for key in totals:
                 totals[key] += counts.get(key, 0)
@@ -165,14 +248,20 @@ class RegistryImporter:
             size = os.path.getsize(spec.path)
         except OSError as exc:
             return self._fail_file(row, f"arquivo inacessível: {exc}")
-        if row.status == "COMPLETED" and row.file_bytes == size and size is not None:
-            logger.info("registry skip %s (inalterado, %s bytes)", spec.file_name, size)
-            return {}
         if row.status == "COMPLETED":
-            # Conteúdo mudou desde a conclusão: recomeça do zero.
+            if row.sha256 and size == row.file_bytes:
+                try:
+                    current = hash_file_bytes(spec.path)
+                except OSError as exc:
+                    return self._fail_file(row, f"arquivo inacessível: {exc}")
+                if current == row.sha256:
+                    logger.info("registry skip %s (sha256 igual)", spec.file_name)
+                    return {}
+            # Conteúdo novo (ou sem digest legado): recomeça do zero.
             row.processed_lines = 0
             row.rows_ok = 0
             row.rows_rejected = 0
+            row.sha256 = None
         row.status = "RUNNING"
         row.started_at = datetime.now(timezone.utc)
         row.finished_at = None
@@ -185,30 +274,39 @@ class RegistryImporter:
         counts = {"processed": 0, "inserted": 0, "updated": 0, "unchanged": 0, "rejected": 0, "failed": 0}
         start = time.perf_counter()
         warned = 0
+        checkpoint = row.processed_lines or 0
         try:
-            handle = open(spec.path, encoding=self._encoding)
+            reader = HashedReader(spec.path, self._encoding)
         except OSError as exc:
             return self._fail_file(row, f"arquivo inacessível: {exc}")
         try:
-            lines = itertools.islice(handle, row.processed_lines, None)
             chunk: list[RowResult] = []
-            for result in iter_records(lines, kind=spec.table_kind):
-                chunk.append(result)
-                if len(chunk) >= self._batch_size:
-                    warned = self._apply_chunk(snapshot, row, spec, chunk, counts, warned)
-                    chunk = []
+            raw_no = 0
+            for line in reader:
+                raw_no += 1
+                if raw_no <= checkpoint:
+                    continue
+                for result in iter_records([line], kind=spec.table_kind):
+                    result = RowResult(
+                        ok=result.ok, line_no=raw_no,
+                        record=result.record, error=result.error)
+                    chunk.append(result)
+                    if len(chunk) >= self._batch_size:
+                        warned = self._apply_chunk(snapshot, row, spec, chunk, counts, warned)
+                        chunk = []
             if chunk:
                 self._apply_chunk(snapshot, row, spec, chunk, counts, warned)
-        except UnicodeDecodeError as exc:
+        except _UnreadableFile as exc:
             db.rollback()
-            return self._fail_file(row, f"encoding inválida ({self._encoding}): {exc}")
+            return self._fail_file(row, f"{exc} ({self._encoding})")
         except Exception as exc:  # chunk falhou e já fez rollback: fail-closed
             db.rollback()
             return self._fail_file(row, f"falha no chunk: {exc}")
         finally:
-            handle.close()
+            reader.close()
         row.status = "COMPLETED"
         row.finished_at = datetime.now(timezone.utc)
+        row.sha256 = reader.hexdigest
         db.commit()
         elapsed = max(time.perf_counter() - start, 0.001)
         logger.info(
@@ -343,13 +441,29 @@ class RegistryImporter:
         return {"inserted": 0, "updated": updated, "unchanged": len(records) - updated}
 
     def _merge_cnaes(self, records: list[dict[str, Any]]) -> dict[str, int]:
-        # Referência é insert-only (labels quase imutáveis; correções futuras
-        # entram por migração dedicada, não por reimport).
         db = self._db
-        inserted = 0
-        for rec in records:
-            res = db.execute(
-                insert(RegistryCnae).values(codigo=rec["codigo"], descricao=rec["descricao"])
-                .on_conflict_do_nothing(index_elements=["codigo"]))
-            inserted += res.rowcount or 0
-        return {"inserted": inserted, "updated": 0, "unchanged": len(records) - inserted}
+        tmp = sa.Table(
+            "tmp_registry_cnae", sa.MetaData(),
+            sa.Column("codigo", sa.Text), sa.Column("descricao", sa.Text),
+        )
+        db.execute(sa.text("CREATE TEMPORARY TABLE tmp_registry_cnae "
+                           "(codigo TEXT, descricao TEXT) ON COMMIT DROP"))
+        db.execute(tmp.insert(), [
+            {"codigo": r["codigo"], "descricao": r["descricao"]} for r in records])
+        inserted = db.execute(
+            insert(RegistryCnae).from_select(
+                ["codigo", "descricao"],
+                select(tmp.c.codigo, tmp.c.descricao).where(
+                    ~select(1).where(RegistryCnae.codigo == tmp.c.codigo).exists()),
+            ).on_conflict_do_nothing(index_elements=["codigo"])
+            .returning(RegistryCnae.codigo),
+        ).all()
+        updated = db.execute(
+            update(RegistryCnae)
+            .where(RegistryCnae.codigo == tmp.c.codigo)
+            .where(RegistryCnae.descricao.is_distinct_from(tmp.c.descricao))
+            .values(descricao=tmp.c.descricao)
+            .returning(RegistryCnae.codigo),
+        ).all()
+        return {"inserted": len(inserted), "updated": len(updated),
+                "unchanged": len(records) - len(inserted) - len(updated)}
