@@ -148,11 +148,12 @@ consumidor real. Capability é contrato; não justificativa para código morto.
 Consolidar política de acesso/custo sobre planner/federação existentes, manter
 compatibilidade e tornar bloqueios observáveis.
 
-### Brazil Company Registry
+### Brazil Company Registry ✅ implementado (Fase 1B)
 
-Ingerir/indexar fonte empresarial brasileira sem popular `Company` em massa.
-Antes de escolher armazenamento definitivo, medir volume, atualização, índices
-e custo operacional. Discovery do registry entra inicialmente em shadow/opt-in.
+Universo empresarial brasileiro pesquisável, separado do CRM. Detalhes na
+seção `Brazil Company Registry (Fase 1B)` abaixo. Discovery produtivo a
+partir do Registry entra na 1C; nesta fase nada do fluxo de campanhas o
+consome.
 
 ### Public Web Intelligence
 
@@ -175,6 +176,99 @@ e futuros providers são fallbacks plugáveis e sujeitos à política de custo.
 Validar pelo menos Engenharia/Troféus na AlphaMec e Landing Pages em operação
 individual. Medir candidatos, oportunidades trabalháveis, contatos válidos,
 respostas, reuniões, receita atribuída e custo externo.
+
+## Brazil Company Registry (Fase 1B)
+
+### Fonte
+
+Dados públicos do CNPJ (Receita Federal, catálogo dados.gov.br, snapshots
+mensais). Layout oficial: "NOVOLAYOUTDOSDADOSABERTOSDOCNPJ" (gov.br).
+Físico: `;` como separador, aspas, sem cabeçalho, encoding por snapshot
+(historicamente ISO-8859-1 — configurável em `REGISTRY_ENCODING`, confirmar
+por snapshot). Tabelas ingeridas: `ESTABELECIMENTOS` (30 colunas, unidade do
+Registry), `EMPRESAS` (7 colunas, razão/porte/capital por `cnpj_basico`),
+`CNAE` (referência). `SOCIOS`/`SIMPLES` e demais domínios ficam de fora:
+sem QSA nesta fase (minimização; CPFs vêm mascarados da origem).
+
+Restrição de acesso encontrada: o host legado de bulk não responde desta
+rede e o novo exige login interativo — o operador baixa os ZIPs mensais e o
+CLI ingere os arquivos extraídos. Volume de referência: ~4,7 GB compactados
+/ ~17 GB brutos em 2021 (maior em 2026).
+
+Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
+O Registry aceita 14 caracteres alfanuméricos (normaliza máscara + maiúsculas;
+DV clássico só para numéricos) e o schema usa texto, não inteiro.
+
+### RegistryCandidate != Company
+
+Uma linha do universo empresarial NÃO pertence ao CRM. Tabelas `registry_*`
+são globais (sem `organization_id`); ingestão e busca nunca criam
+`Company`/`Person`/`Lead`/`LeadOpportunity` (travado por teste). A promoção
+futura será explícita, em camada própria.
+
+### Schema (migration `c1d2e3f4a5b6`)
+
+- `registry_snapshots`: ledger do snapshot (origem, mês, status, contadores
+  processed/inserted/updated/unchanged/rejected/failed da execução);
+- `registry_import_files`: ledger por arquivo + checkpoint (`processed_lines`)
+  para resume; skip rápido quando concluído e com mesmo tamanho;
+- `registry_companies`: 1 linha por estabelecimento, PK `cnpj`; sem e-mail,
+  telefones ou fax (minimização); `content_hash` distingue updated/unchanged;
+  `imported_at` é importação, não observação (`observed_at` não existe na
+  fonte — documentado no candidato);
+- `registry_company_cnaes`: secundários normalizados (FK, PK composta);
+- `registry_cnaes`: domínio CNAE (labels; insert-only por reimport — correções
+  de label entram por migração dedicada). Município: só código (sem tabela
+  de labels — linhas de referência não trazem UF; fica para a 1C).
+
+Índices (todos validados com EXPLAIN ANALYZE, §benchmark): PK por CNPJ;
+`cnpj_basico`; covering `(cnae_principal, uf, cnpj)`; covering
+`(uf, municipio_cod, situacao, cnpj)`; assoc `(cnae, cnpj)`. Sem GIN/array:
+`EXISTS` na assoc (0,19 ms) venceu GIN (28 ms) no spike.
+
+### Ingestão (`services/registry/importer.py` + CLI `import_registry`)
+
+Streaming em chunks de 5000 linhas: parse → temp table → upsert → checkpoint
+commitado. Idempotente por chave natural; reimport idêntico pula por tamanho;
+conteúdo novo com mesmo tamanho reprocessa; `content_hash` evita rewrites.
+Empresas aplicam razão/porte/capital via merge por `cnpj_basico` (só quando
+diferentes — `IS DISTINCT FROM`). Linha ruim conta `rejected` sem abortar;
+arquivo inacessível/corrompido falha fechado com ledger. Concorrência no
+mesmo snapshot é segura (PK + retry de criação); totais valem por execução.
+
+Operação local (CWD `services/workers`):
+`python -m src.scripts.import_registry --snapshot-month 2026-08
+--estabelecimentos <arquivo> [--empresas ...] [--cnaes ...]`.
+Baixe os ZIPs mensais, extraia para `dados-registry/` (gitignored) e aponte
+o CLI para os arquivos extraídos.
+
+### Busca (`services/registry/search.py`)
+
+Filtros composáveis: CNPJ exato, CNAEs (principal ou secundários), UF,
+município, situação, matriz/filial, porte. Paginação keyset por CNPJ
+(`cursor` + `limit` 1..100), ordenação determinística, no máximo 3 queries
+(página + secundários + labels — sem N+1). Ponte 1A: `RegistryDiscoveryProvider`
+(capability `company_registry`, custo zero) executa sob policy free-only;
+não é registrado em nenhum pipeline produtivo.
+
+### Benchmark (spike, 500 mil linhas fiéis ao layout, PG 16 local)
+
+- parse: ~43 mil linhas/s (streaming obrigatório — materializar deu 942 MB);
+- COPY: ~266 mil linhas/s; upsert (update-path): ~5,1 mil linhas/s em
+  chunks de 5000 (~1 s/chunk — batch justificado);
+- projeção: update completo de ~60 M ≈ 3,2 h; primeira carga (inserts) mais
+  rápida; reimport mensal típico pula arquivos iguais e só reescreve o que
+  mudou (hash);
+- consultas: CNPJ exato 0,11 ms; UF+município+situação 0,13 ms;
+  CNAE+UF 0,10 ms; CNAE (principal|secundário)+geografia 0,19 ms —
+  todas Index (Only) Scan, sem seq scan nos caminhos quentes.
+
+### Limites e próximos (1C)
+
+Sem labels de município/natureza/motivo; sem busca textual; sem promoção
+para `Company`; sem consumo por campanhas; sem Places/web/people/scores.
+1C integra o Registry ao discovery (shadow/opt-in) e resolve identidade
+RegistryCandidate → Company quando houver regra explícita.
 
 ## Definition of Done por fatia
 

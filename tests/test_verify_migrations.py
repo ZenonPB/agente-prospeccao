@@ -16,7 +16,19 @@ def _module():
 
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
-    assert verify_migrations.migration_head() == "fab1c2d3e4f5"
+    assert verify_migrations.migration_head() == "c1d2e3f4a5b6"
+
+
+def test_registry_tem_schema_e_integridade_obrigatorios():
+    verify_migrations = _module()
+    assert {"registry_snapshots", "registry_import_files", "registry_companies",
+            "registry_company_cnaes", "registry_cnaes"} <= verify_migrations.REQUIRED_TABLES
+    assert verify_migrations.REQUIRED_UNIQUES["registry_snapshots"] == {"uq_registry_snapshots_source_month"}
+    assert verify_migrations.REQUIRED_UNIQUES["registry_import_files"] == {"uq_registry_files_snapshot_name"}
+    assert {"ix_registry_companies_basico", "ix_registry_companies_cnae_uf",
+            "ix_registry_companies_geo", "ix_registry_cnaes_cnae"} <= verify_migrations.REQUIRED_INDEXES
+    assert "content_hash" in verify_migrations.REQUIRED_COLUMNS["registry_companies"]
+    assert "organization_id" not in verify_migrations.REQUIRED_COLUMNS.get("registry_companies", set())
 
 
 def test_person_canonica_tem_colunas_obrigatorias():
@@ -214,6 +226,8 @@ def test_schema_gate_exige_jobs_conversion_lost_reason_e_person():
     assert verify_migrations.REQUIRED_CHECK_CONSTRAINTS == {
         "jobs": {"ck_jobs_organization_required"},
         "leads": {"ck_leads_lost_reason_required"},
+        "registry_snapshots": {"ck_registry_snapshots_status"},
+        "registry_import_files": {"ck_registry_files_status", "ck_registry_files_kind"},
     }
     assert verify_migrations.REQUIRED_UNIQUE_INDEXES == {
         "conversions": {"uq_conversions_lead_offer"},

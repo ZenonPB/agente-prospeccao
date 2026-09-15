@@ -181,3 +181,5 @@ jobs:
         run: python -m pytest tests/test_learning_coaching_block_c.py -q -W error
       - name: Verify Block D multi-workspace, readiness and campaign rehearsal
         run: python -m pytest tests/test_block_d_uat_production_campaigns.py -q -W error
+      - name: Verify Brazil Company Registry persistence, ingestion and search
+        run: python -m pytest tests/test_registry_postgres.py tests/test_registry_ingestion.py tests/test_registry_search.py tests/test_registry_provider.py -q -W error

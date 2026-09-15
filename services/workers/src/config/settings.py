@@ -72,4 +72,13 @@ class Settings(BaseSettings):
         description='Modelo Groq de geração (outreach/segmentos/brief/templates)',
     )
 
+    REGISTRY_BATCH_SIZE: int = Field(
+        5000,
+        description='Linhas por chunk na ingestão do Registry (spike: ~5k linhas/s em updates)',
+    )
+    REGISTRY_ENCODING: str = Field(
+        "latin-1",
+        description='Encoding dos arquivos do snapshot (confirmar por snapshot; historicamente latin-1)',
+    )
+
 settings = Settings()
