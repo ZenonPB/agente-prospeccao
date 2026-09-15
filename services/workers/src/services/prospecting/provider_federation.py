@@ -81,8 +81,10 @@ class FederatedProviderRegistry:
         `access_policy=None` preserva o contrato legado. Novos fluxos devem
         fornecer uma política explícita; seu default é free-only.
 
-        `cost_spent` soma os custos *esperados* das chamadas executadas —
-        estimativa de planejamento, não valor faturado.
+        `cost_spent` soma os custos *esperados* das chamadas iniciadas,
+        incluindo tentativas que falharam (provisão conservadora: uma chamada
+        paga tentada pode ter sido cobrada). É estimativa de planejamento,
+        não valor faturado.
         """
         policies = [provider.policy for (cap, _), provider in self._providers.items() if cap == capability]
         blocked: list[FederationAttempt] = []
@@ -100,6 +102,15 @@ class FederatedProviderRegistry:
                 effective_max_cost = min(effective_max_cost, max_cost)
         else:
             effective_max_cost = max_cost
+
+        if effective_max_cost is not None:
+            affordable: list[ProviderPolicy] = []
+            for policy in policies:
+                if policy.cost_per_request > effective_max_cost:
+                    blocked.append(FederationAttempt(policy.provider, "budget_exceeded"))
+                else:
+                    affordable.append(policy)
+            policies = affordable
 
         plan = self._planner.plan(
             policies,
@@ -126,6 +137,7 @@ class FederatedProviderRegistry:
             if effective_max_cost is not None and spent + planned.expected_cost > effective_max_cost:
                 attempts.append(FederationAttempt(planned.provider, "budget_exceeded"))
                 continue
+            spent += planned.expected_cost  # reserva conservadora antes do I/O
             try:
                 raw = await provider.collect(request)
             except Exception as exc:  # provider boundary: status remains explicit
@@ -133,7 +145,6 @@ class FederatedProviderRegistry:
                     planned.provider, _exc_status(exc), error=str(exc)[:500],
                 ))
                 continue
-            spent += planned.expected_cost
             if raw is None:
                 attempts.append(FederationAttempt(planned.provider, "failed", cost=planned.expected_cost, error="provider_returned_none"))
                 continue

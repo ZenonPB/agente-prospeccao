@@ -64,8 +64,11 @@ orçamento suficiente. O limite é também verificado cumulativamente durante a
 waterfall.
 
 `max_cost` tem semântica dupla e intencional: é o teto por chamada (provider
-com `cost_per_request` maior é inelegível em `allows` e no planner) e o teto
-cumulativo da waterfall (`spent + expected_cost` nunca ultrapassa o teto).
+com `cost_per_request` maior é inelegível em `allows` e no planner, com
+`budget_exceeded` registrado em vez de silêncio) e o teto cumulativo da
+waterfall (a soma dos custos esperados das chamadas iniciadas não ultrapassa
+o teto — o custo é reservado antes do I/O, inclusive quando a tentativa
+falha, como provisão conservadora).
 Quando a política e o `max_cost` legado do `collect` são fornecidos juntos, o
 valor mais restritivo vence.
 

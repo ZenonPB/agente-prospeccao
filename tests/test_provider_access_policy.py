@@ -519,3 +519,57 @@ def test_no_registered_providers_reports_disabled_without_attempts():
     assert result["status"] == "disabled"
     assert result["attempts"] == []
     assert result["items"] == []
+
+
+def test_failed_paid_attempt_reserves_budget_for_next_provider():
+    """Exceção não libera orçamento: a chamada paga foi tentada (provisão)."""
+    async def scenario():
+        registry = FederatedProviderRegistry()
+        registry.register(_Provider("a_unstable", 0.40, exc=RuntimeError("timeout")))
+        registry.register(_Provider("z_backup", 0.40))
+        return await registry.collect(
+            "company_discovery",
+            {},
+            access_policy=ProviderAccessPolicy(paid_providers_enabled=True, max_cost=0.50),
+        )
+
+    result = asyncio.run(scenario())
+    assert ("a_unstable", "failed") in _statuses(result)
+    assert ("z_backup", "budget_exceeded") in _statuses(result)
+    assert result["cost_spent"] == pytest.approx(0.40)
+    assert result["status"] == "failed"
+    assert result["items"] == []
+
+
+def test_combined_budget_block_is_recorded_not_silent():
+    """Teto combinado menor que o da policy gera attempt, não silêncio."""
+    async def scenario():
+        registry = FederatedProviderRegistry()
+        provider = _Provider("pricey", 0.50)
+        registry.register(provider)
+        result = await registry.collect(
+            "company_discovery",
+            {},
+            access_policy=ProviderAccessPolicy(paid_providers_enabled=True, max_cost=1.0),
+            max_cost=0.30,
+        )
+        return provider, result
+
+    provider, result = asyncio.run(scenario())
+    assert provider.calls == 0
+    assert _statuses(result) == [("pricey", "budget_exceeded")]
+    assert result["status"] == "disabled"
+    assert result["items"] == []
+
+
+def test_legacy_max_cost_block_is_recorded():
+    async def scenario():
+        registry = FederatedProviderRegistry()
+        provider = _Provider("pricey", 0.50)
+        registry.register(provider)
+        return provider, await registry.collect("company_discovery", {}, max_cost=0.30)
+
+    provider, result = asyncio.run(scenario())
+    assert provider.calls == 0
+    assert _statuses(result) == [("pricey", "budget_exceeded")]
+    assert result["status"] == "disabled"
