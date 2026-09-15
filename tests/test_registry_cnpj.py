@@ -56,15 +56,41 @@ def test_wrong_length_and_garbage_are_invalid():
     assert is_valid_cnpj("33.000.167/0001-0!") is False
 
 
-def test_alphanumeric_cnpj_format_is_accepted_without_numeric_dv():
-    """CNPJs alfanuméricos (Receita, a partir de jul/2026) passam no formato;
-    a verificação de dígitos clássica só se aplica aos numéricos."""
+def test_alphanumeric_cnpj_requires_official_dv():
+    """CNPJs alfanuméricos exigem os 2 DV numéricos pelo algoritmo oficial
+    (não basta ter 14 caracteres alfanuméricos)."""
     from services.registry.cnpj import is_valid_cnpj, numeric_dv_ok
 
     assert is_valid_cnpj("00.000.000/E08G-12") is True
     assert is_valid_cnpj("00000000E08G12") is True
     assert numeric_dv_ok("00000000E08G12") is False
     assert is_valid_cnpj("00.000.000/E08G-1") is False
+
+
+def test_official_alphanumeric_vectors():
+    """Algoritmo oficial RFB (Q&A CNPJ alfanumérico + manual SERPRO):
+    valor = ASCII - 48, mod 11, mesmos pesos do numérico."""
+    from services.registry.cnpj import is_valid_cnpj
+
+    assert is_valid_cnpj("12ABC34501DE35") is True  # exemplo trabalhado oficial
+    assert is_valid_cnpj("12.ABC.345/01DE-35") is True
+    assert is_valid_cnpj("00.000.000/E08G-12") is True  # primeiro real (Receita, jul/2026)
+
+
+def test_official_alphanumeric_wrong_dv():
+    from services.registry.cnpj import is_valid_cnpj
+
+    assert is_valid_cnpj("12ABC34501DE36") is False
+    assert is_valid_cnpj("12ABC34501DE00") is False
+    assert is_valid_cnpj("00000000E08G13") is False
+
+
+def test_letters_in_dv_positions_are_invalid():
+    from services.registry.cnpj import is_valid_cnpj
+
+    assert is_valid_cnpj("12ABC34501DE3X") is False
+    assert is_valid_cnpj("12ABC34501DEX5") is False
+    assert is_valid_cnpj("12ABC34501DEXX") is False
 
 
 def test_numeric_dv_check_matches_known_values():

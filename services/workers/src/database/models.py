@@ -1819,6 +1819,7 @@ class RegistryImportFile(Base):
     table_kind = Column(String(20), nullable=False)
     file_name = Column(String(255), nullable=False)
     file_bytes = Column(BigInteger, nullable=True)
+    sha256 = Column(String(64), nullable=True)
     status = Column(String(20), nullable=False, default="PENDING")
     processed_lines = Column(BigInteger, nullable=False, default=0)
     rows_ok = Column(BigInteger, nullable=False, default=0)

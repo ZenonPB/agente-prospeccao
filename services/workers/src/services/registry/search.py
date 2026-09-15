@@ -17,7 +17,6 @@ from services.registry.cnpj import normalize_cnpj
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 100
 
-
 @dataclass(frozen=True)
 class SearchFilters:
     cnpj: str | None = None
@@ -34,6 +33,11 @@ class SearchFilters:
         if self.limit is not None and self.limit < 1:
             raise ValueError("limit deve ser positivo")
         object.__setattr__(self, "limit", min(self.limit or PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX))
+        if self.cursor is not None:
+            cursor = normalize_cnpj(self.cursor)
+            if not cursor or len(cursor) != 14 or not (cursor.isascii() and cursor.isalnum()):
+                raise ValueError(f"cursor inválido: {self.cursor!r}")
+            object.__setattr__(self, "cursor", cursor)
         if self.uf is not None:
             object.__setattr__(self, "uf", self.uf.strip().upper() or None)
         if self.cnaes is not None:
