@@ -35,6 +35,8 @@ REQUIRED_TABLES = {
     "offer_profile_versions", "offer_profile_activations", "crm_certification_runs",
     "lead_usefulness_feedbacks", "import_jobs", "import_row_results", "import_audit_events",
     "commercial_bulk_operations", "commercial_saved_views",
+    "registry_snapshots", "registry_import_files", "registry_companies",
+    "registry_company_cnaes", "registry_cnaes",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer", "ix_event_opportunities_org_date",
@@ -61,6 +63,8 @@ REQUIRED_INDEXES = {
     "ix_import_jobs_org_status_created", "ix_import_jobs_org_source_hash",
     "ix_import_row_results_job_status_line", "ix_import_audit_events_job_created", "ix_import_audit_events_org_created",
     "uq_conversions_lead_offer",
+    "ix_registry_companies_basico", "ix_registry_companies_cnae_uf", "ix_registry_companies_geo",
+    "ix_registry_cnaes_cnae", "ix_registry_files_snapshot",
 }
 REQUIRED_UNIQUE_INDEXES = {
     "conversions": {"uq_conversions_lead_offer"},
@@ -68,6 +72,8 @@ REQUIRED_UNIQUE_INDEXES = {
 REQUIRED_CHECK_CONSTRAINTS = {
     "jobs": {"ck_jobs_organization_required"},
     "leads": {"ck_leads_lost_reason_required"},
+    "registry_snapshots": {"ck_registry_snapshots_status"},
+    "registry_import_files": {"ck_registry_files_status", "ck_registry_files_kind"},
 }
 REQUIRED_NOT_NULL_COLUMNS = {
     "jobs": {"organization_id"},
@@ -102,6 +108,8 @@ REQUIRED_FKS = {
     "import_audit_events": {"import_jobs.id", "organizations.id", "users.id"},
     "commercial_bulk_operations": {"organizations.id", "users.id"},
     "commercial_saved_views": {"organizations.id", "users.id"},
+    "registry_import_files": {"registry_snapshots.id"},
+    "registry_company_cnaes": {"registry_companies.cnpj"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
@@ -124,6 +132,8 @@ REQUIRED_UNIQUES = {
     "commercial_bulk_operations": {"uq_commercial_bulk_operations_org_idempotency"},
     "commercial_saved_views": {"uq_commercial_saved_views_owner_name"},
     "import_row_results": {"uq_import_row_results_job_line_version"},
+    "registry_snapshots": {"uq_registry_snapshots_source_month"},
+    "registry_import_files": {"uq_registry_files_snapshot_name"},
 }
 REQUIRED_COLUMNS = {
     "leads": {"discovery_provenance"},
@@ -150,6 +160,9 @@ REQUIRED_COLUMNS = {
     "import_audit_events": {"import_job_id", "organization_id", "action", "from_status", "to_status", "correlation_id", "created_at"},
     "commercial_bulk_operations": {"organization_id", "actor_id", "idempotency_key", "operation", "payload_hash", "status", "result", "created_at", "completed_at"},
     "commercial_saved_views": {"organization_id", "owner_user_id", "name", "view_kind", "filters", "shared", "created_at", "updated_at"},
+    "registry_snapshots": {"source", "snapshot_month", "status", "processed", "inserted", "updated", "unchanged", "rejected", "failed"},
+    "registry_import_files": {"snapshot_id", "table_kind", "file_name", "status", "processed_lines"},
+    "registry_companies": {"cnpj", "cnpj_basico", "content_hash", "source", "source_snapshot"},
 }
 
 

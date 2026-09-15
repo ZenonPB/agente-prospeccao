@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, CheckConstraint, Index, Date, text
+from sqlalchemy import Column, String, Integer, BigInteger, DateTime, Text, Enum, ForeignKey, ARRAY, Numeric, Boolean, Float, UniqueConstraint, CheckConstraint, Index, Date, text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
 from sqlalchemy.sql import func
@@ -1760,3 +1760,145 @@ class Notification(Base):
 
     def __repr__(self):
         return f"<Notification(id='{self.id}', type='{self.notification_type.value}', user='{self.user_id}', read={self.is_read})>"
+
+class RegistrySnapshot(Base):
+    """Snapshot mensal do universo empresarial (dados públicos CNPJ/Receita).
+
+    GLOBAL — sem organization_id: é dado de referência público, não estado
+    comercial de um workspace. Contadores respondem "o que foi importado".
+    """
+
+    __tablename__ = "registry_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source", "snapshot_month", name="uq_registry_snapshots_source_month"),
+        CheckConstraint(
+            "status IN ('RUNNING', 'COMPLETED', 'FAILED')",
+            name="ck_registry_snapshots_status",
+        ),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source = Column(String(40), nullable=False, default="receita_cnpj")
+    snapshot_month = Column(String(7), nullable=False)
+    layout_version = Column(String(20), nullable=True)
+    status = Column(String(20), nullable=False, default="RUNNING")
+    processed = Column(Integer, nullable=False, default=0)
+    inserted = Column(Integer, nullable=False, default=0)
+    updated = Column(Integer, nullable=False, default=0)
+    unchanged = Column(Integer, nullable=False, default=0)
+    rejected = Column(Integer, nullable=False, default=0)
+    failed = Column(Integer, nullable=False, default=0)
+    parser_version = Column(String(20), nullable=True)
+    started_at = Column(DateTime(timezone=True), server_default=func.now())
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    error = Column(Text, nullable=True)
+
+    files = relationship("RegistryImportFile", backref="snapshot", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<RegistrySnapshot(source='{self.source}', month='{self.snapshot_month}', status='{self.status}')>"
+
+
+class RegistryImportFile(Base):
+    """Ledger por arquivo: permite resume pelo checkpoint de linhas confirmadas."""
+
+    __tablename__ = "registry_import_files"
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "file_name", name="uq_registry_files_snapshot_name"),
+        Index("ix_registry_files_snapshot", "snapshot_id"),
+        CheckConstraint(
+            "status IN ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED')",
+            name="ck_registry_files_status",
+        ),
+        CheckConstraint(
+            "table_kind IN ('empresas', 'estabelecimentos', 'cnaes', 'municipios')",
+            name="ck_registry_files_kind",
+        ),
+    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    snapshot_id = Column(UUID(as_uuid=True), ForeignKey("registry_snapshots.id", ondelete="CASCADE"), nullable=False)
+    table_kind = Column(String(20), nullable=False)
+    file_name = Column(String(255), nullable=False)
+    file_bytes = Column(BigInteger, nullable=True)
+    status = Column(String(20), nullable=False, default="PENDING")
+    processed_lines = Column(BigInteger, nullable=False, default=0)
+    rows_ok = Column(BigInteger, nullable=False, default=0)
+    rows_rejected = Column(BigInteger, nullable=False, default=0)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    error = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<RegistryImportFile(file='{self.file_name}', status='{self.status}')>"
+
+
+class RegistryCompany(Base):
+    """Estabelecimento do universo empresarial brasileiro (1 linha por CNPJ).
+
+    GLOBAL — RegistryCandidate persistido. NÃO é Company do CRM: não tem
+    organization_id e nunca é criado a partir do fluxo comercial.
+    """
+
+    __tablename__ = "registry_companies"
+    __table_args__ = (
+        Index("ix_registry_companies_basico", "cnpj_basico"),
+        Index("ix_registry_companies_cnae_uf", "cnae_principal", "uf", "cnpj"),
+        Index("ix_registry_companies_geo", "uf", "municipio_cod", "situacao", "cnpj"),
+    )
+    cnpj = Column(String(14), primary_key=True)
+    cnpj_basico = Column(String(8), nullable=False)
+    razao_social = Column(Text, nullable=True)
+    nome_fantasia = Column(Text, nullable=True)
+    matriz = Column(Boolean, nullable=True)
+    situacao = Column(String(2), nullable=True)
+    data_situacao = Column(Date, nullable=True)
+    motivo_situacao = Column(String(10), nullable=True)
+    cidade_exterior = Column(Text, nullable=True)
+    pais_cod = Column(String(3), nullable=True)
+    data_inicio = Column(Date, nullable=True)
+    cnae_principal = Column(String(7), nullable=True)
+    natureza_juridica = Column(String(4), nullable=True)
+    porte = Column(String(2), nullable=True)
+    capital_social = Column(Numeric(16, 2), nullable=True)
+    tipo_logradouro = Column(Text, nullable=True)
+    logradouro = Column(Text, nullable=True)
+    numero = Column(Text, nullable=True)
+    complemento = Column(Text, nullable=True)
+    bairro = Column(Text, nullable=True)
+    cep = Column(String(8), nullable=True)
+    uf = Column(String(2), nullable=True)
+    municipio_cod = Column(String(10), nullable=True)
+    situacao_especial = Column(Text, nullable=True)
+    data_situacao_especial = Column(Date, nullable=True)
+    source = Column(String(40), nullable=False, default="receita_cnpj")
+    source_snapshot = Column(String(7), nullable=True)
+    content_hash = Column(String(64), nullable=True)
+    imported_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<RegistryCompany(cnpj='{self.cnpj}', uf='{self.uf}')>"
+
+
+class RegistryCompanyCnae(Base):
+    """CNAEs secundários do estabelecimento (principal vive em RegistryCompany)."""
+
+    __tablename__ = "registry_company_cnaes"
+    __table_args__ = (
+        Index("ix_registry_cnaes_cnae", "cnae", "cnpj"),
+    )
+    cnpj = Column(String(14), ForeignKey("registry_companies.cnpj", ondelete="CASCADE"), primary_key=True)
+    cnae = Column(String(7), primary_key=True)
+
+    def __repr__(self):
+        return f"<RegistryCompanyCnae(cnpj='{self.cnpj}', cnae='{self.cnae}')>"
+
+
+class RegistryCnae(Base):
+    """Tabela de domínio CNAE do snapshot (código → descrição)."""
+
+    __tablename__ = "registry_cnaes"
+    codigo = Column(String(7), primary_key=True)
+    descricao = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<RegistryCnae(codigo='{self.codigo}')>"

@@ -39,6 +39,9 @@ venv/
 # Artefatos de build/zip locais
 *.zip
 
+# Snapshots extraídos do universo empresarial (bulk da Receita — nunca versionar)
+dados-registry/
+
 # Logs de runtime local (scripts/dev.sh / dev.ps1)
 uvicorn.log
 uvicorn.err.log
