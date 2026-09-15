@@ -1,14 +1,15 @@
 """Contrato federado único para discovery/enrichment externo.
 
 Novas fontes entram por capability e são planejadas pelo mesmo mecanismo de
-custo/qualidade. O executor preserva `failed`, `empty`, `disabled` e quota como
-estados diferentes; uma falha nunca é convertida silenciosamente em lista vazia.
+custo/qualidade. O executor preserva estados de falha, vazio, bloqueio e quota;
+uma falha nunca é convertida silenciosamente em lista vazia.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Mapping, Protocol, Sequence, runtime_checkable
+from typing import Any, Callable, Mapping, Protocol, Sequence, runtime_checkable
 
+from services.prospecting.provider_access_policy import ProviderAccessPolicy
 from services.prospecting.provider_planner import ProviderPlanner, ProviderPolicy, ProviderQuality
 
 
@@ -57,22 +58,55 @@ class FederatedProviderRegistry:
         *,
         qualities: Sequence[ProviderQuality] = (),
         max_cost: float | None = None,
+        access_policy: ProviderAccessPolicy | None = None,
         max_providers: int | None = None,
         stop_when: Callable[[list[dict[str, Any]]], bool] | None = None,
     ) -> dict[str, Any]:
+        """Executa providers elegíveis.
+
+        `access_policy=None` preserva o contrato legado. Novos fluxos devem
+        fornecer uma política explícita; seu default é free-only.
+        """
         policies = [provider.policy for (cap, _), provider in self._providers.items() if cap == capability]
-        plan = self._planner.plan(policies, capability=capability, qualities=qualities, max_cost=max_cost)
+        blocked: list[FederationAttempt] = []
+        if access_policy is not None:
+            eligible: list[ProviderPolicy] = []
+            for policy in policies:
+                allowed, reason = access_policy.allows(policy)
+                if allowed:
+                    eligible.append(policy)
+                else:
+                    blocked.append(FederationAttempt(policy.provider, reason))
+            policies = eligible
+            effective_max_cost = access_policy.max_cost
+            if max_cost is not None:
+                effective_max_cost = min(effective_max_cost, max_cost)
+        else:
+            effective_max_cost = max_cost
+
+        plan = self._planner.plan(
+            policies,
+            capability=capability,
+            qualities=qualities,
+            max_cost=effective_max_cost,
+        )
         if max_providers is not None:
             plan = plan[:max(0, max_providers)]
         if not plan:
-            return {"status": "disabled", "items": [], "attempts": [], "cost_spent": 0.0, "plan": []}
+            return {
+                "status": "disabled",
+                "items": [],
+                "attempts": [attempt.__dict__ for attempt in blocked],
+                "cost_spent": 0.0,
+                "plan": [],
+            }
 
         items: list[dict[str, Any]] = []
-        attempts: list[FederationAttempt] = []
+        attempts: list[FederationAttempt] = list(blocked)
         spent = 0.0
         for planned in plan:
             provider = self._providers[(capability, planned.provider)]
-            if max_cost is not None and spent + planned.expected_cost > max_cost:
+            if effective_max_cost is not None and spent + planned.expected_cost > effective_max_cost:
                 attempts.append(FederationAttempt(planned.provider, "budget_exceeded"))
                 continue
             try:
