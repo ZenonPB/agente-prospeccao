@@ -66,7 +66,9 @@ def test_registry_provider_executa_free_only_sem_custo():
             "company_registry", {"uf": "XX"},
             access_policy=ProviderAccessPolicy(),
         ))
-        assert empty["status"] == "empty"
+        assert empty["status"] == "failed"
+        assert empty["attempts"][0]["status"] == "failed"
+        assert "UF inválida" in empty["attempts"][0]["error"]
     finally:
         _cleanup_registry(db)
         db.close()

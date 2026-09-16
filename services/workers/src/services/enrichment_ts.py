@@ -16,6 +16,7 @@ TTL_HOURS: Dict[str, int] = {
     "site": 7 * 24,       # análise técnica do site — 7 dias
     "reviews": 24,        # reputação no Google (rating/avaliações) — 24h
     "cnpj": 30 * 24,      # dados cadastrais da Receita Federal — 30 dias
+    "public_web": 7 * 24,  # FACTs públicos da homepage (1D) — 7 dias
 }
 
 

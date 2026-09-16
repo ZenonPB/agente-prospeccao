@@ -72,5 +72,9 @@ class Settings(BaseSettings):
     EVENT_DISCOVERY_URL: str = Field("", description='Endpoint JSON externo de eventos (opt-in)')
     EVENT_DISCOVERY_TOKEN: str = Field("", description='Token opcional Bearer do provider de eventos')
     EVENT_DISCOVERY_MAX_RETRIES: int = Field(1, ge=0, le=5, description='Retentativas do provider de eventos')
+    REGISTRY_DISCOVERY_ENABLED: bool = Field(
+        False, description='Ativa o Registry como implementação de cnae_discovery (default seguro: desligado)')
+    REGISTRY_SHADOW_MODE: bool = Field(
+        False, description='Compara Registry x legado sem alterar o resultado principal')
 
 settings = Settings()

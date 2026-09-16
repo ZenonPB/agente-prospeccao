@@ -12,20 +12,35 @@ from sqlalchemy.orm import Session
 
 from database.models import RegistryCnae, RegistryCompany, RegistryCompanyCnae
 from services.registry.candidate import RegistryCandidate
+from services.registry.cnae_matching import (
+    MAX_PREFIX_LEN,
+    MIN_PREFIX_LEN,
+    cnae_prefix_bounds,
+    normalize_cnae_token,
+)
 from services.registry.cnpj import normalize_cnpj
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 100
+BRAZILIAN_UF_CODES = frozenset({
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+    "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+    "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+})
 
 @dataclass(frozen=True)
 class SearchFilters:
     cnpj: str | None = None
     cnaes: list[str] | None = None
+    cnae_prefixes: list[str] | None = None
     uf: str | None = None
+    ufs: list[str] | None = None
     municipio_cod: str | None = None
     situacao: str | None = None
+    situacoes: list[str] | None = None
     matriz: bool | None = None
     porte: str | None = None
+    portes: list[str] | None = None
     limit: int = PAGE_SIZE_DEFAULT
     cursor: str | None = None
 
@@ -39,10 +54,44 @@ class SearchFilters:
                 raise ValueError(f"cursor inválido: {self.cursor!r}")
             object.__setattr__(self, "cursor", cursor)
         if self.uf is not None:
-            object.__setattr__(self, "uf", self.uf.strip().upper() or None)
-        if self.cnaes is not None:
+            uf = str(self.uf).strip().upper()
+            if uf not in BRAZILIAN_UF_CODES:
+                raise ValueError(f"UF inválida: {self.uf!r}")
+            object.__setattr__(self, "uf", uf)
+        if self.ufs is not None:
+            normalized_ufs = [str(uf).strip().upper() for uf in self.ufs]
+            if any(uf not in BRAZILIAN_UF_CODES for uf in normalized_ufs):
+                raise ValueError(f"UF inválida: {self.ufs!r}")
             object.__setattr__(
-                self, "cnaes", [c.strip() for c in self.cnaes if c and c.strip()] or None)
+                self, "ufs",
+                sorted(set(normalized_ufs)) or None,
+            )
+        if self.cnaes is not None:
+            exact: list[str] = []
+            for raw in self.cnaes:
+                digits = normalize_cnae_token(raw)
+                if len(digits) != 7:
+                    raise ValueError(f"CNAE exato inválido: {raw!r}")
+                if digits not in exact:
+                    exact.append(digits)
+            object.__setattr__(self, "cnaes", sorted(exact) or None)
+        if self.cnae_prefixes is not None:
+            prefixes: list[str] = []
+            for raw in self.cnae_prefixes:
+                digits = normalize_cnae_token(raw)
+                if not MIN_PREFIX_LEN <= len(digits) <= MAX_PREFIX_LEN:
+                    raise ValueError(f"prefixo CNAE inválido: {raw!r}")
+                if digits not in prefixes:
+                    prefixes.append(digits)
+            object.__setattr__(self, "cnae_prefixes", sorted(prefixes) or None)
+        if self.situacoes is not None:
+            object.__setattr__(
+                self, "situacoes",
+                [s.strip() for s in self.situacoes if s and s.strip()] or None)
+        if self.portes is not None:
+            object.__setattr__(
+                self, "portes",
+                [p.strip() for p in self.portes if p and p.strip()] or None)
 
 
 @dataclass(frozen=True)
@@ -65,24 +114,38 @@ class RegistrySearchService:
         stmt = select(RegistryCompany)
         if cnpj:
             stmt = stmt.where(RegistryCompany.cnpj == cnpj)
-        if filters.cnaes:
-            stmt = stmt.where(or_(
-                RegistryCompany.cnae_principal.in_(filters.cnaes),
-                RegistryCompany.cnpj.in_(
+        if filters.cnaes or filters.cnae_prefixes:
+            clauses = []
+            if filters.cnaes:
+                clauses.append(RegistryCompany.cnae_principal.in_(filters.cnaes))
+                clauses.append(RegistryCompany.cnpj.in_(
                     select(RegistryCompanyCnae.cnpj).where(
                         RegistryCompanyCnae.cnae.in_(filters.cnaes)),
-                ),
-            ))
+                ))
+            for prefix in filters.cnae_prefixes or []:
+                start, end = cnae_prefix_bounds(prefix)
+                clauses.append(RegistryCompany.cnae_principal.between(start, end))
+                clauses.append(RegistryCompany.cnpj.in_(
+                    select(RegistryCompanyCnae.cnpj).where(
+                        RegistryCompanyCnae.cnae.between(start, end)),
+                ))
+            stmt = stmt.where(or_(*clauses))
         if filters.uf:
             stmt = stmt.where(RegistryCompany.uf == filters.uf)
+        elif filters.ufs:
+            stmt = stmt.where(RegistryCompany.uf.in_(filters.ufs))
         if filters.municipio_cod:
             stmt = stmt.where(RegistryCompany.municipio_cod == filters.municipio_cod)
         if filters.situacao:
             stmt = stmt.where(RegistryCompany.situacao == filters.situacao)
+        elif filters.situacoes:
+            stmt = stmt.where(RegistryCompany.situacao.in_(filters.situacoes))
         if filters.matriz is not None:
             stmt = stmt.where(RegistryCompany.matriz.is_(filters.matriz))
         if filters.porte:
             stmt = stmt.where(RegistryCompany.porte == filters.porte)
+        elif filters.portes:
+            stmt = stmt.where(RegistryCompany.porte.in_(filters.portes))
         if filters.cursor:
             stmt = stmt.where(RegistryCompany.cnpj > filters.cursor)
         stmt = stmt.order_by(RegistryCompany.cnpj).limit(filters.limit + 1)
