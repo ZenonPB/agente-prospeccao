@@ -73,10 +73,18 @@ async def _enrich_public_web_facts(lead: Any, enrichment: Any | None) -> None:
     facts = result.get("facts") or {}
     provenance = result.get("provenance") or {}
     source_url = provenance.get("source_url") or facts.get("source_url")
+    observation_valid = (
+        facts.get("site_reachable") is True
+        and facts.get("fetch_status") in (None, "ok")
+    )
     if enrichment is not None:
         raw = dict(getattr(enrichment, "raw_technical_data", None) or {})
-        raw["web_facts"] = {"facts": facts, "provenance": provenance}
+        previous_web_facts = raw.get("web_facts")
+        if observation_valid or not previous_web_facts:
+            raw["web_facts"] = {"facts": facts, "provenance": provenance}
         enrichment.raw_technical_data = raw
+    if not observation_valid:
+        return
     evidence = [
         entry for entry in (list(getattr(lead, "evidence", None) or []))
         if not (

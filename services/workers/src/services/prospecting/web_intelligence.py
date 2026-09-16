@@ -114,7 +114,7 @@ class PublicWebIntelligenceService:
             provenance = dict(evidence[0]) if evidence else {
                 "source": "public_web",
                 "source_url": candidate.get("website"),
-                "observed_at": _now_iso(),
+                "observed_at": None,
                 "provider": PROVIDER_NAME,
                 "capability": CAPABILITY,
                 "kind": "FACT",
@@ -130,7 +130,7 @@ class PublicWebIntelligenceService:
             "provenance": {
                 "source": "public_web",
                 "source_url": candidate.get("website"),
-                "observed_at": _now_iso(),
+                "observed_at": None,
                 "provider": PROVIDER_NAME,
                 "capability": CAPABILITY,
                 "kind": "FACT",
@@ -153,6 +153,11 @@ class PublicWebIntelligenceService:
             "capability": CAPABILITY,
             "kind": "FACT",
         }
+        if (
+            facts.get("fetch_status") not in (None, "ok")
+            or facts.get("site_reachable") is not True
+        ):
+            return []
         evidence: List[Dict[str, Any]] = []
         title = facts.get("page_title")
         evidence.append({

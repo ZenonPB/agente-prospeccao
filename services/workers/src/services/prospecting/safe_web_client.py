@@ -116,7 +116,8 @@ class SafePublicWebClient:
         try:
             import asyncio as _asyncio
 
-            ips = await _asyncio.to_thread(self._resolver, host, parsed.port or 443)
+            default_port = 443 if parsed.scheme.lower() == "https" else 80
+            ips = await _asyncio.to_thread(self._resolver, host, parsed.port or default_port)
         except Exception:
             raise SafeWebClientError("dns_failed")
         self.validate_destination(host, ips)

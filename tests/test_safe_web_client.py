@@ -60,6 +60,27 @@ def test_dns_resolvendo_privado_e_rejeitado():
         client.validate_destination("public.example", ["93.184.216.34", "10.0.0.1"])
 
 
+@pytest.mark.parametrize(
+    ("url", "expected_port"),
+    [("http://example.com/", 80), ("https://example.com/", 443)],
+)
+def test_dns_usa_porta_padrao_do_scheme(url, expected_port):
+    import asyncio
+
+    from services.prospecting.safe_web_client import SafePublicWebClient
+
+    seen = []
+
+    async def _run():
+        client = SafePublicWebClient(
+            resolver=lambda host, port: seen.append((host, port)) or ["93.184.216.34"],
+        )
+        await client._check_destination(url)
+
+    asyncio.run(_run())
+    assert seen == [("example.com", expected_port)]
+
+
 def test_redirect_publico_para_privado_e_bloqueado():
     import asyncio
 

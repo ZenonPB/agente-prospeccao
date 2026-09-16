@@ -138,3 +138,122 @@ def test_hook_sem_website_nao_busca(monkeypatch):
     lead.website = None
     asyncio.run(orch._enrich_public_web_facts(lead, _enrichment()))
     assert lead.evidence == []
+
+
+def test_hook_com_falha_nao_carimba_freshness(monkeypatch):
+    import asyncio
+    import services.enrichment_orchestrator as orch
+
+    monkeypatch.setattr(orch.settings, "PUBLIC_WEB_ENABLED", True)
+
+    class _Svc:
+        def __init__(self, **kwargs):
+            pass
+
+        async def enrich_one(self, candidate):
+            return {
+                "facts": {
+                    "site_reachable": "unknown",
+                    "fetch_status": "failed",
+                    "fetch_reason": "timeout",
+                    "kind": "FACT",
+                },
+                "provenance": {
+                    "source": "public_web",
+                    "source_url": candidate["website"],
+                    "provider": "public_web_intelligence",
+                    "capability": "website_facts",
+                    "kind": "FACT",
+                },
+                "evidence": [],
+            }
+
+    monkeypatch.setattr(orch, "PublicWebIntelligenceService", _Svc)
+    lead, enrichment = _lead(), _enrichment()
+    asyncio.run(orch._enrich_public_web_facts(lead, enrichment))
+    assert enrichment.raw_technical_data["web_facts"]["facts"]["site_reachable"] == "unknown"
+    assert lead.enrichment_timestamps == {}
+
+
+def test_hook_com_falha_preserva_evidencia_web_anterior(monkeypatch):
+    import asyncio
+    import services.enrichment_orchestrator as orch
+
+    monkeypatch.setattr(orch.settings, "PUBLIC_WEB_ENABLED", True)
+
+    class _Svc:
+        def __init__(self, **kwargs):
+            pass
+
+        async def enrich_one(self, candidate):
+            return {
+                "facts": {"site_reachable": "unknown", "fetch_status": "failed", "kind": "FACT"},
+                "provenance": {
+                    "source": "public_web",
+                    "source_url": candidate["website"],
+                    "provider": "public_web_intelligence",
+                    "capability": "website_facts",
+                    "kind": "FACT",
+                },
+                "evidence": [],
+            }
+
+    monkeypatch.setattr(orch, "PublicWebIntelligenceService", _Svc)
+    previous = [{"type": "web_fact", "source": "https://emp.example/", "title": "Título anterior"}]
+    lead, enrichment = _lead(evidence=previous), _enrichment()
+    asyncio.run(orch._enrich_public_web_facts(lead, enrichment))
+    assert lead.evidence == previous
+    assert lead.enrichment_timestamps == {}
+
+
+def test_hook_com_falha_preserva_snapshot_web_anterior(monkeypatch):
+    import asyncio
+    import services.enrichment_orchestrator as orch
+
+    monkeypatch.setattr(orch.settings, "PUBLIC_WEB_ENABLED", True)
+
+    class _Svc:
+        def __init__(self, **kwargs):
+            pass
+
+        async def enrich_one(self, candidate):
+            return {
+                "facts": {
+                    "site_reachable": "unknown",
+                    "fetch_status": "failed",
+                    "fetch_reason": "network_error",
+                    "kind": "FACT",
+                },
+                "provenance": {
+                    "source": "public_web",
+                    "source_url": candidate["website"],
+                    "provider": "public_web_intelligence",
+                    "capability": "website_facts",
+                    "kind": "FACT",
+                },
+                "evidence": [],
+            }
+
+    monkeypatch.setattr(orch, "PublicWebIntelligenceService", _Svc)
+    previous_web_facts = {
+        "facts": {
+            "site_reachable": True,
+            "fetch_status": "ok",
+            "page_title": "Snapshot anterior",
+        },
+        "provenance": {
+            "source": "public_web",
+            "source_url": "https://emp.example/",
+            "observed_at": "2026-09-15T00:00:00+00:00",
+        },
+    }
+    lead = _lead(evidence=[{"type": "web_fact", "title": "Snapshot anterior"}])
+    enrichment = SimpleNamespace(
+        raw_technical_data={"web_facts": previous_web_facts},
+    )
+
+    asyncio.run(orch._enrich_public_web_facts(lead, enrichment))
+
+    assert enrichment.raw_technical_data["web_facts"] == previous_web_facts
+    assert lead.enrichment_timestamps == {}
+    assert enrichment.raw_technical_data["web_facts"]["facts"]["site_reachable"] is True
