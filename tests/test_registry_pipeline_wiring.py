@@ -44,20 +44,157 @@ def test_flag_ligada_usa_registry_com_fallback_legado(monkeypatch):
     assert adapter._legacy_run is not None
 
 
-def test_plano_cnae_usa_cnaes_do_icp_em_vez_da_query_textual():
-    plan = {
-        "providers": [{"type": "cnae_discovery", "budget": 30}],
-        "target_candidates": 30,
-    }
-    icp = {"cnaes": ["25", "28", "8630-5/04"]}
-    queries = [
-        cnae for cnae in icp["cnaes"]
-    ]
-    # O plano usa uma consulta set-based; o adapter lê o conjunto no ICP.
-    queries = [""]
-    assert queries == [""]
-    # A asserção é verificada contra a mesma estrutura consumida pelo executor.
-    assert plan["providers"][0]["type"] == "cnae_discovery"
+def test_plano_cnae_usa_cnaes_do_icp_em_vez_da_query_textual(monkeypatch):
+    """O wiring real entrega o ICP ao Registry sem apagar a query legada."""
+    import asyncio
+
+    import src.pipeline_worker as worker
+    from services.registry.search import SearchResult
+
+    seen = []
+
+    class _RegistryService:
+        def search(self, filters):
+            seen.append(filters)
+            return SearchResult()
+
+    class _LegacyService:
+        async def search_by_cnae(self, **kwargs):
+            raise AssertionError("não deve rodar no caminho Registry feliz")
+
+    from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
+
+    monkeypatch.setattr(worker.settings, "REGISTRY_DISCOVERY_ENABLED", True)
+    monkeypatch.setattr(worker, "CnaeDiscoveryService", lambda: _LegacyService())
+    monkeypatch.setattr(
+        worker,
+        "_build_cnae_discovery_adapter",
+        lambda db, max_leads: RegistryCnaeDiscoveryAdapter(
+            search_service_factory=lambda: _RegistryService(), budget_total=max_leads
+        ),
+    )
+    result = asyncio.run(worker._collect_cnae_discovery(
+        object(), icp={"cnaes": ["25", "28", "8630-5/04"]}, max_leads=30,
+    ))
+    assert result == []
+    assert len(seen) == 1
+    assert seen[0].cnae_prefixes == ["25", "28"]
+    assert seen[0].cnaes == ["8630504"]
+
+
+def test_queries_do_runtime_preservam_legado_e_registry_set_based(monkeypatch):
+    worker = _worker()
+
+    assert worker._discovery_queries_for_step(
+        "cnae_discovery",
+        search_queries=["metalúrgica", "usinagem"],
+        legacy_cnae_query="28",
+        registry_enabled=False,
+        has_declarative_cnae=True,
+    ) == ["metalúrgica", "usinagem"]
+    assert worker._discovery_queries_for_step(
+        "cnae_discovery",
+        search_queries=["metalúrgica"],
+        legacy_cnae_query="28",
+        registry_enabled=True,
+        has_declarative_cnae=True,
+    ) == [""]
+    assert worker._discovery_queries_for_step(
+        "cnae_discovery",
+        search_queries=["metalúrgica"],
+        legacy_cnae_query="metalúrgica",
+        registry_enabled=True,
+        has_declarative_cnae=False,
+    ) == ["metalúrgica"]
+
+
+def test_registry_off_entrega_cnae_legado_ao_servico_real(monkeypatch):
+    import asyncio
+    import src.pipeline_worker as worker
+
+    calls = []
+
+    class _LegacyService:
+        async def search_by_cnae(self, **kwargs):
+            calls.append(kwargs)
+            return [{"name": "Legado"}]
+
+    monkeypatch.setattr(worker.settings, "REGISTRY_DISCOVERY_ENABLED", False)
+    monkeypatch.setattr(worker, "CnaeDiscoveryService", lambda: _LegacyService())
+    result = asyncio.run(worker._collect_cnae_discovery(
+        object(), cnae_code="28", max_leads=7,
+    ))
+    assert result == [{"name": "Legado"}]
+    assert calls[0]["cnae_code"] == "28"
+
+
+def test_registry_fallback_entrega_cnae_valido_ao_legado(monkeypatch):
+    import asyncio
+    import src.pipeline_worker as worker
+    from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
+
+    seen = []
+
+    class _RegistryService:
+        def search(self, filters):
+            raise RuntimeError("registry indisponível")
+
+    class _LegacyService:
+        async def search_by_cnae(self, **kwargs):
+            seen.append(kwargs)
+            return [{"name": "Legado"}]
+
+    monkeypatch.setattr(worker.settings, "REGISTRY_DISCOVERY_ENABLED", True)
+    monkeypatch.setattr(worker, "CnaeDiscoveryService", lambda: _LegacyService())
+    monkeypatch.setattr(
+        worker,
+        "_build_cnae_discovery_adapter",
+        lambda db, max_leads: RegistryCnaeDiscoveryAdapter(
+            search_service_factory=lambda: _RegistryService(), budget_total=max_leads,
+            legacy_run=lambda query, ctx: worker.CnaeDiscoveryAdapter(
+                _LegacyService(), budget_total=max_leads
+            ).run(query, ctx),
+        ),
+    )
+    result = asyncio.run(worker._collect_cnae_discovery(
+        object(), icp={"cnaes": ["28"]}, max_leads=7,
+    ))
+    assert result == [{"name": "Legado"}]
+    assert seen[0]["cnae_code"] == "28"
+
+
+def test_registry_fallback_prioriza_cnae_code_explicito(monkeypatch):
+    import asyncio
+    import src.pipeline_worker as worker
+    from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
+
+    seen = []
+
+    class _RegistryService:
+        def search(self, filters):
+            raise RuntimeError("registry indisponível")
+
+    class _LegacyService:
+        async def search_by_cnae(self, **kwargs):
+            seen.append(kwargs)
+            return [{"name": "Legado"}]
+
+    monkeypatch.setattr(worker.settings, "REGISTRY_DISCOVERY_ENABLED", True)
+    monkeypatch.setattr(
+        worker,
+        "_build_cnae_discovery_adapter",
+        lambda db, max_leads: RegistryCnaeDiscoveryAdapter(
+            search_service_factory=lambda: _RegistryService(), budget_total=max_leads,
+            legacy_run=lambda query, ctx: worker.CnaeDiscoveryAdapter(
+                _LegacyService(), budget_total=max_leads
+            ).run(query, ctx),
+        ),
+    )
+    result = asyncio.run(worker._collect_cnae_discovery(
+        object(), cnae_code="250", icp={}, max_leads=7,
+    ))
+    assert result == [{"name": "Legado"}]
+    assert seen[0]["cnae_code"] == "250"
 
 
 def test_adapter_registry_consume_icp_sem_segmento_textual():

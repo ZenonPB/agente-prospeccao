@@ -290,13 +290,20 @@ Estado observável nesta branch (não mergeado; sem migração — zero migratio
   primária e o `CnaeDiscoveryService` legado vira fallback automático em
   falha; default (`False`) mantém comportamento idêntico ao anterior;
 - CNAE com semântica explícita (`services/registry/cnae_matching.py`):
-  completo 7 dígitos → exato; prefixo 1–6 dígitos → faixa ancorada
-  (ex.: `"28"` → `2800000–2899999`); inválido → `ValueError` (fail-closed);
+  divisão 2 dígitos (ex.: `"28"`) → faixa `2800000–2899999`; grupo 3 dígitos
+  (ex.: `"250"`) → faixa `2500000–2509999`; classe 4 dígitos e prefixos
+  intermediários de 5–6 dígitos → faixa ancorada; subclasse completa de 7
+  dígitos (ex.: `"8630-5/04"`) → exato; inválido → `ValueError`
+  (fail-closed);
   `SearchFilters` aceita `cnae_prefixes` + `situacoes`, preservando keyset e
   no máximo 3 queries;
 - gate anti-varredura (`services/registry/targeting.py`): sem ≥1 CNAE
   válido o Registry não é consultado (retorna `None`, chamador usa providers
-  existentes); 1 UF vira filtro, múltiplas UFs não inventam filtro; raio/
+  existentes); 1 UF vira filtro e múltiplas UFs suportadas viram filtro `IN`;
+  somente as 27 UFs canônicas são aceitas (case/whitespace externos são
+  normalizados; vazios, códigos inexistentes e valores malformados falham
+  fechado);
+  raio/
   cidade-nome nunca viram `municipio_cod` (vão para `unapplied`);
   `target_candidates` vira `limit` da query PG (filtro no banco, depois
   paginação) — nunca materializa o universo para fatiar em Python; múltiplas

@@ -61,6 +61,25 @@ from services.provider_execution_metric_service import ProviderExecutionMetricSe
 logger = logging.getLogger(__name__)
 
 
+def _legacy_cnae_query(cnae_code, campaign, query, icp=None):
+    """Retorna a query que o adapter legado interpretava como CNAE."""
+    declared = list((icp or {}).get("cnaes") or [])
+    return cnae_code or (declared[0] if declared else None) or (
+        campaign.target_segment if campaign else None
+    ) or query
+
+
+def _discovery_queries_for_step(
+    provider, *, search_queries, legacy_cnae_query, registry_enabled, has_declarative_cnae,
+):
+    """Mantém query textual no legado e usa ICP set-based no Registry."""
+    if provider == "google_places":
+        return list(search_queries)
+    if provider == "cnae_discovery" and registry_enabled and has_declarative_cnae:
+        return [""]
+    return list(search_queries) or [legacy_cnae_query]
+
+
 def _build_cnae_discovery_adapter(db, max_leads):
     """Monta o `cnae_discovery` Registry-backed ou o legado (fallback).
 
@@ -745,9 +764,16 @@ async def run_pipeline(
                     {
                         "type": provider,
                         "queries": (
-                            [""]
-                            if provider == "cnae_discovery" and (offer_resolution.icp or {}).get("cnaes")
-                            else list((campaign.search_queries or []) if campaign and campaign.search_queries else [query])
+                            _discovery_queries_for_step(
+                                provider,
+                                search_queries=(campaign.search_queries or [])
+                                if campaign and campaign.search_queries else [query],
+                                legacy_cnae_query=_legacy_cnae_query(
+                                    cnae_code, campaign, query, offer_resolution.icp,
+                                ),
+                                registry_enabled=getattr(settings, "REGISTRY_DISCOVERY_ENABLED", False),
+                                has_declarative_cnae=bool((offer_resolution.icp or {}).get("cnaes")),
+                            )
                         ),
                         "budget": (offer_resolution.discovery.get("provider_budgets") or {}).get(provider, 50),
                     }
@@ -1130,10 +1156,19 @@ async def run_pipeline(
                     "providers": [
                         {
                             **step,
-                            "queries": (
-                                search_queries
-                                if step.get("type") == "google_places"
-                                else [""]
+                            "queries": _discovery_queries_for_step(
+                                step.get("type"),
+                                search_queries=search_queries,
+                                legacy_cnae_query=_legacy_cnae_query(
+                                    cnae_code, campaign, query,
+                                    (offer_resolution.icp if offer_resolution else None),
+                                ),
+                                registry_enabled=getattr(
+                                    settings, "REGISTRY_DISCOVERY_ENABLED", False,
+                                ),
+                                has_declarative_cnae=bool(
+                                    ((offer_resolution.icp if offer_resolution else None) or {}).get("cnaes")
+                                ),
                             ),
                             "budget": min(target_limit, step.get("budget", target_limit)),
                         }
