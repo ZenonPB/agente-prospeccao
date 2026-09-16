@@ -135,6 +135,9 @@ def _legacy_query(query: str, ctx: Dict[str, Any]) -> str:
     """Mantém fallback legado útil quando o Registry usa query set-based vazia."""
     if (query or "").strip():
         return query
+    explicit_cnae = ctx.get("cnae_code")
+    if explicit_cnae:
+        return str(explicit_cnae)
     cnaes = ((ctx.get("icp") or {}).get("cnaes") or [])
     return str(cnaes[0]) if cnaes else ""
 

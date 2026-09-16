@@ -30,6 +30,18 @@ def test_multiplos_states_nao_inventa_filtro():
     assert filters.municipio_cod is None
 
 
+def test_multiplos_states_aplicados_nao_sao_unapplied():
+    from services.registry.targeting import TargetingResult
+
+    result = TargetingResult.from_offer({
+        "cnaes": ["28"],
+        "geography": {"states": ["SP", "MG"]},
+    })
+    assert result.filters is not None
+    assert result.filters.ufs == ["MG", "SP"]
+    assert "multi_uf" not in result.unapplied
+
+
 def test_campanha_sem_cnae_nao_varre_registry():
     from services.registry.targeting import build_search_filters
 
@@ -56,6 +68,63 @@ def test_cnae_prefixo_divisao_chega_ao_search():
     assert filters is not None
     assert filters.cnae_prefixes == ["28"]
     assert filters.cnaes == ["8630504"]
+
+
+def test_cnae_prefixo_com_zero_a_direita_preserva_granularidade():
+    from services.registry.targeting import build_search_filters
+
+    filters = build_search_filters({"cnaes": ["250"]})
+    assert filters is not None
+    assert filters.cnae_prefixes == ["250"]
+
+
+def test_states_precisa_ser_lista_de_ufs():
+    from services.registry.targeting import build_search_filters
+
+    assert build_search_filters({"cnaes": ["28"], "geography": {"states": "SP"}}) is None
+    assert build_search_filters({"cnaes": ["28"], "geography": {"states": ["S"]}}) is None
+
+
+def test_ufs_validas_normalizam_lowercase_e_deduplicam():
+    from services.registry.targeting import build_search_filters
+
+    filters = build_search_filters({
+        "cnaes": ["28"],
+        "geography": {"states": [" sp ", "MG", "SP"]},
+    })
+
+    assert filters is not None
+    assert filters.uf is None
+    assert filters.ufs == ["MG", "SP"]
+
+
+def test_uf_duplicada_colapsa_para_filtro_singular():
+    from services.registry.targeting import build_search_filters
+
+    filters = build_search_filters({
+        "cnaes": ["28"],
+        "geography": {"states": ["SP", "sp"]},
+    })
+
+    assert filters is not None
+    assert filters.uf == "SP"
+    assert filters.ufs is None
+
+
+def test_uf_inexistente_nao_e_aplicada_silenciosamente():
+    from services.registry.targeting import build_search_filters
+
+    assert build_search_filters({"cnaes": ["28"], "geography": {"states": ["XX"]}}) is None
+
+
+def test_ufs_malformadas_nao_sao_filtradas_silenciosamente():
+    from services.registry.targeting import build_search_filters
+
+    for states in ([""], ["   "], ["123"], ["SAO PAULO"], ["SP", "XX"]):
+        assert build_search_filters({
+            "cnaes": ["28"],
+            "geography": {"states": states},
+        }) is None
 
 
 def test_target_candidates_vira_limit_sem_materializar_universo():

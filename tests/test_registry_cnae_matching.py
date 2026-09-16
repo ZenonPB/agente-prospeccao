@@ -64,6 +64,34 @@ def test_entrada_invalida_falha_fechado():
         parse_cnae_tokens(["abc28"])
 
 
+def test_search_filters_rejeita_cnae_prefixo_invalido_sem_sanitizar():
+    from services.registry.search import SearchFilters
+
+    with pytest.raises(ValueError):
+        SearchFilters(cnae_prefixes=["abc28"])
+    with pytest.raises(ValueError):
+        SearchFilters(cnae_prefixes=[""])
+    with pytest.raises(ValueError):
+        SearchFilters(cnae_prefixes=["1"])
+
+
+def test_search_filters_aceita_prefixos_e_exatos_canonicos():
+    from services.registry.search import SearchFilters
+
+    filters = SearchFilters(cnae_prefixes=["28", "25", "28"], cnaes=["8630504"])
+    assert filters.cnae_prefixes == ["25", "28"]
+    assert filters.cnaes == ["8630504"]
+
+
+def test_search_filters_rejeita_uf_invalida_sem_sanitizar():
+    from services.registry.search import SearchFilters
+
+    with pytest.raises(ValueError):
+        SearchFilters(ufs=["SP", "XX"])
+    with pytest.raises(ValueError):
+        SearchFilters(ufs=["   "])
+
+
 def test_sem_tokens_filtro_vazio_explicito():
     from services.registry.cnae_matching import parse_cnae_tokens
 

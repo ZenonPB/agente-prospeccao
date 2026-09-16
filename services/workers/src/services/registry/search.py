@@ -12,10 +12,21 @@ from sqlalchemy.orm import Session
 
 from database.models import RegistryCnae, RegistryCompany, RegistryCompanyCnae
 from services.registry.candidate import RegistryCandidate
+from services.registry.cnae_matching import (
+    MAX_PREFIX_LEN,
+    MIN_PREFIX_LEN,
+    cnae_prefix_bounds,
+    normalize_cnae_token,
+)
 from services.registry.cnpj import normalize_cnpj
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 100
+BRAZILIAN_UF_CODES = frozenset({
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+    "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+    "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+})
 
 @dataclass(frozen=True)
 class SearchFilters:
@@ -43,23 +54,36 @@ class SearchFilters:
                 raise ValueError(f"cursor inválido: {self.cursor!r}")
             object.__setattr__(self, "cursor", cursor)
         if self.uf is not None:
-            object.__setattr__(self, "uf", self.uf.strip().upper() or None)
+            uf = str(self.uf).strip().upper()
+            if uf not in BRAZILIAN_UF_CODES:
+                raise ValueError(f"UF inválida: {self.uf!r}")
+            object.__setattr__(self, "uf", uf)
         if self.ufs is not None:
+            normalized_ufs = [str(uf).strip().upper() for uf in self.ufs]
+            if any(uf not in BRAZILIAN_UF_CODES for uf in normalized_ufs):
+                raise ValueError(f"UF inválida: {self.ufs!r}")
             object.__setattr__(
                 self, "ufs",
-                sorted({str(uf).strip().upper() for uf in self.ufs if str(uf).strip()}) or None,
+                sorted(set(normalized_ufs)) or None,
             )
         if self.cnaes is not None:
-            object.__setattr__(
-                self, "cnaes", [c.strip() for c in self.cnaes if c and c.strip()] or None)
+            exact: list[str] = []
+            for raw in self.cnaes:
+                digits = normalize_cnae_token(raw)
+                if len(digits) != 7:
+                    raise ValueError(f"CNAE exato inválido: {raw!r}")
+                if digits not in exact:
+                    exact.append(digits)
+            object.__setattr__(self, "cnaes", sorted(exact) or None)
         if self.cnae_prefixes is not None:
-            prefixes = [p.strip() for p in self.cnae_prefixes if p and p.strip()] or None
-            if prefixes:
-                for prefix in prefixes:
-                    digits = "".join(ch for ch in prefix if ch.isdigit())
-                    if not digits or len(digits) > 6:
-                        raise ValueError(f"prefixo CNAE inválido: {prefix!r}")
-            object.__setattr__(self, "cnae_prefixes", prefixes)
+            prefixes: list[str] = []
+            for raw in self.cnae_prefixes:
+                digits = normalize_cnae_token(raw)
+                if not MIN_PREFIX_LEN <= len(digits) <= MAX_PREFIX_LEN:
+                    raise ValueError(f"prefixo CNAE inválido: {raw!r}")
+                if digits not in prefixes:
+                    prefixes.append(digits)
+            object.__setattr__(self, "cnae_prefixes", sorted(prefixes) or None)
         if self.situacoes is not None:
             object.__setattr__(
                 self, "situacoes",
@@ -99,9 +123,7 @@ class RegistrySearchService:
                         RegistryCompanyCnae.cnae.in_(filters.cnaes)),
                 ))
             for prefix in filters.cnae_prefixes or []:
-                digits = "".join(ch for ch in prefix if ch.isdigit())
-                start = digits + "0" * (7 - len(digits))
-                end = digits + "9" * (7 - len(digits))
+                start, end = cnae_prefix_bounds(prefix)
                 clauses.append(RegistryCompany.cnae_principal.between(start, end))
                 clauses.append(RegistryCompany.cnpj.in_(
                     select(RegistryCompanyCnae.cnpj).where(

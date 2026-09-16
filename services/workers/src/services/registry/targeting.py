@@ -4,8 +4,8 @@ Regras (§7/§8 do plano, ajustes obrigatórios aprovados):
 
 - Registry exige ≥1 CNAE válido — sem CNAE, retorna None (chamador usa
   providers existentes; nunca varre o universo).
-- Geografia: só 1 UF vira filtro; município por código só quando o caller já
-  resolveu; raio/cidade-nome NUNCA viram município — vão para `unapplied`.
+- Geografia: UFs viram filtro set-based; município por código só quando o caller
+  já resolveu; raio/cidade-nome NUNCA viram município — vão para `unapplied`.
 - `target_candidates` vira `limit` da query PG (primeiro filtro no banco,
   depois paginação) — nunca materializa o universo para fatiar em Python.
 """
@@ -15,7 +15,12 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 from services.registry.cnae_matching import CnaeFilter, parse_cnae_tokens
-from services.registry.search import PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX, SearchFilters
+from services.registry.search import (
+    BRAZILIAN_UF_CODES,
+    PAGE_SIZE_DEFAULT,
+    PAGE_SIZE_MAX,
+    SearchFilters,
+)
 
 
 # Códigos do campo PORTE do layout EMPRESAS da Receita Federal.
@@ -25,7 +30,6 @@ PORTE_CODES = {
     "EPP": "03",
     "GE": "05",
 }
-
 
 @dataclass(frozen=True)
 class TargetingOutcome:
@@ -49,24 +53,12 @@ class TargetingResult:
         unapplied: list[str] = []
         if geo.get("radius_km") or geo.get("radius") or geo.get("city"):
             unapplied.append("radius")
-        states = geo.get("states") or []
-        if isinstance(states, list) and len([s for s in states if str(s).strip()]) > 1:
-            unapplied.append("multi_uf")
         return TargetingOutcome(filters, tuple(unapplied))
 
 
 def _geography(icp: Mapping[str, Any]) -> Mapping[str, Any]:
     geo = (icp or {}).get("geography") or {}
     return geo if isinstance(geo, Mapping) else {}
-
-
-def _prefix_token(start: str) -> str:
-    """Recupera o token de prefixo a partir do início da faixa."""
-    for length in range(1, 7):
-        if start == start[:length] + "0" * (7 - length):
-            return start[:length]
-    return start
-
 
 def build_search_filters(
     icp: Mapping[str, Any] | None,
@@ -85,7 +77,17 @@ def build_search_filters(
     if cnae.empty:
         return None
     geo = _geography(icp)
-    states = [s for s in (geo.get("states") or []) if str(s).strip()]
+    raw_states = geo.get("states")
+    if raw_states is None:
+        raw_states = []
+    if not isinstance(raw_states, (list, tuple)):
+        return None
+    states = list(dict.fromkeys(str(state).strip().upper() for state in raw_states))
+    if any(
+        state not in BRAZILIAN_UF_CODES
+        for state in states
+    ):
+        return None
     uf = str(states[0]).strip().upper() if len(states) == 1 else None
     ufs = sorted({str(state).strip().upper() for state in states}) or None
     sizes = [str(value).strip().upper() for value in (icp.get("company_sizes") or [])]
@@ -108,7 +110,7 @@ def build_search_filters(
     wanted_int = max(1, min(wanted_int, PAGE_SIZE_MAX))
     return SearchFilters(
         cnaes=sorted(cnae.exact) or None,
-        cnae_prefixes=sorted({_prefix_token(s) for (s, _e) in cnae.prefixes}) or None,
+        cnae_prefixes=list(cnae.prefix_tokens) or None,
         uf=uf,
         ufs=ufs if len(states) > 1 else None,
         municipio_cod=str(municipality).strip() if municipality else None,
