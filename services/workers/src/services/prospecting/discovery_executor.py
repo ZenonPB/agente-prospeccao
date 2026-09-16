@@ -239,11 +239,25 @@ class DiscoveryExecutor:
             all_results: List[Dict[str, Any]] = []
             started = time.perf_counter()
             first_error: Optional[Exception] = None
+            explicit_status: Optional[str] = None
+            explicit_reason: Optional[str] = None
             for q in queries:
+                if len(all_results) >= max_results:
+                    break
                 try:
-                    res = provider.run(q, lead_context=lead_context)
+                    status_runner = getattr(provider, "run_with_status", None)
+                    res = (
+                        status_runner(q, lead_context=lead_context)
+                        if status_runner is not None
+                        else provider.run(q, lead_context=lead_context)
+                    )
                     if inspect.isawaitable(res):
                         res = await res
+                    if status_runner is not None and isinstance(res, dict):
+                        status = str(res.get("status") or "success")
+                        explicit_status = _merge_provider_status(explicit_status, status)
+                        explicit_reason = explicit_reason or res.get("reason")
+                        res = res.get("items") or []
                     all_results.extend(
                         {
                             **candidate,
@@ -273,6 +287,11 @@ class DiscoveryExecutor:
                 provider_status[provider_name] = "failed"
                 provider_errors[provider_name] = f"{type(first_error).__name__}: {first_error}"
                 metric_status = "failed"
+            elif explicit_status is not None:
+                provider_status[provider_name] = explicit_status
+                if explicit_reason:
+                    provider_errors[provider_name] = str(explicit_reason)[:300]
+                metric_status = explicit_status
             else:
                 provider_status[provider_name] = "success" if deduped else "empty"
                 metric_status = provider_status[provider_name]
@@ -433,3 +452,19 @@ class DiscoveryExecutor:
             key: list(dict.fromkeys([*(left.get(key) or []), *(right.get(key) or [])]))
             for key in ("providers", "provider_queries", "provider_candidate_ids")
         }
+
+
+def _merge_provider_status(current: Optional[str], incoming: str) -> str:
+    """Combina status de várias queries sem transformar falha em sucesso."""
+    if current is None:
+        return incoming
+    priority = {
+        "failed": 5,
+        "unavailable": 4,
+        "invalid": 3,
+        "disabled": 3,
+        "fallback": 2,
+        "success": 1,
+        "empty": 0,
+    }
+    return incoming if priority.get(incoming, 2) > priority.get(current, 2) else current

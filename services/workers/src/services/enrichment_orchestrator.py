@@ -34,8 +34,75 @@ from services.enrichment_capability_registry import (
     plan_enrichment_run,
 )
 from services import enrichment_ts
+from config.settings import settings
+from services.prospecting.web_intelligence import PublicWebIntelligenceService
 
 logger = logging.getLogger(__name__)
+
+
+_WEB_FACT_EVIDENCE_FIELDS = (
+    ("page_title", "Título da homepage"),
+    ("meta_description", "Meta description da homepage"),
+    ("contact_page", "Página de contato encontrada"),
+    ("about_page", "Página institucional encontrada"),
+    ("services_page", "Página de serviços encontrada"),
+)
+
+
+async def _enrich_public_web_facts(lead: Any, enrichment: Any | None) -> None:
+    """Coleta FACTs públicos da homepage (1D) sem LLM e sem API paga.
+
+    Roda somente com `PUBLIC_WEB_ENABLED=True` e website presente. Persiste
+    em `Enrichment.raw_technical_data["web_facts"]` + entradas
+    `Lead.evidence` (kind FACT, com provenance). Falha → UNKNOWN, nunca
+    derruba o batch. Sem commit aqui — a boundary é do chamador.
+    """
+    if not getattr(settings, "PUBLIC_WEB_ENABLED", False):
+        return
+    if lead is None or not getattr(lead, "website", None):
+        return
+    try:
+        service = PublicWebIntelligenceService(
+            max_concurrency=int(getattr(settings, "PUBLIC_WEB_MAX_CONCURRENCY", 4)),
+            max_candidates=int(getattr(settings, "PUBLIC_WEB_MAX_TARGETS", 30)),
+        )
+        result = await service.enrich_one({"website": lead.website})
+    except Exception as exc:  # noqa: BLE001 — best-effort, nunca derruba o batch
+        logger.warning("Web facts ignorado para '%s': %s", getattr(lead, "company_name", "?"), exc)
+        return
+    facts = result.get("facts") or {}
+    provenance = result.get("provenance") or {}
+    source_url = provenance.get("source_url") or facts.get("source_url")
+    if enrichment is not None:
+        raw = dict(getattr(enrichment, "raw_technical_data", None) or {})
+        raw["web_facts"] = {"facts": facts, "provenance": provenance}
+        enrichment.raw_technical_data = raw
+    evidence = [
+        entry for entry in (list(getattr(lead, "evidence", None) or []))
+        if not (
+            entry.get("type") == "web_fact"
+            and entry.get("source") == source_url
+        )
+    ]
+    for field, title in _WEB_FACT_EVIDENCE_FIELDS:
+        value = facts.get(field)
+        if not value:
+            continue
+        evidence.append({
+            "type": "web_fact",
+            "severity": "info",
+            "title": title,
+            "description": str(value)[:500],
+            "source": source_url,
+            "source_url": provenance.get("source_url") or source_url,
+            "observed_at": provenance.get("observed_at"),
+            "provider": provenance.get("provider") or "public_web_intelligence",
+            "capability": provenance.get("capability") or "website_facts",
+            "kind": "FACT",
+        })
+    if evidence != (getattr(lead, "evidence", None) or []):
+        lead.evidence = evidence
+    enrichment_ts.stamp(lead, "public_web")
 
 
 async def _enrich_cnpj_facts(
@@ -273,6 +340,13 @@ async def process_single_lead(
         )
 
     _persist_scoring(lead, scoring_data, enrichment, qualification_threshold)
+
+    # 1D — Public Web Intelligence (FACTs determinísticos, sem LLM/pago).
+    # Roda após _persist_scoring (que sobrescreve lead.evidence) e SOMENTE
+    # quando a oferta declara `public_web_facts` nos enrichment_steps.
+    # Ofertas existentes não declaram → comportamento inalterado.
+    if "public_web_facts" in runnable:
+        await _enrich_public_web_facts(lead, enrichment)
 
     if scoring_data:
         logger.info(

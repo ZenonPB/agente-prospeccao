@@ -21,11 +21,15 @@ PAGE_SIZE_MAX = 100
 class SearchFilters:
     cnpj: str | None = None
     cnaes: list[str] | None = None
+    cnae_prefixes: list[str] | None = None
     uf: str | None = None
+    ufs: list[str] | None = None
     municipio_cod: str | None = None
     situacao: str | None = None
+    situacoes: list[str] | None = None
     matriz: bool | None = None
     porte: str | None = None
+    portes: list[str] | None = None
     limit: int = PAGE_SIZE_DEFAULT
     cursor: str | None = None
 
@@ -40,9 +44,30 @@ class SearchFilters:
             object.__setattr__(self, "cursor", cursor)
         if self.uf is not None:
             object.__setattr__(self, "uf", self.uf.strip().upper() or None)
+        if self.ufs is not None:
+            object.__setattr__(
+                self, "ufs",
+                sorted({str(uf).strip().upper() for uf in self.ufs if str(uf).strip()}) or None,
+            )
         if self.cnaes is not None:
             object.__setattr__(
                 self, "cnaes", [c.strip() for c in self.cnaes if c and c.strip()] or None)
+        if self.cnae_prefixes is not None:
+            prefixes = [p.strip() for p in self.cnae_prefixes if p and p.strip()] or None
+            if prefixes:
+                for prefix in prefixes:
+                    digits = "".join(ch for ch in prefix if ch.isdigit())
+                    if not digits or len(digits) > 6:
+                        raise ValueError(f"prefixo CNAE inválido: {prefix!r}")
+            object.__setattr__(self, "cnae_prefixes", prefixes)
+        if self.situacoes is not None:
+            object.__setattr__(
+                self, "situacoes",
+                [s.strip() for s in self.situacoes if s and s.strip()] or None)
+        if self.portes is not None:
+            object.__setattr__(
+                self, "portes",
+                [p.strip() for p in self.portes if p and p.strip()] or None)
 
 
 @dataclass(frozen=True)
@@ -65,24 +90,40 @@ class RegistrySearchService:
         stmt = select(RegistryCompany)
         if cnpj:
             stmt = stmt.where(RegistryCompany.cnpj == cnpj)
-        if filters.cnaes:
-            stmt = stmt.where(or_(
-                RegistryCompany.cnae_principal.in_(filters.cnaes),
-                RegistryCompany.cnpj.in_(
+        if filters.cnaes or filters.cnae_prefixes:
+            clauses = []
+            if filters.cnaes:
+                clauses.append(RegistryCompany.cnae_principal.in_(filters.cnaes))
+                clauses.append(RegistryCompany.cnpj.in_(
                     select(RegistryCompanyCnae.cnpj).where(
                         RegistryCompanyCnae.cnae.in_(filters.cnaes)),
-                ),
-            ))
+                ))
+            for prefix in filters.cnae_prefixes or []:
+                digits = "".join(ch for ch in prefix if ch.isdigit())
+                start = digits + "0" * (7 - len(digits))
+                end = digits + "9" * (7 - len(digits))
+                clauses.append(RegistryCompany.cnae_principal.between(start, end))
+                clauses.append(RegistryCompany.cnpj.in_(
+                    select(RegistryCompanyCnae.cnpj).where(
+                        RegistryCompanyCnae.cnae.between(start, end)),
+                ))
+            stmt = stmt.where(or_(*clauses))
         if filters.uf:
             stmt = stmt.where(RegistryCompany.uf == filters.uf)
+        elif filters.ufs:
+            stmt = stmt.where(RegistryCompany.uf.in_(filters.ufs))
         if filters.municipio_cod:
             stmt = stmt.where(RegistryCompany.municipio_cod == filters.municipio_cod)
         if filters.situacao:
             stmt = stmt.where(RegistryCompany.situacao == filters.situacao)
+        elif filters.situacoes:
+            stmt = stmt.where(RegistryCompany.situacao.in_(filters.situacoes))
         if filters.matriz is not None:
             stmt = stmt.where(RegistryCompany.matriz.is_(filters.matriz))
         if filters.porte:
             stmt = stmt.where(RegistryCompany.porte == filters.porte)
+        elif filters.portes:
+            stmt = stmt.where(RegistryCompany.porte.in_(filters.portes))
         if filters.cursor:
             stmt = stmt.where(RegistryCompany.cnpj > filters.cursor)
         stmt = stmt.order_by(RegistryCompany.cnpj).limit(filters.limit + 1)
