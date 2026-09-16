@@ -277,6 +277,108 @@ para `Company`; sem consumo por campanhas; sem Places/web/people/scores.
 1C integra o Registry ao discovery (shadow/opt-in) e resolve identidade
 RegistryCandidate → Company quando houver regra explícita.
 
+### Integração 1C + 1D (em validação — branch `feat/registry-discovery-web-intelligence`)
+
+Estado observável nesta branch (não mergeado; sem migração — zero migrations):
+
+- runtime produtivo preservado: OfferProfile → plano →
+  `DiscoveryProviderRegistry` → `DiscoveryExecutor`; federation segue seam
+  futuro e `RegistryDiscoveryProvider` continua fora do pipeline produtivo;
+- conceito público continua `cnae_discovery` (sem provider novo): com
+  `REGISTRY_DISCOVERY_ENABLED=True`, `RegistryCnaeDiscoveryAdapter`
+  (workers `services/registry/discovery_adapter.py`) vira a implementação
+  primária e o `CnaeDiscoveryService` legado vira fallback automático em
+  falha; default (`False`) mantém comportamento idêntico ao anterior;
+- CNAE com semântica explícita (`services/registry/cnae_matching.py`):
+  completo 7 dígitos → exato; prefixo 1–6 dígitos → faixa ancorada
+  (ex.: `"28"` → `2800000–2899999`); inválido → `ValueError` (fail-closed);
+  `SearchFilters` aceita `cnae_prefixes` + `situacoes`, preservando keyset e
+  no máximo 3 queries;
+- gate anti-varredura (`services/registry/targeting.py`): sem ≥1 CNAE
+  válido o Registry não é consultado (retorna `None`, chamador usa providers
+  existentes); 1 UF vira filtro, múltiplas UFs não inventam filtro; raio/
+  cidade-nome nunca viram `municipio_cod` (vão para `unapplied`);
+  `target_candidates` vira `limit` da query PG (filtro no banco, depois
+  paginação) — nunca materializa o universo para fatiar em Python; múltiplas
+  UFs suportadas viram `IN` set-based, sem varredura por UF em Python;
+- RegistryCandidate continua separado do CRM (sem `organization_id`; busca
+  pura não cria Company/Lead/Opportunity); promoção usa a fronteira
+  existente (`resolve_cross_provider_lead` → `find_company_by_aliases`,
+  CNPJ → domínio → aliases);
+- shadow barato (`REGISTRY_SHADOW_MODE=True`, coroutine, nunca loop
+  aninhado): `compare` conta candidatos no nível mais barato (sem
+  enrichment, sem Places/Groq, sem promoção; `enrichment_calls=0`/
+  `promoted_count=0`), persistido em `ProviderExecutionMetric.usage`
+  (`cnae_discovery:shadow`) — sem nova tabela. Nesta fatia o shadow do
+  pipeline registra `registry_count`/`registry_status`; `legacy_count`/
+  `overlap` ficam em 0 porque o legado externo não é reexecutado só para
+  comparar (a série histórica de `provider_metrics` continua sendo a base
+  de comparação; o `compare` unitário com `legacy_run` cobre overlap);
+- 1D (`services/prospecting/safe_web_client.py` + `web_facts.py` +
+  `web_intelligence.py`): `SafePublicWebClient` com allowlist http/https,
+  DNS resolve-all (qualquer IP não-global rejeita), redirect manual com
+  revalidação por hop, timeouts, streaming com teto (~2 MB), Content-Type
+  allowlist, sem JS/headless; extração determinística FACT-only (sem LLM,
+  sem API paga); falha → `UNKNOWN`, nunca `website_absent`; `observed_at` =
+  UTC real da observação; provenance reutilizada
+  (`source/source_url/observed_at/provider/capability/kind=FACT`); hook
+  opt-in `public_web_facts` no enrichment (após `_persist_scoring`,
+  `PUBLIC_WEB_ENABLED=True`, só com website) persiste em
+  `Enrichment.raw_technical_data["web_facts"]` + `Lead.evidence`;
+  concorrência limitada, sem transação DB aberta durante HTTP;
+- consumidores web legados (`TechnicalEnrichmentService`, people providers)
+  NÃO foram migrados nesta fatia (dívida explícita): o caminho 1D novo é
+  seguro; a consolidação gradual fica para depois com substituição pequena
+  e behavior-preserving;
+- configuração (default seguro, kill-switch sem rollback de banco):
+  `REGISTRY_DISCOVERY_ENABLED`, `REGISTRY_SHADOW_MODE` (API + workers),
+  `PUBLIC_WEB_ENABLED`, `PUBLIC_WEB_MAX_TARGETS`,
+  `PUBLIC_WEB_MAX_CONCURRENCY` (workers).
+
+- O caminho dedicado `source=cnae` reutiliza o mesmo adapter Registry-backed;
+  com Registry desligado ou sem targeting declarativo, mantém o fallback legado.
+
+Validação PostgreSQL desta branch (banco local descartável, PostgreSQL 16.14):
+os testes Registry/search/prefix/provider/ingestion/tenant passaram em banco
+real; migrations passaram no upgrade vazio, segundo upgrade e schema verifier;
+backup/restore com `pg_dump`/`pg_restore` também passou. O benchmark sintético
+de 30.000 empresas demonstrou LIMIT no PostgreSQL, matching set-based e não
+materialização do universo. O índice de CNAE secundário existente é
+`ix_registry_cnaes_cnae (cnae, cnpj)`, criado na migration
+`c1d2e3f4a5b6` e verificado pelo schema verifier. O EXPLAIN do dataset
+pequeno mostrou `Seq Scan` na associação com apenas 32 linhas; isso é uma
+escolha racional do planner para tabela minúscula, não evidência para criar
+índice adicional. Benchmark com milhões de associações secundárias permanece
+validação operacional pendente.
+
+Limites conhecidos: `empty` (sem match) vs snapshot ausente não são
+distinguidos (sem query extra); TOCTOU resolve→connect documentado como
+risco residual (httpx não pinna IP com SNI de forma simples); snapshot real da
+Receita e piloto AlphaMec ainda não estão disponíveis neste ambiente. A falha
+de concorrência do Historical Importer em
+`test_import_concurrency.py::test_confirm_concorrente_aceita_um_e_rejeita_o_resto_por_versao`
+foi reproduzida na main limpa e está registrada como dívida separada,
+pré-existente e fora do escopo desta branch.
+
+Como habilitar/desabilitar/testar (runbook):
+
+1. `REGISTRY_DISCOVERY_ENABLED=True` (+ `REGISTRY_SHADOW_MODE=True` para
+   comparar sem alterar o resultado) e `PUBLIC_WEB_ENABLED=True` quando a
+   oferta declarar `public_web_facts` nos enrichment steps;
+2. desligar = voltar flags a `False` (sem rollback de banco);
+3. testes: `pytest tests/test_registry_cnae_matching.py
+   tests/test_registry_targeting.py tests/test_registry_discovery_adapter.py
+   tests/test_registry_discovery_boundary.py
+   tests/test_registry_pipeline_wiring.py tests/test_safe_web_client.py
+   tests/test_safe_web_client_fetch.py tests/test_web_facts.py
+   tests/test_web_intelligence.py tests/test_web_intelligence_orchestrator.py -q`;
+   com PG real: `E2E_DATABASE_URL=... pytest tests/test_registry_prefix_search.py
+   tests/test_registry_search.py tests/test_registry_provider.py -q`;
+4. piloto controlado (sem outreach, sem paid provider): Vertente Projeto
+   Mecânico + SP + CNAEs 25/28/33 → Registry → shortlist (`target_candidates`)
+   → web intelligence limitada; conferir universo, prefixo, falsos positivos,
+   nº com site, FACTs úteis e HTTP evitados; sem e-mail/WhatsApp/LinkedIn.
+
 ## Definition of Done por fatia
 
 - comportamento existente preservado;

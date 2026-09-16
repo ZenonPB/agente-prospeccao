@@ -252,6 +252,62 @@ class TestExecuteAsync:
         result = asyncio.run(executor.execute_async(plan))
         assert result["results_by_provider"]["cnae_discovery"][0]["name"] == "Sync-X"
 
+    def test_execute_async_preserva_status_explicito_do_provider(self):
+        import asyncio
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor,
+        )
+
+        class _RegistryProvider:
+            name = "cnae_discovery"
+            budget_total = 30
+
+            async def run_with_status(self, query, lead_context=None):
+                return {
+                    "status": "fallback",
+                    "items": [{"name": "Legado"}],
+                    "reason": "snapshot indisponível",
+                    "cost": 0,
+                }
+
+            async def run(self, query, lead_context=None):
+                raise AssertionError("o executor deve usar o contrato de status")
+
+        registry = DiscoveryProviderRegistry()
+        registry.register(_RegistryProvider())
+        result = asyncio.run(DiscoveryExecutor(registry).execute_async({
+            "providers": [{"type": "cnae_discovery", "queries": ["28"]}],
+        }))
+        assert result["provider_status"]["cnae_discovery"] == "fallback"
+        assert result["provider_metrics"]["cnae_discovery"]["status"] == "fallback"
+        assert result["provider_errors"]["cnae_discovery"] == "snapshot indisponível"
+
+    def test_execute_async_para_queries_ao_atingir_budget(self):
+        import asyncio
+        from services.prospecting.discovery_executor import (
+            DiscoveryProviderRegistry, DiscoveryExecutor,
+        )
+
+        class _Provider:
+            name = "google_places"
+            budget_total = 2
+
+            def __init__(self):
+                self.queries = []
+
+            async def run(self, query, lead_context=None):
+                self.queries.append(query)
+                return [{"name": f"{query}-1"}, {"name": f"{query}-2"}]
+
+        provider = _Provider()
+        registry = DiscoveryProviderRegistry()
+        registry.register(provider)
+        result = asyncio.run(DiscoveryExecutor(registry).execute_async({
+            "providers": [{"type": "google_places", "queries": ["a", "b"], "budget": 2}],
+        }))
+        assert provider.queries == ["a"]
+        assert result["budget_used"]["google_places"] == 2
+
     def test_execute_sync_preserva_provider_async_com_loop_ativo(self):
         """A API sync não pode retornar lista vazia silenciosamente em ASGI."""
         import asyncio

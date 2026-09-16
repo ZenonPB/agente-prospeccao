@@ -24,11 +24,13 @@ logger = logging.getLogger(__name__)
 STEP_TECHNICAL_SITE = "technical_site"
 STEP_CNPJ_RECEITA = "cnpj_receita"
 STEP_BUSINESS_SOCIAL = "business_social"
+STEP_PUBLIC_WEB_FACTS = "public_web_facts"
 
 ENRICHMENT_STEP_KEYS = frozenset({
     STEP_TECHNICAL_SITE,
     STEP_CNPJ_RECEITA,
     STEP_BUSINESS_SOCIAL,
+    STEP_PUBLIC_WEB_FACTS,
 })
 
 DEFAULT_ENRICHMENT_STEPS = [STEP_TECHNICAL_SITE, STEP_CNPJ_RECEITA, STEP_BUSINESS_SOCIAL]
@@ -69,6 +71,15 @@ CAPABILITIES: Dict[str, Dict[str, Any]] = {
             SignalKey.GOOGLE_RATING_COUNT,
         ],
         "description": "reputação Google Maps/social — já coletada no discovery",
+    },
+    STEP_PUBLIC_WEB_FACTS: {
+        "capability": "website_facts",
+        "cost": "low",
+        "requires": ["has_website"],
+        "produces": [
+            SignalKey.HAS_OWN_WEBSITE,
+        ],
+        "description": "FACTs determinísticos da homepage pública (1D, sem LLM)",
     },
 }
 

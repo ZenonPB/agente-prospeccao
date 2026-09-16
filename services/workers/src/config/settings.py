@@ -80,5 +80,25 @@ class Settings(BaseSettings):
         "latin-1",
         description='Encoding dos arquivos do snapshot (confirmar por snapshot; historicamente latin-1)',
     )
+    REGISTRY_DISCOVERY_ENABLED: bool = Field(
+        False,
+        description='Ativa o Registry como implementação de cnae_discovery (default seguro: desligado)',
+    )
+    REGISTRY_SHADOW_MODE: bool = Field(
+        False,
+        description='Compara Registry x legado sem alterar o resultado principal',
+    )
+    PUBLIC_WEB_ENABLED: bool = Field(
+        False,
+        description='Ativa FACTs web públicos (1D) quando a oferta declara o step (default seguro: desligado)',
+    )
+    PUBLIC_WEB_MAX_TARGETS: int = Field(
+        30, ge=1, le=200,
+        description='Teto de candidatos com HTTP por chamada de inteligência web',
+    )
+    PUBLIC_WEB_MAX_CONCURRENCY: int = Field(
+        4, ge=1, le=16,
+        description='Concorrência máxima do fetch público web',
+    )
 
 settings = Settings()

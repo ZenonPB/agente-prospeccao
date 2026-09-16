@@ -61,6 +61,145 @@ from services.provider_execution_metric_service import ProviderExecutionMetricSe
 logger = logging.getLogger(__name__)
 
 
+def _build_cnae_discovery_adapter(db, max_leads):
+    """Monta o `cnae_discovery` Registry-backed ou o legado (fallback).
+
+    Default seguro: Registry desligado → comportamento idêntico ao anterior.
+    Com `REGISTRY_DISCOVERY_ENABLED=True`, o Registry vira a implementação
+    primária e o legado vira fallback/shadow (comparação barata, §13).
+    """
+    legacy = CnaeDiscoveryAdapter(CnaeDiscoveryService(), budget_total=max_leads)
+    if not getattr(settings, "REGISTRY_DISCOVERY_ENABLED", False):
+        return legacy
+    try:
+        from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
+        from services.registry.search import RegistrySearchService
+    except ImportError as exc:
+        logger.warning("Registry discovery indisponível (%s) — usando legado.", exc)
+        return legacy
+
+    def _factory():
+        return RegistrySearchService(db)
+
+    async def _legacy_run(query, lead_context=None):
+        return await legacy.run(query, lead_context)
+
+    # Legado sempre como fallback (só executa se o Registry falhar — custo zero
+    # no caminho feliz). Shadow mode é decidido em
+    # _persist_registry_shadow_comparison, não aqui.
+    return RegistryCnaeDiscoveryAdapter(
+        search_service_factory=_factory,
+        budget_total=max_leads,
+        legacy_run=_legacy_run,
+    )
+
+
+async def _collect_cnae_discovery(
+    db,
+    *,
+    cnae_code=None,
+    cnpjs=None,
+    porte_category=None,
+    state=None,
+    city=None,
+    icp=None,
+    max_leads=10,
+):
+    """Coleta CNAE pelo seam canônico, preservando fallback legado."""
+    legacy_service = CnaeDiscoveryService()
+    if not getattr(settings, "REGISTRY_DISCOVERY_ENABLED", False):
+        return await legacy_service.search_by_cnae(
+            cnae_code=cnae_code or "CNAE", state=state, city=city,
+            limit=max_leads, cnpjs_input=cnpjs, porte_category=porte_category,
+        )
+    # O contrato legado aceita lista de CNPJs e categorias de porte textuais;
+    # até o Registry possuir esses filtros set-based, preserva-se esse caminho.
+    if cnpjs or porte_category:
+        return await legacy_service.search_by_cnae(
+            cnae_code=cnae_code or "CNAE", state=state, city=city,
+            limit=max_leads, cnpjs_input=cnpjs, porte_category=porte_category,
+        )
+    if not cnae_code and not (icp or {}).get("cnaes"):
+        return await legacy_service.search_by_cnae(
+            cnae_code="CNAE", state=state, city=city,
+            limit=max_leads, cnpjs_input=cnpjs, porte_category=porte_category,
+        )
+    adapter = _build_cnae_discovery_adapter(db, max_leads)
+    context = {
+        "icp": dict(icp or {}),
+        "cnae_code": cnae_code,
+        "state": state,
+        "city": city,
+        "cnpjs_input": cnpjs,
+        "porte_category": porte_category,
+        "target_candidates": max_leads,
+    }
+    outcome = await adapter.run_with_status(cnae_code or "", context)
+    return list(outcome.get("items") or [])
+
+
+async def _persist_registry_shadow_comparison(
+    db, *, organization_id=None, job_id=None,
+    campaign_id=None, correlation_id=None,
+    execution_plan=None, lead_context=None,
+):
+    """Shadow barato: compara Registry × legado sem duplicar o pipeline.
+
+    Só executa com `REGISTRY_SHADOW_MODE=True` e Registry habilitado. Roda
+    `compare` (contagem + overlap por CNPJ, zero enrichment/Places/Groq) e
+    persiste o breakdown em `ProviderExecutionMetric.usage` — sem nova tabela.
+    """
+    if not getattr(settings, "REGISTRY_SHADOW_MODE", False):
+        return
+    if not getattr(settings, "REGISTRY_DISCOVERY_ENABLED", False):
+        return
+    try:
+        from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
+        from services.registry.search import RegistrySearchService
+    except ImportError:
+        return
+    steps = (execution_plan or {}).get("providers", []) if execution_plan else []
+    cnae_steps = [s for s in steps if s.get("type") == "cnae_discovery"]
+    if not cnae_steps:
+        return
+    queries = cnae_steps[0].get("queries", []) or []
+    if not queries:
+        return
+    ctx = dict(lead_context or {})
+    ctx.setdefault("target_candidates", 50)
+    comparisons = []
+    try:
+        for query in queries[:3]:
+            adapter = RegistryCnaeDiscoveryAdapter(
+                search_service_factory=lambda: RegistrySearchService(db),
+                budget_total=int(cnae_steps[0].get("budget", 50)),
+            )
+            comparisons.append(await adapter.compare(query, ctx, target_candidates=50))
+    except Exception as exc:  # noqa: BLE001 — shadow nunca quebra o job
+        logger.warning("Shadow Registry ignorado: %s", exc)
+        return
+    service = ProviderExecutionMetricService()
+    for comparison in comparisons:
+        try:
+            service.record(
+                db, organization_id, "cnae_discovery:shadow",
+                str((comparison or {}).get("registry_status", "unknown")),
+                job_id=job_id, campaign_id=campaign_id, correlation_id=correlation_id,
+                result_count=int((comparison or {}).get("registry_count", 0)),
+                usage={
+                    "shadow": True,
+                    "registry_count": (comparison or {}).get("registry_count", 0),
+                    "legacy_count": (comparison or {}).get("legacy_count", 0),
+                    "overlap": (comparison or {}).get("overlap", 0),
+                    "new_candidates": (comparison or {}).get("new_candidates", 0),
+                    "enrichment_calls": 0,
+                    "promoted_count": 0,
+                },
+            )
+        except (TypeError, ValueError) as exc:
+            logger.warning("Métrica shadow inválida não persistida: %s", exc)
+
+
 def _ts() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -177,6 +316,9 @@ def _prepare_batch_items(results, discovery_plan_id=None):
                     or ""
                 ) or None,
                 "retrieved_at": item.get("retrieved_at") or retrieved_at,
+                "source_snapshot": item.get("source_snapshot"),
+                "source": item.get("discovery_source") or item.get("source"),
+                "observed_at": item.get("observed_at"),
                 "discovery_plan_id": discovery_plan_id,
                 "matched_identity_rule": identity.get("matched_by"),
                 "identity_status": identity.get("status", "new"),
@@ -602,7 +744,11 @@ async def run_pipeline(
                 "providers": [
                     {
                         "type": provider,
-                        "queries": list((campaign.search_queries or []) if campaign and campaign.search_queries else [query]),
+                        "queries": (
+                            [""]
+                            if provider == "cnae_discovery" and (offer_resolution.icp or {}).get("cnaes")
+                            else list((campaign.search_queries or []) if campaign and campaign.search_queries else [query])
+                        ),
                         "budget": (offer_resolution.discovery.get("provider_budgets") or {}).get(provider, 50),
                     }
                     for provider in (offer_resolution.discovery.get("providers") or [])
@@ -700,15 +846,20 @@ async def run_pipeline(
 
             target_state = campaign.target_state if campaign else None
             target_city = campaign.target_city if campaign else None
-            cnae_query = cnae_code or (campaign.target_segment if campaign else "CNAE")
+            profile_cnaes = list(
+                ((offer_resolution.icp if offer_resolution else None) or {}).get("cnaes") or []
+            )
+            cnae_query = cnae_code or (profile_cnaes[0] if profile_cnaes else None)
 
-            results = await CnaeDiscoveryService.search_by_cnae(
+            results = await _collect_cnae_discovery(
+                db,
                 cnae_code=cnae_query,
                 state=target_state,
                 city=target_city,
-                limit=max_leads,
-                cnpjs_input=cnpjs,
+                cnpjs=cnpjs,
                 porte_category=porte_category,
+                icp=dict((offer_resolution.icp if offer_resolution else None) or {}),
+                max_leads=max_leads,
             )
 
             logger.info("Pipeline CNAE discovery collected %d results", len(results))
@@ -969,18 +1120,22 @@ async def run_pipeline(
 
                 provider_registry = DiscoveryProviderRegistry()
                 provider_registry.register(GooglePlacesAdapter(places_service, budget_total=max_leads))
-                provider_registry.register(CnaeDiscoveryAdapter(CnaeDiscoveryService(), budget_total=max_leads))
+                provider_registry.register(_build_cnae_discovery_adapter(db, max_leads))
+                target_limit = min(
+                    max_leads,
+                    int(discovery_plan.get("target_candidates") or max_leads),
+                )
                 execution_plan = {
-                    "max_results": max_leads,
+                    "max_results": target_limit,
                     "providers": [
                         {
                             **step,
                             "queries": (
                                 search_queries
                                 if step.get("type") == "google_places"
-                                else [cnae_code or (campaign.target_segment if campaign else None) or query]
+                                else [""]
                             ),
-                            "budget": min(max_leads, step.get("budget", max_leads)),
+                            "budget": min(target_limit, step.get("budget", target_limit)),
                         }
                         for step in provider_steps
                     ],
@@ -999,6 +1154,8 @@ async def run_pipeline(
                         "city": target_city,
                         "cnpjs_input": cnpjs,
                         "porte_category": porte_category,
+                        "icp": dict((offer_resolution.icp if offer_resolution else None) or {}),
+                        "target_candidates": max_leads,
                     },
                 )
                 _persist_provider_metrics(
@@ -1010,6 +1167,17 @@ async def run_pipeline(
                     correlation_id=correlation_id,
                 )
                 job_provider_metrics.update(discovery_result.get("provider_metrics", {}))
+                await _persist_registry_shadow_comparison(
+                    db, organization_id=organization_id,
+                    job_id=job_id, campaign_id=str(campaign.id) if campaign else None,
+                    correlation_id=correlation_id,
+                    execution_plan=execution_plan,
+                    lead_context={
+                        "icp": dict((offer_resolution.icp if offer_resolution else None) or {}),
+                        "state": target_state,
+                        "city": target_city,
+                    },
+                )
                 results = [
                     {**item, "source_queries": search_queries}
                     for item in discovery_result.get("unique_candidates", [])
@@ -1108,8 +1276,11 @@ async def run_pipeline(
                     phone=item.get("phone"),
                     email=None,
                     category=item.get("category"),
-                    city=item.get("city"),
-                    state=item.get("state"),
+                    # O Registry fornece município por código, não geocodifica
+                    # para nome; o campo obrigatório do CRM recebe apenas o
+                    # alvo textual já declarado pela campanha quando houver.
+                    city=item.get("city") or target_city or "",
+                    state=item.get("state") or target_state,
                     country=item.get("country", "Brasil"),
                     # Reputação no Google — sinal de scoring.
                     google_rating=item.get("rating"),
