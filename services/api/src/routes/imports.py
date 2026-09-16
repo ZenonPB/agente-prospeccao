@@ -59,18 +59,18 @@ def _confirmed_replay(
     user: User,
     member: OrganizationMember,
 ):
-    """Reconhece retry idempotente após uma corrida de confirmação.
+    """Reconhece retry idempotente após confirmação já persistida.
 
-    ``confirm`` protege a escrita com lock/versionamento. Se outra request vencer
-    a corrida, esta request pode carregar uma versão antiga. Depois do rollback
-    relemos o job e só aceitamos replay quando chave *e* mapping são exatamente
-    os já persistidos, evitando transformar VERSION_CONFLICT real em sucesso.
+    ``confirm`` exige a versão corrente no replay. Aqui relemos o job após o
+    rollback e só aceitamos replay quando chave, mapping *e* versão corrente
+    coincidem com o corpo — sem mascarar VERSION_CONFLICT real como sucesso.
     """
     current = get_job(db, org_id, import_id)
     _assert_job_scope(current, user, member)
     if (
         current.idempotency_key == body.idempotency_key
         and current.mapping_version == body.mapping_version
+        and current.expected_version == body.expected_version
         and current.status.value in {"QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "CANCEL_REQUESTED", "CANCELLED"}
     ):
         return current

@@ -427,15 +427,23 @@ def confirm(
     _assert_actor_authorized(job, actor_id, member)
     valid_mapping, computed_version = _validated_mapping(job, mapping)
 
-    # Retry da mesma confirmação é aceito mesmo com expected_version antigo,
-    # desde que chave e snapshot de mapping sejam exatamente os persistidos.
+    # Replay de uma confirmação já persistida exige a versão corrente: sem
+    # isso, perdedores de uma corrida com a versão antiga voltariam como
+    # sucesso e mascarariam o VERSION_CONFLICT.
     if job.idempotency_key is not None:
         if (
             job.idempotency_key == idempotency_key
             and job.mapping_version == computed_version
             and mapping_version_value == computed_version
+            and job.expected_version == expected_version
         ):
             return job
+        if (
+            job.idempotency_key == idempotency_key
+            and job.mapping_version == computed_version
+            and mapping_version_value == computed_version
+        ):
+            raise ImportJobError("VERSION_CONFLICT", "A versão da importação está desatualizada.", 409)
         raise ImportJobError("IDEMPOTENCY_CONFLICT", "A importação já foi confirmada com outro contrato.", 409)
 
     existing = _lock_query(db.query(ImportJob).filter(

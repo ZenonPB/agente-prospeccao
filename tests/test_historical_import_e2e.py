@@ -90,12 +90,19 @@ def test_import_vertical_preview_dry_run_confirm_processa_isolado_e_idempotente(
         db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
         stale_version, "e2e-import-key",
     )
-    # Retry pode chegar com a versão anterior: mesma key + mesmo mapping é replay.
+    # Replay com a versão corrente permanece idempotente; retry com a versão
+    # antiga observa o conflito em vez de mascará-lo como sucesso.
     repeated = confirm(
         db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
-        stale_version, "e2e-import-key",
+        confirmed.expected_version, "e2e-import-key",
     )
     assert repeated.id == confirmed.id
+    with pytest.raises(ImportJobError) as stale_retry:
+        confirm(
+            db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
+            stale_version, "e2e-import-key",
+        )
+    assert stale_retry.value.code == "VERSION_CONFLICT"
     with pytest.raises(ImportJobError) as cross_tenant:
         get_job(db, uuid.uuid4(), job.id)
     assert cross_tenant.value.status_code == 404
