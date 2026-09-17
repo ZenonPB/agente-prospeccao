@@ -1,4 +1,4 @@
-"""Métricas de fechamento da Fase 1 / piloto do Data Engine Brasil.
+"""Métricas observacionais do piloto controlado do Data Engine Brasil.
 
 O módulo é deliberadamente puro: recebe projeções já org-scoped e não faz I/O.
 Não muda ranking, scoring, providers ou CRM. UNKNOWN permanece separado de zero.
