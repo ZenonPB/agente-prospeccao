@@ -35,7 +35,10 @@ class WebsitePeopleProvider:
     """Extrai pessoas publicadas em JSON-LD no site oficial."""
 
     name = "website_people"
-    cost = 0.25
+    # Custo financeiro estimado: zero. O consumo técnico continua limitado
+    # pela quota da organização, mas uma fonte pública não pode ser tratada
+    # como provider pago pelo budget guard.
+    cost = 0.0
 
     def __init__(
         self,

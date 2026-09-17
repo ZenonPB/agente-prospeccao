@@ -1,13 +1,13 @@
 """QuotaService — medidor de cotas diárias por provedor/org.
 
-Contabiliza o uso de Google Places e Groq por organização e por dia, contra
+Contabiliza o uso de provedores externos por organização e por dia, contra
 um limite configurável:
-- `organizations.api_quota` (JSONB — sobrescreve por provedor, BYOK), senão
+- `organizations.api_quota` (JSONB — sobrescreve por provedor, inclusive zero), senão
 - `settings.PROVIDER_DAILY_QUOTA` (default do pool global).
 
 O gate é fail-closed: quando `remaining(key) <= 0`, o provider NÃO chama e o
-caller trata como falha/fallback — no scoring isso mantém o lead NOVO para
-reprocesso, no Places avisa "cota esgotada".
+caller trata como falha/fallback. Um override explícito igual a zero desabilita
+o provider para a organização e nunca cai silenciosamente no limite global.
 """
 import logging
 from datetime import datetime, timezone
@@ -25,17 +25,30 @@ class QuotaService:
     """Acesso síncrono ao medidor de uso (chamado de orquestradores async)."""
 
     @staticmethod
+    def _configured_limit(org: Optional[Organization], key: str) -> int:
+        """Resolve override da org preservando zero como configuração explícita."""
+        overrides = org.api_quota if org and isinstance(org.api_quota, dict) else {}
+        if key in overrides:
+            try:
+                return max(0, int(overrides[key]))
+            except (TypeError, ValueError):
+                logger.warning("Quota inválida para %s; bloqueando provider por segurança.", key)
+                return 0
+        default = settings.PROVIDER_DAILY_QUOTA.get(key)
+        try:
+            return max(0, int(default)) if default is not None else 0
+        except (TypeError, ValueError):
+            logger.warning("Quota default inválida para %s; bloqueando provider por segurança.", key)
+            return 0
+
+    @staticmethod
     def limit_for(db: Session, organization_id: Optional[str], key_name: str) -> int:
-        """Limite diário da org para o provedor (override da org ou default do pool)."""
+        """Limite diário da org para o provedor (override explícito vence o pool)."""
         key = key_name.upper().strip()
+        org = None
         if organization_id:
             org = db.query(Organization).filter(Organization.id == organization_id).first()
-            if org and org.api_quota:
-                val = org.api_quota.get(key)
-                if val:
-                    return int(val)
-        default = settings.PROVIDER_DAILY_QUOTA.get(key)
-        return int(default) if default else 0
+        return QuotaService._configured_limit(org, key)
 
     @staticmethod
     def used_today(
@@ -110,19 +123,15 @@ class QuotaService:
     def usage_for_org(
         db: Session, organization_id: Optional[str], when: Optional[datetime] = None,
     ) -> list:
-        """Painel de uso da org: [{key_name, used, limit, remaining, pct}].
-
-        Ordenado por chave; só provedores com limite configurado entram.
-        """
+        """Painel de uso da org, incluindo overrides explícitos do pool global."""
         if not organization_id:
             return []
         org = db.query(Organization).filter(Organization.id == organization_id).first()
-        overrides = org.api_quota if org and org.api_quota else {}
+        overrides = org.api_quota if org and isinstance(org.api_quota, dict) else {}
+        keys = sorted(set(settings.PROVIDER_DAILY_QUOTA.keys()) | set(overrides.keys()))
         result = []
-        for key in sorted(settings.PROVIDER_DAILY_QUOTA.keys()):
-            limit = int(overrides.get(key) or settings.PROVIDER_DAILY_QUOTA.get(key) or 0)
-            if limit <= 0:
-                continue
+        for key in keys:
+            limit = QuotaService._configured_limit(org, key)
             used = QuotaService.used_today(db, organization_id, key, when)
             remaining = max(0, limit - used)
             result.append({
