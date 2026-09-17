@@ -79,11 +79,16 @@ def _parse_duration(value: Optional[str]) -> Optional[float]:
 
 
 def create_http_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] = None) -> httpx.AsyncClient:
-    """Cria um AsyncClient com defaults seguros: TLS via certifi, follow_redirects."""
+    """Cria um AsyncClient com defaults seguros: TLS via certifi, follow_redirects.
+
+    Timeouts por fase (um float aplicaria o mesmo valor a cada fase,
+    permitindo 4x o esperado no pior caso): connect curto para buracos
+    de DNS/conexão não wedgarem o loop, read carrega o valor pedido.
+    """
     return httpx.AsyncClient(
         verify=certifi.where(),
         follow_redirects=True,
-        timeout=timeout,
+        timeout=httpx.Timeout(connect=10.0, read=timeout, write=20.0, pool=10.0),
         headers=headers,
     )
 
