@@ -6,7 +6,7 @@ Este documento fecha a Fase 1 com um procedimento reproduzível. Ele não declar
 
 ## Objetivo
 
-Medir, por organização e opcionalmente por campanha, o caminho já existente de descoberta até oportunidade: cobertura das quatro dimensões comerciais, comparação do score legado com a prioridade shadow, contatabilidade, saúde/custo dos providers e outcomes atribuídos.
+Medir, por organização e opcionalmente por campanha, o caminho já existente de descoberta até oportunidade: cobertura das quatro dimensões comerciais, comparação do score legado com a prioridade shadow, contatabilidade e saúde/custo dos providers. Outcomes podem complementar a revisão somente quando a provenance disponível sustentar a interpretação feita.
 
 A consulta ao diagnóstico é read-only. Consultá-lo não executa provider, não consome quota, não altera `qualification_score`, `priority`, `overall`, status, ordenação ou CRM. A materialização prévia das dimensões shadow é uma etapa separada e explícita.
 
@@ -51,7 +51,11 @@ Registrar o SHA implantado, campaign id, Vertente/versão, território, horário
 
 ## Métricas mínimas
 
-O diagnóstico deve abranger tamanho da amostra, taxa qualificada, taxa contatável, cobertura das quatro dimensões, cobertura da Prioridade Comercial shadow, diferença entre score legado e prioridade shadow, pares comparáveis, saúde/custo dos providers e outcomes comerciais atribuídos (respostas, reuniões, ganhos/contratos e receita quando disponíveis). A saúde de atribuição deve permitir distinguir outcome atribuído de outcome sem vínculo confiável.
+O diagnóstico de pilot readiness abrange tamanho da amostra, taxa qualificada, taxa contatável, cobertura das quatro dimensões, cobertura da Prioridade Comercial shadow, diferença entre score legado e prioridade shadow, pares comparáveis e saúde/custo dos providers.
+
+Outcomes comerciais (respostas, reuniões, ganhos/contratos e receita) podem ser analisados pelos mecanismos de inteligência existentes, mas **não devem ser classificados como atribuídos de forma confiável apenas porque `lead_opportunity_id` está preenchido**. O fluxo legado pode preencher esse vínculo por heurística. Uma taxa de atribuição confiável exige provenance explícita que diferencie vínculo confirmado de fallback heurístico.
+
+Ao analisar funil, transições sucessivas do mesmo lead devem ser consolidadas por entidade: um lead que respondeu, marcou/realizou reunião e ganhou conta no máximo uma vez em cada estágio. Eventos brutos podem ser medidos separadamente, mas não podem inflar contagens de leads.
 
 `UNKNOWN` é ausência de observação e não equivale a zero. Métricas sem denominador retornam `null`, não 0%.
 
