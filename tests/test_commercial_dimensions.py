@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "services" / "wo
 from services.prospecting.commercial_dimensions import (  # noqa: E402
     FORMULA_VERSION,
     derive_commercial_dimensions,
+    shadow_derive_input,
 )
 
 
@@ -102,3 +103,59 @@ def test_numeros_invalidos_nao_contornam_unknown():
 
 def test_input_ausente_permanece_ausente():
     assert derive_commercial_dimensions(None) is None
+
+
+def test_shadow_sem_pontuacao_preserva_unknown():
+    """Lead ainda não pontuado: zeros de fallback não viram medida."""
+    vector = {
+        "icp_fit": 0,
+        "need": 0,
+        "intent": None,
+        "buying_power": None,
+        "reachability": None,
+        "timing": None,
+        "commercial_fit": 0,
+    }
+    shadow = shadow_derive_input(
+        {}, vector, qualification_observed=False, opportunity_observed=False
+    )
+    result = derive_commercial_dimensions(shadow)
+
+    assert result["adherence"] is None
+    assert result["moment"] is None
+    assert result["priority_score"] is None
+    assert result["priority_band"] == "UNKNOWN"
+
+
+def test_shadow_com_pontuacao_real_mantem_zeros_observados():
+    shadow = shadow_derive_input(
+        {}, {"icp_fit": 0, "need": 0, "commercial_fit": 0},
+        qualification_observed=True, opportunity_observed=False,
+    )
+    result = derive_commercial_dimensions(shadow)
+
+    assert result["adherence"] == 0
+    assert result["moment"] == 0
+    assert result["priority_band"] == "LOW"
+
+
+def test_shadow_mantem_chaves_do_vetor_existente():
+    shadow = shadow_derive_input(
+        {"icp_fit": 80}, {"icp_fit": 80, "need": 0, "commercial_fit": 0},
+        qualification_observed=False, opportunity_observed=False,
+    )
+
+    assert shadow["icp_fit"] == 80
+    assert "need" not in shadow
+    assert "commercial_fit" not in shadow
+
+
+def test_shadow_oportunidade_ampara_fit_mas_nao_need():
+    shadow = shadow_derive_input(
+        {}, {"icp_fit": 70, "need": 0, "commercial_fit": 65},
+        qualification_observed=False, opportunity_observed=True,
+    )
+
+    assert shadow["icp_fit"] == 70
+    assert shadow["commercial_fit"] == 65
+    assert "need" not in shadow

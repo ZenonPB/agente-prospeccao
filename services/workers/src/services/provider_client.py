@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import re
+import ssl
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -79,11 +80,19 @@ def _parse_duration(value: Optional[str]) -> Optional[float]:
 
 
 def create_http_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] = None) -> httpx.AsyncClient:
-    """Cria um AsyncClient com defaults seguros: TLS via certifi, follow_redirects."""
+    """Cria um AsyncClient com defaults seguros: TLS via certifi, follow_redirects.
+
+    Timeouts por fase (um float aplicaria o mesmo valor a cada fase,
+    permitindo 4x o esperado no pior caso): connect curto para buracos
+    de DNS/conexão não wedgarem o loop, read carrega o valor pedido.
+    """
+    # httpx 0.28 depreca `verify=<caminho>`. Construir o SSLContext mantém o
+    # CA bundle explícito sem warnings — importante porque CI roda `-W error`.
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
     return httpx.AsyncClient(
-        verify=certifi.where(),
+        verify=ssl_context,
         follow_redirects=True,
-        timeout=timeout,
+        timeout=httpx.Timeout(connect=10.0, read=timeout, write=20.0, pool=10.0),
         headers=headers,
     )
 
@@ -203,7 +212,15 @@ async def groq_json_chat(
             )
             await asyncio.sleep(delay)
             continue
-        logger.error("Groq respondeu HTTP %s (model=%s)", response.status_code, model)
+        try:
+            body_hint = (response.text or "").strip()[:500]
+        except Exception:  # noqa: BLE001 — corpo ilegível não pode esconder o status
+            body_hint = ""
+        logger.error(
+            "Groq respondeu HTTP %s (model=%s)%s",
+            response.status_code, model,
+            f": {body_hint}" if body_hint else "",
+        )
         return None
 
     if db is not None and organization_id is not None:

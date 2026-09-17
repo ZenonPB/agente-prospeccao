@@ -68,7 +68,7 @@ class Settings(BaseSettings):
         description='Modelo Groq de classificação (scoring/router)',
     )
     GROQ_MODEL_GENERATION: str = Field(
-        "qwen/qwen3.6-27b",
+        "qwen/qwen3.8-27b",
         description='Modelo Groq de geração (outreach/segmentos/brief/templates)',
     )
 
