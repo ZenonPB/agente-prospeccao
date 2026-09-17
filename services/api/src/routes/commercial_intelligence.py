@@ -8,6 +8,7 @@ from src.auth.dependencies import get_user_organization, require_analyst
 from src.db.dependencies import get_db
 from src.db.models import Organization, OrganizationMember
 from src.services.commercial_intelligence_service import CommercialIntelligenceService
+from src.services.pilot_outcome_metrics import summarize_campaign_outcomes
 
 router = APIRouter(prefix="/commercial-intelligence", tags=["commercial-intelligence"])
 
@@ -62,4 +63,10 @@ def pilot_readiness(
     service: CommercialIntelligenceService = Depends(_service),
 ):
     """Diagnóstico read-only; não promove shadow nem executa I/O externo."""
-    return service.pilot_readiness(campaign_id=campaign_id)
+    result = service.pilot_readiness(campaign_id=campaign_id)
+    result["outcomes"] = summarize_campaign_outcomes(
+        service.db,
+        service.organization_id,
+        campaign_id=campaign_id,
+    )
+    return result
