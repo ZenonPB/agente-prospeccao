@@ -1,4 +1,5 @@
 """Fase 1E: dimensões comerciais são shadow, determinísticas e fail-unknown."""
+import math
 import sys
 from pathlib import Path
 
@@ -36,10 +37,10 @@ def test_deriva_quatro_dimensoes_e_prioridade_sem_alterar_vetor():
         "formula_version": FORMULA_VERSION,
         "shadow": True,
         "sources": {
-            "adherence": ["icp_fit", "commercial_fit"],
-            "moment": ["intent", "timing"],
+            "adherence": ["icp_fit", "commercial_fit", "buying_power"],
+            "moment": ["intent", "timing", "need"],
             "contactability": ["reachability", "contactability", "decision_maker_accessibility"],
-            "data_confidence": ["coverage"],
+            "data_confidence": ["evidence.confidence", "coverage"],
         },
     }
 
@@ -72,7 +73,17 @@ def test_sem_aderencia_nao_inventa_prioridade():
     assert result["priority_band"] == "UNKNOWN"
 
 
-def test_coverage_e_numeros_sao_limitados_sem_aceitar_bool():
+def test_confianca_combina_evidencia_explicita_e_cobertura():
+    result = derive_commercial_dimensions(
+        {"icp_fit": 80, "coverage": 0.50},
+        evidence=[{"confidence": 0.9}, {"confidence": 70}, {"confidence": None}],
+    )
+
+    # média das evidências = 80; 60% evidência + 40% cobertura(50) = 68.
+    assert result["data_confidence"] == 68
+
+
+def test_numeros_invalidos_nao_contornam_unknown():
     result = derive_commercial_dimensions({
         "icp_fit": 120,
         "commercial_fit": -10,
@@ -80,9 +91,10 @@ def test_coverage_e_numeros_sao_limitados_sem_aceitar_bool():
         "timing": 200,
         "reachability": False,
         "coverage": 2.5,
+        "buying_power": math.nan,
     })
 
-    assert result["adherence"] == 70
+    assert result["adherence"] == 72
     assert result["moment"] == 100
     assert result["contactability"] is None
     assert result["data_confidence"] == 100
