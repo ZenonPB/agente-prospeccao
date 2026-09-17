@@ -1,4 +1,6 @@
 """Analytics comerciais explicáveis e org-scoped."""
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -52,3 +54,12 @@ def segments(
     service: CommercialIntelligenceService = Depends(_service),
 ):
     return {"items": service.niche_priors(min_sample=min_sample)}
+
+
+@router.get("/pilot-readiness")
+def pilot_readiness(
+    campaign_id: UUID | None = Query(None),
+    service: CommercialIntelligenceService = Depends(_service),
+):
+    """Diagnóstico read-only da Fase 1H; não promove o shadow nem faz I/O externo."""
+    return service.pilot_readiness(campaign_id=campaign_id)
