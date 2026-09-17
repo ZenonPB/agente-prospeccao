@@ -7,8 +7,9 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from src.config.settings import settings
-from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, LeadStatus, Person
+from src.db.models import Contact, Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, LeadStatus, Person
 from services.prospecting.commercial_dimensions import derive_commercial_dimensions, shadow_derive_input
+from services.prospecting.contactability import assess_contactability
 from services.prospecting.employment_history_service import EmploymentHistoryService
 from services.prospecting.intent_engine import build_opportunity_vector, extract_intent_signals, intent_score
 from services.prospecting.intent_provider_registry import IntentProviderRegistry
@@ -23,7 +24,7 @@ class DataIntelligenceService:
 
     def analyze_lead(self, lead: Lead, *, persist: bool = False) -> dict[str, Any]:
         if str(lead.organization_id) != str(self.organization_id):
-            raise ValueError("lead fora do workspace ativo")
+            raise ValueError("lead fora da organização ativa")
 
         enrichment = (
             self.db.query(Enrichment)
@@ -108,14 +109,45 @@ class DataIntelligenceService:
         best_opportunity = max((float(row.score or 0) for row in opportunities), default=qualification)
         phone = verify_phone(person.phone if person else (lead.phone or lead.whatsapp))
 
-        reachability = None
-        if person:
-            if person.routable:
-                reachability = max(70.0, float(person.contact_confidence or 0))
-            elif person.email or person.phone or person.linkedin_url:
-                reachability = max(35.0, float(person.contact_confidence or 0))
-        elif lead.email or lead.phone or lead.whatsapp:
-            reachability = 35.0
+        contacts = (
+            self.db.query(Contact)
+            .filter(Contact.lead_id == lead.id)
+            .order_by(Contact.is_primary.desc(), Contact.confidence.desc())
+            .limit(20)
+            .all()
+        )
+        contact_payloads = [
+            {
+                "name": contact.name,
+                "email": contact.email,
+                "phone": contact.phone,
+                "linkedin_url": contact.linkedin_url,
+                "confidence": contact.confidence,
+                "contact_confidence": getattr(contact, "contact_confidence", 0),
+                "email_verified": bool(getattr(contact, "email_verified", False)),
+                "verification_status": getattr(contact, "verification_status", None),
+                "routable": bool(getattr(contact, "routable", False)),
+                "raw_data": contact.raw_data if isinstance(contact.raw_data, dict) else {},
+            }
+            for contact in contacts
+        ]
+        phase_contact = (
+            (lead.evidence_score or {}).get("phase3_contact", {})
+            if isinstance(lead.evidence_score, dict)
+            else {}
+        )
+        discovery = phase_contact.get("people_discovery", {}) if isinstance(phase_contact, dict) else {}
+        discovery_status = discovery.get("status") if isinstance(discovery, dict) else None
+        contactability = assess_contactability(contact_payloads, discovery_status=discovery_status)
+        reachability = contactability["score"]
+        if reachability is None and not contacts:
+            if person:
+                if person.routable:
+                    reachability = max(70.0, float(person.contact_confidence or 0))
+                elif person.email or person.phone or person.linkedin_url:
+                    reachability = max(35.0, float(person.contact_confidence or 0))
+            elif lead.email or lead.phone or lead.whatsapp:
+                reachability = 35.0
 
         buying_power = existing_vector.get("buying_power")
         if buying_power is None:
@@ -144,9 +176,6 @@ class DataIntelligenceService:
         merged_vector = {**existing_vector, **vector}
         commercial_dimensions = None
         if settings.COMMERCIAL_DIMENSIONS_SHADOW_ENABLED:
-            # Zeros de fallback (lead ainda não pontuado: score NULL ou
-            # status NOVO, como após falha do Groq) não entram no shadow
-            # como medida: ausência derivada permanece UNKNOWN.
             unscored = lead.qualification_score is None or lead.status == LeadStatus.NOVO
             shadow_vector = shadow_derive_input(
                 existing_vector,
@@ -156,8 +185,6 @@ class DataIntelligenceService:
             )
             commercial_dimensions = derive_commercial_dimensions(shadow_vector, evidence=evidence)
             if commercial_dimensions is not None:
-                # Diagnóstico somente: o namespace shadow convive com o vetor
-                # atual sem substituir overall/qualification/priority/ranking.
                 merged_vector = {**merged_vector, "commercial_dimensions": commercial_dimensions}
 
         current_employment = None
@@ -178,6 +205,7 @@ class DataIntelligenceService:
             "current_employment": current_employment,
             "employment_change": employment_change,
             "phone_verification": phone,
+            "contactability": contactability,
             "opportunity_vector": vector,
             "commercial_dimensions": commercial_dimensions,
             "evidence_count": len(evidence),
@@ -197,6 +225,7 @@ class DataIntelligenceService:
                     "current_employment": current_employment,
                     "employment_change": employment_change,
                     "phone_verification": phone,
+                    "contactability": contactability,
                     "formula_version": "intent-v2",
                     "generated_at": result["generated_at"],
                 },
