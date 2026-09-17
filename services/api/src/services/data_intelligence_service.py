@@ -6,7 +6,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from src.config.settings import settings
 from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, Person
+from services.prospecting.commercial_dimensions import derive_commercial_dimensions
 from services.prospecting.employment_history_service import EmploymentHistoryService
 from services.prospecting.intent_engine import build_opportunity_vector, extract_intent_signals, intent_score
 from services.prospecting.intent_provider_registry import IntentProviderRegistry
@@ -139,6 +141,14 @@ class DataIntelligenceService:
             timing=timing,
             commercial_fit=existing_vector.get("commercial_fit", best_opportunity),
         )
+        merged_vector = {**existing_vector, **vector}
+        commercial_dimensions = None
+        if settings.COMMERCIAL_DIMENSIONS_SHADOW_ENABLED:
+            commercial_dimensions = derive_commercial_dimensions(merged_vector, evidence=evidence)
+            if commercial_dimensions is not None:
+                # Diagnóstico somente: o namespace shadow convive com o vetor
+                # atual sem substituir overall/qualification/priority/ranking.
+                merged_vector = {**merged_vector, "commercial_dimensions": commercial_dimensions}
 
         current_employment = None
         if person and isinstance(person.raw_data, dict):
@@ -159,6 +169,7 @@ class DataIntelligenceService:
             "employment_change": employment_change,
             "phone_verification": phone,
             "opportunity_vector": vector,
+            "commercial_dimensions": commercial_dimensions,
             "evidence_count": len(evidence),
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -180,7 +191,7 @@ class DataIntelligenceService:
                     "generated_at": result["generated_at"],
                 },
             }
-            lead.score_vector = {**existing_vector, **vector}
+            lead.score_vector = merged_vector
             self.db.add(lead)
             self.db.commit()
             self.db.refresh(lead)

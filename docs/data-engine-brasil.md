@@ -151,20 +151,21 @@ compatibilidade e tornar bloqueios observáveis.
 ### Brazil Company Registry ✅ implementado (Fase 1B)
 
 Universo empresarial brasileiro pesquisável, separado do CRM. Detalhes na
-seção `Brazil Company Registry (Fase 1B)` abaixo. Discovery produtivo a
-partir do Registry entra na 1C; nesta fase nada do fluxo de campanhas o
-consome.
+seção `Brazil Company Registry (Fase 1B)` abaixo.
 
-### Public Web Intelligence
+### Discovery Brasil + Public Web Intelligence — CODE COMPLETE / OPERATIONAL VALIDATION PENDING (Fases 1C + 1D)
 
-Enrichment passivo e determinístico primeiro (HTTP/DNS/HTML/metadados/links);
-LLM somente para interpretação em que regras determinísticas não bastam.
+Código integrado à `main`, opt-in e backward-compatible. Snapshot real da
+Receita em escala, benchmark de CNAE secundário em escala real e piloto
+controlado AlphaMec continuam gates operacionais antes de promover o novo
+caminho como default.
 
-### Dimensões comerciais
+### Commercial Dimensions — shadow (Fase 1E)
 
-Calcular aderência, momento, contatabilidade e confiança em paralelo ao score
-existente. Ausência de contato não reduz aderência. Ranking novo só vira
-principal após benchmark e campanhas reais.
+Calcular aderência, momento, contatabilidade e confiança dos dados em paralelo
+ao score existente, derivando prioridade comercial experimental. Ausência de
+contato não reduz aderência e `UNKNOWN` não vira zero. O ranking novo só pode
+virar principal após benchmark e campanhas reais.
 
 ### Contact waterfall
 
@@ -270,102 +271,56 @@ não é registrado em nenhum pipeline produtivo.
   CNAE+UF 0,10 ms; CNAE (principal|secundário)+geografia 0,19 ms —
   todas Index (Only) Scan, sem seq scan nos caminhos quentes.
 
-### Limites e próximos (1C)
+### Limites da 1B (histórico)
 
-Sem labels de município/natureza/motivo; sem busca textual; sem promoção
-para `Company`; sem consumo por campanhas; sem Places/web/people/scores.
-1C integra o Registry ao discovery (shadow/opt-in) e resolve identidade
-RegistryCandidate → Company quando houver regra explícita.
+A 1B terminou sem labels de município/natureza/motivo, busca textual,
+promoção automática para `Company`, Places/web/people/scores. As integrações
+de discovery e web que pertenciam à 1C+1D já estão code complete; os limites
+operacionais atuais ficam registrados abaixo.
 
-### Integração 1C + 1D (em validação — branch `feat/registry-discovery-web-intelligence`)
+### Integração 1C + 1D — CODE COMPLETE / OPERATIONAL VALIDATION PENDING
 
-Estado observável nesta branch (não mergeado; sem migração — zero migrations):
+Estado integrado à `main` (sem migração — zero migrations):
 
 - runtime produtivo preservado: OfferProfile → plano →
   `DiscoveryProviderRegistry` → `DiscoveryExecutor`; federation segue seam
   futuro e `RegistryDiscoveryProvider` continua fora do pipeline produtivo;
 - conceito público continua `cnae_discovery` (sem provider novo): com
   `REGISTRY_DISCOVERY_ENABLED=True`, `RegistryCnaeDiscoveryAdapter`
-  (workers `services/registry/discovery_adapter.py`) vira a implementação
-  primária e o `CnaeDiscoveryService` legado vira fallback automático em
-  falha; default (`False`) mantém comportamento idêntico ao anterior;
-- CNAE com semântica explícita (`services/registry/cnae_matching.py`):
-  divisão 2 dígitos (ex.: `"28"`) → faixa `2800000–2899999`; grupo 3 dígitos
-  (ex.: `"250"`) → faixa `2500000–2509999`; classe 4 dígitos e prefixos
-  intermediários de 5–6 dígitos → faixa ancorada; subclasse completa de 7
-  dígitos (ex.: `"8630-5/04"`) → exato; inválido → `ValueError`
-  (fail-closed);
-  `SearchFilters` aceita `cnae_prefixes` + `situacoes`, preservando keyset e
-  no máximo 3 queries;
-- gate anti-varredura (`services/registry/targeting.py`): sem ≥1 CNAE
-  válido o Registry não é consultado (retorna `None`, chamador usa providers
-  existentes); 1 UF vira filtro e múltiplas UFs suportadas viram filtro `IN`;
-  somente as 27 UFs canônicas são aceitas (case/whitespace externos são
-  normalizados; vazios, códigos inexistentes e valores malformados falham
-  fechado);
-  raio/
-  cidade-nome nunca viram `municipio_cod` (vão para `unapplied`);
-  `target_candidates` vira `limit` da query PG (filtro no banco, depois
-  paginação) — nunca materializa o universo para fatiar em Python; múltiplas
-  UFs suportadas viram `IN` set-based, sem varredura por UF em Python;
-- RegistryCandidate continua separado do CRM (sem `organization_id`; busca
-  pura não cria Company/Lead/Opportunity); promoção usa a fronteira
-  existente (`resolve_cross_provider_lead` → `find_company_by_aliases`,
-  CNPJ → domínio → aliases);
-- shadow barato (`REGISTRY_SHADOW_MODE=True`, coroutine, nunca loop
-  aninhado): `compare` conta candidatos no nível mais barato (sem
-  enrichment, sem Places/Groq, sem promoção; `enrichment_calls=0`/
-  `promoted_count=0`), persistido em `ProviderExecutionMetric.usage`
-  (`cnae_discovery:shadow`) — sem nova tabela. Nesta fatia o shadow do
-  pipeline registra `registry_count`/`registry_status`; `legacy_count`/
-  `overlap` ficam em 0 porque o legado externo não é reexecutado só para
-  comparar (a série histórica de `provider_metrics` continua sendo a base
-  de comparação; o `compare` unitário com `legacy_run` cobre overlap);
-- 1D (`services/prospecting/safe_web_client.py` + `web_facts.py` +
-  `web_intelligence.py`): `SafePublicWebClient` com allowlist http/https,
-  DNS resolve-all (qualquer IP não-global rejeita), redirect manual com
-  revalidação por hop, timeouts, streaming com teto (~2 MB), Content-Type
-  allowlist, sem JS/headless; extração determinística FACT-only (sem LLM,
-  sem API paga); falha → `UNKNOWN`, nunca `website_absent`; `observed_at` =
-  UTC real da observação; provenance reutilizada
-  (`source/source_url/observed_at/provider/capability/kind=FACT`); hook
-  opt-in `public_web_facts` no enrichment (após `_persist_scoring`,
-  `PUBLIC_WEB_ENABLED=True`, só com website) persiste em
-  `Enrichment.raw_technical_data["web_facts"]` + `Lead.evidence`;
-  concorrência limitada, sem transação DB aberta durante HTTP;
-- consumidores web legados (`TechnicalEnrichmentService`, people providers)
-  NÃO foram migrados nesta fatia (dívida explícita): o caminho 1D novo é
-  seguro; a consolidação gradual fica para depois com substituição pequena
-  e behavior-preserving;
-- configuração (default seguro, kill-switch sem rollback de banco):
-  `REGISTRY_DISCOVERY_ENABLED`, `REGISTRY_SHADOW_MODE` (API + workers),
+  vira a implementação primária e o `CnaeDiscoveryService` legado vira
+  fallback automático em falha; default (`False`) mantém o comportamento
+  anterior;
+- CNAE tem semântica explícita e fail-closed: divisão/grupo/classe/prefixos
+  suportados viram ranges ancorados; subclasse completa de 7 dígitos vira
+  exato; entrada inválida não dispara varredura ampla;
+- gate anti-varredura: sem CNAE válido o Registry não é consultado; UF(s),
+  situação e demais filtros suportados são aplicados no PostgreSQL e
+  `target_candidates` vira `LIMIT`, sem materializar o universo em Python;
+- RegistryCandidate continua separado do CRM; promoção reutiliza a fronteira
+  de entity resolution existente, sem criar uma segunda entidade;
+- shadow barato (`REGISTRY_SHADOW_MODE=True`) compara candidatos sem repetir
+  enrichment caro e usa `ProviderExecutionMetric`, sem nova tabela;
+- 1D reutiliza `SafePublicWebClient` + `web_facts` + `web_intelligence`:
+  allowlist http/https, DNS resolve-all, redirects revalidados, timeouts,
+  streaming limitado, Content-Type allowlist e extração determinística FACT;
+  falha permanece `UNKNOWN`, nunca `website_absent`; provenance e
+  `observed_at` são preservados;
+- consumidores web legados ainda não foram migrados em big-bang; a
+  consolidação continua gradual e behavior-preserving;
+- kill-switches: `REGISTRY_DISCOVERY_ENABLED`, `REGISTRY_SHADOW_MODE`,
   `PUBLIC_WEB_ENABLED`, `PUBLIC_WEB_MAX_TARGETS`,
-  `PUBLIC_WEB_MAX_CONCURRENCY` (workers).
+  `PUBLIC_WEB_MAX_CONCURRENCY`.
 
-- O caminho dedicado `source=cnae` reutiliza o mesmo adapter Registry-backed;
-  com Registry desligado ou sem targeting declarativo, mantém o fallback legado.
+Validação de código já concluída: testes Registry/search/prefix/provider/
+ingestion/tenant em PostgreSQL real, migrations idempotentes, schema verifier,
+backup/restore e benchmark sintético de 30 mil empresas. O índice secundário
+continua `ix_registry_cnaes_cnae (cnae, cnpj)`.
 
-Validação PostgreSQL desta branch (banco local descartável, PostgreSQL 16.14):
-os testes Registry/search/prefix/provider/ingestion/tenant passaram em banco
-real; migrations passaram no upgrade vazio, segundo upgrade e schema verifier;
-backup/restore com `pg_dump`/`pg_restore` também passou. O benchmark sintético
-de 30.000 empresas demonstrou LIMIT no PostgreSQL, matching set-based e não
-materialização do universo. O índice de CNAE secundário existente é
-`ix_registry_cnaes_cnae (cnae, cnpj)`, criado na migration
-`c1d2e3f4a5b6` e verificado pelo schema verifier. O EXPLAIN do dataset
-pequeno mostrou `Seq Scan` na associação com apenas 32 linhas; isso é uma
-escolha racional do planner para tabela minúscula, não evidência para criar
-índice adicional. Benchmark com milhões de associações secundárias permanece
-validação operacional pendente.
-
-Limites conhecidos: `empty` (sem match) vs snapshot ausente não são
-distinguidos (sem query extra); TOCTOU resolve→connect documentado como
-risco residual (httpx não pinna IP com SNI de forma simples); snapshot real da
-Receita e piloto AlphaMec ainda não estão disponíveis neste ambiente. A falha
-de concorrência do Historical Importer em
-`test_import_concurrency.py::test_confirm_concorrente_aceita_um_e_rejeita_o_resto_por_versao`
-foi reproduzida na main limpa e está registrada como dívida separada,
-pré-existente e fora do escopo desta branch.
+Validação operacional pendente: snapshot real atual da Receita em escala,
+benchmark com milhões de associações CNAE secundárias e piloto AlphaMec. O
+risco residual de TOCTOU resolve→connect do cliente HTTP permanece documentado.
+A falha de concorrência do Historical Importer registrada separadamente é
+pré-existente e não pertence ao escopo da 1C+1D.
 
 Como habilitar/desabilitar/testar (runbook):
 
@@ -385,6 +340,33 @@ Como habilitar/desabilitar/testar (runbook):
    Mecânico + SP + CNAEs 25/28/33 → Registry → shortlist (`target_candidates`)
    → web intelligence limitada; conferir universo, prefixo, falsos positivos,
    nº com site, FACTs úteis e HTTP evitados; sem e-mail/WhatsApp/LinkedIn.
+
+## Commercial Dimensions (Fase 1E — shadow)
+
+A 1E reutiliza o Opportunity Vector, scoring/prescoring e evidências existentes;
+não cria motor paralelo, provider, tabela ou migration. O contrato fica em
+`services/prospecting/commercial_dimensions.py` e é versionado como
+`commercial-dimensions-shadow-v1`.
+
+Dimensões:
+
+- **Aderência**: `icp_fit`, `commercial_fit` e `buying_power`;
+- **Momento**: `intent`, `timing` e `need`;
+- **Contatabilidade**: `reachability` e sinais legados equivalentes;
+- **Confiança dos dados**: confiança explícita das evidências quando existe,
+  combinada com `coverage` do Opportunity Vector como medida de completude.
+
+A **Prioridade Comercial** shadow dá peso dominante a Aderência e Momento;
+Contatabilidade orienta a próxima ação e não contamina Aderência. Dimensões
+UNKNOWN não recebem zero: pesos conhecidos são renormalizados e, sem
+Aderência conhecida, a prioridade permanece UNKNOWN.
+
+Rollout: `COMMERCIAL_DIMENSIONS_SHADOW_ENABLED=False` por default. Quando
+habilitado, `DataIntelligenceService` calcula o diagnóstico e, em recomputes
+persistidos, grava somente `score_vector.commercial_dimensions`. Não altera
+`overall`, `qualification_score`, prioridade legada, ordenação, promoção ou
+funil. A promoção da fórmula para ranking produtivo exige benchmark shadow e
+campanhas reais; até lá, qualquer diferença é observação, não decisão.
 
 ## Definition of Done por fatia
 
