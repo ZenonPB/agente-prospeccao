@@ -203,7 +203,15 @@ async def groq_json_chat(
             )
             await asyncio.sleep(delay)
             continue
-        logger.error("Groq respondeu HTTP %s (model=%s)", response.status_code, model)
+        try:
+            body_hint = (response.text or "").strip()[:500]
+        except Exception:  # noqa: BLE001 — corpo ilegível não pode esconder o status
+            body_hint = ""
+        logger.error(
+            "Groq respondeu HTTP %s (model=%s)%s",
+            response.status_code, model,
+            f": {body_hint}" if body_hint else "",
+        )
         return None
 
     if db is not None and organization_id is not None:
