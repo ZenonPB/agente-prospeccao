@@ -144,7 +144,7 @@ class DataIntelligenceService:
         merged_vector = {**existing_vector, **vector}
         commercial_dimensions = None
         if settings.COMMERCIAL_DIMENSIONS_SHADOW_ENABLED:
-            commercial_dimensions = derive_commercial_dimensions(merged_vector)
+            commercial_dimensions = derive_commercial_dimensions(merged_vector, evidence=evidence)
             if commercial_dimensions is not None:
                 # Diagnóstico somente: o namespace shadow convive com o vetor
                 # atual sem substituir overall/qualification/priority/ranking.
