@@ -38,21 +38,22 @@ def _is_stop_request(subject: str = "", body: str = "") -> bool:
 def _resolve_lead_for_sender(db: Session, organization_id, sender: str):
     """Resolve o lead sem escolher arbitrariamente entre candidatos.
 
-    O e-mail pode ser institucional e, portanto, aparecer em mais de um lead.
-    Um único candidato é seguro. Para múltiplos candidatos, só aceitamos o lead
-    que possui o envio mais recente da nossa própria cadência para o remetente.
+    O outer join pode repetir o mesmo Lead quando mais de um Contact possui o
+    endereço. A deduplicação por id é feita em memória para manter a consulta
+    simples e o contrato testável. Se houver leads distintos, só aceitamos o
+    que possui o envio mais recente da nossa própria cadência ao remetente.
     Empate/ausência de envio permanece ambíguo e falha fechado.
     """
-    candidates = (
+    rows = (
         db.query(Lead)
         .outerjoin(Contact, Contact.lead_id == Lead.id)
         .filter(
             Lead.organization_id == organization_id,
             or_(Lead.email == sender, Contact.email == sender),
         )
-        .distinct()
         .all()
     )
+    candidates = list({row.id: row for row in rows}.values())
     if not candidates:
         return None
     if len(candidates) == 1:
