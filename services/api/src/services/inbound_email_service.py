@@ -3,6 +3,10 @@
 O chamador precisa resolver a organização antes de entrar neste serviço. A busca
 por remetente é sempre confinada a ``organization_id``; um endereço igual em duas
 organizações nunca pode deslocar uma resposta para o tenant errado.
+
+Quando o mesmo endereço aparece em mais de um lead da mesma organização, a
+resolução usa a cadência efetivamente enviada para aquele endereço. Se ainda
+houver ambiguidade, falha fechada e não altera nenhum lead.
 """
 import logging
 import re
@@ -31,9 +35,64 @@ def _is_stop_request(subject: str = "", body: str = "") -> bool:
     )
 
 
-def _record_response_message(
-    db: Session, lead: Lead, body: str, now: datetime
-) -> None:
+def _resolve_lead_for_sender(db: Session, organization_id, sender: str):
+    """Resolve o lead sem escolher arbitrariamente entre candidatos.
+
+    O outer join pode repetir o mesmo Lead quando mais de um Contact possui o
+    endereço. A deduplicação por id é feita em memória para manter a consulta
+    simples e o contrato testável. Se houver leads distintos, só aceitamos o
+    que possui o envio mais recente da nossa própria cadência ao remetente.
+    Empate no timestamp máximo entre leads ou ausência de envio falha fechado.
+    """
+    rows = (
+        db.query(Lead)
+        .outerjoin(Contact, Contact.lead_id == Lead.id)
+        .filter(
+            Lead.organization_id == organization_id,
+            or_(Lead.email == sender, Contact.email == sender),
+        )
+        .all()
+    )
+    candidates = list({row.id: row for row in rows}.values())
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    candidate_ids = [row.id for row in candidates]
+    sent = (
+        db.query(FollowUp)
+        .filter(
+            FollowUp.lead_id.in_(candidate_ids),
+            FollowUp.status == FollowUpStatus.SENT,
+            FollowUp.recipient == sender,
+            FollowUp.sent_at.isnot(None),
+        )
+        .order_by(FollowUp.sent_at.desc())
+        .all()
+    )
+    if not sent:
+        logger.warning(
+            "Inbound ambíguo na organização %s: remetente aparece em %d leads e não há envio correlacionável",
+            organization_id,
+            len(candidates),
+        )
+        return None
+
+    newest_at = sent[0].sent_at
+    newest_lead_ids = {row.lead_id for row in sent if row.sent_at == newest_at}
+    if len(newest_lead_ids) != 1:
+        logger.warning(
+            "Inbound ambíguo na organização %s: múltiplos leads possuem envio no timestamp mais recente",
+            organization_id,
+        )
+        return None
+
+    newest_lead_id = next(iter(newest_lead_ids))
+    return next((row for row in candidates if row.id == newest_lead_id), None)
+
+
+def _record_response_message(db: Session, lead: Lead, body: str, now: datetime) -> None:
     """Cria uma ``Message`` espelho para atribuição e análise de resposta."""
     last_sent = (
         db.query(Message)
@@ -90,7 +149,8 @@ def process_inbound_email(
     """Processa uma resposta de e-mail dentro de uma organização já autenticada.
 
     Retorna ``{matched, stop_requested}``. Nenhum ``db.add``/``commit`` ocorre
-    quando o remetente não é encontrado na organização resolvida.
+    quando o remetente não é encontrado ou não pode ser atribuído de forma
+    determinística dentro da organização resolvida.
     """
     if organization_id is None:
         raise ValueError("organization_id é obrigatório para inbound")
@@ -99,31 +159,14 @@ def process_inbound_email(
     if not sender:
         return {"matched": False, "stop_requested": False}
 
-    lead = (
-        db.query(Lead)
-        .outerjoin(Contact, Contact.lead_id == Lead.id)
-        .filter(
-            Lead.organization_id == organization_id,
-            or_(
-                Lead.email == sender,
-                Contact.email == sender,
-            ),
-        )
-        .first()
-    )
+    lead = _resolve_lead_for_sender(db, organization_id, sender)
     if not lead:
-        logger.info(
-            "Inbound email sem lead correspondente na organização %s",
-            organization_id,
-        )
+        logger.info("Inbound email sem lead atribuível na organização %s", organization_id)
         return {"matched": False, "stop_requested": False}
 
     if str(lead.organization_id) != str(organization_id):
         db.rollback()
-        logger.error(
-            "Inbound recusado por divergência de tenant no lead %s",
-            lead.id,
-        )
+        logger.error("Inbound recusado por divergência de tenant no lead %s", lead.id)
         return {"matched": False, "stop_requested": False}
 
     now = datetime.now(timezone.utc)
@@ -172,11 +215,7 @@ def process_inbound_email(
 def log_inbound_activity(db: Session, lead: Lead, detail: str, now: datetime) -> None:
     db.add(LeadActivity(
         lead_id=lead.id,
-        action=(
-            LeadActivityAction.RESPONDED
-            if "Resposta" in detail
-            else LeadActivityAction.STATUS_CHANGED
-        ),
+        action=(LeadActivityAction.RESPONDED if "Resposta" in detail else LeadActivityAction.STATUS_CHANGED),
         detail=detail,
         status_to=lead.status,
         created_at=now,
