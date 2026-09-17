@@ -66,7 +66,6 @@ def _today():
 
 def test_limit_for_usando_default_do_pool():
     db = _FakeDb(_FakeOrg())
-    # Sem override na org → default do settings (GOOGLE_API_KEY=100).
     assert QuotaService.limit_for(db, "org-1", "GOOGLE_API_KEY") >= 100
     assert QuotaService.limit_for(db, "org-1", "GROQ_API_KEY") >= 2000
 
@@ -77,6 +76,21 @@ def test_limit_for_respeita_override_da_org():
     db = _FakeDb(org)
     assert QuotaService.limit_for(db, "org-1", "GOOGLE_API_KEY") == 250
     assert QuotaService.limit_for(db, "org-1", "GROQ_API_KEY") != 250
+
+
+def test_limit_for_zero_explicito_desabilita_sem_fallback_global():
+    org = _FakeOrg()
+    org.api_quota = {"GOOGLE_API_KEY": 0}
+    db = _FakeDb(org)
+    assert QuotaService.limit_for(db, "org-1", "GOOGLE_API_KEY") == 0
+    assert QuotaService.can_consume(db, "org-1", "GOOGLE_API_KEY") is False
+
+
+def test_limit_for_override_invalido_falha_fechado():
+    org = _FakeOrg()
+    org.api_quota = {"GROQ_API_KEY": "nao-e-numero"}
+    db = _FakeDb(org)
+    assert QuotaService.limit_for(db, "org-1", "GROQ_API_KEY") == 0
 
 
 def test_remaining_subtrai_uso_do_dia():
@@ -126,3 +140,13 @@ def test_usage_for_org_monta_painel_com_pct():
     assert usage["GOOGLE_API_KEY"]["remaining"] == 10
     assert usage["GOOGLE_API_KEY"]["pct"] == 90.0
     assert usage["GROQ_API_KEY"]["pct"] == 0.0
+
+
+def test_usage_for_org_expoe_override_zero_e_chave_exclusiva_da_org():
+    org = _FakeOrg()
+    org.api_quota = {"GOOGLE_API_KEY": 0, "WEBSITE_PEOPLE_PROVIDER": 25}
+    db = _FakeDb(org)
+    usage = {u["key_name"]: u for u in QuotaService.usage_for_org(db, "org-1", _today())}
+    assert usage["GOOGLE_API_KEY"]["limit"] == 0
+    assert usage["GOOGLE_API_KEY"]["remaining"] == 0
+    assert usage["WEBSITE_PEOPLE_PROVIDER"]["limit"] == 25
