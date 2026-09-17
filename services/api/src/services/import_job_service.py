@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import or_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import or_, text
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from src.db.models import (
@@ -110,6 +110,90 @@ def _locked_job(db: Session, organization_id: Any, job_id: Any) -> ImportJob:
     return job
 
 
+def _observed_job(db: Session, organization_id: Any, job_id: Any) -> ImportJob:
+    """Lê o estado consolidado do job no início da operação, sem lock.
+
+    A leitura é a testemunha da corrida: quem observa PREVIEWED participa da
+    transição; quem observa a confirmação já persistida é um retry idempotente.
+    """
+    job = db.query(ImportJob).filter(
+        ImportJob.id == job_id,
+        ImportJob.organization_id == organization_id,
+    ).first()
+    if not job:
+        raise ImportJobError("IMPORT_NOT_FOUND", "Importação não encontrada.", 404)
+    return job
+
+
+def _race_snapshot(db: Session) -> str | None:
+    """Snapshot MVCC capturado na abertura da tentativa de confirmação.
+
+    O valor é estático: ``pg_visible_in_snapshot`` avaliado contra ele responde
+    de forma estável, mais tarde, se a confirmação do vencedor já estava
+    consolidada quando este request começou. Retorna ``None`` em sessões sem
+    PostgreSQL (provas de concorrência exigem banco real).
+    """
+    try:
+        return db.execute(text("SELECT pg_current_snapshot()::text")).scalar()
+    except (ProgrammingError, OperationalError, NotImplementedError):
+        return None
+
+
+def _confirmation_visible(db: Session, confirm_xid: Any, snapshot: str | None) -> bool:
+    """A confirmação do vencedor já estava consolidada no snapshot de abertura?
+
+    ``True`` significa que este request começou depois da confirmação — é o
+    retry idempotente. ``False`` significa que ele disputou a corrida (a
+    confirmação ainda não era visível quando ele abriu): perdedor, nunca vira
+    sucesso. Sem testemunha (sessão não-PostgreSQL) não reconhece replay.
+    """
+    if not confirm_xid or not snapshot:
+        return False
+    return bool(
+        db.execute(
+            text(
+                "SELECT pg_visible_in_snapshot("
+                "CAST(:xid AS xid8), CAST(:snapshot AS pg_snapshot))"
+            ),
+            {"xid": str(confirm_xid), "snapshot": snapshot},
+        ).scalar()
+    )
+
+
+def confirmation_replay_state(
+    job: ImportJob,
+    *,
+    idempotency_key: str,
+    confirmed_mapping_version: str,
+    expected_version: int,
+) -> str | None:
+    """Classifica um job já confirmado contra o contrato do request atual.
+
+    - ``None``: o job ainda não carrega uma confirmação persistida.
+    - ``"replay"``: retry idempotente da confirmação vencedora — mesma chave,
+      mesmo snapshot de mapping e mesma versão-base, então a operação já
+      concluída é devolvida sem nova transição.
+    - ``"version_conflict"``: mesma chave/mapping, mas a versão-base diverge —
+      típico de concorrente perdedor da corrida original ou de payload
+      divergente; nunca vira sucesso.
+    - ``"idempotency_conflict"``: a chave já foi usada com outro contrato.
+    """
+    if job.idempotency_key is None:
+        return None
+    if job.idempotency_key != idempotency_key:
+        # A confirmação persistida pertence a outro contrato: se o request já
+        # ficou para trás no lifecycle é conflito de versão; se trouxe a versão
+        # corrente, a chave é incompatível com o estado consolidado.
+        if job.expected_version != expected_version:
+            return "version_conflict"
+        return "idempotency_conflict"
+    if job.mapping_version != confirmed_mapping_version:
+        return "idempotency_conflict"
+    if getattr(job, "confirm_base_version", None) != expected_version:
+        return "version_conflict"
+    return "replay"
+
+
 def _assert_actor_authorized(job: ImportJob, actor_id: Any, member: Any = None) -> None:
     """Impede mutações sem ator e limita CONSULTOR à própria importação."""
     if actor_id is None:
@@ -131,6 +215,73 @@ def _assert_expected_version(job: ImportJob, expected_version: int | None) -> No
         raise ImportJobError("VERSION_REQUIRED", "A versão esperada é obrigatória.", 422)
     if job.expected_version != expected_version:
         raise ImportJobError("VERSION_CONFLICT", "A versão da importação está desatualizada.", 409)
+
+
+def _claim_confirmation(
+    db: Session,
+    job: ImportJob,
+    *,
+    actor_id: Any,
+    expected_version: int,
+    idempotency_key: str,
+    mapping: dict[str, str | None],
+    mapping_version_value: str,
+) -> ImportJob:
+    """Reserva a confirmação com compare-and-swap atômico no PostgreSQL.
+
+    Um único ``UPDATE`` condicional em ``(id, organization_id,
+    expected_version, status, idempotency_key IS NULL)`` decide a corrida no
+    banco: quem casa a linha vence e avança a versão exatamente uma vez; os
+    demais recebem ``rowcount`` 0 e respondem ``VERSION_CONFLICT``. Como só o
+    vencedor segue para auditoria/commit, nenhum efeito é duplicado e o
+    resultado não depende de escalonamento entre workers ou processos.
+    """
+    from sqlalchemy import update
+
+    result = db.execute(
+        update(ImportJob)
+        .where(
+            ImportJob.id == job.id,
+            ImportJob.organization_id == job.organization_id,
+            ImportJob.expected_version == expected_version,
+            ImportJob.status == ImportJobStatus.PREVIEWED,
+            ImportJob.idempotency_key.is_(None),
+        )
+        .values(
+            status=ImportJobStatus.QUEUED,
+            expected_version=ImportJob.expected_version + 1,
+            idempotency_key=idempotency_key,
+            mapping=mapping,
+            mapping_version=mapping_version_value,
+            confirm_base_version=expected_version,
+            confirm_xid=text("pg_current_xact_id()::text"),
+            error_code=None,
+            error_message=None,
+        )
+    )
+    if result.rowcount != 1:
+        # Outro participante da corrida efetivou a transição (ou o estado já
+        # não é confirmável): este request perdeu e não pode virar sucesso.
+        raise ImportJobError("VERSION_CONFLICT", "A versão da importação está desatualizada.", 409)
+    # A linha está reservada por esta transação: os valores abaixo são
+    # exatamente os persistidos pelo CAS vencedor.
+    job.status = ImportJobStatus.QUEUED
+    job.expected_version = expected_version + 1
+    job.idempotency_key = idempotency_key
+    job.mapping = mapping
+    job.mapping_version = mapping_version_value
+    job.confirm_base_version = expected_version
+    job.confirm_xid = db.execute(
+        text("SELECT pg_current_xact_id()::text")
+    ).scalar()
+    job.error_code = None
+    job.error_message = None
+    _audit(
+        db, job, "STATUS_CHANGED", actor_id,
+        ImportJobStatus.PREVIEWED, ImportJobStatus.QUEUED,
+        {"mapping_version": mapping_version_value},
+    )
+    return job
 
 
 def _transition(
@@ -420,70 +571,103 @@ def confirm(
     idempotency_key: str,
     member: Any = None,
 ) -> ImportJob:
+    """Confirma a importação com corrida decidida atomicamente pelo banco.
+
+    O fluxo separa duas situações distintas que compartilham o mesmo payload:
+
+    - **participante da corrida** — observa o job em ``PREVIEWED`` e tenta o
+      compare-and-swap; exatamente um vence e os demais recebem
+      ``VERSION_CONFLICT``;
+    - **retry idempotente** — observa a confirmação já persistida com a mesma
+      chave, mapping e versão-base e recebe o mesmo job, sem nova transição.
+
+    Dois gates separam os casos. O primeiro compara o contrato persistido
+    (chave, mapping, ``confirm_base_version``). O segundo é a testemunha MVCC:
+    o replay só é aceito quando a confirmação do vencedor já estava visível no
+    snapshot capturado na abertura deste request. Um perdedor da corrida
+    original carrega o mesmo contrato, mas sua abertura antecede o commit do
+    vencedor — logo recebe ``VERSION_CONFLICT``, independente do escalonamento
+    ou da quantidade de workers.
+    """
     if not idempotency_key or len(idempotency_key) > 255:
         raise ImportJobError("IDEMPOTENCY_REQUIRED", "idempotency_key é obrigatório.", 422)
 
-    job = _locked_job(db, organization_id, job_id)
+    # Primeira instrução da tentativa: fixa a testemunha da corrida antes de
+    # qualquer leitura ou write, para a classificação ser estável daqui em diante.
+    snapshot = _race_snapshot(db)
+    job = _observed_job(db, organization_id, job_id)
     _assert_actor_authorized(job, actor_id, member)
     valid_mapping, computed_version = _validated_mapping(job, mapping)
+    if mapping_version_value != computed_version:
+        raise ImportJobError("MAPPING_VERSION_CONFLICT", "O mapping mudou; execute um novo dry-run.", 409)
 
-    # Retry da mesma confirmação é aceito mesmo com expected_version antigo,
-    # desde que chave e snapshot de mapping sejam exatamente os persistidos.
-    if job.idempotency_key is not None:
-        if (
-            job.idempotency_key == idempotency_key
-            and job.mapping_version == computed_version
-            and mapping_version_value == computed_version
-        ):
+    replay = confirmation_replay_state(
+        job,
+        idempotency_key=idempotency_key,
+        confirmed_mapping_version=computed_version,
+        expected_version=expected_version,
+    )
+    if replay is not None:
+        if replay == "replay" and not _confirmation_visible(db, job.confirm_xid, snapshot):
+            # Mesmo contrato persistido, mas a confirmação ainda não era
+            # visível quando este request abriu: perdedor da corrida original.
+            replay = "version_conflict"
+        if replay == "replay":
             return job
-        raise ImportJobError("IDEMPOTENCY_CONFLICT", "A importação já foi confirmada com outro contrato.", 409)
+        if replay == "version_conflict":
+            raise ImportJobError("VERSION_CONFLICT", "A versão da importação está desatualizada.", 409)
+        if replay == "idempotency_conflict":
+            raise ImportJobError("IDEMPOTENCY_CONFLICT", "A importação já foi confirmada com outro contrato.", 409)
 
-    existing = _lock_query(db.query(ImportJob).filter(
+    existing = db.query(ImportJob).filter(
         ImportJob.organization_id == organization_id,
         ImportJob.idempotency_key == idempotency_key,
-    )).first()
+    ).first()
     if existing:
         _assert_actor_authorized(existing, actor_id, member)
         if existing.source_hash != job.source_hash:
             raise ImportJobError("IDEMPOTENCY_CONFLICT", "A chave já foi usada por outro arquivo.", 409)
-        if existing.mapping_version != computed_version or mapping_version_value != computed_version:
+        if existing.mapping_version != computed_version:
             raise ImportJobError("IDEMPOTENCY_CONFLICT", "A chave já foi usada com outro mapping.", 409)
-        return existing
+        if (
+            getattr(existing, "confirm_base_version", None) == expected_version
+            and _confirmation_visible(db, existing.confirm_xid, snapshot)
+        ):
+            return existing
+        raise ImportJobError("VERSION_CONFLICT", "A versão da importação está desatualizada.", 409)
 
     _assert_expected_version(job, expected_version)
     if job.status != ImportJobStatus.PREVIEWED or not job.dry_run_report:
         raise ImportJobError("DRY_RUN_REQUIRED", "Execute o dry-run antes de confirmar.", 409)
-    if computed_version != mapping_version_value or computed_version != job.mapping_version:
+    if computed_version != job.mapping_version:
         raise ImportJobError("MAPPING_VERSION_CONFLICT", "O mapping mudou; execute um novo dry-run.", 409)
-    _transition(
+
+    _claim_confirmation(
         db,
         job,
-        ImportJobStatus.QUEUED,
         actor_id=actor_id,
         expected_version=expected_version,
-        member=member,
-        detail={"mapping_version": computed_version},
+        idempotency_key=idempotency_key,
+        mapping=valid_mapping,
+        mapping_version_value=mapping_version_value,
     )
-    job.mapping = valid_mapping
-    job.idempotency_key = idempotency_key
-    job.error_code = None
-    job.error_message = None
     try:
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        existing = _lock_query(db.query(ImportJob).filter(
+        existing = db.query(ImportJob).filter(
             ImportJob.organization_id == organization_id,
             ImportJob.idempotency_key == idempotency_key,
-        )).first()
-        if existing:
+        ).first()
+        if (
+            existing
+            and existing.source_hash == job.source_hash
+            and existing.mapping_version == computed_version
+            and getattr(existing, "confirm_base_version", None) == expected_version
+            and _confirmation_visible(db, existing.confirm_xid, snapshot)
+        ):
             _assert_actor_authorized(existing, actor_id, member)
-            if (
-                existing.source_hash == job.source_hash
-                and existing.mapping_version == computed_version
-                and mapping_version_value == computed_version
-            ):
-                return existing
+            return existing
         raise ImportJobError("IDEMPOTENCY_CONFLICT", "Não foi possível confirmar a importação concorrente.", 409) from exc
     db.refresh(job)
     return job

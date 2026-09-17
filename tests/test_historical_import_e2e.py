@@ -90,12 +90,49 @@ def test_import_vertical_preview_dry_run_confirm_processa_isolado_e_idempotente(
         db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
         stale_version, "e2e-import-key",
     )
-    # Retry pode chegar com a versão anterior: mesma key + mesmo mapping é replay.
+    # Lost-response replay com o payload original (mesma chave, mesmo mapping,
+    # mesma versão-base) é idempotente: mesmo job, sem nova transição/versão.
     repeated = confirm(
         db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
         stale_version, "e2e-import-key",
     )
     assert repeated.id == confirmed.id
+    db.expire_all()
+    apos_replay = get_job(db, org.id, job.id)
+    assert apos_replay.expected_version == confirmed.expected_version
+    # Mesma chave reutilizada por outra importação com mapping diferente.
+    outro_job = create_preview(db, org.id, user.id, content, "historico-2.csv", "text/csv", campaign.id)
+    outro = dry_run(db, org.id, user.id, outro_job.id, _mapping(), outro_job.expected_version)
+    outro_mapping = dict(_mapping())
+    outro_mapping["Site"] = None
+    segundo = dry_run(db, org.id, user.id, outro_job.id, outro_mapping, outro["job"]["expected_version"])
+    with pytest.raises(ImportJobError) as mapping_conflict:
+        confirm(
+            db, org.id, user.id, outro_job.id, outro_mapping, segundo["job"]["mapping_version"],
+            segundo["job"]["expected_version"], "e2e-import-key",
+        )
+    assert mapping_conflict.value.code == "IDEMPOTENCY_CONFLICT"
+    # Mesma chave com versão incompatível no job já confirmado não vira replay.
+    with pytest.raises(ImportJobError) as base_conflict:
+        confirm(
+            db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
+            stale_version + 100, "e2e-import-key",
+        )
+    assert base_conflict.value.code == "VERSION_CONFLICT"
+    # Versão velha com chave diferente continua VERSION_CONFLICT.
+    with pytest.raises(ImportJobError) as version_conflict:
+        confirm(
+            db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
+            stale_version, "outra-chave-e2e",
+        )
+    assert version_conflict.value.code == "VERSION_CONFLICT"
+    # Chave nova com a versão corrente não reabre a importação já confirmada.
+    with pytest.raises(ImportJobError) as current_key_conflict:
+        confirm(
+            db, org.id, user.id, job.id, _mapping(), result["job"]["mapping_version"],
+            apos_replay.expected_version, "outra-chave-e2e",
+        )
+    assert current_key_conflict.value.code == "IDEMPOTENCY_CONFLICT"
     with pytest.raises(ImportJobError) as cross_tenant:
         get_job(db, uuid.uuid4(), job.id)
     assert cross_tenant.value.status_code == 404
