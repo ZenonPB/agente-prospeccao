@@ -1523,9 +1523,12 @@ async def run_pipeline(
                             "timestamp": _ts(),
                         }
 
-                async def _score_current_lead():
+                async def _score_current_lead(op_db):
+                    # Sessão dedicada: o scoring commita no meio (cota) sem
+                    # invalidar a sessão do lote nem os próximos leads.
+                    isolated_lead = op_db.query(Lead).filter(Lead.id == lead.id).one()
                     return await process_single_lead(
-                        lead, enrichment_service, scoring_service, db,
+                        isolated_lead, enrichment_service, scoring_service, op_db,
                         analysis_profile=analysis_profile,
                         campaign_target_service=campaign.target_service if campaign else "",
                         campaign_target_segment=campaign.target_segment if campaign else "",
@@ -1540,7 +1543,14 @@ async def run_pipeline(
                     _score_current_lead,
                     lead_name=lead.company_name,
                     correlation_id=correlation_id,
+                    isolated=True,
+                    session_factory=SessionLocal,
                 )
+                if guarded.ok:
+                    # Pontuação já commitada na sessão isolada: recarrega na
+                    # sessão do lote para o feed e o commit final enxergarem
+                    # o estado pós-scoring, não o pré-reset.
+                    db.refresh(lead)
                 scoring_result = None
                 processing_failure = guarded.failure
                 if guarded.ok and guarded.value is not None:
@@ -1551,15 +1561,21 @@ async def run_pipeline(
                     # O orchestrator mantém o lead em NOVO para reprocesso; aqui
                     # só deixamos o feed honesto (nada de "Score: 0" forjado).
                     failed_count += 1
-                    failure_message = (
-                        f"Não foi possível analisar {lead.company_name} agora. "
-                        "O restante da busca continua e este lead ficará pendente para nova tentativa."
-                        if processing_failure
-                        else (
-                            f"{lead.company_name} NÃO foi pontuado agora (serviço de análise indisponível) — "
-                            "será reprocessado no próximo lote."
+                    if processing_failure and not processing_failure.retryable:
+                        failure_message = (
+                            f"Falha técnica ao analisar {lead.company_name} "
+                            f"({processing_failure.error_type}) — não será repetido automaticamente."
                         )
-                    )
+                    else:
+                        failure_message = (
+                            f"Não foi possível analisar {lead.company_name} agora. "
+                            "O restante da busca continua e este lead ficará pendente para nova tentativa."
+                            if processing_failure
+                            else (
+                                f"{lead.company_name} NÃO foi pontuado agora (serviço de análise indisponível) — "
+                                "será reprocessado no próximo lote."
+                            )
+                        )
                     yield {
                         "type": "log",
                         "message": failure_message,
