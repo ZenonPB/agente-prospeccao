@@ -34,6 +34,8 @@ def test_summary_preserva_unknown_e_nao_confunde_zero():
     assert summary["dimension_coverage"]["contactability"] == 0.5
     assert summary["legacy_shadow_mean_absolute_delta"] == 2.0
     assert summary["providers"]["estimated_cost"] == 0.0
+    assert summary["outcomes"]["total"] == 0
+    assert summary["outcomes"]["attribution_rate"] is None
 
 
 def test_summary_sem_amostra_retorna_taxas_unknown():
@@ -65,32 +67,74 @@ def test_provider_failure_e_custo_sao_agregados_sem_pii():
     }
 
 
-def test_readiness_nunca_promove_shadow_automaticamente():
-    summary = {
+def _ready_summary(*, outcomes=None):
+    return {
         "sample_size": 30,
         "legacy_shadow_comparable": 30,
         "dimension_coverage": {
             "adherence": 0.95,
             "moment": 0.8,
-            "contactability": 0.5,
+            "contactability": 0.8,
             "data_confidence": 0.9,
         },
         "providers": {"failure_rate": 0.05},
+        "outcomes": outcomes or {},
     }
+
+
+def test_readiness_tecnica_nao_promove_sem_resultado_real():
+    readiness = evaluate_pilot_readiness(_ready_summary())
+
+    assert readiness["ready_for_review"] is True
+    assert readiness["promotion_evidence_sufficient"] is False
+    assert readiness["promotion_allowed"] is False
+    assert readiness["promotion_checks"]["worked_leads"] is False
+
+
+def test_evidencia_de_promocao_exige_outcomes_atribuidos_e_ainda_nao_autopromove():
+    readiness = evaluate_pilot_readiness(_ready_summary(outcomes={
+        "worked_leads": 25,
+        "attributed": 12,
+        "positive": 3,
+        "attribution_rate": 0.92,
+    }))
+
+    assert readiness["ready_for_review"] is True
+    assert readiness["promotion_evidence_sufficient"] is True
+    assert all(readiness["promotion_checks"].values())
+    assert readiness["promotion_allowed"] is False
+
+
+def test_readiness_exige_cobertura_de_contatabilidade():
+    summary = _ready_summary(outcomes={
+        "worked_leads": 25,
+        "attributed": 12,
+        "positive": 3,
+        "attribution_rate": 0.92,
+    })
+    summary["dimension_coverage"]["contactability"] = 0.59
 
     readiness = evaluate_pilot_readiness(summary)
 
-    assert readiness["ready_for_review"] is True
-    assert readiness["promotion_allowed"] is False
+    assert readiness["ready_for_review"] is False
+    assert readiness["checks"]["contactability_coverage"] is False
+    assert readiness["promotion_evidence_sufficient"] is False
 
 
 def test_readiness_falha_fechado_sem_dados_de_provider():
     readiness = evaluate_pilot_readiness({
         "sample_size": 100,
         "legacy_shadow_comparable": 100,
-        "dimension_coverage": {"adherence": 1, "moment": 1, "data_confidence": 1},
+        "dimension_coverage": {
+            "adherence": 1,
+            "moment": 1,
+            "contactability": 1,
+            "data_confidence": 1,
+        },
         "providers": {},
+        "outcomes": {},
     })
 
     assert readiness["ready_for_review"] is False
     assert readiness["checks"]["provider_failure_rate"] is False
+    assert readiness["promotion_evidence_sufficient"] is False
