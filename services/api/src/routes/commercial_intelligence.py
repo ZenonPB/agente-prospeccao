@@ -61,5 +61,5 @@ def pilot_readiness(
     campaign_id: UUID | None = Query(None),
     service: CommercialIntelligenceService = Depends(_service),
 ):
-    """Diagnóstico read-only da Fase 1H; não promove o shadow nem faz I/O externo."""
+    """Diagnóstico read-only; não promove shadow nem executa I/O externo."""
     return service.pilot_readiness(campaign_id=campaign_id)
