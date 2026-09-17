@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from config.settings import settings
+from src.config.settings import settings
 from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, Person
 from services.prospecting.commercial_dimensions import derive_commercial_dimensions
 from services.prospecting.employment_history_service import EmploymentHistoryService
