@@ -25,7 +25,7 @@ Transformar uma oportunidade comercial em uma conversa rastreável sem criar um 
 4. STOP encerra a sequência e mantém do-not-contact.
 5. Bounce permanente suprime o endereço; falha transitória é limitada e observável.
 6. Toda resolução inbound e toda mutação comercial é org-scoped.
-7. Um endereço suprimido por uma organização não deve contaminar outra organização; supressões globais, quando existirem, precisam ser explicitamente globais.
+7. `EmailSuppression` é deliberadamente global por endereço no schema atual: um endereço marcado por bounce permanente é bloqueado em todas as organizações. O `organization_id` registrado indica a origem da supressão para diagnóstico, não cria escopo de tenant. Alterar essa política exige migration e decisão explícita de produto/deliverability.
 8. Threading preserva Message-ID/References das etapas anteriores.
 9. Conteúdo gerado só pode afirmar fatos observados/provenientes. Hipóteses de scoring, `primary_need`, `pitch_angle` e inferências devem ser apresentadas como hipótese, nunca como fato observado.
 10. Toda mensagem de e-mail da cadência contém mecanismo de opt-out, inclusive follow-ups e closing, mesmo se o modelo omitir.
@@ -35,4 +35,4 @@ Transformar uma oportunidade comercial em uma conversa rastreável sem criar um 
 
 ## Critério de pronto
 
-O bloco só pode ser mergeado quando testes cobrirem: geração grounded, opt-out em todas as etapas, envio humano vs automático, e-mail verificado, suppression tenant-safe, retry/bounce, reply/STOP, pausa de sequence, threading, idempotência disponível, estados terminais, tenant isolation e regressão do People & Contact Intelligence. O CI oficial deve estar verde no HEAD exato da PR.
+O bloco só pode ser mergeado quando testes cobrirem: geração grounded, opt-out em todas as etapas, envio humano vs automático, e-mail verificado, política global de suppression, retry/bounce, reply/STOP, pausa de sequence, threading, idempotência disponível, estados terminais, tenant isolation e regressão do People & Contact Intelligence. O CI oficial deve estar verde no HEAD exato da PR.
