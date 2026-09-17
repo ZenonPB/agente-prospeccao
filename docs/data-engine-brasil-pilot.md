@@ -1,78 +1,91 @@
 # Data Engine Brasil — piloto controlado (Fase 1H)
 
-**Status:** RUNBOOK — CODE COMPLETE para instrumentação; execução real depende de snapshot e credenciais autorizadas.
+**Status:** CODE COMPLETE / OPERATIONAL VALIDATION REQUIRED.
 
-Este documento fecha a Fase 1 com um procedimento reproduzível. Ele não declara qualidade comercial sem dados reais e não autoriza a promoção automática de Commercial Dimensions para o ranking principal.
+Este runbook separa três estados que não podem ser confundidos: código pronto, telemetria suficiente para revisão e evidência operacional suficiente para discutir promoção. Nenhum deles autoriza promoção automática de Commercial Dimensions.
 
 ## Objetivo
 
-Medir, por organização e opcionalmente por campanha, o caminho já existente de descoberta até oportunidade: cobertura das quatro dimensões comerciais, comparação do score legado com a prioridade shadow, contatabilidade e saúde/custo dos providers. Outcomes podem complementar a revisão somente quando a provenance disponível sustentar a interpretação feita.
+Validar, por organização e campanha, o caminho real:
 
-A consulta ao diagnóstico é read-only. Consultá-lo não executa provider, não consome quota, não altera `qualification_score`, `priority`, `overall`, status, ordenação ou CRM. A materialização prévia das dimensões shadow é uma etapa separada e explícita.
+`Vertente → Registry → Discovery → Public Web → Commercial Dimensions → People → Contact → Outreach → Conversation`.
 
-## Cenários de referência
+A consulta de diagnóstico é read-only: não executa provider, não consome quota e não altera ranking, status ou CRM.
 
-O piloto deve usar três cenários separados, cada um com sua Vertente efetiva e território explícito:
+## Cenários obrigatórios
 
-1. AlphaMec — serviços/projetos de Engenharia Mecânica;
+Executar separadamente:
+
+1. AlphaMec — Engenharia Mecânica;
 2. AlphaMec — Troféus/Eventos;
 3. desenvolvedor independente — Landing Pages.
 
-Não misturar os três em uma única campanha.
+Não misturar cenários numa campanha, pois isso destrói a interpretação por Vertente.
 
 ## Pré-condições
 
 - `main` com CI verde no SHA implantado;
 - snapshot real do Brazil Company Registry importado e conferido pelo ledger;
-- organização e membros corretos;
-- Vertente efetiva revisada para o cenário;
-- território/região e limites de busca explícitos;
+- encoding e layout confirmados contra o snapshot efetivamente utilizado;
+- organização, membros, Vertente e território corretos;
 - providers externos somente com credenciais autorizadas;
-- quotas e budget configurados antes da execução; provider pago permanece desabilitado quando não houver autorização;
-- Commercial Dimensions continua em shadow;
-- nenhuma automação de contato é necessária para este piloto.
+- quotas e budget definidos antes da execução; provider pago desabilitado sem autorização;
+- Commercial Dimensions em shadow;
+- nenhuma alteração de threshold para fazer o piloto passar.
 
 ## Execução
 
 Para cada cenário:
 
-1. criar uma campanha controlada e executar o fluxo normal;
-2. habilitar `COMMERCIAL_DIMENSIONS_SHADOW_ENABLED` somente no ambiente controlado do piloto;
-3. materializar as dimensões da amostra pelo caminho persistente de recompute/análise já existente, sem promover o shadow para ranking;
-4. confirmar que os leads da amostra possuem `score_vector.commercial_dimensions` antes de interpretar cobertura;
-5. consultar `GET /api/commercial-intelligence/pilot-readiness?campaign_id=<uuid>`;
-6. ao terminar a execução controlada, restaurar a configuração de shadow conforme a política do ambiente.
+1. registrar SHA implantado, campaign id, Vertente/versão, território e janela da execução;
+2. executar discovery normal sobre dados reais;
+3. habilitar `COMMERCIAL_DIMENSIONS_SHADOW_ENABLED` apenas no ambiente controlado;
+4. materializar as dimensões pelo caminho persistente existente;
+5. confirmar `score_vector.commercial_dimensions` na amostra;
+6. consultar `GET /api/commercial-intelligence/pilot-readiness?campaign_id=<uuid>`;
+7. revisar manualmente falsos positivos, evidências, contatos e duplicatas;
+8. trabalhar uma amostra real antes de discutir promoção;
+9. restaurar a configuração do ambiente ao encerrar o piloto.
 
-O endpoint é protegido pelo mesmo contexto de organização e papel de analista usado pelos demais endpoints de inteligência comercial. O `campaign_id` é apenas filtro adicional: nunca remove o filtro de tenant.
+`campaign_id` é somente filtro adicional; tenant scope continua obrigatório.
 
-Se a cobertura de dimensões vier zerada, isso deve ser tratado primeiro como **dimensões não materializadas** e não como evidência de baixa qualidade comercial. Não alterar thresholds para mascarar ausência de materialização.
+## Interpretação correta
 
-Registrar o SHA implantado, campaign id, Vertente/versão, território, horário inicial/final e eventuais indisponibilidades externas. Não registrar chaves, tokens, e-mails pessoais ou conteúdo sensível no relatório.
+`UNKNOWN` significa ausência de observação, nunca zero. Cobertura zerada deve ser investigada primeiro como possível falta de materialização. Falha de provider não pode virar evidência negativa. Baixa Contatabilidade não reduz Aderência.
 
-## Métricas mínimas
+O diagnóstico separa:
 
-O diagnóstico de pilot readiness abrange tamanho da amostra, taxa qualificada, taxa contatável, cobertura das quatro dimensões, cobertura da Prioridade Comercial shadow, diferença entre score legado e prioridade shadow, pares comparáveis e saúde/custo dos providers.
+- `ready_for_review`: telemetria técnica suficiente para revisão humana;
+- `promotion_evidence_sufficient`: amostra técnica + amostra realmente trabalhada + outcomes confiavelmente atribuídos suficientes para uma decisão humana;
+- `promotion_allowed`: permanece `false`; não existe autopromoção.
 
-Outcomes comerciais (respostas, reuniões, ganhos/contratos e receita) podem ser analisados pelos mecanismos de inteligência existentes, mas **não devem ser classificados como atribuídos de forma confiável apenas porque `lead_opportunity_id` está preenchido**. O fluxo legado pode preencher esse vínculo por heurística. Uma taxa de atribuição confiável exige provenance explícita que diferencie vínculo confirmado de fallback heurístico.
+Os gates atuais exigem, no mínimo, 30 leads, 20 pares legado/shadow, Aderência >= 80%, Momento >= 60%, Contatabilidade >= 60%, Confiança >= 80% e falha de providers <= 10%. Para evidência de promoção também são exigidos 20 leads trabalhados, 10 outcomes atribuídos, atribuição >= 80% e pelo menos um outcome positivo observado.
 
-Ao analisar funil, transições sucessivas do mesmo lead devem ser consolidadas por entidade: um lead que respondeu, marcou/realizou reunião e ganhou conta no máximo uma vez em cada estágio. Eventos brutos podem ser medidos separadamente, mas não podem inflar contagens de leads.
+Esses números são gates de suficiência, não prova de que a fórmula é melhor. Não ajustar pesos ou thresholds para satisfazê-los.
 
-`UNKNOWN` é ausência de observação e não equivale a zero. Métricas sem denominador retornam `null`, não 0%.
+## Provenance de outcomes
 
-## Gate de revisão
+Um `lead_opportunity_id` legado não é, sozinho, prova de atribuição causal: há caminhos históricos que podem preencher o vínculo por heurística. Só marque um outcome como atribuído para o gate de promoção quando a provenance disponível comprovar o vínculo. Na dúvida, trate como não atribuído.
 
-O sistema pode marcar `ready_for_review=true` somente quando houver amostra mínima e cobertura observacional suficiente. Esse sinal significa **pronto para revisão humana**, não pronto para substituir o ranking.
+Transições sucessivas do mesmo lead devem ser consolidadas por entidade para métricas de funil. Eventos brutos podem existir separadamente, mas não devem inflar contagens de leads.
 
-Os critérios iniciais são deliberadamente conservadores e versionáveis no código: pelo menos 30 leads, 20 pares legado/shadow, cobertura de Aderência >= 80%, Momento >= 60%, Confiança dos dados >= 80% e taxa de falha de providers <= 10%.
+## O que precisa ser observado no piloto real
 
-`promotion_allowed` permanece sempre `false` nesta fase. A promoção exige revisão dos resultados reais, falsos positivos, outcomes e diferenças por Vertente.
+- Registry encontra empresas brasileiras coerentes com CNAE/território;
+- volume real não degrada busca/ingestão de forma incompatível com operação;
+- fallback mantém o produto utilizável quando Registry/web/provider falha;
+- caminho R$0 não consome provider pago silenciosamente;
+- evidência explica empresa/oferta/momento e tem provenance/observed_at;
+- Company/Person/Lead não são duplicados indevidamente;
+- pessoa encontrada realmente participa da decisão quando isso for afirmado;
+- e-mail heurístico não aparece como verificado;
+- suppression/opt-out/reply/STOP/bounce funcionam no fluxo real;
+- tenant isolation permanece intacto.
 
-## Critérios comerciais a observar manualmente
+## Critério para sair de shadow
 
-Revisar se a empresa combina com a oferta; se a justificativa explica empresa/oferta/momento; se a evidência existe e está atual; se falha de coleta permaneceu UNKNOWN; se baixa Contatabilidade preservou boa Aderência; se o contato participa da decisão; se houve gasto sem autorização; e se existem duplicatas de Company/Person/Lead.
+Não promover Commercial Dimensions apenas porque o CI está verde ou `ready_for_review=true`. Uma promoção futura exige todos os gates técnicos, `promotion_evidence_sufficient=true`, revisão dos falsos positivos e resultados por Vertente e uma mudança de código/configuração explícita, reversível e coberta por regressões. Até lá, o ranking legado continua canônico.
 
-## Saída do piloto
+## Limite desta validação
 
-Para cada cenário, guardar apenas agregados e exemplos sanitizados necessários à revisão. Comparar os três cenários separadamente e em conjunto. A decisão seguinte pode ser manter shadow e corrigir cobertura, ajustar fórmula/configuração declarativa ou preparar promoção controlada posterior.
-
-Não alterar pesos ou thresholds para "fazer o piloto passar". Mudanças precisam ser justificadas pelas evidências e cobertas por testes.
+CI automatizado prova contratos de software; ele não substitui snapshot real da Receita, credenciais autorizadas, comportamento de providers externos nem resultados comerciais de pessoas reais. Se essas evidências não estiverem disponíveis, o estado correto continua sendo `OPERATIONAL VALIDATION REQUIRED`, e não “validado em produção”.
