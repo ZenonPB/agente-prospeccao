@@ -155,7 +155,7 @@ REQUIRED_COLUMNS = {
     "offer_profile_activations": {"offer_key", "action", "version_id", "previous_version_id", "actor_id", "created_at"},
     "crm_certification_runs": {"provider", "status", "checks", "adapter_version", "tested_by_id", "created_at"},
     "lead_usefulness_feedbacks": {"useful", "reason", "detail", "campaign_id", "created_at"},
-    "import_jobs": {"organization_id", "source_hash", "idempotency_key", "source_headers", "source_rows", "mapping", "mapping_version", "dry_run_report", "status", "expected_version", "accepted_rows", "duplicate_rows", "rejected_rows", "failed_rows", "unprocessed_rows"},
+    "import_jobs": {"organization_id", "source_hash", "idempotency_key", "source_headers", "source_rows", "mapping", "mapping_version", "dry_run_report", "status", "expected_version", "confirm_base_version", "confirm_xid", "accepted_rows", "duplicate_rows", "rejected_rows", "failed_rows", "unprocessed_rows"},
     "import_row_results": {"import_job_id", "organization_id", "line_number", "source_version", "status", "reason_code", "identity_decision", "provenance"},
     "import_audit_events": {"import_job_id", "organization_id", "action", "from_status", "to_status", "correlation_id", "created_at"},
     "commercial_bulk_operations": {"organization_id", "actor_id", "idempotency_key", "operation", "payload_hash", "status", "result", "created_at", "completed_at"},

@@ -1664,6 +1664,12 @@ class ImportJob(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
+    # Identidade da confirmação idempotente: a versão-base do job na confirmação
+    # e a transação que a efetivou. Permitem reconhecer o retry idempotente
+    # apesar do incremento de versão, sem confundir concorrentes perdedores —
+    # entre eles a confirmação nunca esteve visível no snapshot de abertura.
+    confirm_base_version = Column(Integer, nullable=True)
+    confirm_xid = Column(String(20), nullable=True)
 
 class ImportRowResult(Base):
     """Resultado sanitizado e versionado de uma linha de importação."""

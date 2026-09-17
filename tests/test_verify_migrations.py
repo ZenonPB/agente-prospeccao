@@ -16,7 +16,7 @@ def _module():
 
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
-    assert verify_migrations.migration_head() == "d2e3f4a5b6c7"
+    assert verify_migrations.migration_head() == "f2b3c4d5e700"
 
 
 def test_registry_tem_schema_e_integridade_obrigatorios():
