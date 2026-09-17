@@ -7,8 +7,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from src.config.settings import settings
-from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, Person
-from services.prospecting.commercial_dimensions import derive_commercial_dimensions
+from src.db.models import Enrichment, EventOpportunityRow, Lead, LeadOpportunityRow, LeadStatus, Person
+from services.prospecting.commercial_dimensions import derive_commercial_dimensions, shadow_derive_input
 from services.prospecting.employment_history_service import EmploymentHistoryService
 from services.prospecting.intent_engine import build_opportunity_vector, extract_intent_signals, intent_score
 from services.prospecting.intent_provider_registry import IntentProviderRegistry
@@ -144,7 +144,17 @@ class DataIntelligenceService:
         merged_vector = {**existing_vector, **vector}
         commercial_dimensions = None
         if settings.COMMERCIAL_DIMENSIONS_SHADOW_ENABLED:
-            commercial_dimensions = derive_commercial_dimensions(merged_vector, evidence=evidence)
+            # Zeros de fallback (lead ainda não pontuado: score NULL ou
+            # status NOVO, como após falha do Groq) não entram no shadow
+            # como medida: ausência derivada permanece UNKNOWN.
+            unscored = lead.qualification_score is None or lead.status == LeadStatus.NOVO
+            shadow_vector = shadow_derive_input(
+                existing_vector,
+                merged_vector,
+                qualification_observed=not unscored,
+                opportunity_observed=any(row.score is not None for row in opportunities),
+            )
+            commercial_dimensions = derive_commercial_dimensions(shadow_vector, evidence=evidence)
             if commercial_dimensions is not None:
                 # Diagnóstico somente: o namespace shadow convive com o vetor
                 # atual sem substituir overall/qualification/priority/ranking.

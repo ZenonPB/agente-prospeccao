@@ -67,6 +67,32 @@ def _data_confidence(
     return round(evidence_confidence * 0.6 + coverage * 0.4)
 
 
+def shadow_derive_input(
+    existing_vector: Mapping[str, Any],
+    vector: Mapping[str, Any],
+    *,
+    qualification_observed: bool,
+    opportunity_observed: bool,
+) -> dict[str, Any]:
+    """Remove do input shadow os zeros vindos de fallback de ausência.
+
+    O vetor carrega fallbacks que valem zero quando o lead ainda não foi
+    pontuado; sem provenance, o derivador leria esses zeros como medidas
+    reais e persistiria aderência/momento zero com banda LOW em vez de
+    UNKNOWN. A chave só é mantida quando foi observada de verdade: presente
+    no vetor existente ou amparada por pontuação real.
+    """
+    shadow = dict(vector)
+    scored = qualification_observed or opportunity_observed
+    if "icp_fit" not in existing_vector and not scored:
+        shadow.pop("icp_fit", None)
+    if "need" not in existing_vector and not qualification_observed:
+        shadow.pop("need", None)
+    if "commercial_fit" not in existing_vector and not scored:
+        shadow.pop("commercial_fit", None)
+    return shadow
+
+
 def derive_commercial_dimensions(
     score_vector: Mapping[str, Any] | None,
     *,
