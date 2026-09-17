@@ -15,6 +15,7 @@ import asyncio
 import json
 import logging
 import re
+import ssl
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -85,8 +86,11 @@ def create_http_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] 
     permitindo 4x o esperado no pior caso): connect curto para buracos
     de DNS/conexão não wedgarem o loop, read carrega o valor pedido.
     """
+    # httpx 0.28 depreca `verify=<caminho>`. Construir o SSLContext mantém o
+    # CA bundle explícito sem warnings — importante porque CI roda `-W error`.
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
     return httpx.AsyncClient(
-        verify=certifi.where(),
+        verify=ssl_context,
         follow_redirects=True,
         timeout=httpx.Timeout(connect=10.0, read=timeout, write=20.0, pool=10.0),
         headers=headers,
