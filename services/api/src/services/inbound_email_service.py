@@ -42,7 +42,7 @@ def _resolve_lead_for_sender(db: Session, organization_id, sender: str):
     endereço. A deduplicação por id é feita em memória para manter a consulta
     simples e o contrato testável. Se houver leads distintos, só aceitamos o
     que possui o envio mais recente da nossa própria cadência ao remetente.
-    Empate/ausência de envio permanece ambíguo e falha fechado.
+    Empate no timestamp máximo entre leads ou ausência de envio falha fechado.
     """
     rows = (
         db.query(Lead)
@@ -69,7 +69,6 @@ def _resolve_lead_for_sender(db: Session, organization_id, sender: str):
             FollowUp.sent_at.isnot(None),
         )
         .order_by(FollowUp.sent_at.desc())
-        .limit(2)
         .all()
     )
     if not sent:
@@ -80,15 +79,17 @@ def _resolve_lead_for_sender(db: Session, organization_id, sender: str):
         )
         return None
 
-    newest = sent[0]
-    if len(sent) > 1 and sent[1].sent_at == newest.sent_at and sent[1].lead_id != newest.lead_id:
+    newest_at = sent[0].sent_at
+    newest_lead_ids = {row.lead_id for row in sent if row.sent_at == newest_at}
+    if len(newest_lead_ids) != 1:
         logger.warning(
-            "Inbound ambíguo na organização %s: dois leads possuem envio igualmente recente para o remetente",
+            "Inbound ambíguo na organização %s: múltiplos leads possuem envio no timestamp mais recente",
             organization_id,
         )
         return None
 
-    return next((row for row in candidates if row.id == newest.lead_id), None)
+    newest_lead_id = next(iter(newest_lead_ids))
+    return next((row for row in candidates if row.id == newest_lead_id), None)
 
 
 def _record_response_message(db: Session, lead: Lead, body: str, now: datetime) -> None:
