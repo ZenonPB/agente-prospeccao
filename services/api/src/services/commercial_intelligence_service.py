@@ -7,13 +7,13 @@ Isso evita ensinar o sistema com uma causalidade inventada.
 from __future__ import annotations
 
 from collections import defaultdict
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.db.models import CommercialOutcomeRow, Company, Lead, LeadOpportunityRow, Person, ProviderExecutionMetric
+from services.prospecting.pilot_metrics import evaluate_pilot_readiness, summarize_pilot
 
 
 POSITIVE_REPLY = {"REPLY", "RESPONDED", "POSITIVE_REPLY"}
@@ -256,6 +256,63 @@ class CommercialIntelligenceService:
             })
         rows.sort(key=lambda row: (row["win_rate"], row["revenue"], row["sample_size"]), reverse=True)
         return rows
+
+    def pilot_readiness(self, *, campaign_id: Any | None = None) -> dict[str, Any]:
+        """Mede um piloto sem alterar o ranking nem executar providers.
+
+        Toda leitura é limitada à organização ativa; `campaign_id`, quando
+        informado, é um filtro adicional e nunca substitui o filtro de tenant.
+        O endpoint consome apenas telemetria e score_vector já persistidos.
+        """
+        lead_query = self.db.query(Lead).filter(Lead.organization_id == self.organization_id)
+        metric_query = self.db.query(ProviderExecutionMetric).filter(
+            ProviderExecutionMetric.organization_id == self.organization_id,
+        )
+        if campaign_id is not None:
+            lead_query = lead_query.filter(Lead.campaign_id == campaign_id)
+            metric_query = metric_query.filter(ProviderExecutionMetric.campaign_id == campaign_id)
+
+        leads = lead_query.all()
+        person_ids = {row.primary_person_id for row in leads if row.primary_person_id is not None}
+        routable_ids: set[str] = set()
+        if person_ids:
+            routable_ids = {
+                str(row.id)
+                for row in self.db.query(Person).filter(
+                    Person.organization_id == self.organization_id,
+                    Person.id.in_(person_ids),
+                    Person.routable.is_(True),
+                ).all()
+            }
+
+        projected_leads = []
+        for lead in leads:
+            vector = lead.score_vector if isinstance(lead.score_vector, dict) else {}
+            dimensions = vector.get("commercial_dimensions")
+            projected_leads.append({
+                "legacy_score": float(lead.qualification_score) if lead.qualification_score is not None else None,
+                "qualified": str(getattr(lead.status, "value", lead.status) or "").upper() == "QUALIFICADO",
+                "contactable": bool(lead.primary_person_id and str(lead.primary_person_id) in routable_ids),
+                "commercial_dimensions": dimensions if isinstance(dimensions, dict) else None,
+            })
+
+        projected_metrics = [
+            {
+                "status": row.status,
+                "result_count": row.result_count,
+                "cost": float(row.cost) if row.cost is not None else None,
+            }
+            for row in metric_query.all()
+        ]
+        summary = summarize_pilot(projected_leads, projected_metrics)
+        return {
+            "scope": {
+                "organization_id": str(self.organization_id),
+                "campaign_id": str(campaign_id) if campaign_id is not None else None,
+            },
+            "summary": summary,
+            "readiness": evaluate_pilot_readiness(summary),
+        }
 
     def dashboard(self) -> dict[str, Any]:
         return {
