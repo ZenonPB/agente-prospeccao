@@ -8,7 +8,7 @@ Este documento fecha a Fase 1 com um procedimento reproduzível. Ele não declar
 
 Medir, por organização e opcionalmente por campanha, o caminho já existente de descoberta até oportunidade: cobertura das quatro dimensões comerciais, comparação do score legado com a prioridade shadow, contatabilidade, saúde/custo dos providers e outcomes atribuídos.
 
-A instrumentação é read-only. Consultar o diagnóstico não executa provider, não consome quota, não altera `qualification_score`, `priority`, `overall`, status, ordenação ou CRM.
+A consulta ao diagnóstico é read-only. Consultá-lo não executa provider, não consome quota, não altera `qualification_score`, `priority`, `overall`, status, ordenação ou CRM. A materialização prévia das dimensões shadow é uma etapa separada e explícita.
 
 ## Cenários de referência
 
@@ -18,7 +18,7 @@ O piloto deve usar três cenários separados, cada um com sua Vertente efetiva e
 2. AlphaMec — Troféus/Eventos;
 3. desenvolvedor independente — Landing Pages.
 
-Não misturar os três em uma única campanha. Isso permite comparar cobertura, falsos positivos, contatos e custo sem confundir estratégias comerciais diferentes.
+Não misturar os três em uma única campanha.
 
 ## Pré-condições
 
@@ -34,26 +34,24 @@ Não misturar os três em uma única campanha. Isso permite comparar cobertura, 
 
 ## Execução
 
-Para cada cenário, criar uma campanha controlada e executar o fluxo normal. Depois da conclusão, consultar:
+Para cada cenário:
 
-`GET /api/commercial-intelligence/pilot-readiness?campaign_id=<uuid>`
+1. criar uma campanha controlada e executar o fluxo normal;
+2. habilitar `COMMERCIAL_DIMENSIONS_SHADOW_ENABLED` somente no ambiente controlado do piloto;
+3. materializar as dimensões da amostra pelo caminho persistente de recompute/análise já existente, sem promover o shadow para ranking;
+4. confirmar que os leads da amostra possuem `score_vector.commercial_dimensions` antes de interpretar cobertura;
+5. consultar `GET /api/commercial-intelligence/pilot-readiness?campaign_id=<uuid>`;
+6. ao terminar a execução controlada, restaurar a configuração de shadow conforme a política do ambiente.
 
 O endpoint é protegido pelo mesmo contexto de organização e papel de analista usado pelos demais endpoints de inteligência comercial. O `campaign_id` é apenas filtro adicional: nunca remove o filtro de tenant.
+
+Se a cobertura de dimensões vier zerada, isso deve ser tratado primeiro como **dimensões não materializadas** e não como evidência de baixa qualidade comercial. Não alterar thresholds para mascarar ausência de materialização.
 
 Registrar o SHA implantado, campaign id, Vertente/versão, território, horário inicial/final e eventuais indisponibilidades externas. Não registrar chaves, tokens, e-mails pessoais ou conteúdo sensível no relatório.
 
 ## Métricas mínimas
 
-O diagnóstico retorna:
-
-- tamanho da amostra;
-- quantidade/taxa qualificada;
-- quantidade/taxa contatável;
-- cobertura de Aderência, Momento, Contatabilidade e Confiança dos dados;
-- cobertura da Prioridade Comercial shadow;
-- diferença absoluta média entre score legado e prioridade shadow quando ambos existem;
-- número de pares comparáveis;
-- execuções, falhas, resultados e custo estimado dos providers.
+O diagnóstico deve abranger tamanho da amostra, taxa qualificada, taxa contatável, cobertura das quatro dimensões, cobertura da Prioridade Comercial shadow, diferença entre score legado e prioridade shadow, pares comparáveis, saúde/custo dos providers e outcomes comerciais atribuídos (respostas, reuniões, ganhos/contratos e receita quando disponíveis). A saúde de atribuição deve permitir distinguir outcome atribuído de outcome sem vínculo confiável.
 
 `UNKNOWN` é ausência de observação e não equivale a zero. Métricas sem denominador retornam `null`, não 0%.
 
@@ -67,19 +65,10 @@ Os critérios iniciais são deliberadamente conservadores e versionáveis no có
 
 ## Critérios comerciais a observar manualmente
 
-Além dos números, revisar amostras das oportunidades de maior e menor prioridade e responder:
-
-- a empresa realmente combina com a oferta?
-- a justificativa explica por que esta empresa, esta oferta e por que agora?
-- a evidência citada existe e está atual?
-- uma falha de coleta foi preservada como UNKNOWN em vez de FALSE/zero?
-- baixa Contatabilidade preservou uma boa Aderência?
-- o contato sugerido participa da decisão de compra?
-- houve provider pago sem autorização ou além da quota?
-- existem duplicatas de Company/Person/Lead?
+Revisar se a empresa combina com a oferta; se a justificativa explica empresa/oferta/momento; se a evidência existe e está atual; se falha de coleta permaneceu UNKNOWN; se baixa Contatabilidade preservou boa Aderência; se o contato participa da decisão; se houve gasto sem autorização; e se existem duplicatas de Company/Person/Lead.
 
 ## Saída do piloto
 
-Para cada cenário, guardar apenas agregados e exemplos sanitizados necessários à revisão. Comparar os três cenários separadamente e em conjunto. A decisão seguinte pode ser: manter shadow e corrigir cobertura; ajustar fórmula/configuração declarativa; ou preparar uma promoção controlada em fase posterior.
+Para cada cenário, guardar apenas agregados e exemplos sanitizados necessários à revisão. Comparar os três cenários separadamente e em conjunto. A decisão seguinte pode ser manter shadow e corrigir cobertura, ajustar fórmula/configuração declarativa ou preparar promoção controlada posterior.
 
 Não alterar pesos ou thresholds para "fazer o piloto passar". Mudanças precisam ser justificadas pelas evidências e cobertas por testes.
