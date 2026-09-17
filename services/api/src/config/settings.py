@@ -76,5 +76,9 @@ class Settings(BaseSettings):
         False, description='Ativa o Registry como implementação de cnae_discovery (default seguro: desligado)')
     REGISTRY_SHADOW_MODE: bool = Field(
         False, description='Compara Registry x legado sem alterar o resultado principal')
+    COMMERCIAL_DIMENSIONS_SHADOW_ENABLED: bool = Field(
+        False,
+        description='Calcula dimensões comerciais 1E em shadow sem alterar score, prioridade ou ranking',
+    )
 
 settings = Settings()
