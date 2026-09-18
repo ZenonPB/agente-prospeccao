@@ -132,12 +132,36 @@ def _staging_count(db: Any, snapshot_id: Any) -> int:
         {"id": str(snapshot_id)}).scalar() or 0
 
 
+_CHANGED_CNPJS = """
+SELECT s.cnpj FROM registry_staging_companies s
+LEFT JOIN registry_companies c ON c.cnpj = s.cnpj
+WHERE s.snapshot_id = :id
+  AND (c.content_hash IS DISTINCT FROM s.content_hash)
+"""
+
+
 def _apply_activation(db: Any, snapshot: Any) -> None:
-    """Aplica staging → canônico + membership + flip (dentro da transação)."""
+    """Aplica staging → canônico + membership + flip (dentro da transação).
+
+    Conteúdo idêntico (mesmo `content_hash`) não reescreve o canônico nem
+    os secundários — mas o membership é criado para todas as linhas
+    observadas. `source_snapshot` do canônico registra a última MUDANÇA de
+    conteúdo; pertencimento ao snapshot vive no membership.
+    """
     snapshot_id = snapshot.id
     if _staging_count(db, snapshot_id) == 0:
         logger.warning("ativando snapshot %s/%s sem linhas em staging",
                        snapshot.source, snapshot.snapshot_month)
+    # Conjunto alterado materializado antes do upsert: compara com o
+    # canônico pré-ativação (linhas novas entram via LEFT JOIN). Secundários
+    # só depois do upsert (FK exige a linha canônica).
+    db.execute(sa.text(
+        "CREATE TEMPORARY TABLE tmp_registry_changed "
+        "(cnpj TEXT PRIMARY KEY) ON COMMIT DROP"))
+    db.execute(sa.text(f"""
+        INSERT INTO tmp_registry_changed (cnpj)
+        {_CHANGED_CNPJS}
+    """), {"id": str(snapshot_id)})
     cols = ", ".join(_APPLY_COLUMNS)
     updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in _UPDATE_COLUMNS)
     db.execute(sa.text(f"""
@@ -145,16 +169,17 @@ def _apply_activation(db: Any, snapshot: Any) -> None:
         SELECT {cols} FROM registry_staging_companies
         WHERE snapshot_id = :id
         ON CONFLICT (cnpj) DO UPDATE SET {updates}
+        WHERE registry_companies.content_hash IS DISTINCT FROM EXCLUDED.content_hash
     """), {"id": str(snapshot_id)})
     db.execute(sa.text("""
         DELETE FROM registry_company_cnaes
-        WHERE cnpj IN (SELECT cnpj FROM registry_staging_companies
-                       WHERE snapshot_id = :id)
-    """), {"id": str(snapshot_id)})
+        WHERE cnpj IN (SELECT cnpj FROM tmp_registry_changed)
+    """))
     db.execute(sa.text("""
         INSERT INTO registry_company_cnaes (cnpj, cnae)
         SELECT cnpj, cnae FROM registry_staging_company_cnaes
         WHERE snapshot_id = :id
+          AND cnpj IN (SELECT cnpj FROM tmp_registry_changed)
         ON CONFLICT DO NOTHING
     """), {"id": str(snapshot_id)})
     db.execute(sa.text("""

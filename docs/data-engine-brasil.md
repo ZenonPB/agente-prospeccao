@@ -231,9 +231,10 @@ Arquivos oficiais são nacionais; o importer aceita escopo
 busca) e materializa só o recorte — linhas fora do escopo avançam o
 checkpoint sem tocar as tabelas.
 
-Provenance é separada de visibilidade. `source_snapshot` registra a última
-observação do conteúdo; quem decide o universo visível é o membership
-versionado (`registry_snapshot_members`) + o ponteiro ACTIVE
+Provenance é separada de visibilidade. `source_snapshot` registra o snapshot
+da última MUDANÇA de conteúdo (linhas idênticas não são reescritas na
+ativação); quem decide o universo visível é o membership versionado
+(`registry_snapshot_members`, gravado por observação) + o ponteiro ACTIVE
 (`registry_snapshots.is_active`, único por source via índice parcial).
 COMPLETED = carga válida e elegível, ainda invisível. ACTIVE = universo
 servido pela descoberta padrão. A busca default enxerga o ACTIVE; mês
