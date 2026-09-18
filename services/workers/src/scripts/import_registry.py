@@ -27,6 +27,7 @@ from config.settings import settings  # noqa: E402
 from database.session import SessionLocal  # noqa: E402
 from services.registry.importer import RegistryFileSpec, RegistryImporter  # noqa: E402
 from services.registry.manifest import ManifestError, load_manifest  # noqa: E402
+from services.registry.scope import parse_scope  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,14 @@ def main() -> int:
     parser.add_argument("--encoding", default=settings.REGISTRY_ENCODING)
     parser.add_argument("--manifest", default=None,
                         help="manifesto JSON do snapshot (origem + tamanhos/hashes esperados)")
+    parser.add_argument("--uf", action="append", default=[],
+                        help="escopo: UF (ex. SP; repetível)")
+    parser.add_argument("--municipio-cod", action="append", default=[],
+                        help="escopo: código IBGE do município (ex. 3503208; repetível)")
+    parser.add_argument("--cnae", action="append", default=[],
+                        help="escopo: CNAE exato ou prefixo (ex. 8650003; repetível)")
+    parser.add_argument("--situacao", action="append", default=[],
+                        help="escopo: situação cadastral (ex. 02; repetível)")
     args = parser.parse_args()
     specs = _specs(args)
     if not specs:
@@ -65,8 +74,16 @@ def main() -> int:
             manifest = load_manifest(args.manifest)
         except ManifestError as exc:
             parser.error(f"manifesto inválido: {exc}")
+    try:
+        scope = parse_scope(ufs=args.uf, municipio_cods=args.municipio_cod,
+                            cnaes=args.cnae, situacoes=args.situacao)
+    except ValueError as exc:
+        parser.error(f"escopo inválido: {exc}")
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    if scope is not None:
+        logger.info("escopo: UFs=%s municipios=%s", sorted(scope.ufs),
+                    sorted(scope.municipio_cods))
     if manifest is not None and manifest.origin_kind != "receita_oficial":
         logger.warning(
             "origem declarada no manifesto: %s (%s) — não é a fonte oficial",
@@ -75,7 +92,7 @@ def main() -> int:
     try:
         snapshot = RegistryImporter(db, batch_size=args.batch_size, encoding=args.encoding).import_snapshot(
             source=args.source, snapshot_month=args.snapshot_month, files=specs,
-            manifest=manifest)
+            manifest=manifest, scope=scope)
     finally:
         db.close()
     logger.info(

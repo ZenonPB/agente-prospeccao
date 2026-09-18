@@ -44,6 +44,21 @@ class ManifestError(ValueError):
     """Manifesto malformado ou inconsistente: falhar fechado, sem importar."""
 
 
+# UFs válidas do Brasil (usadas por busca, targeting e escopo de importação).
+BRAZILIAN_UF_CODES = frozenset({
+    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
+    "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
+    "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+})
+
+
+def validate_snapshot_month(value: str) -> str:
+    """AAAA-MM do snapshot (ex. 2026-08). Formato inválido é erro, não dado."""
+    if not _SNAPSHOT_MONTH_RE.fullmatch(value or ""):
+        raise ValueError(f"snapshot_month inválido (esperado AAAA-MM): {value!r}")
+    return value
+
+
 @dataclass(frozen=True)
 class ManifestFile:
     table_kind: str
@@ -73,8 +88,6 @@ def _text(data: Mapping[str, Any], key: str) -> str:
 
 
 def _validate_month(value: str) -> str:
-    from services.registry.importer import validate_snapshot_month
-
     try:
         return validate_snapshot_month(value)
     except ValueError as exc:

@@ -7,10 +7,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from database.models import RegistryCnae, RegistryCompany, RegistryCompanyCnae
+from database.models import (
+    RegistryCnae,
+    RegistryCompany,
+    RegistryCompanyCnae,
+    RegistrySnapshot,
+)
 from services.registry.candidate import RegistryCandidate
 from services.registry.cnae_matching import (
     MAX_PREFIX_LEN,
@@ -20,13 +25,10 @@ from services.registry.cnae_matching import (
 )
 from services.registry.cnpj import normalize_cnpj
 
+from services.registry.manifest import BRAZILIAN_UF_CODES, validate_snapshot_month
+
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 100
-BRAZILIAN_UF_CODES = frozenset({
-    "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
-    "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
-    "RS", "RO", "RR", "SC", "SP", "SE", "TO",
-})
 
 @dataclass(frozen=True)
 class SearchFilters:
@@ -43,6 +45,7 @@ class SearchFilters:
     portes: list[str] | None = None
     limit: int = PAGE_SIZE_DEFAULT
     cursor: str | None = None
+    source_snapshot: str | None = None
 
     def __post_init__(self) -> None:
         if self.limit is not None and self.limit < 1:
@@ -92,6 +95,10 @@ class SearchFilters:
             object.__setattr__(
                 self, "portes",
                 [p.strip() for p in self.portes if p and p.strip()] or None)
+        if self.source_snapshot is not None:
+            object.__setattr__(
+                self, "source_snapshot",
+                validate_snapshot_month(str(self.source_snapshot).strip()))
 
 
 @dataclass(frozen=True)
@@ -102,16 +109,36 @@ class SearchResult:
 
 
 class RegistrySearchService:
-    """Queries de descoberta sobre `registry_companies` (leitura global)."""
+    """Queries de descoberta sobre `registry_companies` (leitura global).
+
+    Ativação: sem mês explícito, a busca enxerga o snapshot COMPLETED mais
+    recente — linhas de um snapshot com falha nunca vazam para descoberta.
+    Sem nenhum COMPLETED, não filtra (compatibilidade com cargas de teste).
+    """
 
     def __init__(self, db: Session) -> None:
         self._db = db
 
     def search(self, filters: SearchFilters) -> SearchResult:
+        from services.registry.importer import SOURCE
+
         cnpj = normalize_cnpj(filters.cnpj) if filters.cnpj else None
         if filters.cnpj and not cnpj:
             return SearchResult()
         stmt = select(RegistryCompany)
+        if filters.source_snapshot:
+            stmt = stmt.where(
+                RegistryCompany.source_snapshot == filters.source_snapshot)
+        else:
+            active = (
+                select(func.max(RegistrySnapshot.snapshot_month))
+                .where(RegistrySnapshot.source == SOURCE,
+                       RegistrySnapshot.status == "COMPLETED")
+                .scalar_subquery()
+            )
+            stmt = stmt.where(
+                RegistryCompany.source_snapshot
+                == func.coalesce(active, RegistryCompany.source_snapshot))
         if cnpj:
             stmt = stmt.where(RegistryCompany.cnpj == cnpj)
         if filters.cnaes or filters.cnae_prefixes:
