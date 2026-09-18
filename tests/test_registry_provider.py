@@ -21,23 +21,36 @@ def _db():
 
 
 def _seed_registry(db):
-    from database.models import RegistryCompany
+    from database.models import (
+        RegistryCompany,
+        RegistrySnapshot,
+        RegistrySnapshotMember,
+    )
 
+    snap = RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
+                            status="COMPLETED", is_active=True)
+    db.add(snap)
+    db.flush()
     db.add(RegistryCompany(
         cnpj="33000167000101", cnpj_basico="33000167",
         razao_social="PETROLEO BRASILEIRO S A PETROBRAS",
         matriz=True, situacao="2", cnae_principal="6000001",
         uf="RJ", municipio_cod="6001",
         source="receita_cnpj", source_snapshot="2026-08"))
+    db.add(RegistrySnapshotMember(snapshot_id=snap.id, cnpj="33000167000101"))
     db.commit()
 
 
 def _cleanup_registry(db):
-    from database.models import RegistryCompany, RegistryCompanyCnae
+    from database.models import RegistryCompany, RegistryCompanyCnae, RegistrySnapshot
 
     db.query(RegistryCompanyCnae).delete(synchronize_session=False)
     db.query(RegistryCompany).filter(
         RegistryCompany.cnpj.in_(["33000167000101", "60701190000104"])).delete(
+        synchronize_session=False)
+    db.query(RegistrySnapshot).filter(
+        RegistrySnapshot.source == "receita_cnpj",
+        RegistrySnapshot.snapshot_month == "2026-08").delete(
         synchronize_session=False)
     db.commit()
 
@@ -111,6 +124,9 @@ def test_registry_nao_cria_company_lead_ou_oportunidade():
             files=[RegistryFileSpec(table_kind="estabelecimentos", path=path, file_name="ESTABELE0")],
         )
         assert snap.inserted == 1
+        from services.registry.activation import activate_snapshot
+
+        activate_snapshot(db, source="receita_cnpj", snapshot_month="2026-08")
         found = RegistrySearchService(db).search(SearchFilters(uf="SP"))
         assert any(c.cnpj == "60701190000104" for c in found.items)
         after = (

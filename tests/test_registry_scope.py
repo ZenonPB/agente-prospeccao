@@ -124,19 +124,27 @@ def test_import_filtrado_materializa_apenas_escopo(tmp_path):
 
 @needs_pg
 def test_busca_exclui_snapshot_com_falha(tmp_path):
-    from database.models import RegistryCompany, RegistrySnapshot
+    from database.models import (
+        RegistryCompany,
+        RegistrySnapshot,
+        RegistrySnapshotMember,
+    )
     from services.registry.search import RegistrySearchService, SearchFilters
 
     engine, db = _db()
     try:
-        db.add(RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
-                                status="COMPLETED"))
+        snap_a = RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
+                                  status="COMPLETED", is_active=True)
+        db.add(snap_a)
         db.add(RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-09",
                                 status="FAILED"))
+        db.flush()
         db.add(RegistryCompany(cnpj="33000167000101", cnpj_basico="33000167",
                                source="receita_cnpj", source_snapshot="2026-08"))
         db.add(RegistryCompany(cnpj="33592510000154", cnpj_basico="33592510",
                                source="receita_cnpj", source_snapshot="2026-09"))
+        db.add(RegistrySnapshotMember(snapshot_id=snap_a.id,
+                                      cnpj="33000167000101"))
         db.commit()
         items = RegistrySearchService(db).search(SearchFilters(limit=100)).items
         assert {item.cnpj for item in items} == {"33000167000101"}
@@ -148,23 +156,35 @@ def test_busca_exclui_snapshot_com_falha(tmp_path):
 
 @needs_pg
 def test_busca_com_mes_explicito_ignora_ativo(tmp_path):
-    from database.models import RegistryCompany, RegistrySnapshot
+    from database.models import (
+        RegistryCompany,
+        RegistrySnapshot,
+        RegistrySnapshotMember,
+    )
     from services.registry.search import RegistrySearchService, SearchFilters
 
     engine, db = _db()
     try:
-        db.add(RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
-                                status="COMPLETED"))
+        snap_a = RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
+                                  status="COMPLETED", is_active=True)
+        snap_old = RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-07",
+                                    status="COMPLETED")
+        db.add_all([snap_a, snap_old])
+        db.flush()
         db.add(RegistryCompany(cnpj="33000167000101", cnpj_basico="33000167",
                                source="receita_cnpj", source_snapshot="2026-08"))
         db.add(RegistryCompany(cnpj="33592510000154", cnpj_basico="33592510",
                                source="receita_cnpj", source_snapshot="2026-07"))
+        db.add(RegistrySnapshotMember(snapshot_id=snap_a.id,
+                                      cnpj="33000167000101"))
+        db.add(RegistrySnapshotMember(snapshot_id=snap_old.id,
+                                      cnpj="33592510000154"))
         db.commit()
         items = RegistrySearchService(db).search(
             SearchFilters(limit=100, source_snapshot="2026-07")).items
         assert {item.cnpj for item in items} == {"33592510000154"}
     finally:
-        _cleanup(db, months=("2026-08",))
+        _cleanup(db, months=("2026-08", "2026-07"))
         db.close()
         engine.dispose()
 
@@ -172,6 +192,7 @@ def test_busca_com_mes_explicito_ignora_ativo(tmp_path):
 @needs_pg
 def test_merge_empresas_atualiza_source_snapshot(tmp_path):
     from database.models import RegistryCompany
+    from services.registry.activation import activate_snapshot
     from services.registry.importer import RegistryFileSpec, RegistryImporter
 
     engine, db = _db()
@@ -183,13 +204,20 @@ def test_merge_empresas_atualiza_source_snapshot(tmp_path):
             files=[RegistryFileSpec(
                 table_kind="estabelecimentos", path=str(festab), file_name="ESTABELE0")],
         )
+        activate_snapshot(db, source="receita_cnpj", snapshot_month="2026-08")
         femp = tmp_path / "EMPRESA0"
         femp.write_text(EMPRESA, encoding="latin-1")
         RegistryImporter(db, batch_size=10).import_snapshot(
             snapshot_month="2026-09",
-            files=[RegistryFileSpec(
-                table_kind="empresas", path=str(femp), file_name="EMPRESA0")],
+            files=[
+                RegistryFileSpec(
+                    table_kind="estabelecimentos", path=str(festab),
+                    file_name="ESTABELE0"),
+                RegistryFileSpec(
+                    table_kind="empresas", path=str(femp), file_name="EMPRESA0"),
+            ],
         )
+        activate_snapshot(db, source="receita_cnpj", snapshot_month="2026-09")
         row = db.query(RegistryCompany).filter_by(cnpj="33000167000101").one()
         assert row.source_snapshot == "2026-09"
         assert row.razao_social == "PETROBRAS S.A."

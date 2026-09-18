@@ -175,6 +175,9 @@ def _prepare(db, tmp_path):
         scope=scope,
     )
     assert snap.status == "COMPLETED"
+    from services.registry.activation import activate_snapshot
+
+    activate_snapshot(db, source="receita_cnpj", snapshot_month=PILOT_MONTH)
     scoped = db.query(RegistryCompany).filter_by(source_snapshot=PILOT_MONTH).count()
     assert scoped == 3
     return org.id

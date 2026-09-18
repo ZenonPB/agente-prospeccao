@@ -19,6 +19,12 @@ def _db():
     return engine, sessionmaker(bind=engine, expire_on_commit=False)()
 
 
+def _activate(db, month="2026-08"):
+    from services.registry.activation import activate_snapshot
+
+    return activate_snapshot(db, source="receita_cnpj", snapshot_month=month)
+
+
 def _estab(basico, ordem, dv, fantasia="X", sit="2", cnae="6000001", uf="RJ", mun="6001"):
     cols = [basico, ordem, dv, "1" if ordem == "0001" else "2", fantasia, sit,
             "20200115", "00", "", "105", "20100110", cnae, "", "RUA", "A",
@@ -176,6 +182,7 @@ def test_same_size_different_content_reprocesses(tmp_path):
         second = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
         assert second.processed == 1
         assert second.updated == 1
+        _activate(db)
         db.expire_all()
         from database.models import RegistryCompany
 
@@ -238,6 +245,7 @@ def test_resume_continues_from_checkpoint(tmp_path):
         assert result.processed == 1
         assert result.inserted == 1
         assert result.failed == 0
+        _activate(db)
         db.expire_all()
         assert db.query(RegistryCompany).filter(
             RegistryCompany.cnpj == "33592510000154").count() == 1
@@ -270,6 +278,7 @@ def test_empresas_file_enriches_base_fields(tmp_path):
             ],
         )
         assert snap.status == "COMPLETED"
+        _activate(db)
         db.expire_all()
         row = db.query(RegistryCompany).filter(
             RegistryCompany.cnpj == "33000167000101").one()
@@ -303,6 +312,7 @@ def test_secundarios_e_referencia_sao_importados(tmp_path):
             ],
         )
         assert snap.status == "COMPLETED"
+        _activate(db)
         assert db.query(RegistryCompanyCnae).filter(
             RegistryCompanyCnae.cnpj == "33000167000101").count() == 2
         assert db.query(RegistryCnae).count() >= 2
@@ -329,10 +339,12 @@ def test_secundarios_alterados_isoladamente_atualizam_assoc(tmp_path):
         f.write_text(";".join(cols), encoding="latin-1")
         spec = [RegistryFileSpec(table_kind="estabelecimentos", path=str(f), file_name="ESTABELE0")]
         RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
+        _activate(db)
         cols[12] = '"1922501,1931500"'
         f.write_text(";".join(cols), encoding="latin-1")
         second = RegistryImporter(db, batch_size=10).import_snapshot(snapshot_month="2026-08", files=spec)
         assert second.updated == 1
+        _activate(db)
         got = sorted(
             c for (c,) in db.query(RegistryCompanyCnae.cnae).filter(
                 RegistryCompanyCnae.cnpj == "33000167000101").all())
@@ -365,6 +377,7 @@ def test_file_order_does_not_change_result(tmp_path):
         snap = RegistryImporter(db, batch_size=10).import_snapshot(
             snapshot_month="2026-08", files=[emp, estab])
         assert snap.status == "COMPLETED"
+        _activate(db)
         db.expire_all()
         row = db.query(RegistryCompany).filter_by(cnpj="33000167000101").one()
         assert row.razao_social == "PETROLEO BRASILEIRO S A PETROBRAS"
@@ -427,6 +440,9 @@ def test_concurrent_imports_same_cnpj_stay_consistent(tmp_path):
         assert statuses == ["COMPLETED", "COMPLETED"]
         check = sessionmaker(bind=engine, expire_on_commit=False)()
         try:
+            from services.registry.activation import activate_snapshot
+
+            activate_snapshot(check, source="receita_cnpj", snapshot_month="2026-08")
             from database.models import RegistryCompany
 
             rows = check.query(RegistryCompany).filter(
