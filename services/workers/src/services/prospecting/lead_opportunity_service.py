@@ -32,6 +32,7 @@ def build_snapshot_hash(
     signals_missing: list,
     score_breakdown: Optional[dict] = None,
     profile_snapshot_hash: Optional[str] = None,
+    context_hash: Optional[str] = None,
 ) -> str:
     payload = {
         "offer_key": offer_key,
@@ -43,6 +44,7 @@ def build_snapshot_hash(
         "signals_missing": sorted(signals_missing or []),
         "score_breakdown": score_breakdown or {},
         "profile_snapshot_hash": profile_snapshot_hash,
+        "context_hash": context_hash,
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -168,6 +170,15 @@ class LeadOpportunityService:
         )
 
     def _snapshot_row(self, db: Session, row: LeadOpportunityRow, reason: str = "enrichment") -> LeadOpportunitySnapshot:
+        from services.prospecting.evidence_context import build_evidence_context
+
+        lead = db.get(Lead, row.lead_id)
+        evidence_context = build_evidence_context(
+            evidence=getattr(lead, "evidence", None) if lead else None,
+            discovery_provenance=getattr(lead, "discovery_provenance", None) if lead else None,
+            evidence_score=getattr(lead, "evidence_score", None) if lead else None,
+        )
+
         # Hash do conteúdo REAL do OfferProfile efetivo. A identidade
         # (version/profile_key) não prova que a configuração era a mesma.
         # Se o perfil exato não puder ser resolvido, mantemos UNKNOWN (None)
@@ -200,6 +211,7 @@ class LeadOpportunityService:
             list(row.evidence or []), list(row.signals_matched or []),
             list(row.signals_missing or []), dict(row.score_breakdown or {}),
             profile_snapshot_hash=profile_snapshot_hash,
+            context_hash=evidence_context["context_hash"],
         )
         existing = db.scalars(
             select(LeadOpportunitySnapshot).where(
@@ -223,7 +235,10 @@ class LeadOpportunityService:
                 "missing": list(row.signals_missing or []),
                 "score_breakdown": dict(row.score_breakdown or {}),
             },
-            evidence_snapshot=list(row.evidence or []),
+            evidence_snapshot={
+                "matcher_evidence": list(row.evidence or []),
+                "evidence_context": evidence_context,
+            },
             snapshot_hash=snapshot_hash,
             reason=reason,
             scored_at=datetime.now(timezone.utc),
