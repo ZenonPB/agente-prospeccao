@@ -133,6 +133,29 @@ def test_empresa_basica_e_capital():
     assert row.record["capital_social"] == Decimal("100000000.00")
 
 
+def test_basico_alfanumerico_e_normalizado_para_join():
+    """Base crua com minúsculas normaliza igual ao CNPJ (join empresas)."""
+    from services.registry.cnpj import is_valid_cnpj
+    from services.registry.parser import iter_records
+
+    full = next(
+        f"AB12CD340001{dv:02d}" for dv in range(100)
+        if is_valid_cnpj(f"AB12CD340001{dv:02d}"))
+    rows = list(iter_records(
+        [_estab(basico="ab12cd34", ordem="0001", dv=full[12:])],
+        kind="estabelecimentos"))
+    assert rows[0].ok is True
+    rec = rows[0].record
+    assert rec["cnpj"] == full
+    assert rec["cnpj_basico"] == "AB12CD34"
+    assert rec["cnpj_basico"] == rec["cnpj"][:8]
+    emp = list(iter_records(
+        ['"ab12cd34";"RAZAO";"2062";"49";"100,00";"01";""'],
+        kind="empresas"))[0]
+    assert emp.ok is True
+    assert emp.record["cnpj_basico"] == "AB12CD34"
+
+
 def test_referencia_cnae():
     from services.registry.parser import iter_records
 
