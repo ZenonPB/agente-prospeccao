@@ -5,6 +5,7 @@ import unicodedata
 from typing import Any, Dict, Iterable, List, Optional
 
 from services.domain_utils import normalize_domain
+from services.registry.cnpj import normalize_cnpj as _canonical_cnpj
 
 
 @dataclass(frozen=True)
@@ -70,7 +71,7 @@ class CompanyIdentityResolver:
     @classmethod
     def _keys(cls, item: Dict[str, Any]) -> Dict[str, Optional[str]]:
         """Extrai chaves canônicas sem modificar o candidato original."""
-        cnpj = cls._digits(item.get("cnpj"))
+        cnpj = cls._cnpj_key(item.get("cnpj"))
         domain = item.get("normalized_domain") or normalize_domain(item.get("website"))
         place_id = item.get("place_id") or item.get("place_id_candidate")
         return {
@@ -83,9 +84,13 @@ class CompanyIdentityResolver:
         }
 
     @staticmethod
-    def _digits(value: Any) -> str:
-        """Remove máscara de CNPJ e retorna apenas dígitos."""
-        return re.sub(r"\D", "", str(value or ""))
+    def _cnpj_key(value: Any) -> str:
+        """Chave de identidade: máscara removida, letras preservadas.
+
+        Remover letras (só dígitos) colapsa CNPJs alfanuméricos distintos
+        no mesmo identificador e gera falso merge.
+        """
+        return _canonical_cnpj(value) or ""
 
     @staticmethod
     def _text(value: Any) -> str:

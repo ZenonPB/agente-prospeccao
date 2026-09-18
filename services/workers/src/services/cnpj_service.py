@@ -27,6 +27,10 @@ import httpx
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config.settings import settings  # noqa: E402
+from services.registry.cnpj import (  # noqa: E402
+    is_valid_cnpj as _canonical_is_valid,
+    normalize_cnpj as _canonical_normalize,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +53,17 @@ DECISOR_QUALIFICATIONS = {
 
 
 def normalize_cnpj(cnpj: str) -> str:
-    """Remove máscara do CNPJ — só dígitos, 14 caracteres."""
-    digits = "".join(ch for ch in cnpj if ch.isdigit())
-    return digits
+    """Normalização de identidade: remove máscara, preserva letras.
+
+    Delega ao módulo canônico do Registry para que CNPJs alfanuméricos
+    válidos não sejam destruídos na borda de enriquecimento.
+    """
+    return _canonical_normalize(cnpj) or ""
 
 
 def is_valid_cnpj(cnpj: str) -> bool:
-    digits = normalize_cnpj(cnpj)
-    return len(digits) == 14 and digits.isdigit()
+    """Validade pelo dígito verificador oficial (numérico e alfanumérico)."""
+    return _canonical_is_valid(cnpj)
 
 
 def mask_cpf(cpf: Optional[str]) -> Optional[str]:

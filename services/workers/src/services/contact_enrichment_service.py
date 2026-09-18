@@ -1502,11 +1502,18 @@ class ContactEnrichmentService:
 
     @staticmethod
     def _is_valid_cnpj_checksum(cnpj: str) -> bool:
-        """Valida os dígitos verificadores de um CNPJ (14 dígitos)."""
+        """Valida os dígitos verificadores de um CNPJ.
+
+        O garimpo em texto extrai só dígitos, mas a porta canônica aceita
+        alfanumérico: nesse caso o resultado canônico vale e a matemática
+        decimal local (só numérica) é pulada em vez de quebrar.
+        """
         import services.cnpj_service as cnpj_mod
 
         if not cnpj_mod.is_valid_cnpj(cnpj):
             return False
+        if not cnpj.isdigit():
+            return True
         nums = [int(d) for d in cnpj]
         w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
         total1 = sum(n * w for n, w in zip(nums[:12], w1))

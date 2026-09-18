@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from services.registry.cnpj import is_valid_cnpj, normalize_cnpj
+
 logger = logging.getLogger(__name__)
 
 PNCP_CONSULTA_BASE = "https://pncp.gov.br/api/consulta/v1"
@@ -102,8 +104,8 @@ class PncpService:
         """
         if str(item.get("tipoPessoa") or "").upper() != "PJ":
             return None
-        cnpj = "".join(c for c in str(item.get("niFornecedor") or "") if c.isdigit())
-        if len(cnpj) != 14:
+        cnpj = normalize_cnpj(item.get("niFornecedor"))
+        if not cnpj or not is_valid_cnpj(cnpj):
             return None
         orgao = item.get("orgaoEntidade") or {}
         unidade = item.get("unidadeOrgao") or {}
