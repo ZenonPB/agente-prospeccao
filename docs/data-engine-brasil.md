@@ -224,12 +224,31 @@ bytes/hashes observados, pronto para `import_registry --manifest`.
 Arquivos oficiais são nacionais; o importer aceita escopo
 (`--uf/--municipio-cod/--cnae/--situacao`, mesma semântica de CNAE da
 busca) e materializa só o recorte — linhas fora do escopo avançam o
-checkpoint sem tocar as tabelas. A busca enxerga o snapshot COMPLETED mais
-recente (`source_snapshot`, com override explícito quando preciso):
-linhas de um snapshot com falha nunca vazam para descoberta, e o snapshot
-válido anterior continua servindo até a retomada concluir. Limite
-conhecido: atualizações mensais completas ainda não fazem tombstoning de
-linhas ausentes no mês novo (escopo de hardening nacional).
+checkpoint sem tocar as tabelas.
+
+Provenance é separada de visibilidade. `source_snapshot` registra a última
+observação do conteúdo; quem decide o universo visível é o membership
+versionado (`registry_snapshot_members`) + o ponteiro ACTIVE
+(`registry_snapshots.is_active`, único por source via índice parcial).
+COMPLETED = carga válida e elegível, ainda invisível. ACTIVE = universo
+servido pela descoberta padrão. A busca default enxerga o ACTIVE; mês
+explícito exige snapshot COMPLETED/ACTIVE e falha fechado caso contrário
+(sem fallback silencioso).
+
+O importer escreve em staging (`registry_staging_*`), nunca no canônico:
+linhas de snapshot RUNNING/FAILED nunca vazam para descoberta e o ACTIVE
+anterior segue servindo integralmente (conjunto e conteúdo) até a ativação
+bem-sucedida. A ativação (`activate_snapshot`, ou `--activate` no CLI
+`import_registry`) aplica staging → canônico + membership + flip em
+transação única — falha no meio reverte tudo. Membership é gravado por
+observação (linhas inalteradas continuam pertencendo ao snapshot novo) e
+preservado após ativações seguintes, então `search(snapshot=A)` reproduz o
+universo histórico dentro da retenção. Backfill reconstrói membership só
+para o COMPLETED mais recente por source; COMPLETEDs antigos sem
+membership não são reproduzíveis (limitação documentada, não dado
+fabricado). Limite conhecido: atualizações mensais completas ainda não
+fazem tombstoning explícito de linhas ausentes no mês novo além da ausência
+natural no membership (escopo de hardening nacional).
 
 Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
 O Registry valida 14 posições com DV oficial único (Q&A RFB + manual SERPRO:
@@ -254,6 +273,11 @@ futura será explícita, em camada própria.
   `imported_at` é importação, não observação (`observed_at` não existe na
   fonte — documentado no candidato);
 - `registry_company_cnaes`: secundários normalizados (FK, PK composta);
+- `registry_snapshot_members`: membership versionado `(snapshot_id, cnpj)`;
+- `registry_staging_companies` / `registry_staging_company_cnaes`: staging
+  invisível da importação em curso (limpo na ativação);
+- `registry_snapshots.is_active`: ponteiro do snapshot servido (único por
+  source);
 - `registry_cnaes`: domínio CNAE (labels com upsert real por reimport).
   Município: só código (sem tabela de labels — linhas de referência não
   trazem UF; fica para a 1C).
@@ -265,23 +289,27 @@ futura será explícita, em camada própria.
 
 ### Ingestão (`services/registry/importer.py` + CLI `import_registry`)
 
-Streaming em chunks de 5000 linhas: parse → temp table → upsert → checkpoint
+Streaming em chunks de 5000 linhas: parse → temp table → staging → checkpoint
 commitado. Idempotente por chave natural. Identidade do arquivo é SHA-256 em
 streaming (tamanho sozinho não decide): concluído + digest igual pula;
 tamanhos iguais com bytes diferentes reprocessam. `content_hash` inclui
-secundários ordenados e distingue updated/unchanged (linhas importadas antes
-do hash novo atualizam uma vez e estabilizam).
+secundários ordenados e distingue updated/unchanged (comparação só-leitura
+contra o canônico; o canônico só muda na ativação).
 Arquivos são aplicados na ordem canônica (estabelecimentos → empresas →
-CNAE) independente da ordem do CLI. Empresas aplicam razão/porte/capital via
-merge por `cnpj_basico` (só quando diferentes — `IS DISTINCT FROM`); labels
-CNAE fazem upsert real. `snapshot_month` exige `AAAA-MM`; cursor de busca
-exige 14 alnum. Linha ruim conta `rejected` sem abortar; arquivo
-inacessível/corrompido falha fechado com ledger. Concorrência no mesmo
-snapshot é segura (PK + retry de criação); totais valem por execução.
+CNAE) independente da ordem do CLI. Empresas enriquecem as linhas do
+staging do próprio snapshot via merge por `cnpj_basico` (só quando
+diferentes — `IS DISTINCT FROM`); bases fora do staging/escopo não são
+tocadas. Labels CNAE fazem upsert real (referência global, sem semântica de
+visibilidade). `snapshot_month` exige `AAAA-MM`; cursor de busca exige 14
+alnum. Linha ruim conta `rejected` sem abortar; arquivo inacessível/
+corrompido falha fechado com ledger. Concorrência no mesmo snapshot é
+segura (PK + retry de criação); totais valem por execução.
 
 Operação local (CWD `services/workers`):
 `python -m src.scripts.import_registry --snapshot-month 2026-08
---estabelecimentos <arquivo> [--empresas ...] [--cnaes ...]`.
+--estabelecimentos <arquivo> [--empresas ...] [--cnaes ...] [--activate]`.
+Sem `--activate`, o snapshot termina COMPLETED porém invisível; a descoberta
+padrão continua servindo o ACTIVE anterior até a ativação explícita.
 Baixe os ZIPs mensais, extraia para `dados-registry/` (gitignored) e aponte
 o CLI para os arquivos extraídos.
 
