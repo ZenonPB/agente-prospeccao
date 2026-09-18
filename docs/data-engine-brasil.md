@@ -209,6 +209,16 @@ O importer valida mês/encoding/tamanho/hash contra o manifesto, registra
 `layout_version` no ledger e falha fechado em divergência
 (`--manifest` no CLI `import_registry`).
 
+### Download robusto (opt-in)
+
+O CLI `download_registry` baixa os arquivos do manifesto com streaming,
+retomada por Range, retry com backoff, SHA-256 contínuo e rename atômico;
+destino com SHA igual é reaproveitado sem rede. Confiança restrita: https
+obrigatório, host limitado ao da origem declarada, IP literal e todos os
+IPs resolvidos precisam ser públicos, redirects revalidados por hop — sem
+exceção genérica de rede privada. `--write-manifest` grava o manifesto com
+bytes/hashes observados, pronto para `import_registry --manifest`.
+
 Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
 O Registry valida 14 posições com DV oficial único (Q&A RFB + manual SERPRO:
 valor = ASCII − 48, mod 11, mesmos pesos; o numérico legado é caso particular
