@@ -16,6 +16,8 @@ import time
 from typing import Any, Dict, List, Optional
 import httpx
 
+from services.registry.cnpj import normalize_cnpj as _canonical_normalize
+
 logger = logging.getLogger(__name__)
 
 BRASIL_API_URL = "https://brasilapi.com.br/api/cnpj/v1/{cnpj}"
@@ -33,8 +35,8 @@ def normalize_cnae(cnae: str) -> str:
 
 
 def normalize_cnpj(cnpj: str) -> str:
-    """Remove pontuação do CNPJ."""
-    return re.sub(r"\D", "", cnpj)
+    """Remove pontuação do CNPJ preservando letras (identidade alfanumérica)."""
+    return _canonical_normalize(cnpj) or ""
 
 
 async def _rate_limit_cnpja():

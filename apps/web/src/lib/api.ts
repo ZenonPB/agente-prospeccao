@@ -583,6 +583,30 @@ export type ScoreFeedbackMetrics = {
   weekly: DeviationPoint[];
 };
 
+export interface RegistryHealthFile {
+  file_name: string;
+  table_kind: string;
+  status: string;
+  rows_ok: number;
+  rows_rejected: number;
+  sha256: string | null;
+  error: string | null;
+}
+
+export interface RegistryHealth {
+  status: 'healthy' | 'degraded' | 'empty' | 'unknown';
+  snapshot_month: string | null;
+  layout_version: string | null;
+  last_updated_at: string | null;
+  companies: number | null;
+  files: RegistryHealthFile[];
+  next_check: string | null;
+}
+
+export const registryApi = {
+  health: () => request<RegistryHealth>("/api/registry/health"),
+};
+
 export const metricsApi = {
   get: () =>
     request<{

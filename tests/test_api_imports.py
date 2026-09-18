@@ -49,6 +49,7 @@ def test_api_app_importa():
     assert "/api/analytics/consultants/{user_id}/activity" in paths or "/analytics/consultants/{user_id}/activity" in paths
     assert "/api/webhooks/email/inbound" in paths or "/webhooks/email/inbound" in paths
     assert "/api/imports" in paths or "/imports" in paths
+    assert "/api/registry/health" in paths or "/registry/health" in paths
     assert "/health" in paths
 
 

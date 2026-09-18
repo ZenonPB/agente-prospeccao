@@ -17,7 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from src.config.settings import settings
 from src.middleware.rate_limit import limiter
 from src.middleware.correlation import CorrelationIdMiddleware
-from src.routes import leads, opportunities, crm_entities, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, lead_usefulness, intelligence, vertentes, search, data_intelligence, engagement, imports, provider_diagnostics
+from src.routes import leads, opportunities, crm_entities, campaigns, metrics, pipeline, scoring_templates, orgs, analytics, invites, webhooks, tracking, playbooks, notifications, crm, score_feedback, lead_usefulness, intelligence, vertentes, search, data_intelligence, engagement, imports, provider_diagnostics, registry_health
 from src.routes.auth import router as auth_router
 
 logger = logging.getLogger(__name__)
@@ -298,6 +298,7 @@ app.include_router(pipeline.router, prefix="/api")
 app.include_router(scoring_templates.router, prefix="/api")
 app.include_router(orgs.router, prefix="/api")
 app.include_router(provider_diagnostics.router, prefix="/api")
+app.include_router(registry_health.router, prefix="/api")
 app.include_router(analytics.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
 app.include_router(imports.router, prefix="/api")

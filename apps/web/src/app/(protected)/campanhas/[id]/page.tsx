@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCampaign, useLeads } from '@/hooks/use-api';
@@ -11,7 +12,13 @@ import { PncpDiscoveryModal } from '@/components/campanhas/pncp-discovery-modal'
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, MapPin, FileSpreadsheet } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ArrowLeft, MapPin, FileSpreadsheet, ChevronDown, Building, Landmark } from 'lucide-react';
 import { campaignsApi } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -30,6 +37,8 @@ export default function CampaignDetailPage() {
 
   const { data: campaign, isLoading } = useCampaign(campaignId);
   const { data: leadsData } = useLeads({ campaign_id: campaignId });
+  const [cnaeOpen, setCnaeOpen] = useState(false);
+  const [pncpOpen, setPncpOpen] = useState(false);
 
   const handleExportGoogleSheets = async () => {
     if (!campaign) return;
@@ -101,8 +110,44 @@ export default function CampaignDetailPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <PncpDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} />
-          <CnaeDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} />
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button variant="outline" size="sm" aria-label="Mais formas de buscar" />
+              }
+            >
+              Mais formas de buscar
+              <ChevronDown className="ml-2 h-4 w-4" aria-hidden="true" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuItem
+                className="flex-col items-start gap-1 py-2.5"
+                onClick={() => setCnaeOpen(true)}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <Building className="h-4 w-4" aria-hidden="true" />
+                  Buscar por ramo de atividade
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Cadastro oficial de empresas, pelo tipo de negócio.
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="flex-col items-start gap-1 py-2.5"
+                onClick={() => setPncpOpen(true)}
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <Landmark className="h-4 w-4" aria-hidden="true" />
+                  Buscar em licitações
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Empresas que fornecem para o governo.
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <PncpDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} open={pncpOpen} onOpenChange={setPncpOpen} trigger={null} />
+          <CnaeDiscoveryModal campaignId={campaign.id} campaignName={campaign.name} open={cnaeOpen} onOpenChange={setCnaeOpen} trigger={null} />
           <CsvImportModal campaignId={campaign.id} campaignName={campaign.name} />
           <Button variant="outline" size="sm" onClick={handleExportGoogleSheets} className="gap-1.5 text-xs">
             <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />

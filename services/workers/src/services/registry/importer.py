@@ -17,7 +17,6 @@ from __future__ import annotations
 import codecs
 import hashlib
 import logging
-import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,7 +35,14 @@ from database.models import (
     RegistryImportFile,
     RegistrySnapshot,
 )
+from services.registry.manifest import (
+    ManifestFile,
+    SnapshotManifest,
+    find_file,
+    validate_snapshot_month,
+)
 from services.registry.parser import COLUMN_COUNTS, RowResult, iter_records
+from services.registry.scope import ImportScope, scope_matches
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +54,6 @@ SOURCE = "receita_cnpj"
 # ordem — o importer normaliza para não depender do operador.
 _KIND_ORDER = {"estabelecimentos": 0, "empresas": 1, "cnaes": 2}
 
-
-def validate_snapshot_month(value: str) -> str:
-    """AAAA-MM do snapshot (ex. 2026-08). Formato inválido é erro, não dado."""
-    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", value or ""):
-        raise ValueError(f"snapshot_month inválido (esperado AAAA-MM): {value!r}")
-    return value
 
 COMPANY_KEYS = (
     "cnpj", "cnpj_basico", "razao_social", "nome_fantasia", "matriz",
@@ -173,24 +173,38 @@ class RegistryImporter:
     def import_snapshot(
         self, *, source: str = SOURCE, snapshot_month: str,
         files: Sequence[RegistryFileSpec],
+        manifest: SnapshotManifest | None = None,
+        scope: ImportScope | None = None,
     ) -> RegistrySnapshot:
         validate_snapshot_month(snapshot_month)
         for spec in files:
             if spec.table_kind not in COLUMN_COUNTS:
                 raise ValueError(f"table_kind desconhecido: {spec.table_kind}")
+        if manifest is not None:
+            if manifest.snapshot_month != snapshot_month:
+                raise ValueError(
+                    f"manifesto de {manifest.snapshot_month} "
+                    f"não corresponde ao snapshot {snapshot_month}")
+            if codecs.lookup(manifest.encoding).name != codecs.lookup(self._encoding).name:
+                raise ValueError(
+                    f"encoding do manifesto ({manifest.encoding}) diverge "
+                    f"do importer ({self._encoding})")
         ordered = sorted(files, key=lambda spec: _KIND_ORDER.get(spec.table_kind, 99))
         db = self._db
         snapshot = self._get_or_create_snapshot(db, source, snapshot_month)
         snapshot.status = "RUNNING"
         snapshot.finished_at = None
         snapshot.error = None
+        if manifest is not None:
+            snapshot.layout_version = manifest.layout_version
         for field in ("processed", "inserted", "updated", "unchanged", "rejected", "failed"):
             setattr(snapshot, field, 0)
         db.commit()
 
         totals = {"processed": 0, "inserted": 0, "updated": 0, "unchanged": 0, "rejected": 0, "failed": 0}
         for spec in ordered:
-            counts = self._import_file(snapshot, spec)
+            expected = find_file(manifest, spec.file_name) if manifest is not None else None
+            counts = self._import_file(snapshot, spec, expected, scope)
             for key in totals:
                 totals[key] += counts.get(key, 0)
         for key, value in totals.items():
@@ -222,7 +236,10 @@ class RegistryImporter:
             ).one()
         return snapshot
 
-    def _import_file(self, snapshot: RegistrySnapshot, spec: RegistryFileSpec) -> dict[str, int]:
+    def _import_file(
+        self, snapshot: RegistrySnapshot, spec: RegistryFileSpec,
+        expected: ManifestFile | None = None, scope: ImportScope | None = None,
+    ) -> dict[str, int]:
         db = self._db
         row = db.query(RegistryImportFile).filter(
             RegistryImportFile.snapshot_id == snapshot.id,
@@ -267,6 +284,9 @@ class RegistryImporter:
         row.finished_at = None
         row.error = None
         row.file_bytes = size
+        if expected is not None and expected.bytes is not None and size != expected.bytes:
+            return self._fail_file(
+                row, f"tamanho divergente do manifesto: {size} != {expected.bytes}")
         if row.processed_lines is None:
             row.processed_lines = 0
         db.commit()
@@ -292,10 +312,10 @@ class RegistryImporter:
                         record=result.record, error=result.error)
                     chunk.append(result)
                     if len(chunk) >= self._batch_size:
-                        warned = self._apply_chunk(snapshot, row, spec, chunk, counts, warned)
+                        warned = self._apply_chunk(snapshot, row, spec, chunk, counts, warned, scope)
                         chunk = []
             if chunk:
-                self._apply_chunk(snapshot, row, spec, chunk, counts, warned)
+                self._apply_chunk(snapshot, row, spec, chunk, counts, warned, scope)
         except _UnreadableFile as exc:
             db.rollback()
             return self._fail_file(row, f"{exc} ({self._encoding})")
@@ -307,11 +327,17 @@ class RegistryImporter:
         row.status = "COMPLETED"
         row.finished_at = datetime.now(timezone.utc)
         row.sha256 = reader.hexdigest
+        if expected is not None and expected.sha256 is not None and row.sha256 != expected.sha256:
+            # Backstop de auditoria: o gate pré-importação pertence ao
+            # downloader; aqui o arquivo jamais é marcado como válido.
+            return self._fail_file(row, "sha256 divergente do manifesto")
         db.commit()
         elapsed = max(time.perf_counter() - start, 0.001)
+        filtered = counts.get("filtered", 0)
         logger.info(
-            "registry %s ok: %d linhas em %.1fs (%.0f/s)",
+            "registry %s ok: %d linhas em %.1fs (%.0f/s)%s",
             spec.file_name, counts["processed"], elapsed, counts["processed"] / elapsed,
+            f" filtradas={filtered}" if filtered else "",
         )
         return counts
 
@@ -327,6 +353,7 @@ class RegistryImporter:
         self, snapshot: RegistrySnapshot, row: RegistryImportFile,
         spec: RegistryFileSpec, chunk: list[RowResult],
         counts: dict[str, int], warned: int,
+        scope: ImportScope | None = None,
     ) -> int:
         db = self._db
         ok = [r.record for r in chunk if r.ok]
@@ -334,17 +361,26 @@ class RegistryImporter:
         for result in bad[: max(0, 5 - warned)]:
             logger.warning("registry %s linha %d rejeitada: %s", spec.file_name, result.line_no, result.error)
         warned += min(len(bad), max(0, 5 - warned))
+        # O escopo filtra estabelecimentos (única tabela com geografia/CNAE);
+        # empresas/cnaes enriquecem o que já existe. Fora do escopo nunca
+        # toca as tabelas, mas avança o checkpoint normalmente.
+        filtered = 0
+        matched = ok
+        if scope is not None and spec.table_kind == "estabelecimentos":
+            matched = [record for record in ok if scope_matches(scope, record)]
+            filtered = len(ok) - len(matched)
         now = datetime.now(timezone.utc)
         stats = {"inserted": 0, "updated": 0, "unchanged": 0}
-        if ok:
+        if matched:
             if spec.table_kind == "estabelecimentos":
-                stats = self._merge_companies(snapshot, ok, now)
+                stats = self._merge_companies(snapshot, matched, now)
             elif spec.table_kind == "empresas":
-                stats = self._merge_empresas(ok)
+                stats = self._merge_empresas(matched, snapshot.snapshot_month)
             elif spec.table_kind == "cnaes":
-                stats = self._merge_cnaes(ok)
+                stats = self._merge_cnaes(matched)
         counts["processed"] += len(ok)
         counts["rejected"] += len(bad)
+        counts["filtered"] = counts.get("filtered", 0) + filtered
         for key in ("inserted", "updated", "unchanged"):
             counts[key] += stats.get(key, 0)
         row.processed_lines = (row.processed_lines or 0) + len(chunk)
@@ -406,7 +442,7 @@ class RegistryImporter:
         return {"inserted": len(inserted_ids), "updated": len(updated_ids),
                 "unchanged": len(batch) - len(inserted_ids) - len(updated_ids)}
 
-    def _merge_empresas(self, records: list[dict[str, Any]]) -> dict[str, int]:
+    def _merge_empresas(self, records: list[dict[str, Any]], snapshot_month: str) -> dict[str, int]:
         db = self._db
         tmp = sa.Table(
             "tmp_registry_emp", sa.MetaData(),
@@ -435,6 +471,7 @@ class RegistryImporter:
             .values(
                 razao_social=tmp.c.razao, natureza_juridica=tmp.c.natju,
                 porte=tmp.c.porte, capital_social=tmp.c.capital,
+                source_snapshot=snapshot_month,
                 updated_at=func.now(),
             )
         ).rowcount or 0

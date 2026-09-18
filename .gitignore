@@ -32,6 +32,7 @@ venv/
 
 # Config de sessão do OpenCode
 .opencode/
+.claude
 
 # macOS
 .DS_Store

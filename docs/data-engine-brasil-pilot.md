@@ -22,6 +22,31 @@ Executar separadamente:
 
 Não misturar cenários numa campanha, pois isso destrói a interpretação por Vertente.
 
+## Piloto Araraquara — Landing Pages → clínicas de psicologia
+
+Primeiro cenário operacional do Registry real (Nível 1): sem outreach,
+fontes gratuitas, Commercial Dimensions em shadow.
+
+- Oferta: Landing Pages (`landing_page`); segmento: CNAE 8650-0/03;
+  território: Araraquara/SP (IBGE 3503208).
+- Configuração por overlay de workspace (`OfferProfileVersion`, versão
+  `1.1`): `services/prospecting/araraquara_pilot.py` + CLI
+  `stage_pilot_overlay --org-id <uuid>` (grava INATIVO; ativação humana
+  pelo fluxo de versões). O catálogo factory não muda.
+- Carga filtrada (arquivos nacionais, recorte local):
+  `import_registry --snapshot-month AAAA-MM --manifest manifest.json
+  --estabelecimentos ... --empresas ... --cnaes ...
+  --uf SP --municipio-cod 3503208 --cnae 8650-0/03`
+- Smoke do caminho (PG): `E2E_DATABASE_URL=... pytest
+  tests/test_araraquara_pilot.py -q` — import filtrado, discovery
+  Registry, entity resolution, Company sem duplicatas, shadow UNKNOWN,
+  budget R$0, relatório com candidatos/ativas/principal/secundário,
+  materializadas, custo, falhas e provenance.
+- Mapeamento nome→código IBGE ainda é manual (operador informa
+  `3503208`); tabela de labels de município é hardening futuro.
+- Fixtures em layout oficial provam o caminho, não validação
+  operacional: o gate continua sendo snapshot real + revisão humana.
+
 ## Pré-condições
 
 - `main` com CI verde no SHA implantado;

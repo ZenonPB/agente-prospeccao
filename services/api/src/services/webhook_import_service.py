@@ -19,6 +19,7 @@ if _workers_path not in sys.path:
 
 from src.db.models import Lead, LeadStatus, Campaign, Contact, ContactRole
 from services.domain_utils import normalize_domain, is_social_domain
+from services.registry.cnpj import is_valid_cnpj, normalize_cnpj
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +78,14 @@ def normalize_import_website(url: Optional[str]) -> Optional[str]:
 
 
 def clean_cnpj(cnpj: Optional[str]) -> Optional[str]:
+    """Normaliza para identidade canônica; inválido vira None (fail-closed).
+
+    Letras de CNPJs alfanuméricos são preservadas — nunca removidas.
+    """
     if not cnpj:
         return None
-    digits = "".join(c for c in cnpj if c.isdigit())
-    return digits if len(digits) == 14 else None
+    normalized = normalize_cnpj(cnpj)
+    return normalized if normalized and is_valid_cnpj(normalized) else None
 
 
 def generate_place_id(name: str, website: Optional[str], cnpj: Optional[str]) -> str:

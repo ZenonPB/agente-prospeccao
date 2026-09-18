@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import type { ReactNode } from "react";
 import { useCollectPncp } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,9 @@ interface PncpDiscoveryModalProps {
   campaignId: string;
   campaignName: string;
   onJobStarted?: (jobId: string) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: ReactNode;
 }
 
 const PERIOD_OPTIONS = [
@@ -32,8 +36,10 @@ const PERIOD_OPTIONS = [
   { value: "90", label: "Últimos 90 dias" },
 ];
 
-export function PncpDiscoveryModal({ campaignId, campaignName, onJobStarted }: PncpDiscoveryModalProps) {
-  const [open, setOpen] = useState(false);
+export function PncpDiscoveryModal({ campaignId, campaignName, onJobStarted, open: controlledOpen, onOpenChange, trigger }: PncpDiscoveryModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [daysBack, setDaysBack] = useState("30");
   const [uf, setUf] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -66,14 +72,16 @@ export function PncpDiscoveryModal({ campaignId, campaignName, onJobStarted }: P
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao iniciar busca no PNCP");
     }
-  }, [campaignId, daysBack, uf, keyword, maxLeads, collectPncp, onJobStarted]);
+  }, [campaignId, daysBack, uf, keyword, maxLeads, collectPncp, onJobStarted, setOpen]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" />}>
-        <Landmark className="mr-2 h-4 w-4" aria-hidden="true" />
-        Buscar em Licitações
-      </DialogTrigger>
+      {trigger ?? (
+        <DialogTrigger render={<Button variant="outline" />}>
+          <Landmark className="mr-2 h-4 w-4" aria-hidden="true" />
+          Buscar em Licitações
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">

@@ -100,7 +100,7 @@ def test_unique_suppliers_agrupa_por_cnpj():
             )
         ),
         PncpService.parse_contract(
-            _contrato(niFornecedor="98765432000110", nomeRazaoSocialFornecedor="Outra Ltda")
+            _contrato(niFornecedor="98765432000198", nomeRazaoSocialFornecedor="Outra Ltda")
         ),
     ]
     suppliers = unique_suppliers([p for p in parsed if p])
@@ -167,7 +167,7 @@ def test_search_pagina_ate_esgotar_e_filtra_por_uf():
             2: {
                 "data": [
                     _contrato(
-                        niFornecedor="98765432000110",
+                        niFornecedor="98765432000198",
                         nomeRazaoSocialFornecedor="Vale Plásticos S.A.",
                         unidadeOrgao={"ufSigla": "SP", "municipioNome": "Campinas"},
                     )
@@ -205,11 +205,11 @@ def test_search_para_no_maximo_de_fornecedores():
             1: {
                 "data": [
                     _contrato(
-                        niFornecedor="11111111000111",
+                        niFornecedor="11111111000191",
                         nomeRazaoSocialFornecedor="A Ltda",
                     ),
                     _contrato(
-                        niFornecedor="22222222000122",
+                        niFornecedor="22222222000191",
                         nomeRazaoSocialFornecedor="B Ltda",
                     ),
                 ],
@@ -235,7 +235,7 @@ def test_search_filtra_por_palavra_chave_no_objeto():
                 "data": [
                     _contrato(objetoContrato="Usinagem de peças CNC"),
                     _contrato(
-                        niFornecedor="98765432000110",
+                        niFornecedor="98765432000198",
                         objetoContrato="Manutenção de elevadores",
                     ),
                 ],

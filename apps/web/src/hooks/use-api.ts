@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, campaignsApi, importsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, intelligenceApi, type ScoringTemplateInput, type CommercialFilterParams, type CommercialFilterSnapshot } from "@/lib/api";
+import { leadsApi, campaignsApi, importsApi, metricsApi, pipelineApi, scoringTemplatesApi, orgsApi, analyticsApi, invitesApi, authApi, notificationsApi, crmApi, intelligenceApi, registryApi, type ScoringTemplateInput, type CommercialFilterParams, type CommercialFilterSnapshot } from "@/lib/api";
 import type { BulkLeadCommand, ImportJobStatus, ImportMapping, ImportRowStatus, OnboardingStatus, SalesRole, OrgRole } from "@/types";
 import { isImportJobTerminal } from "@/types";
 
@@ -283,6 +283,13 @@ export function useMetrics() {
   return useQuery({
     queryKey: ["metrics"],
     queryFn: () => metricsApi.get(),
+  });
+}
+
+export function useRegistryHealth() {
+  return useQuery({
+    queryKey: ["registry", "health"],
+    queryFn: () => registryApi.health(),
   });
 }
 

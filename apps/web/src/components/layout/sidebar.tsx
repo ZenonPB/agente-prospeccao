@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Layers,
   HelpCircle,
+  Database,
   DatabaseZap,
   Radar,
   Route,
@@ -58,6 +59,7 @@ const navGroups: NavGroup[] = [
       { name: 'O que está funcionando', href: '/inteligencia-comercial', icon: TrendingUp, analystOnly: true },
       { name: 'Resultados', href: '/relatorios', icon: BarChart3, analystOnly: true },
       { name: 'Qualidade dos dados', href: '/data-health', icon: DatabaseZap, analystOnly: true },
+      { name: 'Base de empresas', href: '/base-empresas', icon: Database, analystOnly: true },
     ],
   },
   {

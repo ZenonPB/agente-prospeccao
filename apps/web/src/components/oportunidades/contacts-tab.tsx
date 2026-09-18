@@ -18,6 +18,7 @@ import { useEnrichContacts } from '@/hooks/use-api';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { providerLabel } from '@/lib/commercial-labels';
 import type { ContactItem, Lead } from '@/types';
 
 // Estado de match do LinkedIn derivado da fonte/confiança (ver
@@ -30,18 +31,12 @@ const LINKEDIN_MATCH_META: Record<NonNullable<ContactItem['linkedin_match_status
   VERIFIED: { label: 'Confirmado', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
 };
 
-// Proveniência do e-mail do decisor (onde foi encontrado).
-const emailSourceLabels: Record<string, string> = {
-  hunter: 'Hunter',
-  site: 'Site',
-  'search:duckduckgo': 'Busca (DuckDuckGo)',
-  'search:bing': 'Busca (Bing)',
-  'search:cached': 'Busca (cache)',
-  search: 'Busca',
-  cnpj: 'CNPJ/Receita',
-  heuristic: 'Inferido (não confirmado)',
-  cnpj_receita: 'CNPJ/Receita',
-};
+function formatEmailSource(rawData: unknown): string | null {
+  if (typeof rawData !== 'object' || rawData === null) return null;
+  const source = (rawData as Record<string, unknown>).email_source;
+  if (typeof source !== 'string' || !source) return null;
+  return providerLabel(source);
+}
 
 // Faixa de confiança em linguagem simples (0–100).
 function confidenceBand(value?: number | null): { label: string; className: string } {
@@ -57,12 +52,12 @@ function formatContactSource(source?: string | null): string | null {
   const key = source.toLowerCase();
   if (key.includes('heuristic')) return 'Inferido (não confirmado)';
   if (key.includes('cnpj') || key.includes('receita')) return 'Receita Federal (CNPJ)';
-  if (key.includes('hunter')) return 'Hunter';
+  if (key.includes('hunter')) return providerLabel('hunter');
   if (key.includes('company_site') || key === 'site') return 'Site da empresa';
   if (key.includes('linkedin')) return 'LinkedIn';
   if (key.includes('search')) return 'Busca pública';
   if (key.includes('manual')) return 'Associado manualmente';
-  return source;
+  return providerLabel(source);
 }
 
 // Selo confirmado vs inferido a partir do status de verificação.
@@ -76,13 +71,6 @@ function verificationSeal(contact: ContactItem): { label: string; confirmed: boo
   if (status === 'needs_review') return { label: 'Precisa de revisão', confirmed: false };
   if (!status || status === 'unknown' || status === 'needs_full_name') return { label: 'Não confirmado', confirmed: false };
   return { label: 'Inferido (não confirmado)', confirmed: false };
-}
-
-function formatEmailSource(rawData: unknown): string | null {
-  if (typeof rawData !== 'object' || rawData === null) return null;
-  const source = (rawData as Record<string, unknown>).email_source;
-  if (typeof source !== 'string' || !source) return null;
-  return emailSourceLabels[source] || source;
 }
 
 function formatLinkedinSource(rawData: unknown): string | null {

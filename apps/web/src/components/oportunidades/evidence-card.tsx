@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { EvidenceItem, ScoreFactor, LeadPriority } from '@/types';
 import { getScoreBand, scoreBandBadge, SCORE_THRESHOLD_HINT } from '@/components/oportunidades/score-scale';
+import { providerLabel } from '@/lib/commercial-labels';
 
 const severityConfig: Record<string, { label: string; color: string }> = {
   CRITICO: { label: 'Crítico', color: 'bg-red-100 text-red-700 border-red-200' },
@@ -178,7 +179,7 @@ export function EvidenceCard({
                     <p className="text-sm text-muted-foreground">{e.description}</p>
                     {(e.source || e.type) && (
                       <p className="text-xs text-muted-foreground">
-                        Fonte: {e.source || e.type}
+                        Fonte: {providerLabel(e.source || e.type)}
                       </p>
                     )}
                   </div>
