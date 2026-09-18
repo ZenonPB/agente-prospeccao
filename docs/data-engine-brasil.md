@@ -229,7 +229,9 @@ bytes/hashes observados, pronto para `import_registry --manifest`.
 Arquivos oficiais são nacionais; o importer aceita escopo
 (`--uf/--municipio-cod/--cnae/--situacao`, mesma semântica de CNAE da
 busca) e materializa só o recorte — linhas fora do escopo avançam o
-checkpoint sem tocar as tabelas.
+checkpoint sem tocar as tabelas. O recorte fica registrado em
+`registry_snapshots.scope` (e no manifesto, quando informado) e é exposto
+no health: snapshot filtrado nunca se apresenta como nacional.
 
 Provenance é separada de visibilidade. `source_snapshot` registra o snapshot
 da última MUDANÇA de conteúdo (linhas idênticas não são reescritas na
