@@ -1,6 +1,6 @@
 # Baseline operacional
 
-> **RUNBOOK · atualizado em 2026-09-13.** Define o mínimo para considerar um
+> **RUNBOOK · atualizado em 2026-09-18.** Define o mínimo para considerar um
 > commit candidato ao AlphaMec RC.
 
 ## Build e testes
@@ -86,3 +86,10 @@ Para uma campanha/job deve ser possível responder:
 Não mergear com suíte vermelha porque “já falhava antes”. Corrigir ou provar
 que o gate oficial correto não executa aquele teste por uma razão documentada.
 Todos os checks devem estar verdes no mesmo HEAD do merge.
+
+
+## Gate operacional adicional da AlphaMec 1.0
+
+CI verde não promove o Data Engine a “validado operacionalmente”. Antes do release AlphaMec, o Golden Path precisa registrar separadamente o HEAD implantado, snapshot/manifest/scope, resultado do piloto real, providers/custo, amostra de qualidade e smoke do ambiente.
+
+Para o primeiro Registry real, seguir `data-engine-real-pilot-runbook.md`. O piloto começa sem outreach e sem provider pago. Commercial Dimensions permanece shadow até evidência suficiente e decisão explícita.

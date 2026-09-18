@@ -1,86 +1,58 @@
 # Documentação do Agente de Prospecção
 
-> **Fonte de verdade documental — atualizado em 2026-09-13.**
+> **Fonte de verdade documental — atualizado em 2026-09-18.**
 >
-> Estado de código de referência: `main` após PR #171 (`a6f8f4e`) + trabalho em
-> andamento no PR #172. O código, migrations e testes continuam tendo
-> precedência quando um documento divergir deste índice.
+> Baseline de referência: `main@446ca886f4a22addc672df9355ea59972bc86e2a` (merge da PR #207). Código, migrations e testes prevalecem quando houver divergência.
 
 ## Como ler esta pasta
 
-A documentação é dividida em três classes.
-
 | Classe | Significado |
 |---|---|
-| **LIVE** | Reflete o estado atual e é atualizada em toda mudança de arquitetura/capability. |
-| **RUNBOOK** | Procedimento operacional; só é válido se compatível com a arquitetura LIVE. |
-| **ADR/DECISÃO** | Registro de decisão; histórico é preservado, novas decisões são acrescentadas. |
+| **LIVE** | Estado atual; deve acompanhar mudanças de arquitetura/capability. |
+| **RUNBOOK** | Procedimento operacional compatível com os documentos LIVE. |
+| **ADR/DECISÃO** | Decisão arquitetural; histórico não é reescrito. |
+| **HISTÓRICO/AUDITORIA** | Evidência de um HEAD específico; não substitui o estado LIVE. |
+
+## Leitura obrigatória para trabalho novo
+
+1. `alphamec-1.0.md` — freeze, baseline e escopo restante da 1.0;
+2. `00-status-mapa.md` — capability map;
+3. `context.md` — contexto técnico/funcional;
+4. `architecture.md` e `business-rules.md`;
+5. `roadmap.md`;
+6. para Data Engine: `data-engine-brasil.md`, `data-engine-brasil-pilot.md` e `data-engine-real-pilot-runbook.md`.
+
+## Estado canônico
+
+A fundação técnica está madura: multi-workspace, entidades canônicas, Vertentes/OfferProfile efetivo, discovery, Registry, entity resolution, enrichment, scoring/OfferMatcher, People/Contact, CRM, outcomes, BI e controlled learning já existem.
+
+As PRs #203–#207 endureceram o Brazil Company Registry com staging/ativação, membership versionado, health/provenance, redução de write amplification e scope persistido. O Data Engine permanece **CODE COMPLETE / OPERATIONAL VALIDATION REQUIRED** até usar snapshot oficial real.
+
+A 1.0 está em **feature freeze horizontal**. O caminho crítico é: Data Engine real → Evidence Contract → AI Commercial Analyst → persistência learning-ready → E2E real → hardening/deploy → operação AlphaMec.
 
 ## Documentos LIVE
 
-- `00-status-mapa.md` — matriz de capacidades e estado real.
-- `architecture.md` — arquitetura atual e limites de responsabilidade.
-- `context.md` — contexto funcional e técnico para agentes/engenheiros.
-- `roadmap.md` — sequência restante para AlphaMec RC e evolução posterior.
-- `roadmap-vendas.md` — roadmap do CRM/operação comercial.
-- `consolidacao.md` — decisões de consolidação e fontes de verdade.
-- `pendencias-pos-consolidacao.md` — backlog residual real, sem itens já encerrados.
-- `offer-profile.md` — contrato e runtime de OfferProfile.
-- `controlled-learning.md` — learning versionado, aprovação e rollback.
-- `ai-feedback-loop.md` — feedback humano e fronteiras de aprendizado.
-- `crm-360-gap-map.md` — lacunas entre CRM atual e CRM operacional completo.
-- `business-rules.md` — regras comerciais estáveis.
-- `coding-standards.md` — padrões de implementação.
-- `agents.md` — instruções específicas para agentes no diretório `docs/`.
+- `alphamec-1.0.md` — baseline/freeze e Definition of Done da reta final;
+- `00-status-mapa.md`;
+- `architecture.md`;
+- `context.md`;
+- `roadmap.md`;
+- `data-engine-brasil.md`;
+- `offer-profile.md`;
+- `controlled-learning.md`;
+- `ai-feedback-loop.md`;
+- `business-rules.md`;
+- `coding-standards.md`;
+- `decisions.md`.
 
 ## RUNBOOKS
 
-- `uat-runbook.md` — UAT multi-workspace + campanha real AlphaMec.
-- `baseline-operacional.md` — baseline de produção e critérios de aceite.
-- `plano-qualidade-e-bi.md` — validações de qualidade e BI.
-
-## ADR / decisões
-
-- `decisions.md` — índice e decisões transversais.
-- `adr/` — ADRs individuais. ADR não deve ser reescrito para fingir que a
-  decisão sempre foi diferente; mudanças novas recebem nova decisão/supersede.
-
-## Histórico
-
-Relatórios de fases, auditorias e registros de execução antigos foram removidos
-desta pasta em 2026-09-14 por já estarem implementados e superados pelos
-documentos LIVE acima. O histórico completo permanece no git
-(`git log -- docs/` recupera qualquer versão anterior).
-
-## Estado canônico em 2026-09-13
-
-A plataforma já possui multi-workspace, Unified Data Network federada,
-Company/Person canônicas, OfferProfile versionado, OfferMatcher, discovery,
-pre-scoring, enrichment, scoring, oportunidades versionadas, decisão de
-contato, sequences/workflows, tarefas, CRM sync/adapters, analytics,
-controlled learning com publicação/rollback, feedback de utilidade, Kanban e
-Opportunity 360 read-only.
-
-No PR #172, a consolidação avança em duas frentes: (1) o pipeline inteiro passa
-a consumir o **OfferProfile efetivamente publicado por workspace**, com
-isolamento por `ContextVar`; (2) Company 360 e Person 360 read-only entram como
-visões canônicas do CRM. Essas capacidades só devem ser marcadas como
-`COMPLETE` após CI final verde no mesmo HEAD e merge.
-
-## Próxima sequência de entrega
-
-1. concluir e validar PR #172 (runtime OfferProfile + Company/Person 360 + docs);
-2. Opportunity 360 editável: owner, estágio, valor, notas, tarefas e ações em
-   contrato único, sem duplicar fontes de verdade;
-3. importador histórico seguro da planilha AlphaMec com preview/mapping/dedupe;
-4. Filter Context compartilhado + BI interativo;
-5. consolidar feedback/coaching/calibração somente sobre OfferProfile efetivo;
-6. Golden Path troféus/eventos/MEJ e UAT multi-workspace;
-7. campanha AlphaMec real, observabilidade e hardening final.
+- `data-engine-real-pilot-runbook.md` — procedimento exato para o primeiro snapshot real;
+- `data-engine-brasil-pilot.md` — contrato do piloto;
+- `uat-runbook.md`;
+- `baseline-operacional.md`;
+- `plano-qualidade-e-bi.md`.
 
 ## Regra de sincronização
 
-Toda PR que altera modelo de domínio, endpoint público, pipeline, segurança,
-tenancy ou estado de uma capability deve atualizar ao menos este índice e o
-LIVE diretamente afetado. Documentos históricos não recebem status novo; o
-status atual vai para os documentos LIVE.
+Toda PR que altera domínio, endpoint, pipeline, segurança, tenancy, Data Engine ou estado de capability atualiza o LIVE diretamente afetado. Não marcar validação operacional com base apenas em fixtures/CI. Não iniciar nova frente horizontal enquanto o freeze da 1.0 estiver vigente, salvo P1/P2 ou decisão explícita.

@@ -1,119 +1,48 @@
-# Roadmap — AlphaMec Release Candidate
+# Roadmap — AlphaMec 1.0
 
-> **LIVE · atualizado em 2026-09-14.** Leia `docs/README.md` antes dos snapshots
-> de fases antigas. O estado atual inclui a consolidação do Bloco A de
-> Prospecting Intelligence; código/testes prevalecem sobre snapshots antigos.
+> **LIVE · atualizado em 2026-09-18.** Baseline: `main@446ca886f4a22addc672df9355ea59972bc86e2a`.
 
 ## Objetivo
 
-Entregar uma plataforma de inteligência comercial e CRM que substitua a
-planilha operacional da AlphaMec, mantendo o motor genérico para qualquer
-oferta por meio de `OfferProfile` e isolamento estrito por workspace.
+Finalizar a 1.0 para uso real da AlphaMec sem continuar expandindo o produto horizontalmente. A prioridade é provar e fechar um Golden Path completo, confiável, explicável e learning-ready.
 
-## Já entregue e verificado
+## Fundação já entregue
 
-- multi-workspace e membership/roles;
-- Company, Person e Lead/Oportunidade como entidades canônicas;
-- identidade cross-provider + aliases/provenance;
-- discovery federado, planner, quotas/opt-in e observabilidade;
-- pre-scoring, enrichment, scoring e OfferMatcher versionado;
-- oportunidades persistidas + snapshots e attribution de outcomes;
-- pessoas/decisores, buyer role, verificação e roteabilidade;
-- next best action, sequences, workflows e tarefas comerciais;
-- CRM adapters/sync/certificação read-only;
-- analytics, provider metrics e controlled learning com aprovação/publicação/rollback;
-- feedback útil/não útil e score feedback;
-- Kanban comercial;
-- Opportunity 360 read-only e editável;
-- Company 360 e Person 360;
-- Historical Importer com contexto comercial e gate PostgreSQL;
-- Filter Context compartilhado + BI no escopo RC;
-- OfferProfile efetivo por workspace em todo o pipeline;
-- Prospecting Intelligence com quality gates e política `UNKNOWN != FALSE`;
-- Golden Paths para landing pages, sistemas web, engenharia e troféus;
-- Event Intelligence declarativa para eventos gerais, esportivos e MEJ;
-- timing comercial e persistência idempotente de oportunidades de evento;
-- benchmark sintético de regressão como quality gate;
-- criação de campanha natural-language-first sem exigir jargão técnico;
-- CI com backend `-W error`, migrations PostgreSQL, E2E crítico e web build.
+Multi-workspace/RBAC; Company/Person/Lead/LeadOpportunity; Vertentes/OfferProfile efetivo; discovery e Registry; entity resolution; pre-scoring/enrichment/scoring/OfferMatcher; Public Web; People/Contact; Commercial Dimensions shadow; Next Best Action; CRM/tasks/sequences/workflows/Kanban; importação histórica; BI/Filter Context; outcomes/feedback; controlled learning; UAT e production rehearsal.
 
-## Bloco A — Prospecting Intelligence + Golden Paths — ✅ técnico
+## Reta final
 
-Objetivo cumprido no código e nos gates automatizados:
+### R1 — Preparação offline do Data Engine — AGORA
+Sem depender de arquivos reais: sincronizar docs, contratos, fixtures, fail-closed, scope, manifest, checklist, critérios e runbook. Não declarar validação operacional.
 
-- diferenças de oferta ficam em `OfferProfile`/configuração de portfólio;
-- Event Intelligence recebe regras declarativas em vez de conhecer MEJ/esporte no core;
-- MEJ e esporte roteiam para ofertas específicas sem criar entidades paralelas;
-- contexto derivado é `INFERENCE`, ausência permanece `UNKNOWN`;
-- quantidade estimada de premiações só é calculada a partir de campos estruturados e continua inferência;
-- timing evita tratar evento imediato como oportunidade perfeita e reconhece janela ideal de venda/execução;
-- matching de evento é idempotente e mantém provenance/evidence;
-- benchmark verifica roteamento, cobertura de evidência, recall de alta confiança e hard negatives;
-- ratchet de genericidade impede reintrodução de conhecimento de domínio no core;
-- Event Intelligence/Golden Paths possuem gate explícito em PostgreSQL real;
-- frontend de nova campanha passou a partir do objetivo comercial, sem expor provider/query/template/profile ao usuário comum.
+### R2 — Piloto oficial do Registry — BLOQUEADO POR DADO REAL
+Snapshot oficial congelado; manifest/hash; import scoped; auditoria pré-ACTIVE; ativação explícita; busca; amostra humana; métricas de download/raw/database/memória/tempo/qualidade/custo.
 
-**Limite:** o benchmark é sintético. Este bloco não declara `precision@20`,
-conversão, reuniões ou receita reais. Esses indicadores só entram como evidência
-quando campanhas autorizadas gerarem outcomes reais atribuídos.
+Golden Path congelado: Landing Pages → clínicas de psicologia → Araraquara/SP → CNAE 8650-0/03 → ativas; zero outreach.
 
-## Próximas entregas para o RC
+### R3 — Evidence Contract
+Auditar o que já existe em provenance, Opportunity Vector, web facts, snapshots e scoring. Consolidar somente lacunas reais para rastrear FACT/INFERENCE/HYPOTHESIS/UNKNOWN, source, confidence e observed_at.
 
-### 1. CRM como sistema operacional de vendas
+### R4 — AI Commercial Analyst
+Evoluir o motor existente, não criar um segundo scoring. A análise deve responder com evidência: por que empresa, por que oferta, por que agora, hipóteses, contraevidências, unknowns e abordagem sugerida. Aplicar raciocínio caro apenas depois de filtros baratos.
 
-Completar a experiência necessária para abandonar a planilha: fila diária do
-consultor, busca/visões salvas quando justificadas pelo fluxo, ações em massa
-seguras e superfícies 360 editáveis onde ainda forem read-only. Não criar
-Proposal/Contract/Note paralelos sem regra de domínio real.
+### R5 — Learning-ready persistence
+Preservar Vertente/versão, evidências, analysis/policy/prompt/model version quando aplicável, timestamps, score/snapshot e outcome attribution. Reusar controlled learning existente.
 
-### 2. BI de gestão / cross-filter
+### R6 — Real E2E AlphaMec
+Empresa real → discovery → evidence → análise → oportunidade → pessoa → contato → CRM. Depois de validar dados, executar campanha autorizada separadamente para medir outcomes reais.
 
-Evoluir o BI já server-side para interação estilo Power BI: seleção visual que
-compõe filtros entre gráficos/tabelas, comparação de períodos, aging, tempo por
-estágio, motivos de perda, SLA de follow-up e visão de qualidade de prospecção.
+### R7 — Hardening + deploy
+Corrigir P1/P2, rodar gates do mesmo HEAD, migrations/backup/restore, secrets/quotas/budget, observabilidade, deploy e smoke AlphaMec.
 
-### 3. Feedback, coaching e calibração
+## Deferred pós-1.0
 
-Consolidar feedback, score feedback e outcomes em coaching útil ao vendedor e à
-gestão. Learning continua controlado: proposta → evidência → aprovação humana →
-publicação versionada → rollback. Nunca aplicar mudança de produção
-silenciosamente.
+BigQuery produtivo/remote discovery amplo, Autopilot, Relationship Intelligence, omnichannel avançado, WhatsApp automático, Meeting/Proposal Intelligence, billing SaaS, scheduler nacional sofisticado, novos CRMs e expansão não necessária de Vertentes/providers.
 
-### 4. UAT multi-workspace
+## Gates
 
-Cenários mínimos:
-- A não lê/escreve B por UUID conhecido;
-- overlays OfferProfile distintos não contaminam jobs concorrentes;
-- providers/secrets/quotas separados;
-- CRM e dashboards respeitam carteira e organização;
-- importador nunca resolve entidades fora do workspace;
-- usuário membro de dois ou mais workspaces alterna contexto sem mistura de cache, jobs ou analytics.
+Toda entrega: testes do domínio; compileall; pytest `-W error`; PostgreSQL/migrations/idempotência/verifiers/E2E quando aplicável; web lint/typecheck/build quando afetado; tenant isolation; docs LIVE; mesmo HEAD verde.
 
-### 5. Campanhas reais e hardening final
+## Critério final
 
-Rodar campanhas AlphaMec autorizadas para landing pages, sistemas, engenharia,
-troféus gerais/esportivos e MEJ. Medir coverage, `precision@10/20`, contatos e
-decisores válidos, resposta, reunião, proposta, contrato, custo, latência e
-problemas de UX. Achados são classificados em `BLOCKS_ALPHAMEC`,
-`IMPORTANT_ALPHAMEC` ou `DEFER_TO_V2`.
-
-## Depois do RC
-
-- expansão da data network e novos providers;
-- learning estatístico mais sofisticado sobre amostras suficientes;
-- forecasting/calibração avançados;
-- propostas/contratos completos se o UAT comprovar necessidade;
-- automações adicionais sem comprometer human-in-the-loop e auditabilidade.
-
-## Gates obrigatórios de merge
-
-1. branch curta a partir da `main` atual;
-2. testes do domínio alterado;
-3. `python -m compileall -q services/api services/workers`;
-4. `python -m pytest tests -q -W error`;
-5. migrations em PostgreSQL real + idempotência + schema verifier;
-6. E2E crítico e invariantes tenant-safe relevantes;
-7. para Bloco A, Event Intelligence/Golden Paths persistentes em PostgreSQL real;
-8. `npm ci`, lint, `tsc --noEmit` e production build;
-9. documentação LIVE atualizada;
-10. todos os checks verdes no **mesmo HEAD** que será mergeado.
+A 1.0 não termina quando “todos os módulos existem”. Termina quando a AlphaMec consegue executar o Golden Path real com dados confiáveis, explicações rastreáveis, CRM operacional, custo controlado e outcomes capturáveis sem depender de intervenção técnica no fluxo normal.

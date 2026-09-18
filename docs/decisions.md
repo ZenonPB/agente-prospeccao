@@ -1,6 +1,6 @@
 # Decisões arquiteturais atuais
 
-> **ADR/DECISÃO · atualizado em 2026-09-13.** ADRs históricos em `docs/adr/`
+> **ADR/DECISÃO · atualizado em 2026-09-18.** ADRs históricos em `docs/adr/`
 > permanecem imutáveis. Este arquivo registra as decisões transversais vigentes.
 
 ## D01 — Multi-workspace é boundary de segurança
@@ -92,3 +92,16 @@ Provenance (`source_snapshot` = última observação) é separada de
 visibilidade (membership versionado + `is_active` único por source).
 Import escreve em staging invisível; ativação é transacional e explícita.
 Snapshot com falha nunca degrada o ACTIVE anterior.
+
+
+## D17 — AlphaMec 1.0 entra em feature freeze horizontal
+
+Após o baseline `446ca886`, capacidade nova só entra no caminho crítico quando desbloqueia o Golden Path, corrige P1/P2, torna o Data Engine real operável, preserva evidência necessária ao learning ou reduz risco concreto de deploy. Expansões como Autopilot/omnichannel avançado/Meeting Intelligence/billing ficam pós-1.0.
+
+## D18 — Data Engine real precede decisão de discovery remoto
+
+O Registry bulk hardened permanece gold standard para o primeiro piloto. Arquitetura híbrida/BigQuery continua opção a avaliar depois da comparação sobre a mesma coorte real. “Free” é condição de provider/quota, nunca propriedade arquitetural permanente. Não promover provider remoto antes de medir cobertura, freshness, latência, bytes e custo contra o gold standard.
+
+## D19 — IA 1.0 evolui o motor de evidência existente
+
+A futura análise comercial explicável deve reutilizar OfferProfile, provenance, enrichment, scoring/OfferMatcher e snapshots existentes. Antes de criar entidade/tabela/motor paralelo, é obrigatório provar uma lacuna no contrato canônico. Conclusões de IA precisam distinguir FACT/INFERENCE/HYPOTHESIS/UNKNOWN e apontar para evidência observada quando fizerem afirmações factuais.
