@@ -101,7 +101,7 @@ async def run_pilot_smoke(
     from services.prospecting.pilot_metrics import summarize_pilot
     from services.prospecting.provider_access_policy import ProviderAccessPolicy
     from services.prospecting.provider_planner import ProviderPolicy
-    from services.registry.activation import resolve_snapshot
+    from services.registry.activation import SnapshotNotAvailable, resolve_snapshot
     from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
     from services.registry.importer import SOURCE
     from services.registry.search import RegistrySearchService
