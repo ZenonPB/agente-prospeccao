@@ -234,11 +234,11 @@ class LeadOpportunityService:
                 "matched": list(row.signals_matched or []),
                 "missing": list(row.signals_missing or []),
                 "score_breakdown": dict(row.score_breakdown or {}),
-            },
-            evidence_snapshot={
-                "matcher_evidence": list(row.evidence or []),
                 "evidence_context": evidence_context,
             },
+            # Mantém o contrato público legado (lista) para não quebrar API/UI.
+            # O contexto estruturado adicional vive no signals_snapshot.
+            evidence_snapshot=list(row.evidence or []),
             snapshot_hash=snapshot_hash,
             reason=reason,
             scored_at=datetime.now(timezone.utc),
