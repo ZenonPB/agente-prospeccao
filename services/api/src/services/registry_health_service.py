@@ -61,6 +61,7 @@ def summarize_registry_health(
         "last_updated_at": _iso((served or {}).get("finished_at")),
         "companies": available_companies,
         "active_snapshot_month": (active or {}).get("snapshot_month"),
+        "scope": (active or {}).get("scope"),
         "last_attempt": (
             {"snapshot_month": latest.get("snapshot_month"),
              "status": latest.get("status")}
@@ -89,6 +90,7 @@ def _row_dict(row: Any) -> dict:
         "layout_version": row.layout_version,
         "finished_at": _iso(row.finished_at),
         "error": row.error,
+        "scope": dict(row.scope) if row.scope is not None else None,
     }
 
 

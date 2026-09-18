@@ -78,6 +78,7 @@ class SnapshotManifest:
     origin_url: str
     accessed_at: str
     files: tuple[ManifestFile, ...] = field(default_factory=tuple)
+    scope: Mapping[str, Any] | None = None
 
 
 def _text(data: Mapping[str, Any], key: str) -> str:
@@ -155,6 +156,9 @@ def parse_manifest(data: Mapping[str, Any]) -> SnapshotManifest:
     if len(layout_version) > 20:
         raise ManifestError("manifesto: layout_version com mais de 20 caracteres")
     kind, url = _validate_origin(_text(data, "origin_kind"), _text(data, "origin_url"))
+    scope = data.get("scope")
+    if scope is not None and not isinstance(scope, Mapping):
+        raise ManifestError("manifesto: scope deve ser um objeto")
     return SnapshotManifest(
         source=_text(data, "source"),
         snapshot_month=_validate_month(_text(data, "snapshot_month")),
@@ -165,6 +169,7 @@ def parse_manifest(data: Mapping[str, Any]) -> SnapshotManifest:
         origin_url=url,
         accessed_at=accessed_at,
         files=files,
+        scope=dict(scope) if scope is not None else None,
     )
 
 
@@ -198,6 +203,7 @@ def dump_manifest(manifest: SnapshotManifest) -> str:
              **({"sha256": entry.sha256} if entry.sha256 is not None else {})}
             for entry in manifest.files
         ],
+        **({"scope": manifest.scope} if manifest.scope is not None else {}),
     }, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 

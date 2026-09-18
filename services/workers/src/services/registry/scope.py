@@ -32,6 +32,17 @@ class ImportScope:
                     or self.cnae_prefix_ranges or self.situacoes
                     or self.matriz is not None)
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialização canônica do recorte (chaves ordenadas, JSON-safe)."""
+        return {
+            "ufs": sorted(self.ufs),
+            "municipio_cods": sorted(self.municipio_cods),
+            "cnaes": sorted(self.cnaes),
+            "cnae_prefix_ranges": [list(pair) for pair in self.cnae_prefix_ranges],
+            "situacoes": sorted(self.situacoes),
+            "matriz": self.matriz,
+        }
+
 
 def _situacao(value: object) -> str:
     return str(value or "").strip().lstrip("0") or "0"

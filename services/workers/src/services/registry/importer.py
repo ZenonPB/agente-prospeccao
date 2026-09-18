@@ -204,6 +204,7 @@ class RegistryImporter:
         snapshot.status = "RUNNING"
         snapshot.finished_at = None
         snapshot.error = None
+        snapshot.scope = scope.to_dict() if scope is not None else None
         if manifest is not None:
             snapshot.layout_version = manifest.layout_version
         for field in ("processed", "inserted", "updated", "unchanged", "rejected", "failed"):
