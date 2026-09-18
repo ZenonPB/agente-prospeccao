@@ -151,7 +151,6 @@ function PitchCard({ pitch }: { pitch: PitchOnePager }) {
             )}
             {identity.cnpj && <p className="ml-6 text-muted-foreground">CNPJ: {identity.cnpj}</p>}
             {identity.porte && <p className="ml-6 text-muted-foreground">Porte: {identity.porte}</p>}
-            {identity.cnae_principal && <p className="ml-6 text-muted-foreground">CNAE: {identity.cnae_principal}</p>}
             {identity.idade_anos != null && <p className="ml-6 text-muted-foreground">{identity.idade_anos} anos de atividade</p>}
             {identity.capital_social != null && (
               <p className="ml-6 text-muted-foreground">

@@ -493,7 +493,7 @@ export function CampaignPipeline({
                     const scoreColor = event.score >= 60 ? 'text-emerald-500' : 'text-amber-500';
                     return (
                       <p key={i}>
-                        <span className={scoreColor}>→</span> {event.name} — Pontuação: {event.score} ({event.status})
+                        <span className={scoreColor}>→</span> {event.name} — {event.score >= 60 ? 'boa compatibilidade' : 'compatibilidade baixa'}
                       </p>
                     );
                   }

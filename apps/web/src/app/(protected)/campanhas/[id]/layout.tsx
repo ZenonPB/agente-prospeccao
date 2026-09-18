@@ -4,7 +4,7 @@ import { buildPageMetadata } from "@/lib/metadata";
 export const metadata: Metadata = buildPageMetadata({
   title: "Campanha",
   description:
-    "Detalhe da campanha: status, leads coletados, qualificação, importação CSV, descoberta por CNAE e PNCP.",
+    "Empresas encontradas, análise e oportunidades da campanha.",
 });
 
 export default function Layout({ children }: { children: React.ReactNode }) {
