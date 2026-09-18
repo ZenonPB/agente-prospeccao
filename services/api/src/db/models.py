@@ -75,4 +75,9 @@ from database.models import (
     WebhookLog,
     ProviderExecutionMetric,
     CommercialBulkOperation,
+    RegistrySnapshot,
+    RegistryImportFile,
+    RegistryCompany,
+    RegistryCompanyCnae,
+    RegistryCnae,
 )
