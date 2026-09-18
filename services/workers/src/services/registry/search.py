@@ -1,20 +1,27 @@
 """Consulta ao universo empresarial: filtros composáveis, keyset, sem N+1.
 
-Sempre 3 queries no máximo: página, secundários (IN), labels CNAE (IN).
-Ordenação determinística por CNPJ; cursor = último CNPJ da página.
+Visibilidade por membership versionado: default enxerga o snapshot ACTIVE;
+mês explícito exige snapshot COMPLETED/ACTIVE (fail-closed, sem fallback).
+Sempre 3 queries no máximo (+1 de resolução só quando o mês é explícito):
+página, secundários (IN), labels CNAE (IN). Ordenação determinística por
+CNPJ; cursor = último CNPJ da página.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from database.models import (
     RegistryCnae,
     RegistryCompany,
     RegistryCompanyCnae,
-    RegistrySnapshot,
+    RegistrySnapshotMember,
+)
+from services.registry.activation import (
+    active_snapshot_id_subquery,
+    resolve_snapshot_id,
 )
 from services.registry.candidate import RegistryCandidate
 from services.registry.cnae_matching import (
@@ -111,9 +118,10 @@ class SearchResult:
 class RegistrySearchService:
     """Queries de descoberta sobre `registry_companies` (leitura global).
 
-    Ativação: sem mês explícito, a busca enxerga o snapshot COMPLETED mais
-    recente — linhas de um snapshot com falha nunca vazam para descoberta.
-    Sem nenhum COMPLETED, não filtra (compatibilidade com cargas de teste).
+    Ativação: sem mês explícito, a busca enxerga o snapshot ACTIVE —
+    staging e snapshots com falha nunca vazam para descoberta. Sem ACTIVE,
+    o resultado é vazio (honesto: nada publicado). Mês explícito resolve
+    para o membership daquele snapshot e falha fechado quando indisponível.
     """
 
     def __init__(self, db: Session) -> None:
@@ -127,18 +135,16 @@ class RegistrySearchService:
             return SearchResult()
         stmt = select(RegistryCompany)
         if filters.source_snapshot:
-            stmt = stmt.where(
-                RegistryCompany.source_snapshot == filters.source_snapshot)
+            snapshot_id = resolve_snapshot_id(
+                self._db, source=SOURCE, snapshot_month=filters.source_snapshot)
+            stmt = stmt.where(RegistryCompany.cnpj.in_(
+                select(RegistrySnapshotMember.cnpj).where(
+                    RegistrySnapshotMember.snapshot_id == snapshot_id)))
         else:
-            active = (
-                select(func.max(RegistrySnapshot.snapshot_month))
-                .where(RegistrySnapshot.source == SOURCE,
-                       RegistrySnapshot.status == "COMPLETED")
-                .scalar_subquery()
-            )
-            stmt = stmt.where(
-                RegistryCompany.source_snapshot
-                == func.coalesce(active, RegistryCompany.source_snapshot))
+            active = active_snapshot_id_subquery(SOURCE)
+            stmt = stmt.where(RegistryCompany.cnpj.in_(
+                select(RegistrySnapshotMember.cnpj).where(
+                    RegistrySnapshotMember.snapshot_id == active)))
         if cnpj:
             stmt = stmt.where(RegistryCompany.cnpj == cnpj)
         if filters.cnaes or filters.cnae_prefixes:

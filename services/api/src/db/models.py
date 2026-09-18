@@ -80,4 +80,7 @@ from database.models import (
     RegistryCompany,
     RegistryCompanyCnae,
     RegistryCnae,
+    RegistrySnapshotMember,
+    RegistryStagingCompany,
+    RegistryStagingCompanyCnae,
 )

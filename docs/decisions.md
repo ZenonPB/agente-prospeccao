@@ -85,3 +85,10 @@ no commit que será mergeado.
 
 `docs/README.md` classifica LIVE, RUNBOOK e ADR. Histórico de fases antigas
 vive no git, não na pasta; estado atual fica nos LIVE docs.
+
+## D16 — Snapshot COMPLETED não é snapshot ACTIVE
+
+Provenance (`source_snapshot` = última observação) é separada de
+visibilidade (membership versionado + `is_active` único por source).
+Import escreve em staging invisível; ativação é transacional e explícita.
+Snapshot com falha nunca degrada o ACTIVE anterior.

@@ -37,6 +37,8 @@ REQUIRED_TABLES = {
     "commercial_bulk_operations", "commercial_saved_views",
     "registry_snapshots", "registry_import_files", "registry_companies",
     "registry_company_cnaes", "registry_cnaes",
+    "registry_snapshot_members", "registry_staging_companies",
+    "registry_staging_company_cnaes",
 }
 REQUIRED_INDEXES = {
     "ix_commercial_outcomes_org_offer", "ix_event_opportunities_org_date",
@@ -65,9 +67,13 @@ REQUIRED_INDEXES = {
     "uq_conversions_lead_offer",
     "ix_registry_companies_basico", "ix_registry_companies_cnae_uf", "ix_registry_companies_geo",
     "ix_registry_cnaes_cnae", "ix_registry_files_snapshot",
+    "ix_registry_members_snapshot", "ix_registry_members_cnpj",
+    "ix_registry_staging_snapshot", "ix_registry_staging_cnaes_snapshot",
+    "uq_registry_snapshots_active_per_source",
 }
 REQUIRED_UNIQUE_INDEXES = {
     "conversions": {"uq_conversions_lead_offer"},
+    "registry_snapshots": {"uq_registry_snapshots_active_per_source"},
 }
 REQUIRED_CHECK_CONSTRAINTS = {
     "jobs": {"ck_jobs_organization_required"},
@@ -110,6 +116,9 @@ REQUIRED_FKS = {
     "commercial_saved_views": {"organizations.id", "users.id"},
     "registry_import_files": {"registry_snapshots.id"},
     "registry_company_cnaes": {"registry_companies.cnpj"},
+    "registry_snapshot_members": {"registry_snapshots.id"},
+    "registry_staging_companies": {"registry_snapshots.id"},
+    "registry_staging_company_cnaes": {"registry_snapshots.id"},
 }
 REQUIRED_UNIQUES = {
     "event_opportunities": {"uq_event_opportunities_org_source"},
@@ -160,7 +169,7 @@ REQUIRED_COLUMNS = {
     "import_audit_events": {"import_job_id", "organization_id", "action", "from_status", "to_status", "correlation_id", "created_at"},
     "commercial_bulk_operations": {"organization_id", "actor_id", "idempotency_key", "operation", "payload_hash", "status", "result", "created_at", "completed_at"},
     "commercial_saved_views": {"organization_id", "owner_user_id", "name", "view_kind", "filters", "shared", "created_at", "updated_at"},
-    "registry_snapshots": {"source", "snapshot_month", "status", "processed", "inserted", "updated", "unchanged", "rejected", "failed"},
+    "registry_snapshots": {"source", "snapshot_month", "status", "is_active", "processed", "inserted", "updated", "unchanged", "rejected", "failed"},
     "registry_import_files": {"snapshot_id", "table_kind", "file_name", "status", "processed_lines", "sha256"},
     "registry_companies": {"cnpj", "cnpj_basico", "content_hash", "source", "source_snapshot"},
 }

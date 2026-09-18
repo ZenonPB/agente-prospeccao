@@ -20,8 +20,18 @@ def _db():
 
 
 def _seed(db):
-    from database.models import RegistryCnae, RegistryCompany, RegistryCompanyCnae
+    from database.models import (
+        RegistryCnae,
+        RegistryCompany,
+        RegistryCompanyCnae,
+        RegistrySnapshot,
+        RegistrySnapshotMember,
+    )
 
+    snap = RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
+                            status="COMPLETED", is_active=True)
+    db.add(snap)
+    db.flush()
     db.add_all([
         RegistryCompany(cnpj="33000167000101", cnpj_basico="33000167",
                         razao_social="PETROLEO BRASILEIRO S A PETROBRAS",
@@ -41,17 +51,30 @@ def _seed(db):
         RegistryCnae(codigo="6000001", descricao="Extração de petróleo"),
     ])
     db.add(RegistryCompanyCnae(cnpj="33000167000101", cnae="1922501"))
+    db.add_all([
+        RegistrySnapshotMember(snapshot_id=snap.id, cnpj=cnpj)
+        for cnpj in ("33000167000101", "33592510000154", "60701190000104")
+    ])
     db.commit()
 
 
 def _cleanup(db):
-    from database.models import RegistryCnae, RegistryCompany, RegistryCompanyCnae
+    from database.models import (
+        RegistryCnae,
+        RegistryCompany,
+        RegistryCompanyCnae,
+        RegistrySnapshot,
+    )
 
     db.query(RegistryCompanyCnae).delete(synchronize_session=False)
     db.query(RegistryCompany).filter(
         RegistryCompany.cnpj.in_(["33000167000101", "33592510000154", "60701190000104"])).delete(
         synchronize_session=False)
     db.query(RegistryCnae).filter(RegistryCnae.codigo == "6000001").delete(
+        synchronize_session=False)
+    db.query(RegistrySnapshot).filter(
+        RegistrySnapshot.source == "receita_cnpj",
+        RegistrySnapshot.snapshot_month == "2026-08").delete(
         synchronize_session=False)
     db.commit()
 

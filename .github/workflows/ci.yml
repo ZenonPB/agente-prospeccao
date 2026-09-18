@@ -182,4 +182,4 @@ jobs:
       - name: Verify Block D multi-workspace, readiness and campaign rehearsal
         run: python -m pytest tests/test_block_d_uat_production_campaigns.py -q -W error
       - name: Verify Brazil Company Registry persistence, ingestion and search
-        run: python -m pytest tests/test_registry_postgres.py tests/test_registry_ingestion.py tests/test_registry_search.py tests/test_registry_provider.py -q -W error
+        run: python -m pytest tests/test_registry_postgres.py tests/test_registry_ingestion.py tests/test_registry_search.py tests/test_registry_provider.py tests/test_registry_scope.py tests/test_registry_manifest.py tests/test_araraquara_pilot.py tests/test_registry_health.py tests/test_registry_snapshot_activation.py -q -W error

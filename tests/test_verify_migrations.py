@@ -16,17 +16,25 @@ def _module():
 
 def test_migration_head_unico_e_conhecido():
     verify_migrations = _module()
-    assert verify_migrations.migration_head() == "f2b3c4d5e700"
+    assert verify_migrations.migration_head() == "e5f6a7b8c9d0"
 
 
 def test_registry_tem_schema_e_integridade_obrigatorios():
     verify_migrations = _module()
     assert {"registry_snapshots", "registry_import_files", "registry_companies",
-            "registry_company_cnaes", "registry_cnaes"} <= verify_migrations.REQUIRED_TABLES
+            "registry_company_cnaes", "registry_cnaes",
+            "registry_snapshot_members", "registry_staging_companies",
+            "registry_staging_company_cnaes"} <= verify_migrations.REQUIRED_TABLES
     assert verify_migrations.REQUIRED_UNIQUES["registry_snapshots"] == {"uq_registry_snapshots_source_month"}
     assert verify_migrations.REQUIRED_UNIQUES["registry_import_files"] == {"uq_registry_files_snapshot_name"}
     assert {"ix_registry_companies_basico", "ix_registry_companies_cnae_uf",
-            "ix_registry_companies_geo", "ix_registry_cnaes_cnae"} <= verify_migrations.REQUIRED_INDEXES
+            "ix_registry_companies_geo", "ix_registry_cnaes_cnae",
+            "ix_registry_members_snapshot", "ix_registry_members_cnpj",
+            "ix_registry_staging_snapshot", "ix_registry_staging_cnaes_snapshot",
+            "uq_registry_snapshots_active_per_source"} <= verify_migrations.REQUIRED_INDEXES
+    assert verify_migrations.REQUIRED_UNIQUE_INDEXES["registry_snapshots"] == {
+        "uq_registry_snapshots_active_per_source"}
+    assert "is_active" in verify_migrations.REQUIRED_COLUMNS["registry_snapshots"]
     assert "content_hash" in verify_migrations.REQUIRED_COLUMNS["registry_companies"]
     assert "organization_id" not in verify_migrations.REQUIRED_COLUMNS.get("registry_companies", set())
 
@@ -122,11 +130,9 @@ def test_verify_database_rejeita_fk_essencial_ausente(monkeypatch):
     class _Inspector:
         def get_table_names(self): return verify_migrations.REQUIRED_TABLES
         def get_indexes(self, table):
+            required_unique = verify_migrations.REQUIRED_UNIQUE_INDEXES.get(table, set())
             return [
-                {
-                    "name": name,
-                    "unique": table == "conversions" and name == "uq_conversions_lead_offer",
-                }
+                {"name": name, "unique": name in required_unique}
                 for name in verify_migrations.REQUIRED_INDEXES
             ]
         def get_check_constraints(self, table):
@@ -231,6 +237,7 @@ def test_schema_gate_exige_jobs_conversion_lost_reason_e_person():
     }
     assert verify_migrations.REQUIRED_UNIQUE_INDEXES == {
         "conversions": {"uq_conversions_lead_offer"},
+        "registry_snapshots": {"uq_registry_snapshots_active_per_source"},
     }
     assert {
         "ix_persons_org_document_cpf",
