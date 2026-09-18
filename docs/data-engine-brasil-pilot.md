@@ -1,6 +1,6 @@
-# Data Engine Brasil — piloto controlado (Fase 1H)
+# Data Engine Brasil — piloto controlado (AlphaMec 1.0)
 
-**Status:** CODE COMPLETE / OPERATIONAL VALIDATION REQUIRED.
+**Status:** CODE COMPLETE / OPERATIONAL VALIDATION REQUIRED. Baseline 2026-09-18: `main@446ca886`. Procedimento operacional detalhado em `data-engine-real-pilot-runbook.md`.
 
 Este runbook separa três estados que não podem ser confundidos: código pronto, telemetria suficiente para revisão e evidência operacional suficiente para discutir promoção. Nenhum deles autoriza promoção automática de Commercial Dimensions.
 
