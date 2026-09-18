@@ -217,6 +217,158 @@ def test_resume_continua_part_quando_206(tmp_path):
     assert (tmp_path / "ESTABELE0").read_bytes() == BODY
 
 
+def test_resume_206_total_e_total_nao_soma_part(tmp_path):
+    """part=500 + Content-Range 500-999/1000, expected=1000 → sucesso (não 1500)."""
+    from services.registry.downloader import manifest_download_specs
+
+    total = b"a" * 500 + b"b" * 500
+    assert len(total) == 1000
+    (tmp_path / "ESTABELE0.part").write_bytes(total[:500])
+
+    def handler(request):
+        assert request.headers.get("range") == "bytes=500-"
+        rest = total[500:]
+        return httpx.Response(206, headers={
+            "Content-Range": "bytes 500-999/1000",
+            "Content-Length": str(len(rest))}, content=rest)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    spec = specs[0]._replace(expected_bytes=1000)
+    result = _run(_downloader().download(spec, client=_client(handler)))
+    assert result.resumed is True
+    assert result.bytes == 1000
+    assert result.sha256 == _sha(total)
+    assert (tmp_path / "ESTABELE0").read_bytes() == total
+
+
+def test_resume_206_start_divergente_rejeita(tmp_path):
+    """Pedimos 500, servidor responde a partir de 400 → rejeitar, sem publicar."""
+    from services.registry.downloader import DownloadError, manifest_download_specs
+
+    (tmp_path / "ESTABELE0.part").write_bytes(b"x" * 500)
+
+    def handler(request):
+        return httpx.Response(206, headers={
+            "Content-Range": "bytes 400-999/1000",
+            "Content-Length": "600"}, content=b"y" * 600)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    spec = specs[0]._replace(expected_bytes=1000)
+    try:
+        _run(_downloader().download(spec, client=_client(handler)))
+    except DownloadError:
+        assert not (tmp_path / "ESTABELE0").exists()
+        return
+    raise AssertionError("range com start divergente deveria ser rejeitado")
+
+
+def test_resume_206_total_divergente_do_manifesto_rejeita(tmp_path):
+    """Content-Range total=1200 contra manifesto=1000 → rejeitar antes de publicar."""
+    from services.registry.downloader import DownloadError, manifest_download_specs
+
+    (tmp_path / "ESTABELE0.part").write_bytes(b"x" * 500)
+
+    def handler(request):
+        rest = b"y" * 700
+        return httpx.Response(206, headers={
+            "Content-Range": "bytes 500-1199/1200",
+            "Content-Length": str(len(rest))}, content=rest)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    spec = specs[0]._replace(expected_bytes=1000)
+    try:
+        _run(_downloader().download(spec, client=_client(handler)))
+    except DownloadError:
+        assert not (tmp_path / "ESTABELE0").exists()
+        return
+    raise AssertionError("total divergente do manifesto deveria ser rejeitado")
+
+
+def test_resume_206_end_incompativel_com_total_rejeita(tmp_path):
+    """bytes 500-1000/1000 (end >= total) → resposta mentirosa, rejeitar."""
+    from services.registry.downloader import DownloadError, manifest_download_specs
+
+    (tmp_path / "ESTABELE0.part").write_bytes(b"x" * 500)
+
+    def handler(request):
+        return httpx.Response(206, headers={
+            "Content-Range": "bytes 500-1000/1000",
+            "Content-Length": "501"}, content=b"y" * 501)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    try:
+        _run(_downloader().download(specs[0], client=_client(handler)))
+    except DownloadError:
+        assert not (tmp_path / "ESTABELE0").exists()
+        return
+    raise AssertionError("range com end incompatível deveria ser rejeitado")
+
+
+def test_resume_206_content_length_divergente_do_range_rejeita(tmp_path):
+    """Range declara 500 bytes mas Content-Length diz 400 → rejeitar."""
+    from services.registry.downloader import DownloadError, manifest_download_specs
+
+    (tmp_path / "ESTABELE0.part").write_bytes(b"x" * 500)
+
+    def handler(request):
+        return httpx.Response(206, headers={
+            "Content-Range": "bytes 500-999/1000",
+            "Content-Length": "400"}, content=b"y" * 500)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    try:
+        _run(_downloader().download(specs[0], client=_client(handler)))
+    except DownloadError:
+        assert not (tmp_path / "ESTABELE0").exists()
+        return
+    raise AssertionError("Content-Length divergente do range deveria ser rejeitado")
+
+
+def test_416_limpa_part_e_recomeca_do_zero(tmp_path):
+    """416 → descarta .part e baixa cheio; nunca publica parcial."""
+    from services.registry.downloader import manifest_download_specs
+
+    (tmp_path / "ESTABELE0.part").write_bytes(b"parcial-antiga")
+    calls = []
+
+    def handler(request):
+        calls.append(request.headers.get("range"))
+        if len(calls) == 1:
+            assert request.headers.get("range") == "bytes=14-"
+            return httpx.Response(416, content=b"range invalido")
+        assert "range" not in request.headers
+        return httpx.Response(200, headers={"Content-Length": str(len(BODY))},
+                              content=BODY)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    result = _run(_downloader().download(specs[0], client=_client(handler)))
+    assert result.resumed is False
+    assert result.sha256 == _sha(BODY)
+    assert (tmp_path / "ESTABELE0").read_bytes() == BODY
+
+
+def test_corpo_truncado_nao_publica_e_preserva_part(tmp_path):
+    """206 anuncia 1000 mas entrega 400 → erro; final ausente, .part preservado p/ retry."""
+    from services.registry.downloader import DownloadError, manifest_download_specs
+
+    (tmp_path / "ESTABELE0.part").write_bytes(b"a" * 500)
+
+    def handler(request):
+        return httpx.Response(206, headers={
+            "Content-Range": "bytes 500-999/1000",
+            "Content-Length": "500"}, content=b"b" * 400)
+
+    specs = manifest_download_specs(_manifest(), str(tmp_path))
+    spec = specs[0]._replace(expected_bytes=1000)
+    try:
+        _run(_downloader().download(spec, client=_client(handler)))
+    except DownloadError:
+        assert not (tmp_path / "ESTABELE0").exists()
+        assert (tmp_path / "ESTABELE0.part").exists()
+        return
+    raise AssertionError("corpo truncado deveria ser rejeitado")
+
+
 def test_recomeca_quando_servidor_ignora_range(tmp_path):
     from services.registry.downloader import manifest_download_specs
 

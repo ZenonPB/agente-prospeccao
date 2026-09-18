@@ -101,11 +101,22 @@ async def run_pilot_smoke(
     from services.prospecting.pilot_metrics import summarize_pilot
     from services.prospecting.provider_access_policy import ProviderAccessPolicy
     from services.prospecting.provider_planner import ProviderPolicy
+    from services.registry.activation import SnapshotNotAvailable, resolve_snapshot
     from services.registry.discovery_adapter import RegistryCnaeDiscoveryAdapter
+    from services.registry.importer import SOURCE
     from services.registry.search import RegistrySearchService
     from services.registry.targeting import TargetingResult
 
     started = time.perf_counter()
+    # Contrato A: o mês solicitado controla a query; indisponível falha
+    # fechado aqui (SnapshotNotAvailable é ValueError), sem fallback.
+    resolved = resolve_snapshot(db, source=SOURCE, snapshot_month=snapshot_month)
+    if resolved is None:  # pragma: no cover — mês sempre explícito no piloto
+        raise SnapshotNotAvailable(f"snapshot {SOURCE}/{snapshot_month} indisponível")
+    resolved_month = str(resolved.snapshot_month)
+    if resolved_month != snapshot_month:
+        raise SnapshotNotAvailable(
+            f"snapshot resolvido {resolved_month} diverge do solicitado {snapshot_month}")
     profile = get_effective_profile(db, organization_id, PILOT_OFFER_KEY)
     if profile is None or profile.version != PILOT_VERSION:
         raise ValueError("overlay piloto ativo ausente para a organização")
@@ -117,6 +128,7 @@ async def run_pilot_smoke(
     adapter = RegistryCnaeDiscoveryAdapter(
         search_service_factory=lambda: RegistrySearchService(db),
         budget_total=target_candidates,
+        source_snapshot=resolved_month,
     )
     context = {
         "icp": dict(profile.icp),
@@ -177,7 +189,9 @@ async def run_pilot_smoke(
         "versao": profile.version,
         "cnaes": list((profile.icp or {}).get("cnaes") or []),
         "territorio": {"uf": "SP", "municipio_cod": PILOT_MUNICIPIO_COD},
-        "snapshot": snapshot_month,
+        "snapshot": resolved_month,
+        "requested_snapshot": snapshot_month,
+        "resolved_snapshot": resolved_month,
         "candidatos": len(items),
         "ativas": sum(1 for item in items if _situacao_ativa(item.get("situacao"))),
         "cnae_principal": principal,

@@ -27,10 +27,12 @@ class RegistryCnaeDiscoveryAdapter:
         *,
         budget_total: int = 50,
         legacy_run: Optional[Callable] = None,
+        source_snapshot: Optional[str] = None,
     ) -> None:
         self.budget_total = budget_total
         self._search_service_factory = search_service_factory
         self._legacy_run = legacy_run
+        self._source_snapshot = source_snapshot
 
     async def run(
         self, query: str, lead_context: Optional[Dict[str, Any]] = None,
@@ -42,12 +44,16 @@ class RegistryCnaeDiscoveryAdapter:
     async def run_with_status(
         self, query: str, lead_context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        from dataclasses import replace
+
         ctx = dict(lead_context or {})
         if self._search_service_factory is None:
             return _outcome("disabled", [], reason="registry_not_configured")
         filters = _filters_for(query, ctx, self.budget_total)
         if filters is None:
             return _outcome("invalid", [], reason="sem CNAE válido para o Registry")
+        if self._source_snapshot is not None:
+            filters = replace(filters, source_snapshot=self._source_snapshot)
         try:
             service = self._search_service_factory()
             if service is None:

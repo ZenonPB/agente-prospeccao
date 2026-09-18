@@ -17,12 +17,12 @@ from database.models import (
     RegistryCnae,
     RegistryCompany,
     RegistryCompanyCnae,
-    RegistrySnapshotMember,
 )
 from services.registry.activation import (
     active_snapshot_id_subquery,
     resolve_snapshot_id,
 )
+from services.registry.availability import membership_cnpj_select
 from services.registry.candidate import RegistryCandidate
 from services.registry.cnae_matching import (
     MAX_PREFIX_LEN,
@@ -138,13 +138,11 @@ class RegistrySearchService:
             snapshot_id = resolve_snapshot_id(
                 self._db, source=SOURCE, snapshot_month=filters.source_snapshot)
             stmt = stmt.where(RegistryCompany.cnpj.in_(
-                select(RegistrySnapshotMember.cnpj).where(
-                    RegistrySnapshotMember.snapshot_id == snapshot_id)))
+                membership_cnpj_select(snapshot_id)))
         else:
             active = active_snapshot_id_subquery(SOURCE)
             stmt = stmt.where(RegistryCompany.cnpj.in_(
-                select(RegistrySnapshotMember.cnpj).where(
-                    RegistrySnapshotMember.snapshot_id == active)))
+                membership_cnpj_select(active)))
         if cnpj:
             stmt = stmt.where(RegistryCompany.cnpj == cnpj)
         if filters.cnaes or filters.cnae_prefixes:
