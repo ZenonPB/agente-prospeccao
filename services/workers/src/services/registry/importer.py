@@ -1,8 +1,14 @@
 """Ingestão idempotente e reiniciável do universo empresarial (Receita/CNPJ).
 
-Streaming em chunks: parse → merge em temp table → upsert → checkpoint.
+Streaming em chunks: parse → staging (`registry_staging_*`) → checkpoint.
 Nunca materializa o arquivo inteiro; cada chunk commita e avança o
 checkpoint (`processed_lines`), então interromper e retomar é seguro.
+
+O importer NUNCA escreve no canônico (`registry_companies`): linhas vão
+para staging invisível e só viram visíveis via `activate_snapshot`
+(transação única). Snapshot com falha não altera o ACTIVE anterior.
+Membership é gravado por observação — linhas inalteradas continuam
+pertencendo ao snapshot novo.
 
 Identidade do arquivo: tamanho NÃO é identidade. O skip de arquivo concluído
 exige digest SHA-256 igual; tamanhos iguais com bytes diferentes reprocessam.
@@ -31,9 +37,10 @@ from sqlalchemy.orm import Session
 from database.models import (
     RegistryCnae,
     RegistryCompany,
-    RegistryCompanyCnae,
-    RegistryImportFile,
     RegistrySnapshot,
+    RegistryStagingCompany,
+    RegistryStagingCompanyCnae,
+    RegistrySnapshotMember,
 )
 from services.registry.manifest import (
     ManifestFile,
@@ -375,7 +382,7 @@ class RegistryImporter:
             if spec.table_kind == "estabelecimentos":
                 stats = self._merge_companies(snapshot, matched, now)
             elif spec.table_kind == "empresas":
-                stats = self._merge_empresas(matched, snapshot.snapshot_month)
+                stats = self._merge_empresas(matched, snapshot)
             elif spec.table_kind == "cnaes":
                 stats = self._merge_cnaes(matched)
         counts["processed"] += len(ok)
@@ -392,6 +399,12 @@ class RegistryImporter:
     def _merge_companies(
         self, snapshot: RegistrySnapshot, records: list[dict[str, Any]], now: datetime,
     ) -> dict[str, int]:
+        """Grava o chunk em staging (invisível) + membership por observação.
+
+        Contadores comparam com o conteúdo vigente (staging deste snapshot,
+        senão canônico — só leitura): inserted = CNPJ novo, updated = hash
+        divergente, unchanged = idêntico. O canônico só muda na ativação.
+        """
         db = self._db
         batch = [company_values(r, source=snapshot.source, snapshot_month=snapshot.snapshot_month, now=now)
                  for r in records]
@@ -414,35 +427,62 @@ class RegistryImporter:
             sa.Column("updated_at", sa.DateTime(timezone=True)),
         )
         db.execute(sa.text("CREATE TEMPORARY TABLE tmp_registry_load "
-                           "(LIKE registry_companies INCLUDING DEFAULTS) ON COMMIT DROP"))
-        db.execute(tmp.insert(), [{k: v.get(k) for k in TMP_COLUMNS} for v in batch])
-        inserted_ids = {r[0] for r in db.execute(
-            insert(RegistryCompany).from_select(
-                TMP_COLUMNS,
-                select(*[tmp.c[k] for k in TMP_COLUMNS]).where(
-                    ~select(1).where(RegistryCompany.cnpj == tmp.c.cnpj).exists()),
-            ).on_conflict_do_nothing(index_elements=["cnpj"])
-            .returning(RegistryCompany.cnpj),
-        ).all()}
-        updated_ids = {r[0] for r in db.execute(
-            update(RegistryCompany)
-            .where(RegistryCompany.cnpj == tmp.c.cnpj)
-            .where(RegistryCompany.content_hash.is_distinct_from(tmp.c.content_hash))
-            .values({k: tmp.c[k] for k in TMP_COLUMNS if k != "cnpj"})
-            .returning(RegistryCompany.cnpj),
-        ).all()}
-        changed = inserted_ids | updated_ids
-        if changed:
-            db.execute(delete(RegistryCompanyCnae).where(RegistryCompanyCnae.cnpj.in_(sorted(changed))))
-            by_cnpj = {v["cnpj"]: rec.get("cnaes_secundarios") or [] for v, rec in zip(batch, records)}
-            pairs = [{"cnpj": cnpj, "cnae": code}
-                     for cnpj in sorted(changed) for code in by_cnpj.get(cnpj, [])]
-            if pairs:
-                db.execute(insert(RegistryCompanyCnae).values(pairs).on_conflict_do_nothing())
-        return {"inserted": len(inserted_ids), "updated": len(updated_ids),
-                "unchanged": len(batch) - len(inserted_ids) - len(updated_ids)}
+                           "(LIKE registry_staging_companies INCLUDING DEFAULTS) ON COMMIT DROP"))
+        staged_cols = ["snapshot_id"] + TMP_COLUMNS
+        db.execute(tmp.insert(), [
+            {"snapshot_id": snapshot.id, **{k: v.get(k) for k in TMP_COLUMNS}}
+            for v in batch
+        ])
+        # Contadores ANTES do upsert: vigente = staging deste snapshot,
+        # senão canônico. Reimport do mesmo mês continua unchanged.
+        chunk_cnpjs_for_stats = [v["cnpj"] for v in batch]
+        staged_hashes = dict(db.execute(
+            select(RegistryStagingCompany.cnpj, RegistryStagingCompany.content_hash).where(
+                RegistryStagingCompany.snapshot_id == snapshot.id,
+                RegistryStagingCompany.cnpj.in_(chunk_cnpjs_for_stats))
+        ).all()) if batch else {}
+        canonical_hashes = dict(db.execute(
+            select(RegistryCompany.cnpj, RegistryCompany.content_hash).where(
+                RegistryCompany.cnpj.in_(
+                    [c for c in chunk_cnpjs_for_stats if c not in staged_hashes]))
+        ).all()) if batch else {}
+        current = {**canonical_hashes, **staged_hashes}
+        inserted = sum(1 for v in batch if v["cnpj"] not in current)
+        updated = sum(1 for v in batch
+                      if v["cnpj"] in current
+                      and (current[v["cnpj"]] or "") != (v["content_hash"] or ""))
+        upsert = insert(RegistryStagingCompany).from_select(
+            staged_cols,
+            select(*[tmp.c[k] for k in staged_cols]),
+        )
+        db.execute(upsert.on_conflict_do_update(
+            index_elements=["snapshot_id", "cnpj"],
+            set_={k: upsert.excluded[k] for k in TMP_COLUMNS if k != "cnpj"},
+        ))
+        by_cnpj = {v["cnpj"]: rec.get("cnaes_secundarios") or [] for v, rec in zip(batch, records)}
+        chunk_cnpjs = sorted(by_cnpj)
+        db.execute(delete(RegistryStagingCompanyCnae).where(
+            RegistryStagingCompanyCnae.snapshot_id == snapshot.id,
+            RegistryStagingCompanyCnae.cnpj.in_(chunk_cnpjs)))
+        pairs = [{"snapshot_id": snapshot.id, "cnpj": cnpj, "cnae": code}
+                 for cnpj in chunk_cnpjs for code in by_cnpj.get(cnpj, [])]
+        if pairs:
+            db.execute(insert(RegistryStagingCompanyCnae).values(pairs).on_conflict_do_nothing())
+        db.execute(
+            insert(RegistrySnapshotMember).values([
+                {"snapshot_id": snapshot.id, "cnpj": v["cnpj"]} for v in batch
+            ]).on_conflict_do_nothing(index_elements=["snapshot_id", "cnpj"])
+        )
+        return {"inserted": inserted, "updated": updated,
+                "unchanged": len(batch) - inserted - updated}
 
-    def _merge_empresas(self, records: list[dict[str, Any]], snapshot_month: str) -> dict[str, int]:
+    def _merge_empresas(self, records: list[dict[str, Any]], snapshot: RegistrySnapshot) -> dict[str, int]:
+        """Enriquece o staging do snapshot (nunca o canônico).
+
+        Só linhas já observadas neste snapshot são enriquecidas: bases fora
+        do escopo/membership do snapshot não são tocadas (diferença honesta
+        em relação ao merge in-place anterior, que atualizava o canônico).
+        """
         db = self._db
         tmp = sa.Table(
             "tmp_registry_emp", sa.MetaData(),
@@ -460,18 +500,19 @@ class RegistryImporter:
             for r in records
         ])
         updated = db.execute(
-            update(RegistryCompany)
-            .where(RegistryCompany.cnpj_basico == tmp.c.basico)
+            update(RegistryStagingCompany)
+            .where(RegistryStagingCompany.snapshot_id == snapshot.id)
+            .where(RegistryStagingCompany.cnpj_basico == tmp.c.basico)
             .where(or_(
-                RegistryCompany.razao_social.is_distinct_from(tmp.c.razao),
-                RegistryCompany.natureza_juridica.is_distinct_from(tmp.c.natju),
-                RegistryCompany.porte.is_distinct_from(tmp.c.porte),
-                RegistryCompany.capital_social.is_distinct_from(tmp.c.capital),
+                RegistryStagingCompany.razao_social.is_distinct_from(tmp.c.razao),
+                RegistryStagingCompany.natureza_juridica.is_distinct_from(tmp.c.natju),
+                RegistryStagingCompany.porte.is_distinct_from(tmp.c.porte),
+                RegistryStagingCompany.capital_social.is_distinct_from(tmp.c.capital),
             ))
             .values(
                 razao_social=tmp.c.razao, natureza_juridica=tmp.c.natju,
                 porte=tmp.c.porte, capital_social=tmp.c.capital,
-                source_snapshot=snapshot_month,
+                source_snapshot=snapshot.snapshot_month,
                 updated_at=func.now(),
             )
         ).rowcount or 0

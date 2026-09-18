@@ -25,6 +25,7 @@ if _SRC not in sys.path:
 
 from config.settings import settings  # noqa: E402
 from database.session import SessionLocal  # noqa: E402
+from services.registry.activation import activate_snapshot  # noqa: E402
 from services.registry.importer import RegistryFileSpec, RegistryImporter  # noqa: E402
 from services.registry.manifest import ManifestError, load_manifest  # noqa: E402
 from services.registry.scope import parse_scope  # noqa: E402
@@ -64,6 +65,9 @@ def main() -> int:
                         help="escopo: CNAE exato ou prefixo (ex. 8650003; repetível)")
     parser.add_argument("--situacao", action="append", default=[],
                         help="escopo: situação cadastral (ex. 02; repetível)")
+    parser.add_argument("--activate", action="store_true",
+                        help="ativa o snapshot após import COMPLETED "
+                             "(torna o universo visível para descoberta)")
     args = parser.parse_args()
     specs = _specs(args)
     if not specs:
@@ -93,6 +97,10 @@ def main() -> int:
         snapshot = RegistryImporter(db, batch_size=args.batch_size, encoding=args.encoding).import_snapshot(
             source=args.source, snapshot_month=args.snapshot_month, files=specs,
             manifest=manifest, scope=scope)
+        if args.activate and snapshot.status == "COMPLETED":
+            snapshot = activate_snapshot(
+                db, source=args.source, snapshot_month=args.snapshot_month)
+            logger.info("snapshot %s/%s ativado", snapshot.source, snapshot.snapshot_month)
     finally:
         db.close()
     logger.info(
