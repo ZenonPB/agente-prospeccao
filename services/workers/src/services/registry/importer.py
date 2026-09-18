@@ -36,6 +36,7 @@ from database.models import (
     RegistryImportFile,
     RegistrySnapshot,
 )
+from services.registry.manifest import ManifestFile, SnapshotManifest, find_file
 from services.registry.parser import COLUMN_COUNTS, RowResult, iter_records
 
 logger = logging.getLogger(__name__)
@@ -173,24 +174,37 @@ class RegistryImporter:
     def import_snapshot(
         self, *, source: str = SOURCE, snapshot_month: str,
         files: Sequence[RegistryFileSpec],
+        manifest: SnapshotManifest | None = None,
     ) -> RegistrySnapshot:
         validate_snapshot_month(snapshot_month)
         for spec in files:
             if spec.table_kind not in COLUMN_COUNTS:
                 raise ValueError(f"table_kind desconhecido: {spec.table_kind}")
+        if manifest is not None:
+            if manifest.snapshot_month != snapshot_month:
+                raise ValueError(
+                    f"manifesto de {manifest.snapshot_month} "
+                    f"não corresponde ao snapshot {snapshot_month}")
+            if codecs.lookup(manifest.encoding).name != codecs.lookup(self._encoding).name:
+                raise ValueError(
+                    f"encoding do manifesto ({manifest.encoding}) diverge "
+                    f"do importer ({self._encoding})")
         ordered = sorted(files, key=lambda spec: _KIND_ORDER.get(spec.table_kind, 99))
         db = self._db
         snapshot = self._get_or_create_snapshot(db, source, snapshot_month)
         snapshot.status = "RUNNING"
         snapshot.finished_at = None
         snapshot.error = None
+        if manifest is not None:
+            snapshot.layout_version = manifest.layout_version
         for field in ("processed", "inserted", "updated", "unchanged", "rejected", "failed"):
             setattr(snapshot, field, 0)
         db.commit()
 
         totals = {"processed": 0, "inserted": 0, "updated": 0, "unchanged": 0, "rejected": 0, "failed": 0}
         for spec in ordered:
-            counts = self._import_file(snapshot, spec)
+            expected = find_file(manifest, spec.file_name) if manifest is not None else None
+            counts = self._import_file(snapshot, spec, expected)
             for key in totals:
                 totals[key] += counts.get(key, 0)
         for key, value in totals.items():
@@ -222,7 +236,10 @@ class RegistryImporter:
             ).one()
         return snapshot
 
-    def _import_file(self, snapshot: RegistrySnapshot, spec: RegistryFileSpec) -> dict[str, int]:
+    def _import_file(
+        self, snapshot: RegistrySnapshot, spec: RegistryFileSpec,
+        expected: ManifestFile | None = None,
+    ) -> dict[str, int]:
         db = self._db
         row = db.query(RegistryImportFile).filter(
             RegistryImportFile.snapshot_id == snapshot.id,
@@ -267,6 +284,9 @@ class RegistryImporter:
         row.finished_at = None
         row.error = None
         row.file_bytes = size
+        if expected is not None and expected.bytes is not None and size != expected.bytes:
+            return self._fail_file(
+                row, f"tamanho divergente do manifesto: {size} != {expected.bytes}")
         if row.processed_lines is None:
             row.processed_lines = 0
         db.commit()
@@ -307,6 +327,10 @@ class RegistryImporter:
         row.status = "COMPLETED"
         row.finished_at = datetime.now(timezone.utc)
         row.sha256 = reader.hexdigest
+        if expected is not None and expected.sha256 is not None and row.sha256 != expected.sha256:
+            # Backstop de auditoria: o gate pré-importação pertence ao
+            # downloader; aqui o arquivo jamais é marcado como válido.
+            return self._fail_file(row, "sha256 divergente do manifesto")
         db.commit()
         elapsed = max(time.perf_counter() - start, 0.001)
         logger.info(
