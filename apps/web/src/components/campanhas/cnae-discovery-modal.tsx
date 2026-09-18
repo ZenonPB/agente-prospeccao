@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import type { ReactNode } from "react";
 import { useCollectCnae } from "@/hooks/use-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +24,15 @@ interface CnaeDiscoveryModalProps {
   campaignId: string;
   campaignName: string;
   onJobStarted?: (jobId: string) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: ReactNode;
 }
 
-export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: CnaeDiscoveryModalProps) {
-  const [open, setOpen] = useState(false);
+export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted, open: controlledOpen, onOpenChange, trigger }: CnaeDiscoveryModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [cnaeCode, setCnaeCode] = useState("");
   const [cnpjsRaw, setCnpjsRaw] = useState("");
   const [maxLeads, setMaxLeads] = useState(10);
@@ -62,14 +68,16 @@ export function CnaeDiscoveryModal({ campaignId, campaignName, onJobStarted }: C
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao iniciar busca por CNAE");
     }
-  }, [campaignId, cnaeCode, cnpjsRaw, maxLeads, porteCategory, collectCnae, onJobStarted]);
+  }, [campaignId, cnaeCode, cnpjsRaw, maxLeads, porteCategory, collectCnae, onJobStarted, setOpen]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" />}>
-        <Building className="mr-2 h-4 w-4" aria-hidden="true" />
-        Buscar por Ramo de Atuação
-      </DialogTrigger>
+      {trigger ?? (
+        <DialogTrigger render={<Button variant="outline" />}>
+          <Building className="mr-2 h-4 w-4" aria-hidden="true" />
+          Buscar por Ramo de Atuação
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
