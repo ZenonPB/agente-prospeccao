@@ -1,7 +1,17 @@
 """Saúde da base de empresas: leitura read-only derivada do ledger real.
 
-Expõe somente o que o ledger sabe: sem snapshot, sem promessa. Agregados
-globais do universo empresarial (sem PII, sem dado de workspace).
+Semântica temporal explícita (quatro conceitos distintos):
+- latest: última tentativa (qualquer status);
+- completed: último COMPLETED (elegível, ainda invisível);
+- active: snapshot ACTIVE servido pela descoberta (0 ou 1 por source);
+- available: membership do ACTIVE (AVAILABLE COMPANY, mesma regra da busca).
+
+`companies` conta APENAS o membership do ACTIVE (None quando não há ACTIVE).
+`snapshot_month`/`last_updated_at` refletem o que está SERVIDO, não a última
+tentativa; a tentativa aparece separada em `last_attempt`. Status:
+empty (sem ledger), unknown (ledger sem ACTIVE servível), degraded (ACTIVE
+serve mas a última tentativa falhou), healthy (ACTIVE serve e a última
+tentativa é o próprio ativo).
 """
 from __future__ import annotations
 
@@ -16,11 +26,12 @@ _workers_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", 
 if _workers_path not in sys.path:
     sys.path.insert(0, _workers_path)
 
-from sqlalchemy import desc, func
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from services.registry.availability import available_company_count
 from services.registry.importer import SOURCE
-from src.db.models import RegistryCompany, RegistryImportFile, RegistrySnapshot
+from src.db.models import RegistryImportFile, RegistrySnapshot
 
 
 def _iso(value: object) -> str | None:
@@ -30,25 +41,31 @@ def _iso(value: object) -> str | None:
 
 
 def summarize_registry_health(
-    *, latest: dict | None, completed: dict | None,
-    companies: int | None, files: list[dict],
+    *, latest: dict | None, completed: dict | None, active: dict | None,
+    available_companies: int | None, files: list[dict],
 ) -> dict:
     """Monta a resposta a partir do estado do ledger (puro, sem DB)."""
     if latest is None:
         status = "empty"
+    elif active is None:
+        status = "unknown"
     elif latest.get("status") == "FAILED":
         status = "degraded"
-    elif latest.get("status") == "COMPLETED":
-        status = "healthy"
     else:
-        status = "unknown"
-    finished = (completed or {}).get("finished_at")
+        status = "healthy"
+    served = active or completed
     return {
         "status": status,
-        "snapshot_month": (latest or {}).get("snapshot_month"),
-        "layout_version": (latest or {}).get("layout_version"),
-        "last_updated_at": _iso(finished),
-        "companies": companies,
+        "snapshot_month": (served or {}).get("snapshot_month"),
+        "layout_version": (served or {}).get("layout_version"),
+        "last_updated_at": _iso((served or {}).get("finished_at")),
+        "companies": available_companies,
+        "active_snapshot_month": (active or {}).get("snapshot_month"),
+        "last_attempt": (
+            {"snapshot_month": latest.get("snapshot_month"),
+             "status": latest.get("status")}
+            if latest is not None else None
+        ),
         "files": [
             {
                 "file_name": entry.get("file_name"),
@@ -62,6 +79,16 @@ def summarize_registry_health(
             for entry in files
         ],
         "next_check": None,
+    }
+
+
+def _row_dict(row: Any) -> dict:
+    return {
+        "snapshot_month": row.snapshot_month,
+        "status": row.status,
+        "layout_version": row.layout_version,
+        "finished_at": _iso(row.finished_at),
+        "error": row.error,
     }
 
 
@@ -81,7 +108,8 @@ class RegistryHealthService:
         )
         if latest_row is None:
             return summarize_registry_health(
-                latest=None, completed=None, companies=None, files=[])
+                latest=None, completed=None, active=None,
+                available_companies=None, files=[])
         completed_row = (
             db.query(RegistrySnapshot)
             .filter(RegistrySnapshot.source == SOURCE,
@@ -89,7 +117,16 @@ class RegistryHealthService:
             .order_by(desc(RegistrySnapshot.snapshot_month))
             .first()
         )
-        companies = db.query(func.count(RegistryCompany.cnpj)).scalar()
+        active_row = (
+            db.query(RegistrySnapshot)
+            .filter(RegistrySnapshot.source == SOURCE,
+                    RegistrySnapshot.is_active.is_(True))
+            .one_or_none()
+        )
+        available = (
+            available_company_count(db, active_row.id)
+            if active_row is not None else None
+        )
         file_rows = (
             db.query(RegistryImportFile)
             .filter(RegistryImportFile.snapshot_id == latest_row.id)
@@ -97,21 +134,10 @@ class RegistryHealthService:
             .all()
         )
         return summarize_registry_health(
-            latest={
-                "snapshot_month": latest_row.snapshot_month,
-                "status": latest_row.status,
-                "layout_version": latest_row.layout_version,
-                "finished_at": _iso(latest_row.finished_at),
-                "error": latest_row.error,
-            },
-            completed=(
-                {
-                    "snapshot_month": completed_row.snapshot_month,
-                    "finished_at": _iso(completed_row.finished_at),
-                }
-                if completed_row is not None else None
-            ),
-            companies=int(companies or 0),
+            latest=_row_dict(latest_row),
+            completed=_row_dict(completed_row) if completed_row is not None else None,
+            active=_row_dict(active_row) if active_row is not None else None,
+            available_companies=available,
             files=[
                 {
                     "file_name": row.file_name,
