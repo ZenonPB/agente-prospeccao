@@ -15,6 +15,7 @@ Contrato:
 from __future__ import annotations
 
 import os
+import sys
 
 import pytest
 from sqlalchemy import create_engine
@@ -196,7 +197,8 @@ def test_completed_sem_ativacao_nao_assume(tmp_path):
         _import_month(db, tmp_path, MONTH_B,
                       [_estab_row(c) for c in cnpjs_b], tag="b3")
         assert _search_set(db) == set(cnpjs_a)
-        assert _search_set(db, source_snapshot=MONTH_B) == set(cnpjs_b)
+        # B COMPLETED ainda não publicou nada no canônico: explícito vazio.
+        assert _search_set(db, source_snapshot=MONTH_B) == set()
     finally:
         _cleanup(db, cnpjs_a + cnpjs_b)
         db.close()
@@ -398,6 +400,8 @@ def test_ativacao_concorrente_mantem_um_ativo(tmp_path):
 @needs_pg
 def test_migration_head_unico_e_schema_ativacao():
     """CASO 10: banco novo + upgrade head (2x idempotente) + contrato de schema."""
+    import subprocess
+
     from sqlalchemy import inspect
 
     from alembic.config import Config
@@ -409,11 +413,16 @@ def test_migration_head_unico_e_schema_ativacao():
 
     engine, db = _db()
     try:
-        from alembic import command
-
-        cfg = Config("services/workers/alembic.ini")
-        command.upgrade(cfg, "head")
-        command.upgrade(cfg, "head")
+        env = dict(os.environ)
+        # O conftest injeta DATABASE_URL dummy no processo do pytest;
+        # a migration precisa do banco E2E real.
+        env["DATABASE_URL"] = E2E_DATABASE_URL
+        for _ in range(2):
+            proc = subprocess.run(
+                [sys.executable, "-m", "alembic", "upgrade", "head"],
+                cwd="services/workers", env=env, capture_output=True, text=True,
+                timeout=300)
+            assert proc.returncode == 0, proc.stderr[-2000:]
         insp = inspect(engine)
         tables = set(insp.get_table_names())
         assert {"registry_snapshot_members", "registry_staging_companies",

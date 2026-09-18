@@ -24,8 +24,17 @@ def _db():
 
 
 def _seed(db, n=10000):
-    from database.models import RegistryCompany, RegistryCompanyCnae
+    from database.models import (
+        RegistryCompany,
+        RegistryCompanyCnae,
+        RegistrySnapshot,
+        RegistrySnapshotMember,
+    )
 
+    snap = RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-08",
+                            status="COMPLETED", is_active=True)
+    db.add(snap)
+    db.flush()
     divs = ["25", "28", "33"]
     ufs = ["SP", "RJ", "MG"]
     rows = []
@@ -42,6 +51,10 @@ def _seed(db, n=10000):
         ))
     db.add_all(rows)
     db.commit()
+    db.add_all([
+        RegistrySnapshotMember(snapshot_id=snap.id, cnpj=row.cnpj) for row in rows
+    ])
+    db.commit()
     # Um secundário 28 numa empresa de principal 25 (prova via assoc).
     target = db.query(RegistryCompany).filter(
         RegistryCompany.source_snapshot == SNAP,
@@ -54,13 +67,17 @@ def _seed(db, n=10000):
 
 
 def _cleanup(db):
-    from database.models import RegistryCompany, RegistryCompanyCnae
+    from database.models import RegistryCompany, RegistryCompanyCnae, RegistrySnapshot
 
     db.rollback()
     sub = db.query(RegistryCompany.cnpj).filter(RegistryCompany.source_snapshot == SNAP)
     db.query(RegistryCompanyCnae).filter(RegistryCompanyCnae.cnpj.in_(sub)).delete(
         synchronize_session=False)
     db.query(RegistryCompany).filter(RegistryCompany.source_snapshot == SNAP).delete(
+        synchronize_session=False)
+    db.query(RegistrySnapshot).filter(
+        RegistrySnapshot.source == "receita_cnpj",
+        RegistrySnapshot.snapshot_month == "2026-08").delete(
         synchronize_session=False)
     db.commit()
 
