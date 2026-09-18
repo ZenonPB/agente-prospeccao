@@ -30,6 +30,7 @@ from typing import Any, BinaryIO, Iterator, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy.dialects.postgresql import UUID as postgresql_UUID
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -37,6 +38,7 @@ from sqlalchemy.orm import Session
 from database.models import (
     RegistryCnae,
     RegistryCompany,
+    RegistryImportFile,
     RegistrySnapshot,
     RegistryStagingCompany,
     RegistryStagingCompanyCnae,
@@ -410,6 +412,7 @@ class RegistryImporter:
                  for r in records]
         tmp = sa.Table(
             "tmp_registry_load", sa.MetaData(),
+            sa.Column("snapshot_id", postgresql_UUID(as_uuid=True)),
             sa.Column("cnpj", sa.String(14)), sa.Column("cnpj_basico", sa.String(8)),
             sa.Column("razao_social", sa.Text), sa.Column("nome_fantasia", sa.Text),
             sa.Column("matriz", sa.Boolean), sa.Column("situacao", sa.String(2)),
