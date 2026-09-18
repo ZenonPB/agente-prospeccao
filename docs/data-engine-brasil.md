@@ -213,7 +213,12 @@ O importer valida mês/encoding/tamanho/hash contra o manifesto, registra
 
 O CLI `download_registry` baixa os arquivos do manifesto com streaming,
 retomada por Range, retry com backoff, SHA-256 contínuo e rename atômico;
-destino com SHA igual é reaproveitado sem rede. Confiança restrita: https
+destino com SHA igual é reaproveitado sem rede. Retomada valida o
+`Content-Range` de forma estrita: `/total` já é o total (nunca somar o
+`.part`), start precisa ser igual ao pedido, end < total conhecido,
+`Content-Length` precisa bater com o range, e o total anunciado precisa
+bater com o manifesto antes de baixar — qualquer divergência falha fechado
+sem publicar parcial. Confiança restrita: https
 obrigatório, host limitado ao da origem declarada, IP literal e todos os
 IPs resolvidos precisam ser públicos, redirects revalidados por hop — sem
 exceção genérica de rede privada. `--write-manifest` grava o manifesto com
@@ -249,6 +254,18 @@ membership não são reproduzíveis (limitação documentada, não dado
 fabricado). Limite conhecido: atualizações mensais completas ainda não
 fazem tombstoning explícito de linhas ausentes no mês novo além da ausência
 natural no membership (escopo de hardening nacional).
+
+O smoke do piloto (`run_pilot_smoke`) segue contrato A: o `snapshot_month`
+solicitado controla efetivamente a query (sem fallback silencioso para o
+ACTIVE) e o relatório registra `requested_snapshot`/`resolved_snapshot`.
+Mês inexistente, RUNNING ou FAILED falha fechado.
+
+"Empresas disponíveis" (saúde da base, admin e métricas) = membership do
+snapshot ACTIVE — a mesma regra da busca, sem duplicação. A saúde distingue
+última tentativa, último COMPLETED, ACTIVE servido e última ativação:
+ACTIVE servindo com tentativa posterior FAILED é `degraded` (operacional com
+atualização falha), nunca erro total; sem ACTIVE é `unknown`/`empty`, nunca
+contagem inventada.
 
 Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
 O Registry valida 14 posições com DV oficial único (Q&A RFB + manual SERPRO:
