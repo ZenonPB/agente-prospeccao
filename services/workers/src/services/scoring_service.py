@@ -873,13 +873,39 @@ class AIScoringService:
             sev = str(e.get("severity") or "INFO").upper()
             if sev not in ("CRITICO", "ALTO", "MEDIO", "BAIXO", "INFO"):
                 sev = "INFO"
-            clean_evidence.append({
+            item = {
                 "type": str(e.get("type") or "")[:40],
                 "severity": sev,
                 "title": str(e.get("title") or "")[:160],
                 "description": str(e.get("description") or ""),
                 "source": str(e.get("source") or "")[:60],
-            })
+            }
+            # Preserve metadados de provenance quando o producer os fornece.
+            # A LLM não ganha autoridade para promover a própria conclusão a
+            # FACT: somente fontes determinísticas/grounded podem preservar
+            # FACT; demais claims ficam INFERENCE.
+            confidence = e.get("confidence")
+            if isinstance(confidence, (int, float)) and not isinstance(confidence, bool):
+                item["confidence"] = max(0.0, min(1.0, float(confidence)))
+            observed_at = e.get("observed_at")
+            if observed_at:
+                item["observed_at"] = str(observed_at)[:64]
+            refs = e.get("evidence_refs")
+            if isinstance(refs, list):
+                item["evidence_refs"] = [str(ref)[:240] for ref in refs if ref][:20]
+            requested_epistemic = str(
+                e.get("epistemic") or e.get("epistemic_status") or ""
+            ).upper()
+            grounded_source = any(token in source for token in GROUNDED_SOURCES)
+            if requested_epistemic == "FACT" and grounded_source:
+                item["epistemic"] = "FACT"
+            elif requested_epistemic == "HYPOTHESIS":
+                item["epistemic"] = "HYPOTHESIS"
+            elif requested_epistemic == "UNKNOWN":
+                item["epistemic"] = "UNKNOWN"
+            else:
+                item["epistemic"] = "INFERENCE"
+            clean_evidence.append(item)
         if has_website is not None:
             clean_evidence = [
                 e for e in clean_evidence if not _contradicts_site_state(e, has_website)

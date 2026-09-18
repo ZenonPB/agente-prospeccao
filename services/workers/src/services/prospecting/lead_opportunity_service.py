@@ -31,6 +31,8 @@ def build_snapshot_hash(
     signals_matched: list,
     signals_missing: list,
     score_breakdown: Optional[dict] = None,
+    profile_snapshot_hash: Optional[str] = None,
+    context_hash: Optional[str] = None,
 ) -> str:
     payload = {
         "offer_key": offer_key,
@@ -41,6 +43,8 @@ def build_snapshot_hash(
         "signals_matched": sorted(signals_matched or []),
         "signals_missing": sorted(signals_missing or []),
         "score_breakdown": score_breakdown or {},
+        "profile_snapshot_hash": profile_snapshot_hash,
+        "context_hash": context_hash,
     }
     canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -166,17 +170,49 @@ class LeadOpportunityService:
         )
 
     def _snapshot_row(self, db: Session, row: LeadOpportunityRow, reason: str = "enrichment") -> LeadOpportunitySnapshot:
+        from services.prospecting.evidence_context import build_evidence_context
+
+        lead = db.get(Lead, row.lead_id)
+        evidence_context = build_evidence_context(
+            evidence=getattr(lead, "evidence", None) if lead else None,
+            discovery_provenance=getattr(lead, "discovery_provenance", None) if lead else None,
+            evidence_score=getattr(lead, "evidence_score", None) if lead else None,
+        )
+
+        # Hash do conteúdo REAL do OfferProfile efetivo. A identidade
+        # (version/profile_key) não prova que a configuração era a mesma.
+        # Se o perfil exato não puder ser resolvido, mantemos UNKNOWN (None)
+        # em vez de fabricar uma impressão digital forte.
+        profile_snapshot_hash: Optional[str] = None
+        try:
+            from services.prospecting.effective_offer_registry import get_effective_profile
+            profile = get_effective_profile(db, row.organization_id, row.offer_key)
+            if profile is not None and (
+                row.offer_version is None or str(profile.version) == str(row.offer_version)
+            ):
+                profile_payload = profile.to_dict()
+                profile_snapshot_hash = hashlib.sha256(
+                    json.dumps(
+                        profile_payload,
+                        sort_keys=True,
+                        ensure_ascii=False,
+                        default=str,
+                        separators=(",", ":"),
+                    ).encode("utf-8"),
+                ).hexdigest()
+        except Exception as exc:  # fail-safe: snapshot continua possível, hash fica UNKNOWN
+            logger.warning(
+                "Não foi possível resolver snapshot do OfferProfile: org=%s offer=%s version=%s: %s",
+                row.organization_id, row.offer_key, row.offer_version, exc,
+            )
+
         snapshot_hash = build_snapshot_hash(
             row.offer_key, row.offer_version, row.score or 0,
             list(row.evidence or []), list(row.signals_matched or []),
             list(row.signals_missing or []), dict(row.score_breakdown or {}),
+            profile_snapshot_hash=profile_snapshot_hash,
+            context_hash=evidence_context["context_hash"],
         )
-        profile_snapshot_hash = hashlib.sha256(
-            json.dumps(
-                {"offer_version": row.offer_version, "profile_key": row.profile_key},
-                sort_keys=True, ensure_ascii=False, default=str,
-            ).encode("utf-8"),
-        ).hexdigest()
         existing = db.scalars(
             select(LeadOpportunitySnapshot).where(
                 LeadOpportunitySnapshot.lead_id == row.lead_id,
@@ -198,7 +234,10 @@ class LeadOpportunityService:
                 "matched": list(row.signals_matched or []),
                 "missing": list(row.signals_missing or []),
                 "score_breakdown": dict(row.score_breakdown or {}),
+                "evidence_context": evidence_context,
             },
+            # Mantém o contrato público legado (lista) para não quebrar API/UI.
+            # O contexto estruturado adicional vive no signals_snapshot.
             evidence_snapshot=list(row.evidence or []),
             snapshot_hash=snapshot_hash,
             reason=reason,

@@ -20,6 +20,20 @@ from database.models import Base, Lead, Organization
 
 
 class TestSnapshotHash:
+
+    def test_hash_muda_quando_snapshot_real_do_perfil_muda(self):
+        from services.prospecting.lead_opportunity_service import build_snapshot_hash
+
+        a = build_snapshot_hash(
+            "landing_pages", "1.0", 80, ["HAS_CNPJ"], ["HAS_CNPJ"], [],
+            profile_snapshot_hash="a" * 64,
+        )
+        b = build_snapshot_hash(
+            "landing_pages", "1.0", 80, ["HAS_CNPJ"], ["HAS_CNPJ"], [],
+            profile_snapshot_hash="b" * 64,
+        )
+        assert a != b
+
     def test_hash_estavel_para_mesma_avaliacao(self):
         from services.prospecting.lead_opportunity_service import build_snapshot_hash
 
