@@ -273,6 +273,18 @@ class CommercialIntelligenceService:
             metric_query = metric_query.filter(ProviderExecutionMetric.campaign_id == campaign_id)
 
         leads = lead_query.all()
+        lead_ids = {row.id for row in leads}
+        outcome_query = self.db.query(CommercialOutcomeRow).filter(
+            CommercialOutcomeRow.organization_id == self.organization_id,
+        )
+        if campaign_id is not None:
+            # CommercialOutcomeRow não possui campaign_id: o escopo da campanha
+            # é derivado somente dos leads já filtrados e tenant-scoped.
+            if lead_ids:
+                outcome_query = outcome_query.filter(CommercialOutcomeRow.lead_id.in_(lead_ids))
+            else:
+                outcome_query = outcome_query.filter(CommercialOutcomeRow.id.is_(None))
+        outcomes = outcome_query.all()
         person_ids = {row.primary_person_id for row in leads if row.primary_person_id is not None}
         routable_ids: set[str] = set()
         if person_ids:
@@ -304,7 +316,19 @@ class CommercialIntelligenceService:
             }
             for row in metric_query.all()
         ]
-        summary = summarize_pilot(projected_leads, projected_metrics)
+        projected_outcomes = [
+            {
+                "lead_id": str(row.lead_id),
+                "outcome": row.outcome,
+                # O modelo legado pode preencher lead_opportunity_id/snapshot por
+                # heurística em record_for_lead(). Sem provenance explícita não
+                # declaramos atribuição causal confiável para promover scoring.
+                "attributed": False,
+                "attribution_status": "unverified_legacy_link",
+            }
+            for row in outcomes
+        ]
+        summary = summarize_pilot(projected_leads, projected_metrics, projected_outcomes)
         return {
             "scope": {
                 "organization_id": str(self.organization_id),
