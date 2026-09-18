@@ -138,3 +138,25 @@ def test_readiness_falha_fechado_sem_dados_de_provider():
     assert readiness["ready_for_review"] is False
     assert readiness["checks"]["provider_failure_rate"] is False
     assert readiness["promotion_evidence_sufficient"] is False
+
+
+def test_outcome_persistido_sem_provenance_conta_como_trabalhado_mas_nao_atribuido():
+    summary = summarize_pilot(
+        [{"legacy_score": 70, "qualified": True, "contactable": True, "commercial_dimensions": None}],
+        [],
+        [{
+            "lead_id": "lead-1",
+            "outcome": "REPLY",
+            "attributed": False,
+            "attribution_status": "unverified_legacy_link",
+        }],
+    )
+
+    assert summary["outcomes"]["total"] == 1
+    assert summary["outcomes"]["worked_leads"] == 1
+    assert summary["outcomes"]["attributed"] == 0
+    assert summary["outcomes"]["positive"] == 0
+    assert summary["outcomes"]["attribution_rate"] == 0.0
+    readiness = evaluate_pilot_readiness(summary)
+    assert readiness["promotion_evidence_sufficient"] is False
+    assert readiness["promotion_checks"]["outcome_attribution_rate"] is False
