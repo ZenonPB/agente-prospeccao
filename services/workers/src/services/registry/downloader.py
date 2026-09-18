@@ -67,6 +67,43 @@ class DownloadResult(NamedTuple):
     from_cache: bool
 
 
+def parse_content_range(value: str, *, part_size: int) -> int | None:
+    """Valida `Content-Range` de um 206 contra o resume pedido.
+
+    Retorna o tamanho TOTAL (após `/`; `None` quando `*`) e falha fechado
+    quando: formato inválido, start != part_size pedido, end < start,
+    end >= total conhecido. O `/total` JÁ é o total — nunca somar part_size.
+    """
+    text = (value or "").strip()
+    if not text.lower().startswith("bytes "):
+        raise DownloadError("invalid_content_range",
+                            f"Content-Range inválido: {value!r}")
+    try:
+        span, total_text = text[6:].split("/", 1)
+        start_text, end_text = span.split("-", 1)
+        start, end = int(start_text), int(end_text)
+    except ValueError:
+        raise DownloadError("invalid_content_range",
+                            f"Content-Range inválido: {value!r}") from None
+    if start < 0 or end < start:
+        raise DownloadError("range_mismatch",
+                            f"Content-Range incoerente: {value!r}")
+    if start != part_size:
+        raise DownloadError("range_mismatch",
+                            f"resume pediu {part_size}, servidor respondeu {start}")
+    total_text = total_text.strip()
+    if total_text == "*":
+        return None
+    if not total_text.isdigit():
+        raise DownloadError("invalid_content_range",
+                            f"Content-Range inválido: {value!r}")
+    total = int(total_text)
+    if end >= total:
+        raise DownloadError("range_mismatch",
+                            f"Content-Range incoerente com total: {value!r}")
+    return total
+
+
 def _default_resolver(host: str, port: int) -> list[str]:
     infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     return sorted({str(info[4][0]) for info in infos})
@@ -321,20 +358,25 @@ class SnapshotDownloader:
         part_path = spec.dest_path + ".part"
         declared_total: int | None = None
         if code == 206:
-            content_range = response.headers.get("content-range", "")
-            total = content_range.rsplit("/", 1)[-1] if "/" in content_range else ""
-            declared_total = int(total) if total.isdigit() else None
+            declared_total = parse_content_range(
+                response.headers.get("content-range", ""), part_size=part_size)
+            if declared_total is not None:
+                length = response.headers.get("content-length", "")
+                if length.isdigit() and int(length) != declared_total - part_size:
+                    raise DownloadError(
+                        "size_mismatch",
+                        f"Content-Length {length} diverge do range "
+                        f"({declared_total - part_size} bytes restantes)")
         else:
             length = response.headers.get("content-length", "")
             declared_total = int(length) if length.isdigit() else None
         if declared_total is not None:
-            expected_total = part_size + declared_total if code == 206 else declared_total
-            if spec.expected_bytes is not None and expected_total != spec.expected_bytes:
+            if spec.expected_bytes is not None and declared_total != spec.expected_bytes:
                 raise DownloadError(
                     "size_mismatch",
-                    f"tamanho anunciado diverge do manifesto: {expected_total} "
+                    f"tamanho anunciado diverge do manifesto: {declared_total} "
                     f"!= {spec.expected_bytes}")
-            self._check_disk(dest_dir, expected_total - part_size)
+            self._check_disk(dest_dir, declared_total - part_size)
 
         digest = hashlib.sha256()
         received = 0
