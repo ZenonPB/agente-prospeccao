@@ -502,24 +502,70 @@ class RegistryImporter:
              "capital": r["capital_social"]}
             for r in records
         ])
-        updated = db.execute(
-            update(RegistryStagingCompany)
-            .where(RegistryStagingCompany.snapshot_id == snapshot.id)
-            .where(RegistryStagingCompany.cnpj_basico == tmp.c.basico)
-            .where(or_(
-                RegistryStagingCompany.razao_social.is_distinct_from(tmp.c.razao),
-                RegistryStagingCompany.natureza_juridica.is_distinct_from(tmp.c.natju),
-                RegistryStagingCompany.porte.is_distinct_from(tmp.c.porte),
-                RegistryStagingCompany.capital_social.is_distinct_from(tmp.c.capital),
-            ))
-            .values(
-                razao_social=tmp.c.razao, natureza_juridica=tmp.c.natju,
-                porte=tmp.c.porte, capital_social=tmp.c.capital,
-                source_snapshot=snapshot.snapshot_month,
-                updated_at=func.now(),
-            )
-        ).rowcount or 0
+        updated_cnpjs = [
+            row[0] for row in db.execute(
+                update(RegistryStagingCompany)
+                .where(RegistryStagingCompany.snapshot_id == snapshot.id)
+                .where(RegistryStagingCompany.cnpj_basico == tmp.c.basico)
+                .where(or_(
+                    RegistryStagingCompany.razao_social.is_distinct_from(tmp.c.razao),
+                    RegistryStagingCompany.natureza_juridica.is_distinct_from(tmp.c.natju),
+                    RegistryStagingCompany.porte.is_distinct_from(tmp.c.porte),
+                    RegistryStagingCompany.capital_social.is_distinct_from(tmp.c.capital),
+                ))
+                .values(
+                    razao_social=tmp.c.razao, natureza_juridica=tmp.c.natju,
+                    porte=tmp.c.porte, capital_social=tmp.c.capital,
+                    source_snapshot=snapshot.snapshot_month,
+                    updated_at=func.now(),
+                )
+                .returning(RegistryStagingCompany.cnpj),
+            ).all()
+        ]
+        if updated_cnpjs:
+            self._rehash_staged(snapshot.id, updated_cnpjs)
+        updated = len(updated_cnpjs)
         return {"inserted": 0, "updated": updated, "unchanged": len(records) - updated}
+
+    def _rehash_staged(self, snapshot_id: Any, cnpjs: list[str]) -> None:
+        """Recalcula `content_hash` do staging após enriquecimento (bulk).
+
+        O gate da ativação decide rewrite pelo hash: enriquecer sem
+        recalcular esconderia a mudança. Usa a mesma `content_hash_for`
+        canônica (sem duplicar a regra).
+        """
+        from sqlalchemy import bindparam
+
+        db = self._db
+        hash_cols = [c for c in COMPANY_KEYS]
+        staged_rows = db.execute(
+            select(*[getattr(RegistryStagingCompany, c) for c in hash_cols]).where(
+                RegistryStagingCompany.snapshot_id == snapshot_id,
+                RegistryStagingCompany.cnpj.in_(cnpjs))
+        ).all()
+        sec_rows = db.execute(
+            select(RegistryStagingCompanyCnae.cnpj, RegistryStagingCompanyCnae.cnae).where(
+                RegistryStagingCompanyCnae.snapshot_id == snapshot_id,
+                RegistryStagingCompanyCnae.cnpj.in_(cnpjs))
+        ).all()
+        sec_by_cnpj: dict[str, list[str]] = {}
+        for cnpj, cnae in sec_rows:
+            sec_by_cnpj.setdefault(cnpj, []).append(cnae)
+        payload = [
+            {"b_snapshot_id": snapshot_id, "b_cnpj": row[0], "b_content_hash": content_hash_for(
+                dict(zip(hash_cols, row)),
+                secundarias=sec_by_cnpj.get(row[0], []))}
+            for row in staged_rows
+        ]
+        if payload:
+            staging_table = RegistryStagingCompany.__table__
+            db.execute(
+                staging_table.update()
+                .where(staging_table.c.snapshot_id == bindparam("b_snapshot_id"))
+                .where(staging_table.c.cnpj == bindparam("b_cnpj"))
+                .values(content_hash=bindparam("b_content_hash")),
+                payload,
+            )
 
     def _merge_cnaes(self, records: list[dict[str, Any]]) -> dict[str, int]:
         db = self._db
