@@ -113,3 +113,26 @@ Não criar novo motor. Fazer micro-PRs:
 - **A6:** contrato do AI Commercial Analyst sobre essas estruturas.
 
 Cada fatia deve preservar ranking/funil e Commercial Dimensions shadow.
+
+
+## Implementado nesta branch
+
+- A1: `profile_snapshot_hash` agora tenta representar o conteúdo real do OfferProfile efetivo; resolução impossível permanece UNKNOWN.
+- A2: `EvidenceContext v1` normaliza fontes existentes sem criar nova fonte de verdade e possui hash determinístico.
+- A3 parcial sem migration: novos snapshots incorporam `EvidenceContext` em `signals_snapshot`, preservando o shape legado de `evidence_snapshot`; context hash participa da identidade do snapshot.
+- A4: scoring preserva confidence/observed_at/evidence_refs/epistemic quando válidos e impede que claim do modelo se autopromova a FACT.
+- A6 preparatório: `commercial-analysis-input-v1` define input grounded/versionado do futuro Analyst, sem chamar LLM e sem alterar ranking.
+
+## Ainda não implementado deliberadamente
+
+- nenhuma chamada nova de LLM;
+- nenhum ranking novo;
+- nenhuma promoção de Commercial Dimensions;
+- nenhuma migration;
+- nenhuma mudança de outreach;
+- nenhuma BigQuery/provider novo;
+- nenhuma tentativa de validar qualidade com dados sintéticos como se fossem reais.
+
+O próximo passo de código, depois de gates verdes, é implementar o **output
+contract** do Commercial Analyst + validator/grounding determinístico e só então
+um provider LLM atrás de feature flag/budget guard.
