@@ -71,3 +71,35 @@ def test_normalize_replaces_hallucinated_pitch():
     assert "atualizado" not in result["pitch_angle"].lower()
     assert "responsiv" not in result["pitch_angle"].lower()
     assert result["suggested_subject"]
+
+def test_scoring_preserva_metadata_epistemica_grounded():
+    parsed = {
+        "qualification_score": 70,
+        "evidence": [{
+            "type": "business", "severity": "INFO", "title": "CNPJ ativo",
+            "description": "Cadastro observado", "source": "dados cadastrais",
+            "confidence": 0.92, "observed_at": "2026-09-18T12:00:00+00:00",
+            "epistemic": "FACT", "evidence_refs": ["registry:123"],
+        }],
+        "score_factors": [],
+    }
+    out = AIScoringService()._normalize_response(parsed)
+    ev = out["evidence"][0]
+    assert ev["epistemic"] == "FACT"
+    assert ev["confidence"] == 0.92
+    assert ev["observed_at"].startswith("2026-09-18")
+    assert ev["evidence_refs"] == ["registry:123"]
+
+
+def test_scoring_nao_promove_claim_llm_a_fact():
+    parsed = {
+        "qualification_score": 70,
+        "evidence": [{
+            "type": "business", "severity": "INFO", "title": "Possível dor",
+            "description": "Pode haver processo manual", "source": "modelo",
+            "confidence": 0.8, "epistemic": "FACT",
+        }],
+        "score_factors": [],
+    }
+    out = AIScoringService()._normalize_response(parsed)
+    assert out["evidence"][0]["epistemic"] == "INFERENCE"
