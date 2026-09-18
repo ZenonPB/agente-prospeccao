@@ -219,6 +219,18 @@ IPs resolvidos precisam ser públicos, redirects revalidados por hop — sem
 exceção genérica de rede privada. `--write-manifest` grava o manifesto com
 bytes/hashes observados, pronto para `import_registry --manifest`.
 
+### Escopo e ativação
+
+Arquivos oficiais são nacionais; o importer aceita escopo
+(`--uf/--municipio-cod/--cnae/--situacao`, mesma semântica de CNAE da
+busca) e materializa só o recorte — linhas fora do escopo avançam o
+checkpoint sem tocar as tabelas. A busca enxerga o snapshot COMPLETED mais
+recente (`source_snapshot`, com override explícito quando preciso):
+linhas de um snapshot com falha nunca vazam para descoberta, e o snapshot
+válido anterior continua servindo até a retomada concluir. Limite
+conhecido: atualizações mensais completas ainda não fazem tombstoning de
+linhas ausentes no mês novo (escopo de hardening nacional).
+
 Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
 O Registry valida 14 posições com DV oficial único (Q&A RFB + manual SERPRO:
 valor = ASCII − 48, mod 11, mesmos pesos; o numérico legado é caso particular
