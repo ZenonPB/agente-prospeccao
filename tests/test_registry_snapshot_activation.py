@@ -409,7 +409,7 @@ def test_migration_head_unico_e_schema_ativacao():
 
     head = ScriptDirectory.from_config(
         Config("services/workers/alembic.ini")).get_heads()
-    assert head == ["e5f6a7b8c9d0"]
+    assert head == ["f6a7b8c9d0e1"]
 
     engine, db = _db()
     try:
@@ -429,6 +429,7 @@ def test_migration_head_unico_e_schema_ativacao():
                 "registry_staging_company_cnaes"} <= tables
         snap_cols = {c["name"] for c in insp.get_columns("registry_snapshots")}
         assert "is_active" in snap_cols
+        assert "scope" in snap_cols
         indexes = {i["name"] for i in insp.get_indexes("registry_snapshots")}
         assert "uq_registry_snapshots_active_per_source" in indexes
     finally:
