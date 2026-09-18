@@ -191,10 +191,23 @@ Registry), `EMPRESAS` (7 colunas, razão/porte/capital por `cnpj_basico`),
 `CNAE` (referência). `SOCIOS`/`SIMPLES` e demais domínios ficam de fora:
 sem QSA nesta fase (minimização; CPFs vêm mascarados da origem).
 
-Restrição de acesso encontrada: o host legado de bulk não responde desta
-rede e o novo exige login interativo — o operador baixa os ZIPs mensais e o
-CLI ingere os arquivos extraídos. Volume de referência: ~4,7 GB compactados
-/ ~17 GB brutos em 2021 (maior em 2026).
+Restrição de acesso encontrada: o host legado de bulk
+(`arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj`) devolve 404
+desde a migração para o SERPRO+, cujo acesso exige login interativo — o
+operador baixa os ZIPs mensais e o CLI ingere os arquivos extraídos. Volume
+de referência: ~4,7 GB compactados / ~17 GB brutos em 2021 (maior em 2026).
+
+### Manifesto do snapshot
+
+Todo snapshot real deve ser acompanhado de um `manifest.json`
+(`services/workers/src/services/registry/manifest.py`): mês, layout,
+encoding, origem (URL efetivamente usada + data de acesso) e, por arquivo,
+tamanho e SHA-256 observados. Origem oficial exige host conhecido
+(`arquivos.receitafederal.gov.br`, `gov.br`, `dados.gov.br`); espelho de
+terceiros só com `origin_kind` explícito — nunca autoridade silenciosa.
+O importer valida mês/encoding/tamanho/hash contra o manifesto, registra
+`layout_version` no ledger e falha fechado em divergência
+(`--manifest` no CLI `import_registry`).
 
 Desde jul/2026 a Receita emite CNPJs alfanuméricos (ex. `00.000.000/E08G-12`).
 O Registry valida 14 posições com DV oficial único (Q&A RFB + manual SERPRO:
