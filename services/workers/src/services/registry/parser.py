@@ -110,12 +110,18 @@ def _secundarios(value: str | None) -> list[str]:
     return seen
 
 
+def _basico(value: str | None) -> str | None:
+    """Base normalizada pela regra canônica (join com empresas)."""
+    normalized = normalize_cnpj(value or "")
+    return normalized or None
+
+
 def _parse_estabelecimento(cols: list[str]) -> dict[str, Any]:
     cnpj = _cnpj(cols[0].strip(), cols[1].strip(), cols[2].strip())
     matriz_raw = cols[3].strip()
     return {
         "cnpj": cnpj,
-        "cnpj_basico": cols[0].strip(),
+        "cnpj_basico": _basico(cols[0]),
         "matriz": True if matriz_raw == "1" else False if matriz_raw == "2" else None,
         "nome_fantasia": _text(cols[4]),
         "situacao": _text(cols[5]),
@@ -140,7 +146,7 @@ def _parse_estabelecimento(cols: list[str]) -> dict[str, Any]:
 
 
 def _parse_empresa(cols: list[str]) -> dict[str, Any]:
-    basico = cols[0].strip()
+    basico = _basico(cols[0])
     if not basico:
         raise _RowRejected("cnpj básico ausente")
     return {
