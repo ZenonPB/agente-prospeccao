@@ -169,7 +169,7 @@ REQUIRED_COLUMNS = {
     "import_audit_events": {"import_job_id", "organization_id", "action", "from_status", "to_status", "correlation_id", "created_at"},
     "commercial_bulk_operations": {"organization_id", "actor_id", "idempotency_key", "operation", "payload_hash", "status", "result", "created_at", "completed_at"},
     "commercial_saved_views": {"organization_id", "owner_user_id", "name", "view_kind", "filters", "shared", "created_at", "updated_at"},
-    "registry_snapshots": {"source", "snapshot_month", "status", "is_active", "processed", "inserted", "updated", "unchanged", "rejected", "failed"},
+    "registry_snapshots": {"source", "snapshot_month", "status", "is_active", "scope", "processed", "inserted", "updated", "unchanged", "rejected", "failed"},
     "registry_import_files": {"snapshot_id", "table_kind", "file_name", "status", "processed_lines", "sha256"},
     "registry_companies": {"cnpj", "cnpj_basico", "content_hash", "source", "source_snapshot"},
 }

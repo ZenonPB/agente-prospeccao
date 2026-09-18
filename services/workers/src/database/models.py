@@ -1798,6 +1798,7 @@ class RegistrySnapshot(Base):
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     finished_at = Column(DateTime(timezone=True), nullable=True)
     error = Column(Text, nullable=True)
+    scope = Column(JSONB, nullable=True)
 
     files = relationship("RegistryImportFile", backref="snapshot", cascade="all, delete-orphan")
 
