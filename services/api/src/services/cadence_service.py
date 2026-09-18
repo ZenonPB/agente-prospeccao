@@ -61,6 +61,21 @@ TERMINAL_STATUSES = (LeadStatus.PERDIDO, LeadStatus.DESQUALIFICADO)
 
 DEFAULT_CADENCE_DAYS = [0, 3, 7, 14]
 
+# Rodapé de opt-out exigido pelo contrato do bloco (lead-to-conversation,
+# invariante 10) em TODA mensagem de e-mail da cadência.
+_OPT_OUT_FOOTER = "\n-\nResponda STOP para não receber mais mensagens."
+
+
+def _ensure_opt_out_footer(content: Optional[str]) -> Optional[str]:
+    """Garante o mecanismo de opt-out no corpo da etapa.
+
+    Conteúdo normalizado pelo OutreachService já traz o rodapé; conteúdo
+    de outra origem recebe o complemento. Sem duplicar quando presente.
+    """
+    if not content or "STOP" in content:
+        return content
+    return content.rstrip() + _OPT_OUT_FOOTER
+
 
 def _normalize_cadence_days(day_offsets) -> List[int]:
     """Valida a lista de dias do acompanhamento (4 inteiros >= 0).
@@ -105,10 +120,10 @@ def schedule_cadence(
         old.status = FollowUpStatus.CANCELLED
 
     steps_content = {
-        FollowUpStep.OPENING: (messages.get("subject") or "", messages.get("body_opening") or ""),
-        FollowUpStep.FOLLOWUP_1: (messages.get("subject") or "", messages.get("followup_1") or ""),
-        FollowUpStep.FOLLOWUP_2: (messages.get("subject") or "", messages.get("followup_2") or ""),
-        FollowUpStep.CLOSING: (messages.get("subject") or "", messages.get("closing") or ""),
+        FollowUpStep.OPENING: (messages.get("subject") or "", _ensure_opt_out_footer(messages.get("body_opening")) or ""),
+        FollowUpStep.FOLLOWUP_1: (messages.get("subject") or "", _ensure_opt_out_footer(messages.get("followup_1")) or ""),
+        FollowUpStep.FOLLOWUP_2: (messages.get("subject") or "", _ensure_opt_out_footer(messages.get("followup_2")) or ""),
+        FollowUpStep.CLOSING: (messages.get("subject") or "", _ensure_opt_out_footer(messages.get("closing")) or ""),
     }
 
     created: List[FollowUp] = []

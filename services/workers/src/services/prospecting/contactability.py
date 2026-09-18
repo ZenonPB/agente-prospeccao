@@ -5,6 +5,8 @@ falha de provider é distinta de uma busca concluída sem resultado.
 """
 from __future__ import annotations
 
+import unicodedata
+
 from typing import Any, Iterable, Mapping
 
 
@@ -17,9 +19,35 @@ def _number(value: Any) -> float:
         return 0.0
 
 
+# Rótulos de área/cargo que nunca identificam uma pessoa real. Um contato
+# com qualquer um destes tokens no nome é canal da empresa, não decisor —
+# sem isso, "Equipe de Vendas <vendas@...>" seria promovido a
+# DIRECT_NEEDS_VERIFICATION e inflaria a contatabilidade.
+_GENERIC_NAME_TOKENS = frozenset({
+    "decisor", "decisora", "contato", "contatos", "comercial", "comerciais",
+    "vendas", "vendedor", "vendedora", "atendimento", "suporte", "sac",
+    "financeiro", "financeira", "administrador", "administradora",
+    "administrativo", "administrativa", "marketing", "diretoria",
+    "gerencia", "equipe", "time", "setor", "departamento", "empresa",
+    "loja", "fale", "conosco", "orcamento", "info", "general", "admin",
+    "rh", "contabil", "juridico",
+})
+
+
 def _is_real_person(contact: Mapping[str, Any]) -> bool:
-    name = str(contact.get("name") or "").strip().lower()
-    return bool(name and name not in {"decisor", "contato", "comercial", "vendas"})
+    raw = str(contact.get("name") or "").strip()
+    if not raw:
+        return False
+    normalized = "".join(
+        c for c in unicodedata.normalize("NFKD", raw.lower())
+        if not unicodedata.combining(c)
+    )
+    tokens = [token for token in normalized.replace("-", " ").split() if token]
+    if not tokens:
+        return False
+    if any(token in _GENERIC_NAME_TOKENS for token in tokens):
+        return False
+    return True
 
 
 def assess_contactability(

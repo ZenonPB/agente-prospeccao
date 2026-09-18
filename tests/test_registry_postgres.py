@@ -40,6 +40,13 @@ def test_snapshot_e_arquivo_criam_ledger_global_sem_org():
         db.commit()
         assert arq.processed_lines == 0
     finally:
+        db.query(RegistryImportFile).filter(
+            RegistryImportFile.snapshot_id == snap.id).delete(
+            synchronize_session=False)
+        db.query(RegistrySnapshot).filter(
+            RegistrySnapshot.id == snap.id).delete(
+            synchronize_session=False)
+        db.commit()
         db.close()
         engine.dispose()
 

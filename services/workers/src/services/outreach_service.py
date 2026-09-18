@@ -302,12 +302,17 @@ def _normalize_response(parsed: Dict[str, Any]) -> Dict[str, Any]:
         "whatsapp_short": str(parsed.get("whatsapp_short") or ""),
         "rationale": str(parsed.get("rationale") or ""),
     }
-    # Garante rodapé de opt-out se a LLM esqueceu.
-    if "STOP" not in out["body_opening"]:
-        out["body_opening"] = (
-            out["body_opening"].rstrip()
-            + "\n-\nResponda STOP para não receber mais mensagens."
-        )
+    # Garante rodapé de opt-out se a LLM esqueceu. O contrato do bloco
+    # (docs/lead-to-conversation-contract.md, invariante 10) exige o
+    # mecanismo em TODA mensagem de e-mail da cadência — abertura,
+    # follow-ups e closing — não só na abertura. WhatsApp segue sem
+    # rodapé por convenção do produto.
+    for key in ("body_opening", "followup_1", "followup_2", "closing"):
+        if "STOP" not in out[key]:
+            out[key] = (
+                out[key].rstrip()
+                + "\n-\nResponda STOP para não receber mais mensagens."
+            )
     return out
 
 

@@ -356,6 +356,13 @@ Dimensões:
 - **Confiança dos dados**: confiança explícita das evidências quando existe,
   combinada com `coverage` do Opportunity Vector como medida de completude.
 
+`decision_maker_accessibility` continua declarado como fonte de Contatabilidade,
+mas hoje não existe no Opportunity Vector: o valor nasce aninhado no resultado
+do pipeline de decisor e não é projetado no vetor. Como a renormalização ignora
+chaves ausentes, a dimensão segue medida por `reachability` e `contactability` —
+o trecho não é zero, é ausente. Enquanto isso não for projetado explicitamente,
+não trate essa fonte como observada.
+
 A **Prioridade Comercial** shadow dá peso dominante a Aderência e Momento;
 Contatabilidade orienta a próxima ação e não contamina Aderência. Dimensões
 UNKNOWN não recebem zero: pesos conhecidos são renormalizados e, sem

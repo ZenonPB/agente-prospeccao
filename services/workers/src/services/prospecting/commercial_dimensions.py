@@ -79,17 +79,29 @@ def shadow_derive_input(
     O vetor carrega fallbacks que valem zero quando o lead ainda não foi
     pontuado; sem provenance, o derivador leria esses zeros como medidas
     reais e persistiria aderência/momento zero com banda LOW em vez de
-    UNKNOWN. A chave só é mantida quando foi observada de verdade: presente
-    no vetor existente ou amparada por pontuação real.
+    UNKNOWN. A chave só é mantida quando foi observada de verdade:
+    valor não-zero vindo de pontuação real, ou zero amparado por
+    pontuação real (`qualification_observed`/`opportunity_observed`).
+
+    "Presente no vetor existente" não prova observação: o próprio
+    `DataIntelligenceService` persiste fallbacks zero, então uma
+    re-análise encontraria esses zeros no vetor existente e os
+    promoveria a medida. Por isso zeros sem pontuação são removidos
+    mesmo quando já estão no vetor existente; zeros com pontuação
+    real continuam preservados.
     """
     shadow = dict(vector)
     scored = qualification_observed or opportunity_observed
-    if "icp_fit" not in existing_vector and not scored:
-        shadow.pop("icp_fit", None)
-    if "need" not in existing_vector and not qualification_observed:
-        shadow.pop("need", None)
-    if "commercial_fit" not in existing_vector and not scored:
-        shadow.pop("commercial_fit", None)
+    for key in ("icp_fit", "need", "commercial_fit"):
+        value = shadow.get(key)
+        if value is None:
+            shadow.pop(key, None)
+            continue
+        corroborated = (
+            qualification_observed if key == "need" else scored
+        )
+        if value == 0 and not corroborated:
+            shadow.pop(key, None)
     return shadow
 
 

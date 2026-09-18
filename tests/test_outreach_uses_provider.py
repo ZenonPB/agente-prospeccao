@@ -58,7 +58,11 @@ def test_generate_sequence_usa_provider_e_normaliza(monkeypatch):
     assert out is not None
     assert out["subject"] == _CANNED["subject"]
     assert "Responda STOP" in out["body_opening"]
-    assert out["followup_1"] == _CANNED["followup_1"]
+    # O contrato do bloco (lead-to-conversation, invariante 10) exige o
+    # mecanismo de opt-out em TODA mensagem de e-mail da cadência —
+    # inclusive follow-ups e closing — mesmo quando o modelo omite.
+    for key in ("body_opening", "followup_1", "followup_2", "closing"):
+        assert "Responda STOP" in out[key], key
 
 
 def test_generate_sequence_repassa_cota_db_e_org(monkeypatch):
