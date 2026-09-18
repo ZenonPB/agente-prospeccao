@@ -1,5 +1,7 @@
 # Data Engine Brasil
 
+> **LIVE · sincronizado em 2026-09-18 com `main@446ca886`.** O Registry está CODE COMPLETE no contrato atual e OPERATIONAL VALIDATION REQUIRED. O primeiro piloto real e o runbook estão em `data-engine-real-pilot-runbook.md`. Arquitetura híbrida/BigQuery permanece hipótese pós-gold-standard, não dependência da 1.0.
+
 > Documento LIVE da evolução do data network brasileiro. O objetivo é aumentar
 > cobertura e qualidade sem tornar provider pago requisito do fluxo principal e
 > sem interromper a operação existente.
