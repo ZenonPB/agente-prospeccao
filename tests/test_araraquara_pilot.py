@@ -195,7 +195,7 @@ def _cleanup(db, org_id):
     from database.learning_models import OfferProfileVersion
     from database.models import Company, CompanyAlias, Organization, RegistryCnae, RegistryCompany, RegistryCompanyCnae, RegistrySnapshot
 
-    for cnpj in ("33000167000101", "33592510000154", "00000000000191"):
+    for cnpj in ("33000167000101", "33592510000154", "00000000000191", "60701190000104"):
         db.query(RegistryCompanyCnae).filter_by(cnpj=cnpj).delete(
             synchronize_session=False)
         row = db.query(RegistryCompany).filter_by(cnpj=cnpj).first()
@@ -204,7 +204,7 @@ def _cleanup(db, org_id):
     label = db.query(RegistryCnae).filter_by(codigo="8650003").first()
     if label is not None:
         db.delete(label)
-    for month in ("2026-08",):
+    for month in ("2026-08", "2026-09", "2026-07"):
         snap = db.query(RegistrySnapshot).filter_by(
             source="receita_cnpj", snapshot_month=month).first()
         if snap is not None:
@@ -220,6 +220,128 @@ def _cleanup(db, org_id):
         if org is not None:
             db.delete(org)
     db.commit()
+
+
+@needs_pg
+def test_smoke_consulta_snapshot_solicitado_nao_ativo(tmp_path):
+    """Contrato A: ACTIVE=09, requested=08 → consulta 08, relatório diz 08."""
+    import asyncio
+
+    from services.pilot.araraquara import run_pilot_smoke
+
+    engine, db = _db()
+    org_id = None
+    try:
+        org_id = _prepare(db, tmp_path)
+        _import_extra_month(db, tmp_path)
+        report = asyncio.run(run_pilot_smoke(db, org_id, snapshot_month="2026-08"))
+        assert report["status"] == "success"
+        assert report["candidatos"] == 3
+        assert report["snapshot"] == "2026-08"
+        assert report["requested_snapshot"] == "2026-08"
+        assert report["resolved_snapshot"] == "2026-08"
+        assert report["proveniencias_ok"] is True
+    finally:
+        _cleanup(db, org_id)
+        db.close()
+        engine.dispose()
+
+
+@needs_pg
+def test_smoke_consulta_snapshot_ativo_solicitado(tmp_path):
+    """Requested == ACTIVE → consulta o ativo e reflete no relatório."""
+    import asyncio
+
+    from services.pilot.araraquara import run_pilot_smoke
+
+    engine, db = _db()
+    org_id = None
+    try:
+        org_id = _prepare(db, tmp_path)
+        _import_extra_month(db, tmp_path)
+        report = asyncio.run(run_pilot_smoke(db, org_id, snapshot_month="2026-09"))
+        assert report["status"] == "success"
+        assert report["candidatos"] == 1
+        assert report["snapshot"] == "2026-09"
+        assert report["requested_snapshot"] == "2026-09"
+        assert report["resolved_snapshot"] == "2026-09"
+    finally:
+        _cleanup(db, org_id)
+        db.close()
+        engine.dispose()
+
+
+@needs_pg
+def test_smoke_falha_fechado_snapshot_failed(tmp_path):
+    """Requested FAILED → erro, sem fallback silencioso para o ACTIVE."""
+    import asyncio
+
+    import pytest as pytest_local
+
+    from database.models import RegistrySnapshot
+    from services.pilot.araraquara import run_pilot_smoke
+
+    engine, db = _db()
+    org_id = None
+    try:
+        org_id = _prepare(db, tmp_path)
+        db.add(RegistrySnapshot(source="receita_cnpj", snapshot_month="2026-07",
+                                status="FAILED"))
+        db.commit()
+        with pytest_local.raises(ValueError):
+            asyncio.run(run_pilot_smoke(db, org_id, snapshot_month="2026-07"))
+    finally:
+        _cleanup(db, org_id)
+        db.close()
+        engine.dispose()
+
+
+@needs_pg
+def test_smoke_falha_fechado_snapshot_inexistente(tmp_path):
+    """Requested inexistente → erro, nunca relatório decorativo."""
+    import asyncio
+
+    import pytest as pytest_local
+
+    from services.pilot.araraquara import run_pilot_smoke
+
+    engine, db = _db()
+    org_id = None
+    try:
+        org_id = _prepare(db, tmp_path)
+        with pytest_local.raises(ValueError):
+            asyncio.run(run_pilot_smoke(db, org_id, snapshot_month="2026-10"))
+    finally:
+        _cleanup(db, org_id)
+        db.close()
+        engine.dispose()
+
+
+def _import_extra_month(db, tmp_path):
+    """Importa + ativa 2026-09 com 1 clínica distinta (vira o ACTIVE)."""
+    from services.registry.activation import activate_snapshot
+    from services.registry.importer import RegistryFileSpec, RegistryImporter
+    from services.registry.scope import parse_scope
+
+    festab = tmp_path / "ESTABELE1"
+    festab.write_text(_estab(
+        "60701190", "0001", "04", "CLINICA B", "02", "8650003", "", "SP",
+        MUN_ARARAQUARA), encoding="latin-1")
+    femp = tmp_path / "EMPRESA1"
+    femp.write_text(
+        '"60701190";"CLINICA B LTDA";"2062";"49";"10000,00";"01";""',
+        encoding="latin-1")
+    scope = parse_scope(ufs=["SP"], municipio_cods=[MUN_ARARAQUARA], cnaes=["8650-0/03"])
+    snap = RegistryImporter(db, batch_size=10).import_snapshot(
+        snapshot_month="2026-09",
+        files=[RegistryFileSpec(table_kind="estabelecimentos", path=str(festab),
+                                file_name="ESTABELE1"),
+               RegistryFileSpec(table_kind="empresas", path=str(femp),
+                                file_name="EMPRESA1")],
+        scope=scope,
+    )
+    assert snap.status == "COMPLETED"
+    activate_snapshot(db, source="receita_cnpj", snapshot_month="2026-09")
 
 
 def test_politica_orcamento_zero_bloqueia_pago():

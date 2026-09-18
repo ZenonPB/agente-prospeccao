@@ -55,8 +55,8 @@ def get_active_snapshot(db: Any, *, source: str) -> Any | None:
     ).one_or_none()
 
 
-def resolve_snapshot_id(db: Any, *, source: str, snapshot_month: str | None) -> Any | None:
-    """Resolve o snapshot a consultar: ACTIVE (default) ou mês explícito.
+def resolve_snapshot(db: Any, *, source: str, snapshot_month: str | None) -> Any | None:
+    """Resolve a linha do snapshot a consultar: ACTIVE (default) ou explícito.
 
     Mês explícito exige snapshot COMPLETED ou ACTIVE; qualquer outro estado
     falha fechado (sem fallback silencioso para o ativo).
@@ -64,8 +64,7 @@ def resolve_snapshot_id(db: Any, *, source: str, snapshot_month: str | None) -> 
     from database.models import RegistrySnapshot
 
     if snapshot_month is None:
-        active = get_active_snapshot(db, source=source)
-        return active.id if active is not None else None
+        return get_active_snapshot(db, source=source)
     row = db.query(RegistrySnapshot).filter(
         RegistrySnapshot.source == source,
         RegistrySnapshot.snapshot_month == snapshot_month,
@@ -73,7 +72,13 @@ def resolve_snapshot_id(db: Any, *, source: str, snapshot_month: str | None) -> 
     if row is None or row.status not in ("COMPLETED", "ACTIVE"):
         raise SnapshotNotAvailable(
             f"snapshot {source}/{snapshot_month} indisponível para consulta")
-    return row.id
+    return row
+
+
+def resolve_snapshot_id(db: Any, *, source: str, snapshot_month: str | None) -> Any | None:
+    """Id de `resolve_snapshot` (None quando não há ACTIVE e mês omitido)."""
+    row = resolve_snapshot(db, source=source, snapshot_month=snapshot_month)
+    return row.id if row is not None else None
 
 
 def activate_snapshot(db: Any, *, source: str, snapshot_month: str) -> Any:
