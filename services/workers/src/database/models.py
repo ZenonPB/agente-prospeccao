@@ -1787,6 +1787,7 @@ class RegistrySnapshot(Base):
     snapshot_month = Column(String(7), nullable=False)
     layout_version = Column(String(20), nullable=True)
     status = Column(String(20), nullable=False, default="RUNNING")
+    is_active = Column(Boolean, nullable=False, default=False)
     processed = Column(Integer, nullable=False, default=0)
     inserted = Column(Integer, nullable=False, default=0)
     updated = Column(Integer, nullable=False, default=0)
@@ -1909,3 +1910,92 @@ class RegistryCnae(Base):
 
     def __repr__(self):
         return f"<RegistryCnae(codigo='{self.codigo}')>"
+
+
+class RegistrySnapshotMember(Base):
+    """Membership versionado: quais CNPJs pertencem ao universo de um snapshot.
+
+    Separa visibilidade de provenance: `RegistryCompany.source_snapshot`
+    registra última observação do conteúdo; esta tabela decide o que cada
+    snapshot enxerga. Membership é gravado por observação (mesmo quando o
+    conteúdo não mudou), nunca apagado pela ativação seguinte (retenção e
+    rollback dependem dele).
+    """
+
+    __tablename__ = "registry_snapshot_members"
+    __table_args__ = (
+        Index("ix_registry_members_snapshot", "snapshot_id"),
+        Index("ix_registry_members_cnpj", "cnpj"),
+    )
+    snapshot_id = Column(UUID(as_uuid=True), ForeignKey("registry_snapshots.id", ondelete="CASCADE"), primary_key=True)
+    # Sem FK para registry_companies de propósito: membership é gravado na
+    # importação (staging), antes da linha canônica existir.
+    cnpj = Column(String(14), primary_key=True)
+
+    def __repr__(self):
+        return f"<RegistrySnapshotMember(snapshot='{self.snapshot_id}', cnpj='{self.cnpj}')>"
+
+
+class RegistryStagingCompany(Base):
+    """Conteúdo de um snapshot ainda não ativo (staging de importação).
+
+    O importer nunca escreve direto em `registry_companies`: cada chunk faz
+    upsert aqui. A ativação aplica o staging ao canônico em uma transação
+    única — import com falha não deixa rastro observável. Linhas limpas na
+    ativação bem-sucedida.
+    """
+
+    __tablename__ = "registry_staging_companies"
+    __table_args__ = (
+        Index("ix_registry_staging_snapshot", "snapshot_id"),
+    )
+    snapshot_id = Column(UUID(as_uuid=True), ForeignKey("registry_snapshots.id", ondelete="CASCADE"), primary_key=True)
+    cnpj = Column(String(14), primary_key=True)
+    cnpj_basico = Column(String(8), nullable=False)
+    razao_social = Column(Text, nullable=True)
+    nome_fantasia = Column(Text, nullable=True)
+    matriz = Column(Boolean, nullable=True)
+    situacao = Column(String(2), nullable=True)
+    data_situacao = Column(Date, nullable=True)
+    motivo_situacao = Column(String(10), nullable=True)
+    cidade_exterior = Column(Text, nullable=True)
+    pais_cod = Column(String(3), nullable=True)
+    data_inicio = Column(Date, nullable=True)
+    cnae_principal = Column(String(7), nullable=True)
+    natureza_juridica = Column(String(4), nullable=True)
+    porte = Column(String(2), nullable=True)
+    capital_social = Column(Numeric(16, 2), nullable=True)
+    tipo_logradouro = Column(Text, nullable=True)
+    logradouro = Column(Text, nullable=True)
+    numero = Column(Text, nullable=True)
+    complemento = Column(Text, nullable=True)
+    bairro = Column(Text, nullable=True)
+    cep = Column(String(8), nullable=True)
+    uf = Column(String(2), nullable=True)
+    municipio_cod = Column(String(10), nullable=True)
+    situacao_especial = Column(Text, nullable=True)
+    data_situacao_especial = Column(Date, nullable=True)
+    content_hash = Column(String(64), nullable=True)
+    source = Column(String(40), nullable=False, default="receita_cnpj")
+    source_snapshot = Column(String(7), nullable=True)
+    imported_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<RegistryStagingCompany(snapshot='{self.snapshot_id}', cnpj='{self.cnpj}')>"
+
+
+class RegistryStagingCompanyCnae(Base):
+    """Secundários do staging (espelho de `registry_company_cnaes` pré-ativação)."""
+
+    __tablename__ = "registry_staging_company_cnaes"
+    __table_args__ = (
+        Index("ix_registry_staging_cnaes_snapshot", "snapshot_id"),
+    )
+    snapshot_id = Column(UUID(as_uuid=True), ForeignKey("registry_snapshots.id", ondelete="CASCADE"), primary_key=True)
+    cnpj = Column(String(14), primary_key=True)
+    cnae = Column(String(7), primary_key=True)
+
+    def __repr__(self):
+        return (f"<RegistryStagingCompanyCnae(snapshot='{self.snapshot_id}', "
+                f"cnpj='{self.cnpj}', cnae='{self.cnae}')>")
