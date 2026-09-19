@@ -146,11 +146,13 @@ A etapa seguinte foi implementada em contrato puro, ainda sem chamar provider:
   `counter_evidence`, `unknowns`, `opportunity_hypotheses` e abordagem sugerida;
 - cada claim possui epistemic/confidence/evidence_refs;
 - referências que não existem no EvidenceContext de entrada são removidas;
+- seções explicativas (`why_*`/contraevidência) exigem ao menos uma referência válida; claim sem grounding é descartado;
 - FACT exige referência previamente classificada como FACT;
 - hipótese comercial nunca é promovida a FACT;
 - input contract desconhecido falha fechado;
 - output registra analyzer/policy/provider/model, Vertente/versão,
   evidence_context_hash, generated_at e analysis_hash;
+- `analysis_hash` ignora o timestamp de validação para permanecer estável para a mesma análise semântica;
 - nenhuma dessas estruturas altera ranking, score ou Commercial Dimensions.
 
 ### Próxima fronteira
