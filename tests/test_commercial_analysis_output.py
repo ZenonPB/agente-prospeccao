@@ -99,3 +99,45 @@ def test_input_contract_desconhecido_falha_fechado():
     bad["contract_version"] = "future-v99"
     with pytest.raises(CommercialAnalysisValidationError):
         validate_commercial_analysis_output({}, analysis_input=bad)
+
+
+def test_secao_explicativa_sem_grounding_e_descartada():
+    out = validate_commercial_analysis_output(
+        {
+            "why_now": [{
+                "statement": "A empresa está expandindo agora.",
+                "epistemic": "INFERENCE",
+                "confidence": 0.8,
+                "evidence_refs": ["invented:expansion"],
+            }]
+        },
+        analysis_input=_input(),
+    )
+    assert out["why_now"] == []
+
+
+def test_hipotese_sem_grounding_permanece_explicitamente_hipotese():
+    out = validate_commercial_analysis_output(
+        {
+            "opportunity_hypotheses": [{
+                "statement": "Vale investigar uma página dedicada.",
+                "epistemic": "INFERENCE",
+            }]
+        },
+        analysis_input=_input(),
+    )
+    assert out["opportunity_hypotheses"][0]["epistemic"] == "HYPOTHESIS"
+    assert out["opportunity_hypotheses"][0]["evidence_refs"] == []
+
+
+def test_analysis_hash_ignora_timestamp_de_validacao():
+    raw = {
+        "why_company": [{
+            "statement": "Cadastro ativo.",
+            "epistemic": "FACT",
+            "evidence_refs": ["registry:cnpj:1"],
+        }]
+    }
+    first = validate_commercial_analysis_output(raw, analysis_input=_input())
+    second = validate_commercial_analysis_output(raw, analysis_input=_input())
+    assert first["analysis_hash"] == second["analysis_hash"]
