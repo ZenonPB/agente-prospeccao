@@ -136,3 +136,29 @@ Cada fatia deve preservar ranking/funil e Commercial Dimensions shadow.
 O próximo passo de código, depois de gates verdes, é implementar o **output
 contract** do Commercial Analyst + validator/grounding determinístico e só então
 um provider LLM atrás de feature flag/budget guard.
+
+
+## Commercial Analysis Output v1
+
+A etapa seguinte foi implementada em contrato puro, ainda sem chamar provider:
+
+- `commercial-analysis-output-v1` separa `why_company`, `why_offer`, `why_now`,
+  `counter_evidence`, `unknowns`, `opportunity_hypotheses` e abordagem sugerida;
+- cada claim possui epistemic/confidence/evidence_refs;
+- referências que não existem no EvidenceContext de entrada são removidas;
+- seções explicativas (`why_*`/contraevidência) exigem ao menos uma referência válida; claim sem grounding é descartado;
+- FACT exige referência previamente classificada como FACT;
+- hipótese comercial nunca é promovida a FACT;
+- input contract desconhecido falha fechado;
+- output registra analyzer/policy/provider/model, Vertente/versão,
+  evidence_context_hash, generated_at e analysis_hash;
+- `analysis_hash` ignora o timestamp de validação para permanecer estável para a mesma análise semântica;
+- nenhuma dessas estruturas altera ranking, score ou Commercial Dimensions.
+
+### Próxima fronteira
+
+Somente após este contrato passar nos gates: adapter de provider LLM + prompt
+versionado + parser estrito, atrás de feature flag/access policy/budget guard.
+A persistência do output deve ser aditiva e ligada ao snapshot da oportunidade,
+preservando outcome attribution. Não ligar geração automática em massa antes do
+piloto controlado.
