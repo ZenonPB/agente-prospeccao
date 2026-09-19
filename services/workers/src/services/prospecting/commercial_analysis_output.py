@@ -84,13 +84,21 @@ def _claim(raw: Any, *, allowed_refs: set[str], fact_refs: set[str]) -> dict[str
     }
 
 
-def _claims(raw: Any, *, allowed_refs: set[str], fact_refs: set[str]) -> list[dict[str, Any]]:
+def _claims(
+    raw: Any,
+    *,
+    allowed_refs: set[str],
+    fact_refs: set[str],
+    require_grounding: bool = False,
+) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         return []
     result = []
     for item in raw[:_MAX_CLAIMS]:
         normalized = _claim(item, allowed_refs=allowed_refs, fact_refs=fact_refs)
-        if normalized:
+        # Seção explicativa não pode sobreviver apenas porque a LLM escreveu
+        # uma frase plausível. UNKNOWN e hipóteses têm regras próprias abaixo.
+        if normalized and (not require_grounding or normalized["evidence_refs"]):
             result.append(normalized)
     return result
 
@@ -111,8 +119,19 @@ def validate_commercial_analysis_output(
     evidence_context = analysis_input.get("evidence_context") or {}
 
     sections = {}
-    for key in ("why_company", "why_offer", "why_now", "counter_evidence", "unknowns"):
-        sections[key] = _claims(raw.get(key), allowed_refs=allowed_refs, fact_refs=fact_refs)
+    for key in ("why_company", "why_offer", "why_now", "counter_evidence"):
+        sections[key] = _claims(
+            raw.get(key),
+            allowed_refs=allowed_refs,
+            fact_refs=fact_refs,
+            require_grounding=True,
+        )
+    # UNKNOWN descreve ausência de conhecimento e por isso não precisa fabricar
+    # uma referência. Hipóteses podem existir sem ref, mas ficam explicitamente
+    # HYPOTHESIS e nunca alimentam FACT.
+    sections["unknowns"] = _claims(
+        raw.get("unknowns"), allowed_refs=allowed_refs, fact_refs=fact_refs
+    )
 
     hypotheses = _claims(raw.get("opportunity_hypotheses"), allowed_refs=allowed_refs, fact_refs=fact_refs)
     # Hipótese comercial nunca é promovida a FACT, mesmo se o modelo pedir.
@@ -147,6 +166,12 @@ def validate_commercial_analysis_output(
         "opportunity_hypotheses": hypotheses,
         "suggested_approach": suggested_approach,
     }
-    canonical = json.dumps(result, sort_keys=True, ensure_ascii=False, default=str, separators=(",", ":"))
+    # Hash sem generated_at: mesma análise semântica sobre o mesmo contexto
+    # produz a mesma impressão digital mesmo se revalidada em outro instante.
+    hash_payload = json.loads(json.dumps(result, default=str))
+    hash_payload["analysis_metadata"].pop("generated_at", None)
+    canonical = json.dumps(
+        hash_payload, sort_keys=True, ensure_ascii=False, default=str, separators=(",", ":")
+    )
     result["analysis_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return result
